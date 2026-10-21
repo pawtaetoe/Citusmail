@@ -48,6 +48,9 @@ jobs:
       - name: Test mail_view
         working-directory: packages/mail_view
         run: dart test
+      - name: Test mail_compose
+        working-directory: packages/mail_compose
+        run: dart test
       - name: Test repository tools
         working-directory: tool
         run: dart test

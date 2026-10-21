@@ -37,8 +37,13 @@ final class MessageBuilder {
     r'^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$',
   );
 
-  BuiltMessage build(OutgoingMessage message) {
-    if (message.envelopeRecipients.isEmpty) {
+  /// Builds [message] for sending: Bcc recipients are never written.
+  ///
+  /// With [draft], builds the copy kept in the user's own Drafts folder:
+  /// recipients may still be missing, and Bcc is written so it is not lost
+  /// when the draft is opened again. Never send a message built this way.
+  BuiltMessage build(OutgoingMessage message, {bool draft = false}) {
+    if (!draft && message.envelopeRecipients.isEmpty) {
       throw const MessageBuildException(
         'a message needs at least one recipient',
       );
@@ -68,6 +73,9 @@ final class MessageBuilder {
     }
     if (message.cc.isNotEmpty) {
       out.write(_headers.addressList('Cc', message.cc));
+    }
+    if (draft && message.bcc.isNotEmpty) {
+      out.write(_headers.addressList('Bcc', message.bcc));
     }
     out
       ..write(_headers.unstructured('Subject', message.subject))

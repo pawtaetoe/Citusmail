@@ -27,6 +27,7 @@ macOS and iOS for later.
 │   ├── lib/
 │   └── test/
 ├── packages/
+│   ├── mail_compose/         Writing mail: drafts, replies, sending with undo
 │   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
 │                             from scratch with no runtime dependencies
 │   ├── mail_setup/           Account setup: discovery and login verification
@@ -65,6 +66,7 @@ dart format --set-exit-if-changed .           # formatting
 flutter analyze                               # static analysis
 (cd packages/mail_protocol && dart test)      # protocol tests
 (cd packages/mail_store && dart test)         # storage tests
+(cd packages/mail_compose && dart test)       # writing and sending
 (cd packages/mail_sync && dart test)          # sync engine unit tests
 (cd packages/mail_setup && dart test)         # account setup unit tests
 (cd packages/mail_sort && dart test)          # sorting rules

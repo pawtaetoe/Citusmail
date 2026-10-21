@@ -103,7 +103,7 @@ final class ReaderPane extends StatelessWidget {
                               ),
                             ),
                           ],
-                          ReaderReady(:final view) => [
+                          ReaderReady(:final view) && final ready => [
                             if (view.body.blockedImages > 0)
                               _Notice(
                                 icon: Icons.shield_outlined,
@@ -119,12 +119,18 @@ final class ReaderPane extends StatelessWidget {
                               ),
                             RichDocumentView(
                               document: view.body,
-                              onLink: (link) => LinkOpener.open(context, link),
+                              onLink: (link) => LinkOpener.open(
+                                context,
+                                link,
+                                onMailto: controller.composeTo,
+                              ),
                             ),
                             if (view.attachments.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               _Attachments(attachments: view.attachments),
                             ],
+                            const SizedBox(height: 20),
+                            _ReplyBar(controller: controller, reader: ready),
                           ],
                           ReaderEmpty() => const [],
                         },
@@ -401,4 +407,35 @@ final class _Attachments extends StatelessWidget {
       );
     }
   }
+}
+
+/// Reply, Reply all and Forward under the message, as in Spark.
+final class _ReplyBar extends StatelessWidget {
+  const _ReplyBar({required this.controller, required this.reader});
+
+  final MailController controller;
+  final ReaderReady reader;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      OutlinedButton.icon(
+        onPressed: () => controller.reply(reader),
+        icon: const Icon(Icons.reply, size: 18),
+        label: const Text('Reply'),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => controller.replyAll(reader),
+        icon: const Icon(Icons.reply_all, size: 18),
+        label: const Text('Reply all'),
+      ),
+      OutlinedButton.icon(
+        onPressed: () => controller.forward(reader),
+        icon: const Icon(Icons.forward, size: 18),
+        label: const Text('Forward'),
+      ),
+    ],
+  );
 }

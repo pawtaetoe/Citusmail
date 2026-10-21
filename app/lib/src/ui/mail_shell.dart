@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../compose/compose_launcher.dart';
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../services/app_services.dart';
@@ -45,6 +46,11 @@ final class _MailShellState extends State<MailShell> {
   @override
   void initState() {
     super.initState();
+    _controller.onCompose = (draft) =>
+        unawaited(ComposeLauncher.open(context, widget.services, draft));
+    _controller.onNotice = (String text) =>
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(text)));
     unawaited(widget.services.worker.start().catchError((Object _) {}));
   }
 
@@ -81,9 +87,7 @@ final class _MailShellState extends State<MailShell> {
     widget.onAccountsChanged();
   }
 
-  void _compose() => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(const SnackBar(content: Text('Writing mail is coming soon.')));
+  void _compose() => _controller.compose();
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(

@@ -51,6 +51,10 @@ sealed class OutboxAction {
           mailboxId: _int(json, 'mailboxId'),
           flags: _strings(json, 'flags'),
         ),
+        'removeDraft' => RemoveDraftAction(
+          mailboxId: _int(json, 'mailboxId'),
+          messageId: _string(json, 'messageId'),
+        ),
         'send' => SendAction(
           from: _string(json, 'from'),
           recipients: _strings(json, 'recipients'),
@@ -199,6 +203,31 @@ final class AppendAction extends OutboxAction {
     'type': 'append',
     'mailboxId': mailboxId,
     'flags': flags,
+  };
+}
+
+/// Remove an older copy of a draft from the Drafts folder, found by its
+/// Message-ID. Only messages that are marked as drafts are removed, so a
+/// real message can never be deleted this way.
+final class RemoveDraftAction extends OutboxAction {
+  RemoveDraftAction({required this.mailboxId, required this.messageId}) {
+    if (messageId.isEmpty ||
+        messageId.length > 998 ||
+        messageId.contains(RegExp(r'[\s<>]'))) {
+      throw ArgumentError.value(messageId, 'messageId', 'not a Message-ID');
+    }
+  }
+
+  final int mailboxId;
+
+  /// Without angle brackets.
+  final String messageId;
+
+  @override
+  Map<String, Object?> toJson() => {
+    'type': 'removeDraft',
+    'mailboxId': mailboxId,
+    'messageId': messageId,
   };
 }
 

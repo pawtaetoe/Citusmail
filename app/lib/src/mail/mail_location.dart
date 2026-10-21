@@ -87,3 +87,14 @@ final class SearchLocation extends MailLocation {
   @override
   int get hashCode => Object.hash(SearchLocation, text);
 }
+
+/// Messages waiting to be sent, or that failed.
+final class OutboxLocation extends MailLocation {
+  const OutboxLocation();
+
+  @override
+  bool operator ==(Object other) => other is OutboxLocation;
+
+  @override
+  int get hashCode => (OutboxLocation).hashCode;
+}

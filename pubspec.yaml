@@ -8,6 +8,7 @@ environment:
 
 workspace:
   - app
+  - packages/mail_compose
   - packages/mail_protocol
   - packages/mail_setup
   - packages/mail_sort

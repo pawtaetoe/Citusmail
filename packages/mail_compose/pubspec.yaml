@@ -1,0 +1,20 @@
+name: mail_compose
+description: >-
+  Writing mail: drafts (saved on the device and to the server's Drafts
+  folder), replies and forwards, and sending through the offline queue
+  with a short undo window. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  mail_protocol: any
+  mail_store: any
+  mail_view: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

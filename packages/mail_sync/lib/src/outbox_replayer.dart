@@ -186,6 +186,8 @@ final class OutboxReplayer {
       case final AppendAction a:
         final target = _mailbox(a.mailboxId);
         await _appendOnce(imap, target, _data(entry), a.flags.toSet());
+      case final RemoveDraftAction a:
+        await _removeDraft(imap, _mailbox(a.mailboxId), a.messageId);
       case final SendAction a:
         final data = _data(entry);
         var action = a;
@@ -220,6 +222,29 @@ final class OutboxReplayer {
       );
     }
     return mailbox;
+  }
+
+  /// Deletes older copies of a draft: messages in [drafts] with this
+  /// Message-ID that are marked as drafts. Without UIDPLUS they stay
+  /// flagged as deleted, because a plain EXPUNGE would also remove other
+  /// messages someone flagged as deleted.
+  Future<void> _removeDraft(
+    ImapClient imap,
+    StoredMailbox drafts,
+    String messageId,
+  ) async {
+    if (imap.selected?.name != drafts.encodedName || imap.selected!.readOnly) {
+      await imap.select(drafts.encodedName);
+    }
+    final found = (await imap.uidSearch(
+      SearchCriteria.and([
+        SearchCriteria.header('Message-ID', messageId),
+        SearchCriteria.draft(),
+      ]),
+    )).matches;
+    if (found.isEmpty) return; // already gone: nothing to do
+    await imap.uidStore(found, FlagChange.add, {r'\Deleted'});
+    if (imap.capabilities.has('UIDPLUS')) await imap.uidExpunge(found);
   }
 
   /// Appends unless a message with the same Message-ID is already there.

@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
+import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
@@ -110,6 +112,16 @@ final class _MessageListPaneState extends State<MessageListPane> {
   }
 
   Widget _body(BuildContext context) {
+    if (_controller.location is OutboxLocation) {
+      final entries = _controller.outbox;
+      if (entries.isEmpty) return const _Empty('Everything has been sent.');
+      return ListView.separated(
+        itemCount: entries.length,
+        separatorBuilder: (_, _) => const Divider(indent: 16),
+        itemBuilder: (context, i) =>
+            _OutboxTile(entry: entries[i], controller: _controller),
+      );
+    }
     if (_controller.showsSections) {
       final sections = _controller.sections;
       if (sections.isEmpty) return const _Empty('No mail in your inbox yet.');
@@ -175,6 +187,7 @@ final class _Header extends StatelessWidget {
         null => '',
       },
       PinsLocation() => 'Pins',
+      OutboxLocation() => 'Outbox',
       SearchLocation(:final text) => 'Results for "$text"',
     };
     if (title != null) {
@@ -346,4 +359,66 @@ final class _Empty extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// A message waiting in the outbox, with what is happening to it.
+final class _OutboxTile extends StatelessWidget {
+  const _OutboxTile({required this.entry, required this.controller});
+
+  final OutboxEntry entry;
+  final MailController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final headers = entry.data == null
+        ? null
+        : const MimeParser().parse(entry.data!);
+    final failed = entry.state == OutboxState.failed;
+    final status = switch (entry) {
+      _ when failed =>
+        'Not sent: ${entry.lastError ?? 'the server refused it'}',
+      _ when entry.lastError != null => 'Will try again: ${entry.lastError}',
+      _ when entry.notBefore.isAfter(DateTime.now()) => 'Sending shortly…',
+      _ => 'Waiting to send…',
+    };
+    return ListTile(
+      leading: Icon(
+        failed ? Icons.error_outline : Icons.schedule_send,
+        color: failed ? theme.colorScheme.error : theme.colorScheme.primary,
+      ),
+      title: Text(
+        headers?.subject?.trim().isNotEmpty == true
+            ? headers!.subject!
+            : '(no subject)',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        [
+          if (headers != null && headers.to.isNotEmpty)
+            'To ${headers.to.map((a) => a.address).join(', ')}',
+          status,
+        ].join('\n'),
+        style: TextStyle(color: failed ? theme.colorScheme.error : null),
+      ),
+      isThreeLine: true,
+      trailing: failed
+          ? Wrap(
+              children: [
+                IconButton(
+                  tooltip: 'Try again',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () => controller.retrySend(entry),
+                ),
+                IconButton(
+                  tooltip: 'Delete',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => controller.discardSend(entry),
+                ),
+              ],
+            )
+          : null,
+    );
+  }
 }

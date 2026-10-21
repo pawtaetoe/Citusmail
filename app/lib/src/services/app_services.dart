@@ -4,6 +4,7 @@
 
 import 'dart:io';
 
+import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
@@ -19,7 +20,10 @@ import 'secret_store.dart';
 /// the background [worker], which has its own connection to the same file.
 final class AppServices {
   AppServices(this.store, this.secrets, this.worker)
-    : actions = MailActions(store);
+    : actions = MailActions(store),
+      drafts = DraftStore(store),
+      sender = Sender(store),
+      replies = ReplyBuilder(store);
 
   final MailStore store;
   final SecretStore secrets;
@@ -27,6 +31,11 @@ final class AppServices {
 
   /// Local changes (read, pin, move, delete); the worker sends them on.
   final MailActions actions;
+
+  /// Writing mail: drafts, sending with undo, replies and forwards.
+  final DraftStore drafts;
+  final Sender sender;
+  final ReplyBuilder replies;
 
   /// Saves a verified account: settings in the encrypted store, password in
   /// the keychain. If the keychain write fails, the account is removed
@@ -138,6 +147,9 @@ abstract final class AppStartup {
         // Before the worker starts: mail stored by an older version (or
         // with older rules) is sorted again from its stored headers.
         await Resorter(store).resortIfNeeded();
+        // Drafts left on the device (the app stopped while writing) go to
+        // the server's Drafts folder with the next sync.
+        DraftStore(store).moveLeftoversToServer();
         worker = await SyncWorker.spawn(
           SyncWorkerConfig(databasePath: path, key: key),
           credentials: KeychainCredentials(keychain),

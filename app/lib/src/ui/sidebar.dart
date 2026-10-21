@@ -113,6 +113,16 @@ final class Sidebar extends StatelessWidget {
                             onTap: () =>
                                 go(InboxLocation(accountId: account.id)),
                           ),
+                      if (controller.outbox case final outbox
+                          when outbox.isNotEmpty)
+                        _Entry(
+                          icon: Icons.outbox_outlined,
+                          label: 'Outbox',
+                          badge: outbox.length,
+                          selected:
+                              controller.location == const OutboxLocation(),
+                          onTap: () => go(const OutboxLocation()),
+                        ),
                       _Entry(
                         icon: Icons.push_pin_outlined,
                         label: 'Pins',

@@ -130,6 +130,9 @@ final class SearchCriteria {
 
   static SearchCriteria unseen() => SearchCriteria._((c) => c.atom('UNSEEN'));
 
+  /// Messages with the `\Draft` flag.
+  static SearchCriteria draft() => SearchCriteria._((c) => c.atom('DRAFT'));
+
   static SearchCriteria header(String field, String value) {
     if (!RegExp(r'^[!-9;-~]+$').hasMatch(field)) {
       throw ArgumentError.value(field, 'field');

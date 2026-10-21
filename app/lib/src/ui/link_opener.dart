@@ -3,14 +3,19 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Opens links from mail only after showing where they really go: the
 /// text of a link can say one thing and point somewhere else.
 abstract final class LinkOpener {
-  static Future<void> open(BuildContext context, Uri link) async {
-    if (link.scheme == 'mailto') return _copyAddress(context, link);
+  /// Opens [link] after confirmation; `mailto:` links go to [onMailto]
+  /// (the compose window).
+  static Future<void> open(
+    BuildContext context,
+    Uri link, {
+    required void Function(Uri mailto) onMailto,
+  }) async {
+    if (link.scheme == 'mailto') return onMailto(link);
     final unusual = link.host.runes.any((r) => r > 0x7E);
     final open = await showDialog<bool>(
       context: context,
@@ -67,13 +72,5 @@ abstract final class LinkOpener {
         const SnackBar(content: Text('No app could open this link.')),
       );
     }
-  }
-
-  /// Writing mail arrives with the compose screen; until then, copy.
-  static Future<void> _copyAddress(BuildContext context, Uri link) async {
-    await Clipboard.setData(ClipboardData(text: link.path));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Copied ${link.path}')));
   }
 }

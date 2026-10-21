@@ -107,6 +107,24 @@ runtime url_launcher_ios                  Apple backend, for later (flutter.dev)
 runtime url_launcher_macos                Apple backend, for later (flutter.dev)
 runtime url_launcher_web                  web backend; never used by this app (flutter.dev)
 
+# --- Runtime: attaching files (Stage 9) -------------------------------------
+# file_selector shows the system file dialog (GTK on Linux, IFileDialog on
+# Windows, the Storage Access Framework on Android) and returns the chosen
+# files; reviewed 1.1.0. Its platform interface declares a dependency on
+# http but never imports it (checked: no "package:http" in its lib/), so no
+# HTTP client code is compiled into the app.
+runtime file_selector                     system file dialog for attachments (flutter.dev)
+runtime file_selector_platform_interface  file_selector interface (flutter.dev)
+runtime file_selector_linux               Linux backend (flutter.dev)
+runtime file_selector_windows             Windows backend (flutter.dev)
+runtime file_selector_android             Android backend (flutter.dev)
+runtime file_selector_ios                 Apple backend, for later (flutter.dev)
+runtime file_selector_macos               Apple backend, for later (flutter.dev)
+runtime file_selector_web                 web backend; never used by this app (flutter.dev)
+runtime cross_file                        file handle type used by file_selector (flutter.dev)
+runtime http                              declared by file_selector_platform_interface, never imported (dart.dev)
+runtime http_parser                       used by http; never imported by app code (dart.dev)
+
 # --- Dev only: lints, test runner and their dependencies (dart.dev) --------
 dev _fe_analyzer_shared           analyzer internals for test runner
 dev analyzer                      used by test runner
@@ -120,7 +138,6 @@ dev fake_async                    flutter_test
 dev flutter_lints                 lint rules
 dev frontend_server_client        test runner
 dev http_multi_server             test runner (local only)
-dev http_parser                   test runner
 dev io                            test runner
 dev leak_tracker                  flutter_test
 dev leak_tracker_flutter_testing  flutter_test

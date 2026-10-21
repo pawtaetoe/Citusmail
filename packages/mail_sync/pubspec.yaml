@@ -17,5 +17,6 @@ dependencies:
   mail_view: any
 
 dev_dependencies:
+  mail_compose: any
   lints: ^6.0.0
   test: ^1.25.6

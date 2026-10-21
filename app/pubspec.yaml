@@ -8,9 +8,11 @@ environment:
   sdk: ^3.13.5
 
 dependencies:
+  file_selector: ^1.1.0
   flutter:
     sdk: flutter
   flutter_secure_storage: ^11.2.0
+  mail_compose: any
   mail_protocol: any
   mail_setup: any
   mail_sort: any

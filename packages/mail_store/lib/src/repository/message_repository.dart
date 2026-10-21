@@ -359,6 +359,41 @@ final class MessageRepository {
       .map((r) => _address(r['name'] as String?, r['address'] as String)!)
       .toList(growable: false);
 
+  /// Addresses matching [text] (in the address or name) for recipient
+  /// suggestions: people the user has written to first, then people who
+  /// wrote to them (not newsletters or notifications). Most used first.
+  List<MailAddress> suggestAddresses(String text, {int limit = 8}) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return const [];
+    // Typed text is literal: escape LIKE wildcards.
+    final escaped = trimmed.replaceAllMapped(
+      RegExp(r'[\\%_]'),
+      (m) => '\\${m[0]}',
+    );
+    final pattern = '%$escaped%';
+    final rows = _db.select(
+      'SELECT address, max(name) AS name, sum(weight) AS score FROM ('
+      'SELECT a.address AS address, a.name AS name, 10 AS weight FROM message_addresses a '
+      'JOIN messages m ON m.id = a.message_id JOIN mailboxes b ON b.id = m.mailbox_id '
+      "WHERE b.special_use = 'sent' AND a.kind IN ('to', 'cc', 'bcc') "
+      'UNION ALL '
+      'SELECT from_address, from_name, 1 FROM messages '
+      'WHERE from_address IS NOT NULL AND category = ?'
+      r") WHERE address LIKE ? ESCAPE '\' OR name LIKE ? ESCAPE '\' "
+      'GROUP BY address COLLATE NOCASE ORDER BY score DESC, address LIMIT ?',
+      [
+        MessageCategory.general.storageName,
+        pattern,
+        pattern,
+        limit.clamp(1, 50),
+      ],
+    );
+    return [
+      for (final r in rows)
+        ?_address(r['name'] as String?, r['address'] as String?),
+    ];
+  }
+
   /// Stored headers of a message: lower-case name -> values.
   Map<String, List<String>> headers(int messageId) {
     final result = <String, List<String>>{};

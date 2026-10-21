@@ -83,6 +83,7 @@ final class SyncEngine {
   final _events = StreamController<SyncEvent>.broadcast(sync: true);
   final Map<int, Future<void>> _running = {};
   final Map<int, Timer> _pendingRequests = {};
+  final List<Timer> _scheduled = [];
   Completer<void>? _stop;
   Timer? _periodic;
 
@@ -148,6 +149,10 @@ final class SyncEngine {
       timer.cancel();
     }
     _pendingRequests.clear();
+    for (final timer in _scheduled) {
+      timer.cancel();
+    }
+    _scheduled.clear();
     final stop = _stop;
     _stop = null;
     if (stop != null && !stop.isCompleted) stop.complete();
@@ -190,6 +195,18 @@ final class SyncEngine {
       account,
       (imap) => _mailboxSync.fetchOlder(imap, mailbox, count: count),
     );
+  }
+
+  /// Syncs [accountId] at [at] (when a delayed send becomes due), so the
+  /// message goes out then rather than at the next periodic sync.
+  void syncAt(int accountId, DateTime at) {
+    final delay = at.difference(DateTime.now());
+    _scheduled.add(
+      Timer(delay.isNegative ? Duration.zero : delay, () {
+        if (_stop != null) unawaited(syncAccount(accountId));
+      }),
+    );
+    _scheduled.removeWhere((t) => !t.isActive);
   }
 
   /// Forgets the on-demand connection of an account (after it was removed

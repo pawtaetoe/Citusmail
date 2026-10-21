@@ -223,6 +223,26 @@ void main() {
       );
     });
 
+    test('a draft keeps Bcc and may have no recipients yet', () {
+      final draft = MessageBuilder().build(
+        OutgoingMessage(from: alice, bcc: [carol], textBody: 'later'),
+        draft: true,
+      );
+      final parsed = const MimeParser().parse(draft.bytes);
+      expect(parsed.bcc, [carol]);
+      expect(
+        () =>
+            MessageBuilder().build(OutgoingMessage(from: alice, textBody: 'x')),
+        throwsA(isA<MessageBuildException>()),
+      );
+      expect(
+        MessageBuilder()
+            .build(OutgoingMessage(from: alice, textBody: 'x'), draft: true)
+            .recipients,
+        isEmpty,
+      );
+    });
+
     test('no client-identifying headers; Date in UTC; random Message-ID on own domain', () {
       final message = OutgoingMessage(
         from: alice,

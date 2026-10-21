@@ -187,4 +187,27 @@ const List<Migration> schemaMigrations = [
     'ALTER TABLE messages DROP COLUMN auto_category',
     'ALTER TABLE messages DROP COLUMN auto_source',
   ]),
+
+  // Writing mail (Stage 9): drafts being written, saved here every few
+  // seconds so nothing is lost if the app stops. Closing the window moves
+  // a draft to the server's Drafts folder.
+  Migration(4, [
+    '''
+    CREATE TABLE drafts (
+      id INTEGER PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      saved_message_id TEXT,
+      updated_at INTEGER NOT NULL
+    ) STRICT''',
+    '''
+    CREATE TABLE draft_attachments (
+      draft_id INTEGER NOT NULL REFERENCES drafts (id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      data BLOB NOT NULL,
+      PRIMARY KEY (draft_id, position)
+    ) STRICT''',
+  ]),
 ];

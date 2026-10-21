@@ -31,6 +31,12 @@ device from a few message headers and your Sent folder. App
 settings such as your block list can sync between your devices through a
 hidden folder in your own mail account. They never go to anyone else.
 
+## Mail you send
+
+Sent mail carries no app name or version. Its Message-ID is random and
+uses your own domain, and its date is written in UTC, so it does not
+reveal your time zone. Bcc recipients are never written into the message.
+
 ## Read receipts and trackers
 
 Read-receipt requests are ignored, and remote images (including tracking

@@ -106,6 +106,11 @@ final class SyncWorker {
     _request(_RequestSync(accountId)).catchError((Object _) => null),
   );
 
+  /// Syncs the account at [at] (a delayed send becomes due then).
+  void syncAt(int accountId, DateTime at) => unawaited(
+    _request(_SyncAt(accountId, at)).catchError((Object _) => null),
+  );
+
   /// Downloads a message body into the store. Throws
   /// [BodyUnavailableException] or [SyncWorkerException].
   Future<void> loadBody(int messageId) => _request(_LoadBody(messageId));
@@ -276,6 +281,8 @@ Future<void> _workerMain(_Boot boot) async {
         await Future.wait([for (final id in ids) engine.syncAccount(id)]);
       case _RequestSync(:final accountId):
         engine.requestSync(accountId);
+      case _SyncAt(:final accountId, :final at):
+        engine.syncAt(accountId, at);
       case _LoadBody(:final messageId):
         await engine.loadBody(messageId);
       case _FetchOlder(:final mailboxId, :final count):
@@ -433,6 +440,13 @@ final class _RequestSync extends _Command {
   const _RequestSync(this.accountId);
 
   final int accountId;
+}
+
+final class _SyncAt extends _Command {
+  const _SyncAt(this.accountId, this.at);
+
+  final int accountId;
+  final DateTime at;
 }
 
 final class _LoadBody extends _Command {

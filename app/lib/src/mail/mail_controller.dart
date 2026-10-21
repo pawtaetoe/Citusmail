@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
@@ -124,7 +125,10 @@ final class MailController extends ChangeNotifier {
   bool _loadingOlder = false;
 
   /// Whether more (stored or on the server) may follow.
-  bool get canLoadMore => !_reachedEnd && _location is! SearchLocation;
+  bool get canLoadMore =>
+      !_reachedEnd &&
+      _location is! SearchLocation &&
+      _location is! OutboxLocation;
   bool get loadingOlder => _loadingOlder;
 
   Map<SmartSection, SectionCount> inboxCounts({int? accountId}) => _store
@@ -155,9 +159,11 @@ final class MailController extends ChangeNotifier {
     } else {
       // Keep at least as many messages as already shown.
       final wanted = _messages.length < pageSize ? pageSize : _messages.length;
-      _messages = location is SearchLocation
-          ? _store.messages.search(location.text, limit: 200)
-          : _store.messages.list(_query(location, limit: wanted));
+      _messages = switch (location) {
+        SearchLocation(:final text) => _store.messages.search(text, limit: 200),
+        OutboxLocation() => const [],
+        _ => _store.messages.list(_query(location, limit: wanted)),
+      };
     }
     _refreshSelected();
     _notify();
@@ -189,7 +195,8 @@ final class MailController extends ChangeNotifier {
       before: before,
       limit: limit,
     ),
-    SearchLocation() => throw StateError('search is not paged'),
+    SearchLocation() ||
+    OutboxLocation() => throw StateError('not a paged message list'),
   };
 
   static List<int>? _accounts(int? accountId) =>
@@ -257,6 +264,7 @@ final class MailController extends ChangeNotifier {
   /// Opens [message]: marks it read and shows it, downloading it first if
   /// needed.
   Future<void> open(StoredMessage message) async {
+    if (_isDraft(message)) return _editDraft(message);
     if (!message.flags.seen) {
       services.actions.markRead([message]);
       services.worker.requestSync(message.accountId);
@@ -301,6 +309,83 @@ final class MailController extends ChangeNotifier {
       });
     }
     _notify();
+  }
+
+  // ----------------------------------------------------------- composing
+
+  /// Opens the compose window (set by the screen that can show it).
+  void Function(Draft draft)? onCompose;
+
+  /// A problem to tell the user about (set by the screen).
+  void Function(String message)? onNotice;
+
+  /// A new message from the account being viewed (or the first account).
+  void compose() {
+    final accountId =
+        _location.accountId ?? _store.accounts.all().firstOrNull?.id;
+    if (accountId != null) onCompose?.call(Draft(accountId: accountId));
+  }
+
+  /// A new message to a `mailto:` link's address (and subject, if given).
+  void composeTo(Uri mailto) {
+    final accountId =
+        selected?.accountId ?? _store.accounts.all().firstOrNull?.id;
+    if (accountId == null) return;
+    final parsed = const AddressParser().parse(
+      Uri.decodeComponent(mailto.path),
+    );
+    onCompose?.call(
+      Draft(
+        accountId: accountId,
+        to: parsed.mailboxes,
+        subject: mailto.queryParameters['subject'] ?? '',
+      ),
+    );
+  }
+
+  void reply(ReaderReady reader) =>
+      onCompose?.call(services.replies.reply(reader.message, reader.view));
+
+  void replyAll(ReaderReady reader) =>
+      onCompose?.call(services.replies.replyAll(reader.message, reader.view));
+
+  void forward(ReaderReady reader) =>
+      onCompose?.call(services.replies.forward(reader.message, reader.view));
+
+  bool _isDraft(StoredMessage m) =>
+      m.flags.draft &&
+      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.drafts;
+
+  /// A draft from the Drafts folder opens in the compose window.
+  Future<void> _editDraft(StoredMessage message) async {
+    try {
+      if (_store.messages.body(message.id) == null) {
+        await services.worker.loadBody(message.id);
+      }
+      final raw = _store.messages.body(message.id);
+      if (raw == null || _disposed) return;
+      onCompose?.call(services.drafts.fromDraftsFolder(message, raw));
+    } on SyncWorkerException {
+      onNotice?.call('Can\'t open the draft while offline.');
+    } on BodyUnavailableException {
+      onNotice?.call('This draft is no longer on the server.');
+    }
+  }
+
+  // ---------------------------------------------------------------- outbox
+
+  /// Messages waiting to be sent or failed, oldest first.
+  List<OutboxEntry> get outbox => _store.outbox.sends();
+
+  void retrySend(OutboxEntry entry) {
+    _store.outbox.retryFailed(entry.id);
+    services.worker.requestSync(entry.accountId);
+    _reload();
+  }
+
+  void discardSend(OutboxEntry entry) {
+    _store.outbox.discardFailed(entry.id);
+    _reload();
   }
 
   void closeMessage() {

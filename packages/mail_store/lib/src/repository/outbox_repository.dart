@@ -21,8 +21,18 @@ final class OutboxRepository {
   /// Longest stored error text.
   static const _maxErrorLength = 500;
 
-  OutboxEntry enqueue(int accountId, OutboxAction action, {Uint8List? data}) {
+  /// Queues [action]. With [notBefore], it is not replayed before then
+  /// (used to let the user undo a send).
+  OutboxEntry enqueue(
+    int accountId,
+    OutboxAction action, {
+    Uint8List? data,
+    DateTime? notBefore,
+  }) {
     final needsData = action is AppendAction || action is SendAction;
+    if (notBefore != null && notBefore.isBefore(DateTime(2000))) {
+      throw ArgumentError.value(notBefore, 'notBefore');
+    }
     if (needsData != (data != null)) {
       throw ArgumentError(
         needsData
@@ -33,10 +43,58 @@ final class OutboxRepository {
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
     _db.execute(
       'INSERT INTO outbox (account_id, action, data, created_at, not_before) VALUES (?, ?, ?, ?, ?)',
-      [accountId, action.encode(), data, now, 0],
+      [
+        accountId,
+        action.encode(),
+        data,
+        now,
+        notBefore?.toUtc().millisecondsSinceEpoch ?? 0,
+      ],
     );
     return _byId(_db.lastInsertRowId)!;
   }
+
+  /// Cancels the entries [ids] together, but only if none of them has been
+  /// tried or is due within [margin] (so a replay cannot be starting on
+  /// it). All or nothing; returns whether they were cancelled.
+  bool cancel(
+    List<int> ids, {
+    DateTime? now,
+    Duration margin = const Duration(seconds: 1),
+  }) => _db.transaction(() {
+    final limit = (now ?? DateTime.now())
+        .toUtc()
+        .add(margin)
+        .millisecondsSinceEpoch;
+    for (final id in ids) {
+      final rows = _db.select(
+        "SELECT 1 FROM outbox WHERE id = ? AND state = 'pending' AND attempts = 0 AND not_before > ?",
+        [id, limit],
+      );
+      if (rows.isEmpty) return false;
+    }
+    _db.executeMany('DELETE FROM outbox WHERE id = ?', [
+      for (final id in ids) [id],
+    ]);
+    return true;
+  });
+
+  /// Removes an entry that has given up (the user chose to discard it).
+  bool discardFailed(int id) {
+    _db.execute("DELETE FROM outbox WHERE id = ? AND state = 'failed'", [id]);
+    return _db.updatedRows > 0;
+  }
+
+  /// Every queued send of every account, oldest first (for the Outbox).
+  List<OutboxEntry> sends() => _db
+      .select('SELECT $_columns FROM outbox ORDER BY id')
+      .map(_tryFromRow)
+      .nonNulls
+      .where((e) => e.action is SendAction)
+      .toList(growable: false);
+
+  /// The entry [id], if it is still queued.
+  OutboxEntry? byId(int id) => _byId(id);
 
   /// Pending entries of an account whose retry time has come, oldest
   /// first. An entry that cannot be read is marked failed and skipped, so

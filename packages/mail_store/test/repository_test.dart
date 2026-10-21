@@ -509,6 +509,7 @@ void main() {
         ),
         MoveAction(mailboxId: 1, uidValidity: 9, uids: [3], targetMailboxId: 2),
         DeleteAction(mailboxId: 1, uidValidity: 9, uids: [4]),
+        RemoveDraftAction(mailboxId: 5, messageId: 'draft-1@fmail.test'),
       ];
       for (final action in actions) {
         store.outbox.enqueue(account.id, action);
@@ -827,6 +828,182 @@ void main() {
         expect(MessageCategory.fromStorage(c.storageName), c);
       }
       expect(() => MessageCategory.fromStorage('x'), throwsFormatException);
+    });
+  });
+
+  group('sending with undo', () {
+    late Account account;
+    setUp(() => account = temp.addAccount());
+
+    OutboxEntry send({DateTime? notBefore}) => store.outbox.enqueue(
+      account.id,
+      SendAction(from: 'alice@fmail.test', recipients: ['bob@fmail.test']),
+      data: Uint8List.fromList([1]),
+      notBefore: notBefore,
+    );
+
+    test('a delayed entry is not due until its time', () {
+      final now = DateTime.now();
+      final entry = send(notBefore: now.add(const Duration(seconds: 5)));
+      expect(store.outbox.due(account.id, now: now), isEmpty);
+      expect(
+        store.outbox
+            .due(account.id, now: now.add(const Duration(seconds: 6)))
+            .map((e) => e.id),
+        [entry.id],
+      );
+      expect(store.outbox.sends().single.id, entry.id);
+    });
+
+    test('cancel is all or nothing, and never once an entry is due', () {
+      final now = DateTime.now();
+      final later = now.add(const Duration(seconds: 5));
+      final a = send(notBefore: later);
+      final b = store.outbox.enqueue(
+        account.id,
+        RemoveDraftAction(mailboxId: 1, messageId: 'd@x'),
+        notBefore: later,
+      );
+      final immediate = send();
+      expect(store.outbox.cancel([a.id, immediate.id], now: now), isFalse);
+      expect(store.outbox.byId(a.id), isNotNull, reason: 'nothing cancelled');
+      expect(
+        store.outbox.cancel([
+          a.id,
+          b.id,
+        ], now: later.subtract(const Duration(milliseconds: 500))),
+        isFalse,
+        reason: 'too close to its time',
+      );
+      expect(store.outbox.cancel([a.id, b.id], now: now), isTrue);
+      expect(store.outbox.byId(a.id), isNull);
+      expect(store.outbox.byId(b.id), isNull);
+      expect(
+        store.outbox.cancel([a.id], now: now),
+        isFalse,
+        reason: 'already gone',
+      );
+    });
+
+    test('only failed entries can be discarded', () {
+      final entry = send();
+      expect(store.outbox.discardFailed(entry.id), isFalse);
+      store.outbox.markFailed(entry.id, 'rejected');
+      expect(store.outbox.discardFailed(entry.id), isTrue);
+      expect(store.outbox.sends(), isEmpty);
+    });
+
+    test('remove-draft actions need a real Message-ID', () {
+      for (final bad in ['', 'a b@x', '<a@x>', 'a\r\n@x']) {
+        expect(
+          () => RemoveDraftAction(mailboxId: 1, messageId: bad),
+          throwsArgumentError,
+          reason: bad,
+        );
+      }
+    });
+  });
+
+  group('drafts', () {
+    late Account account;
+    setUp(() => account = temp.addAccount());
+
+    test('save, update with attachments, delete', () {
+      final id = store.drafts.save(
+        accountId: account.id,
+        content: '{"subject":"one"}',
+        attachments: [
+          StoredDraftAttachment(
+            fileName: 'a.txt',
+            mimeType: 'text/plain',
+            data: Uint8List.fromList([1, 2]),
+          ),
+        ],
+      );
+      expect(store.drafts.byId(id)!.content, '{"subject":"one"}');
+      expect(store.drafts.attachments(id).single.fileName, 'a.txt');
+
+      store.drafts.save(
+        id: id,
+        accountId: account.id,
+        content: '{"subject":"two"}',
+        attachments: const [],
+        savedMessageId: 'v1@fmail.test',
+      );
+      final draft = store.drafts.byId(id)!;
+      expect(draft.content, '{"subject":"two"}');
+      expect(draft.savedMessageId, 'v1@fmail.test');
+      expect(store.drafts.attachments(id), isEmpty);
+      expect(store.drafts.all(), hasLength(1));
+
+      store.drafts.delete(id);
+      expect(store.drafts.byId(id), isNull);
+      expect(
+        () => store.drafts.save(
+          id: id,
+          accountId: account.id,
+          content: '{}',
+          attachments: const [],
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('drafts go with their account', () {
+      final id = store.drafts.save(
+        accountId: account.id,
+        content: '{}',
+        attachments: const [],
+      );
+      store.accounts.remove(account.id);
+      expect(store.drafts.byId(id), isNull);
+    });
+  });
+
+  group('address suggestions', () {
+    test('people written to rank first; typed text is literal', () {
+      final account = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+        folder('Sent', use: 'Sent'),
+      ]);
+      final inbox = boxes.firstWhere((b) => b.isInbox);
+      final sent = boxes.firstWhere((b) => !b.isInbox);
+      MailAddress a(String s, [String? n]) => MailAddress(
+        displayName: n,
+        localPart: s.split('@').first,
+        domain: s.split('@').last,
+      );
+      store.messages.upsertSummaries(sent.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026),
+          to: [a('carol@x.example', 'Carol')],
+        ),
+      ]);
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, from: a('caroline@x.example', 'Caroline')),
+        summary(2, from: a('caroline@x.example', 'Caroline')),
+        summary(
+          3,
+          from: a('news@carousel.example'),
+          category: MessageCategory.newsletters,
+        ),
+        summary(4, from: a('per_cent@x.example')),
+      ]);
+      expect(store.messages.suggestAddresses('car').map((m) => m.address), [
+        'carol@x.example',
+        'caroline@x.example',
+      ]);
+      expect(
+        store.messages.suggestAddresses('Carol').first.displayName,
+        'Carol',
+      );
+      expect(store.messages.suggestAddresses('%'), isEmpty);
+      expect(store.messages.suggestAddresses('_').map((m) => m.address), [
+        'per_cent@x.example',
+      ]);
+      expect(store.messages.suggestAddresses('  '), isEmpty);
     });
   });
 
