@@ -5,6 +5,8 @@
 /// Repository checks run in CI. Never shipped in the app.
 library;
 
+export 'src/charset/charset_table_generator.dart';
+export 'src/charset/index_packer.dart';
 export 'src/dependency_graph.dart';
 export 'src/dependency_policy.dart';
 export 'src/lock_file.dart';

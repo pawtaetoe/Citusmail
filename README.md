@@ -27,8 +27,8 @@ macOS and iOS for later.
 │   ├── lib/
 │   └── test/
 ├── packages/
-│   └── mail_protocol/        Pure Dart MIME, IMAP and SMTP, written from
-│                             scratch with no runtime dependencies
+│   └── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
+│                             from scratch with no runtime dependencies
 ├── test-data/mail/           Sample emails shared by tests and the test server
 ├── test-server/              Local Dovecot + Postfix test servers (Podman/Docker)
 ├── scripts/                  Developer scripts (live account check)
@@ -93,4 +93,4 @@ source for network calls and prefer writing small things ourselves.
 ## Licence
 
 [Mozilla Public License 2.0](LICENSE). Every source file carries the MPL
-header.
+header. Third-party data and its licences are listed in [NOTICE.md](NOTICE.md).

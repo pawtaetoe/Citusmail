@@ -9,6 +9,7 @@ environment:
 
 executables:
   check_dependencies:
+  generate_charset_tables:
 
 dev_dependencies:
   lints: ^6.0.0

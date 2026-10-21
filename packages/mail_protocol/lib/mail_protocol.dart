@@ -10,6 +10,25 @@
 /// - Credentials and message content are never written to logs.
 library;
 
+export 'src/charset/charset.dart' show Charset;
+export 'src/charset/charsets.dart';
+export 'src/charset/text_decoder.dart';
+export 'src/mime/address.dart';
+export 'src/mime/builder/body_encoder.dart';
+export 'src/mime/builder/header_encoder.dart';
+export 'src/mime/builder/message_builder.dart';
+export 'src/mime/builder/outgoing_message.dart';
+export 'src/mime/content_type.dart';
+export 'src/mime/encoded_word.dart' show DecodedHeaderText, EncodedWordDecoder;
+export 'src/mime/header.dart';
+export 'src/mime/mail_date.dart';
+export 'src/mime/message_id.dart';
+export 'src/mime/mime_defect.dart';
+export 'src/mime/mime_message.dart';
+export 'src/mime/mime_parser.dart';
+export 'src/mime/mime_part.dart';
+export 'src/mime/transfer_encoding.dart';
+
 /// Version of this protocol library, reported nowhere (no ID command, no
 /// User-Agent) and kept only for local diagnostics.
 const String mailProtocolVersion = '0.1.0';
