@@ -1,0 +1,12 @@
+# Workspace root. All packages share one lock file (pubspec.lock), which is
+# committed and checked by tool/check_dependencies.dart and the OSV scanner.
+name: fmail_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.5
+
+workspace:
+  - app
+  - packages/mail_protocol
+  - tool

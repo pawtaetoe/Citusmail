@@ -1,0 +1,94 @@
+# Dependency policy, enforced by tool/check_dependencies.dart in CI.
+#
+# Every package in the lock file must be listed here with a reason.
+#   runtime <name> <reason>   may ship inside the app
+#   dev     <name> <reason>   tests and tooling only, must never ship
+#   deny    <regex> <reason>  never allowed, even if listed above
+#
+# Before adding a runtime package: read its source for network calls,
+# check its publisher, and prefer writing it ourselves if it is small.
+
+# --- Never allowed: analytics, crash reporting, ads, tracking -------------
+deny ^firebase              Google telemetry and cloud services
+deny ^cloud_firestore       Google cloud backend
+deny crashlytics            crash reporting sends data off device
+deny ^sentry                crash reporting sends data off device
+deny ^bugsnag               crash reporting sends data off device
+deny ^datadog               telemetry
+deny ^newrelic              telemetry
+deny ^instabug              telemetry
+deny ^appcenter             telemetry
+deny analytics              analytics of any kind
+deny ^amplitude             analytics
+deny ^mixpanel              analytics
+deny ^posthog               analytics
+deny ^segment_              analytics
+deny ^appsflyer             attribution tracking
+deny ^adjust_sdk            attribution tracking
+deny ^google_mobile_ads     advertising
+deny admob                  advertising
+deny ^facebook_             tracking SDKs
+deny telemetry              telemetry of any kind
+
+# --- Runtime: ships in the app ----------------------------------------------
+runtime characters                Flutter SDK dependency (dart.dev)
+runtime collection                Flutter SDK dependency (dart.dev)
+runtime material_color_utilities  Flutter SDK dependency (material.io)
+runtime meta                      Flutter SDK dependency (dart.dev)
+runtime vector_math               Flutter SDK dependency (google.dev)
+
+# --- Dev only: lints, test runner and their dependencies (dart.dev) --------
+dev _fe_analyzer_shared           analyzer internals for test runner
+dev analyzer                      used by test runner
+dev args                          test runner
+dev async                         test runner
+dev boolean_selector              test runner
+dev clock                         flutter_test
+dev cli_config                    test coverage
+dev cli_util                      test coverage
+dev convert                       test runner
+dev coverage                      test coverage
+dev crypto                        test runner
+dev fake_async                    flutter_test
+dev ffi                           test tooling
+dev file                          test runner
+dev flutter_lints                 lint rules
+dev frontend_server_client        test runner
+dev glob                          test runner
+dev http_multi_server             test runner (local only)
+dev http_parser                   test runner
+dev io                            test runner
+dev leak_tracker                  flutter_test
+dev leak_tracker_flutter_testing  flutter_test
+dev leak_tracker_testing          flutter_test
+dev lints                         lint rules
+dev logging                       test runner
+dev matcher                       test assertions
+dev mime                          test runner
+dev node_preamble                 test runner
+dev package_config                test runner
+dev path                          test runner
+dev pool                          test runner
+dev pub_semver                    test runner
+dev shelf                         test runner (local only)
+dev shelf_packages_handler        test runner
+dev shelf_static                  test runner
+dev shelf_web_socket              test runner
+dev source_map_stack_trace        test runner
+dev source_maps                   test runner
+dev source_span                   test runner
+dev stack_trace                   test runner
+dev stream_channel                test runner
+dev string_scanner                test runner
+dev term_glyph                    test runner
+dev test                          test runner
+dev test_api                      test runner
+dev test_core                     test runner
+dev typed_data                    test runner
+dev vm_service                    test runner
+dev watcher                       test runner
+dev web                           test runner
+dev web_socket                    test runner
+dev web_socket_channel            test runner
+dev webkit_inspection_protocol    test runner
+dev yaml                          test runner

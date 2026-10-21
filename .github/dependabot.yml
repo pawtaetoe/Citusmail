@@ -1,0 +1,8 @@
+# Keeps the SHA-pinned GitHub Actions up to date. Dart packages are updated
+# by hand so each new version gets reviewed against the dependency policy.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

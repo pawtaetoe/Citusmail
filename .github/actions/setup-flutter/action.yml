@@ -1,0 +1,37 @@
+# Installs a pinned Flutter SDK straight from the official repository and
+# verifies the exact commit, so CI never runs an unexpected toolchain.
+# Update both values together when upgrading Flutter.
+name: Set up Flutter
+description: Install the pinned Flutter SDK with analytics disabled
+inputs:
+  version:
+    description: Flutter release tag
+    default: "3.47.7"
+  commit:
+    description: Expected commit SHA of that tag
+    default: "abaf9c523780a608bd46686fd5e53740a07077f8"
+runs:
+  using: composite
+  steps:
+    - name: Install Flutter ${{ inputs.version }}
+      shell: bash
+      env:
+        FLUTTER_VERSION: ${{ inputs.version }}
+        FLUTTER_COMMIT: ${{ inputs.commit }}
+      run: |
+        set -euo pipefail
+        dir="$RUNNER_TEMP/flutter"
+        git clone --quiet --depth 1 --branch "$FLUTTER_VERSION" \
+          https://github.com/flutter/flutter.git "$dir"
+        actual="$(git -C "$dir" rev-parse HEAD)"
+        if [ "$actual" != "$FLUTTER_COMMIT" ]; then
+          echo "::error::Flutter $FLUTTER_VERSION is at $actual, expected $FLUTTER_COMMIT"
+          exit 1
+        fi
+        echo "$dir/bin" >> "$GITHUB_PATH"
+    - name: Disable analytics
+      shell: bash
+      run: |
+        flutter config --no-analytics
+        dart --disable-analytics
+        flutter --version
