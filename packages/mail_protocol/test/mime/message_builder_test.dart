@@ -35,6 +35,13 @@ String raw(OutgoingMessage message) => latin1.decode(build(message).bytes);
 String headerSection(String message) =>
     message.substring(0, message.indexOf('\r\n\r\n') + 2);
 
+/// Body text, ignoring one final line break: built messages always end
+/// with one (SMTP requires it), even when the text itself does not.
+String bodyOf(MimePart part) => withoutFinalBreak(part.decodeText().text);
+
+String withoutFinalBreak(String s) =>
+    s.endsWith('\n') ? s.substring(0, s.length - 1) : s;
+
 void main() {
   group('headers', () {
     test('basic fields round-trip', () {
@@ -57,7 +64,7 @@ void main() {
       expect(m.date!.utc, fixedDate);
       expect(m.inReplyTo, ['lunch-1@fmail.test']);
       expect(m.references, ['lunch-0@fmail.test', 'lunch-1@fmail.test']);
-      expect(m.textBody!.decodeText().text, 'Hi Bob');
+      expect(bodyOf(m.textBody!), 'Hi Bob');
       expect(m.allDefects, isEmpty);
     });
 
@@ -294,7 +301,7 @@ void main() {
         OutgoingMessage(from: alice, to: [bob], textBody: 'Hello\nthere'),
       );
       expect(m.textBody!.transferEncoding, TransferEncoding.sevenBit);
-      expect(m.textBody!.decodeText().text, 'Hello\nthere');
+      expect(bodyOf(m.textBody!), 'Hello\nthere');
     });
 
     test('mostly-Latin text uses quoted-printable; CJK uses base64; both exact', () {
@@ -305,12 +312,12 @@ void main() {
         OutgoingMessage(from: alice, to: [bob], textBody: latin),
       );
       expect(a.textBody!.transferEncoding, TransferEncoding.quotedPrintable);
-      expect(a.textBody!.decodeText().text, latin);
+      expect(bodyOf(a.textBody!), latin);
       final b = roundTrip(
         OutgoingMessage(from: alice, to: [bob], textBody: cjk),
       );
       expect(b.textBody!.transferEncoding, TransferEncoding.base64);
-      expect(b.textBody!.decodeText().text, cjk);
+      expect(bodyOf(b.textBody!), cjk);
     });
 
     test('long lines are wrapped with soft breaks and restored exactly', () {
@@ -321,7 +328,7 @@ void main() {
           in text.substring(text.indexOf('\r\n\r\n') + 4).split('\r\n')) {
         expect(line.length, lessThanOrEqualTo(76));
       }
-      expect(roundTrip(message).textBody!.decodeText().text, long);
+      expect(bodyOf(roundTrip(message).textBody!), long);
     });
 
     test('"From " at a line start is escaped in quoted-printable', () {
@@ -331,10 +338,7 @@ void main() {
         textBody: 'é\nFrom the start',
       );
       expect(raw(message), contains('=46rom the start'));
-      expect(
-        roundTrip(message).textBody!.decodeText().text,
-        'é\nFrom the start',
-      );
+      expect(bodyOf(roundTrip(message).textBody!), 'é\nFrom the start');
     });
 
     test('line endings are normalised to CRLF', () {
@@ -352,7 +356,7 @@ void main() {
           expect(bytes[i + 1], 0x0A, reason: 'bare CR at $i');
         }
       }
-      expect(roundTrip(message).textBody!.decodeText().text, 'a\nb\nc\nd');
+      expect(bodyOf(roundTrip(message).textBody!), 'a\nb\nc\nd');
     });
 
     test('text + HTML + inline image + attachments: full structure', () {
@@ -437,7 +441,7 @@ void main() {
           htmlBody: '<pre>$tricky</pre>',
         ),
       );
-      expect(m.textBody!.decodeText().text, tricky);
+      expect(bodyOf(m.textBody!), tricky);
       expect(m.allDefects, isEmpty);
     });
   });
@@ -473,8 +477,8 @@ void main() {
         reason: 'name #$i',
       );
       expect(
-        m.textBody!.decodeText().text,
-        body.replaceAll('\r', '\n'),
+        bodyOf(m.textBody!),
+        withoutFinalBreak(body.replaceAll('\r', '\n')),
         reason: 'body #$i',
       );
       expect(m.allDefects, isEmpty, reason: '#$i');

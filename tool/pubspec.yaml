@@ -10,6 +10,10 @@ environment:
 executables:
   check_dependencies:
   generate_charset_tables:
+  live_check:
+
+dependencies:
+  mail_protocol: any
 
 dev_dependencies:
   lints: ^6.0.0

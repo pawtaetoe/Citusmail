@@ -43,9 +43,8 @@ change.
 ## Certificates
 
 `certs/generate.sh` creates a local test CA and certificates in
-`.generated/certs/` (git-ignored). The CA is name-constrained to
-`fmail.test`, `localhost` and `127.0.0.1`, so it can't vouch for any real
-site. Tests trust **only** `ca.crt` and never turn certificate checks off.
+`.generated/certs/` (git-ignored). The CA is name-constrained to the DNS
+names `fmail.test` and `localhost`, so it can't vouch for any real site. Tests trust **only** `ca.crt` and never turn certificate checks off.
 
 The hostname a client asks for (TLS SNI) picks the certificate:
 

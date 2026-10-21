@@ -80,7 +80,8 @@ system keychain:
 ```bash
 cp live-test.env.example live-test.env          # then edit it
 secret-tool store --label="Fmail test account" service fmail-test account you@example.com
-scripts/live-account-check.sh                   # read-only: TLS, capabilities, folders
+scripts/live-account-check.sh                   # read-only: TLS, capabilities, folders (curl)
+dart run repo_tools:live_check                  # read-only: same, using the app's own IMAP/SMTP code
 ```
 
 ## Adding a dependency

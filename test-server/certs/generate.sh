@@ -2,8 +2,10 @@
 # Creates the test certificate authority and server certificates used by the
 # test mail server. Output goes to test-server/.generated/certs (git-ignored).
 #
-# The CA is name-constrained to fmail.test, localhost and 127.0.0.1, so even
-# if it were trusted by mistake it could not impersonate any real site.
+# The CA is name-constrained to the DNS names fmail.test and localhost, so
+# even if it were trusted by mistake it could not impersonate any real site.
+# (No IP constraint: BoringSSL, used by Dart, rejects IP name constraints as
+# unsupported, which would make every certificate from this CA fail.)
 #
 # Certificates:
 #   ca.crt         Fmail Test CA (tests trust only this)
@@ -41,7 +43,7 @@ make_ca() {
     -subj "/O=Fmail Test/CN=Fmail Test CA (NOT FOR REAL USE)" \
     -addext "basicConstraints=critical,CA:true,pathlen:0" \
     -addext "keyUsage=critical,keyCertSign,cRLSign" \
-    -addext "nameConstraints=critical,permitted;DNS:fmail.test,permitted;DNS:localhost,permitted;IP:127.0.0.0/255.0.0.0" \
+    -addext "nameConstraints=critical,permitted;DNS:fmail.test,permitted;DNS:localhost" \
     -out "$OUT_DIR/ca.crt"
   FORCE=true  # a new CA invalidates every certificate it signed
 }

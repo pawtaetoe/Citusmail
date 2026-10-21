@@ -13,6 +13,15 @@ library;
 export 'src/charset/charset.dart' show Charset;
 export 'src/charset/charsets.dart';
 export 'src/charset/text_decoder.dart';
+export 'src/imap/imap_client.dart';
+export 'src/imap/imap_command.dart';
+export 'src/imap/imap_requests.dart';
+export 'src/imap/imap_response.dart';
+export 'src/imap/imap_response_reader.dart';
+export 'src/imap/imap_results.dart';
+export 'src/imap/imap_value.dart';
+export 'src/imap/mailbox_name.dart';
+export 'src/imap/sequence_set.dart';
 export 'src/mime/address.dart';
 export 'src/mime/builder/body_encoder.dart';
 export 'src/mime/builder/header_encoder.dart';
@@ -28,6 +37,12 @@ export 'src/mime/mime_message.dart';
 export 'src/mime/mime_parser.dart';
 export 'src/mime/mime_part.dart';
 export 'src/mime/transfer_encoding.dart';
+export 'src/net/line_source.dart';
+export 'src/net/mail_exception.dart';
+export 'src/net/mail_socket.dart';
+export 'src/net/server_endpoint.dart';
+export 'src/smtp/smtp_client.dart';
+export 'src/smtp/smtp_reply.dart';
 
 /// Version of this protocol library, reported nowhere (no ID command, no
 /// User-Agent) and kept only for local diagnostics.

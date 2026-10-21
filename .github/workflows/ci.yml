@@ -53,7 +53,7 @@ jobs:
             --lockfile=pubspec.lock
 
   test-server:
-    name: Test mail server (smoke test)
+    name: Test mail server and integration tests
     runs-on: ubuntu-24.04
     env:
       FMAIL_CONTAINER_RUNTIME: docker
@@ -69,6 +69,14 @@ jobs:
         run: test-server/fmailtest up
       - name: Smoke test
         run: test-server/fmailtest smoke
+      - uses: ./.github/actions/setup-flutter
+      - name: Resolve dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: IMAP and SMTP integration tests
+        working-directory: packages/mail_protocol
+        env:
+          FMAIL_INTEGRATION: "1"
+        run: dart test test/integration
       - name: Server logs
         if: failure()
         run: |

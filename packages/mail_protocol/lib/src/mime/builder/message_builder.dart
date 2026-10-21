@@ -86,6 +86,10 @@ final class MessageBuilder {
       ..add(body.headerBytes)
       ..add(const [0x0D, 0x0A])
       ..add(body.content);
+    // Always end with a line break. SMTP needs one before its end marker
+    // and would add it anyway; adding it here keeps the sent copy and the
+    // copy saved to Sent byte-identical.
+    if (!_endsWithCrlf(body.content)) bytes.add(const [0x0D, 0x0A]);
     return BuiltMessage(
       bytes: bytes.takeBytes(),
       messageId: messageId,
@@ -229,6 +233,9 @@ final class MessageBuilder {
       body.takeBytes(),
     );
   }
+
+  static bool _endsWithCrlf(List<int> b) =>
+      b.length >= 2 && b[b.length - 2] == 0x0D && b[b.length - 1] == 0x0A;
 
   /// A random boundary that does not occur in any of the parts. "=_" can
   /// never appear in base64 or quoted-printable output.
