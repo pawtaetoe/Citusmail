@@ -1,0 +1,47 @@
+From: Bob Example <bob@fmail.test>
+To: Alice Example <alice@fmail.test>
+Subject: Invoice and logo for the project
+Date: Wed, 14 Oct 2026 14:00:00 +0800
+Message-ID: <project-files@fmail.test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mixed-1"
+
+--mixed-1
+Content-Type: multipart/alternative; boundary="alt-1"
+
+--alt-1
+Content-Type: text/plain; charset=utf-8
+
+The invoice is attached. Our new logo is below.
+
+--alt-1
+Content-Type: multipart/related; boundary="rel-1"; type="text/html"
+
+--rel-1
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>The invoice is attached. Our new logo:</p>
+<p><img src="cid:logo-1@fmail.test" alt="logo"></p></body></html>
+
+--rel-1
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-ID: <logo-1@fmail.test>
+Content-Disposition: inline; filename="logo.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9
+awAAAABJRU5ErkJggg==
+
+--rel-1--
+
+--alt-1--
+
+--mixed-1
+Content-Type: application/pdf; name="invoice-2026-10.pdf"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="invoice-2026-10.pdf"
+
+JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyA+PiBlbmRvYmoKdHJhaWxlciA8PCAv
+Um9vdCAxIDAgUiA+PgolJUVPRgo=
+
+--mixed-1--

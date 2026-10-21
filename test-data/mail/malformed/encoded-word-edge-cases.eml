@@ -1,0 +1,9 @@
+From: "=?utf-8?Q?Quoted_=C3=A9ncoded?=" <quoted@edge.example>
+To: alice@fmail.test
+Subject: =?utf-8?Q?Adjacent?= =?utf-8?Q?_words_join?= | =?utf-8?Q?broken | =?x-unknown?Q?unknown_charset?= | =?UTF-8?B?w6l0w6k=?=
+Date: Mon, 19 Oct 2026 10:00:00 +0000
+Message-ID: <edge@edge.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Encoded-word edge cases are in the headers.

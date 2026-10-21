@@ -6,3 +6,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # Keeps the digest-pinned base image of the test mail server current.
+  - package-ecosystem: docker
+    directory: /test-server/image
+    schedule:
+      interval: weekly

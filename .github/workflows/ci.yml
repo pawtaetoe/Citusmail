@@ -52,6 +52,30 @@ jobs:
           scan-args: |-
             --lockfile=pubspec.lock
 
+  test-server:
+    name: Test mail server (smoke test)
+    runs-on: ubuntu-24.04
+    env:
+      FMAIL_CONTAINER_RUNTIME: docker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Shellcheck
+        run: >-
+          shellcheck -x test-server/fmailtest test-server/smoke-test.sh
+          test-server/certs/generate.sh test-server/image/entrypoint.sh
+      - name: Start test servers
+        run: test-server/fmailtest up
+      - name: Smoke test
+        run: test-server/fmailtest smoke
+      - name: Server logs
+        if: failure()
+        run: |
+          for mode in secure limited plain; do
+            echo "::group::$mode"; test-server/fmailtest logs "$mode" || true; echo "::endgroup::"
+          done
+
   build-linux:
     name: Build Linux
     needs: checks

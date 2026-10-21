@@ -1,0 +1,8 @@
+From: Broken Mailer <broken@broken.example>
+To: alice@fmail.test
+Subject: No date header and an unknown charset
+Message-ID: <nodate@broken.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="x-unknown-charset"
+
+Body text in an unknown charset (actually ASCII).

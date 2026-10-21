@@ -1,0 +1,33 @@
+From: Accounts <accounts@invoices.example>
+To: alice@fmail.test
+Subject: Overdue invoice
+Date: Mon, 19 Oct 2026 05:00:00 +0000
+Message-ID: <overdue@invoices.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="risky"
+
+--risky
+Content-Type: text/plain; charset=utf-8
+
+Please open the attached invoice.
+
+--risky
+Content-Type: text/html; name="invoice.html"
+Content-Disposition: attachment; filename="invoice.html"
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+Tm90IGEgcmVhbCBpbnZvaWNlICh0ZXN0IGZpbGUpLjwvYm9keT48L2h0bWw+
+--risky
+Content-Type: application/octet-stream; name="invoice.pdf.exe"
+Content-Disposition: attachment; filename="invoice.pdf.exe"
+Content-Transfer-Encoding: base64
+
+VGhpcyBpcyBhIGhhcm1sZXNzIHRleHQgZmlsZSB1c2VkIHRvIHRlc3Qgcmlza3kgYXR0YWNobWVu
+dCB3YXJuaW5ncy4=
+--risky
+Content-Type: application/vnd.ms-word.document.macroEnabled.12; name="terms.docm"
+Content-Disposition: attachment; filename="terms.docm"
+Content-Transfer-Encoding: base64
+
+SGFybWxlc3MgcGxhY2Vob2xkZXIsIG5vdCBhIHJlYWwgT2ZmaWNlIGZpbGUu
+--risky--

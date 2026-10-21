@@ -1,0 +1,69 @@
+From: Nesting Doll <doll@nest.example>
+To: alice@fmail.test
+Subject: Six levels of nested multipart
+Date: Mon, 19 Oct 2026 08:00:00 +0000
+Message-ID: <nested@nest.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="level1"
+
+--level1
+Content-Type: text/plain; charset=utf-8
+
+Level 1 text.
+
+--level1
+Content-Type: multipart/mixed; boundary="level2"
+
+--level2
+Content-Type: text/plain; charset=utf-8
+
+Level 2 text.
+
+--level2
+Content-Type: multipart/mixed; boundary="level3"
+
+--level3
+Content-Type: text/plain; charset=utf-8
+
+Level 3 text.
+
+--level3
+Content-Type: multipart/mixed; boundary="level4"
+
+--level4
+Content-Type: text/plain; charset=utf-8
+
+Level 4 text.
+
+--level4
+Content-Type: multipart/mixed; boundary="level5"
+
+--level5
+Content-Type: text/plain; charset=utf-8
+
+Level 5 text.
+
+--level5
+Content-Type: multipart/mixed; boundary="level6"
+
+--level6
+Content-Type: text/plain; charset=utf-8
+
+Level 6 text.
+
+--level6
+Content-Type: text/plain; charset=utf-8
+
+Deepest part.
+
+--level6--
+
+--level5--
+
+--level4--
+
+--level3--
+
+--level2--
+
+--level1--

@@ -1,0 +1,10 @@
+From: Daily Deals <deals@deals.example>
+To: alice@fmail.test
+Subject: Today's deals
+Date: Tue, 20 Oct 2026 06:00:00 +0000
+Message-ID: <deals-20261020@deals.example>
+List-Unsubscribe: <https://deals.example/preferences?id=987>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Deals of the day.

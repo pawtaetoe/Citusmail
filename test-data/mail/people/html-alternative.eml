@@ -1,0 +1,28 @@
+From: Dana Friend <dana@friends.example>
+To: alice@fmail.test
+Subject: Photos from the hike
+Date: Sat, 10 Oct 2026 18:40:00 +0000
+Message-ID: <hike-photos@friends.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt-boundary-1"
+
+This is a multi-part message in MIME format.
+
+--alt-boundary-1
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Hi Alice! The photos are in the shared album =E2=80=93 the view from the to=
+p was amazing.
+
+--alt-boundary-1
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body style=3D"font-family: sans-serif">
+<p>Hi Alice!</p>
+<p>The photos are in the <a href=3D"https://photos.friends.example/album/42">=
+shared album</a> &ndash; the view from the top was <b>amazing</b>.</p>
+</body></html>
+
+--alt-boundary-1--

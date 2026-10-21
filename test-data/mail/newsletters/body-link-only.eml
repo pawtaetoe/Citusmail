@@ -1,0 +1,13 @@
+From: Travel Tips <hello@travel.example>
+To: alice@fmail.test
+Subject: 10 places to visit in winter
+Date: Sun, 04 Oct 2026 09:00:00 +0000
+Message-ID: <winter@travel.example>
+Precedence: bulk
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Ten places to visit.</p>
+<p style="font-size:10px">Don't want these emails?
+<a href="https://travel.example/u?e=alice%40fmail.test">Unsubscribe here</a>.</p>
+</body></html>

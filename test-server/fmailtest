@@ -1,0 +1,201 @@
+#!/bin/bash
+# Controls the local test mail servers. NOT for real mail.
+#
+#   fmailtest up       build the image if needed, create certificates,
+#                      start all servers and load sample mail
+#   fmailtest down     stop and remove all test servers (mail is discarded)
+#   fmailtest reset    down + up: fresh servers with fresh sample mail
+#   fmailtest status   show servers and their ports
+#   fmailtest logs M   show logs of server M (secure, limited or plain)
+#   fmailtest smoke    check the running servers behave as expected
+#
+# Uses podman (rootless) or docker. Override with FMAIL_CONTAINER_RUNTIME.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly HERE
+readonly CERT_DIR="$HERE/.generated/certs"
+readonly IMAGE_NAME="localhost/fmail-test-mail"
+readonly CONTAINER_PREFIX="fmail-test"
+readonly MODES=(secure limited plain)
+readonly READY_TIMEOUT_SECONDS=60
+
+# shellcheck source=servers.env
+source "$HERE/servers.env"
+
+log() { echo "[fmailtest] $*" >&2; }
+die() { log "error: $*"; exit 1; }
+
+# ------------------------------------------------------------ runtime
+detect_runtime() {
+  if [[ -n "${FMAIL_CONTAINER_RUNTIME:-}" ]]; then
+    echo "$FMAIL_CONTAINER_RUNTIME"
+  elif command -v podman >/dev/null; then
+    echo podman
+  elif command -v docker >/dev/null; then
+    echo docker
+  else
+    die "podman or docker is required"
+  fi
+}
+RUNTIME="$(detect_runtime)"
+readonly RUNTIME
+
+# Rootless podman's default networking makes every connection look local,
+# and Dovecot then treats plain-text connections as secure (it would allow
+# LOGIN before STARTTLS). slirp4netns keeps client and server addresses
+# apart so the server enforces TLS like a real one. Docker's bridge network
+# already does this.
+network_args() {
+  if [[ "$RUNTIME" == podman ]] && podman info --format '{{.Host.Security.Rootless}}' 2>/dev/null | grep -qx true; then
+    echo "--network=slirp4netns:port_handler=slirp4netns,allow_host_loopback=false"
+  fi
+}
+
+# ------------------------------------------------------------ image
+# The tag is a hash of the image sources, so any change rebuilds the image
+# and an unchanged image is reused.
+image_tag() {
+  (cd "$HERE/image" && find . -type f -print0 | sort -z | xargs -0 sha256sum) \
+    | sha256sum | cut -c1-12
+}
+
+ensure_image() {
+  local tag image
+  tag="$(image_tag)"
+  image="$IMAGE_NAME:$tag"
+  if ! "$RUNTIME" image exists "$image" 2>/dev/null && ! "$RUNTIME" image inspect "$image" >/dev/null 2>&1; then
+    log "building $image"
+    "$RUNTIME" build --quiet --tag "$image" "$HERE/image" >/dev/null
+  fi
+  echo "$image"
+}
+
+# ------------------------------------------------------------ servers
+mode_upper() { echo "${1^^}"; }
+port_of() {
+  local var
+  var="$(mode_upper "$1")_$2_PORT"
+  echo "${!var:?unknown port $var}"
+}
+container_name() { echo "$CONTAINER_PREFIX-$1"; }
+
+# Port mappings for a mode, all bound to 127.0.0.1 only.
+port_args() {
+  local mode="$1"
+  echo "-p 127.0.0.1:$(port_of "$mode" IMAP):143"
+  echo "-p 127.0.0.1:$(port_of "$mode" SUBMISSION):587"
+  if [[ "$mode" != plain ]]; then
+    echo "-p 127.0.0.1:$(port_of "$mode" IMAPS):993"
+    echo "-p 127.0.0.1:$(port_of "$mode" SUBMISSIONS):465"
+  fi
+}
+
+start_server() {
+  local mode="$1" image="$2"
+  local name; name="$(container_name "$mode")"
+  # shellcheck disable=SC2046  # word splitting of the arg lists is intended
+  "$RUNTIME" run --detach --name "$name" \
+    --label fmail-test=1 \
+    --env "FMAIL_TEST_MODE=$mode" \
+    --volume "$CERT_DIR:/etc/fmail-certs:ro" \
+    $(network_args) $(port_args "$mode") \
+    "$image" >/dev/null
+  log "started $name"
+}
+
+# Waits until a TCP port answers with the expected greeting prefix.
+wait_for_greeting() {
+  local port="$1" expected="$2" deadline=$((SECONDS + READY_TIMEOUT_SECONDS))
+  while ((SECONDS < deadline)); do
+    # The probe runs in a subshell so its file descriptor and its silenced
+    # stderr can never leak into the rest of the script.
+    local line
+    line="$( { exec 3<>"/dev/tcp/127.0.0.1/$port" && read -r -t 2 reply <&3 && echo "$reply"; } 2>/dev/null )" || true
+    [[ "$line" == "$expected"* ]] && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+wait_until_ready() {
+  local mode="$1"
+  wait_for_greeting "$(port_of "$mode" IMAP)" "* OK" \
+    || die "$mode IMAP did not start; see 'fmailtest logs $mode'"
+  wait_for_greeting "$(port_of "$mode" SUBMISSION)" "220" \
+    || die "$mode SMTP did not start; see 'fmailtest logs $mode'"
+}
+
+seed_server() {
+  local mode="$1"
+  if [[ "$mode" == plain ]]; then
+    python3 -I "$HERE/seed.py" --port "$(port_of plain IMAP)"
+  else
+    python3 -I "$HERE/seed.py" --port "$(port_of "$mode" IMAPS)" --tls --ca "$CERT_DIR/ca.crt"
+  fi
+}
+
+server_exists() { "$RUNTIME" container inspect "$(container_name "$1")" >/dev/null 2>&1; }
+
+# ------------------------------------------------------------ commands
+cmd_up() {
+  for mode in "${MODES[@]}"; do
+    server_exists "$mode" && die "$(container_name "$mode") already exists; use 'fmailtest reset'"
+  done
+  "$HERE/certs/generate.sh"
+  local image; image="$(ensure_image)"
+  for mode in "${MODES[@]}"; do start_server "$mode" "$image"; done
+  for mode in "${MODES[@]}"; do wait_until_ready "$mode"; done
+  for mode in "${MODES[@]}"; do seed_server "$mode"; done
+  log "ready"
+  cmd_status
+}
+
+cmd_down() {
+  for mode in "${MODES[@]}"; do
+    if server_exists "$mode"; then
+      "$RUNTIME" rm --force "$(container_name "$mode")" >/dev/null
+      log "removed $(container_name "$mode")"
+    fi
+  done
+}
+
+cmd_reset() { cmd_down; cmd_up; }
+
+cmd_status() {
+  printf '%-8s %-10s %-6s %-6s %-11s %-11s\n' MODE STATE IMAP IMAPS SUBMISSION SUBMISSIONS
+  for mode in "${MODES[@]}"; do
+    local state="absent"
+    server_exists "$mode" && state="$("$RUNTIME" container inspect --format '{{.State.Status}}' "$(container_name "$mode")")"
+    local imaps="-" subs="-"
+    [[ "$mode" != plain ]] && imaps="$(port_of "$mode" IMAPS)" && subs="$(port_of "$mode" SUBMISSIONS)"
+    printf '%-8s %-10s %-6s %-6s %-11s %-11s\n' "$mode" "$state" \
+      "$(port_of "$mode" IMAP)" "$imaps" "$(port_of "$mode" SUBMISSION)" "$subs"
+  done
+  echo "CA certificate: $CERT_DIR/ca.crt"
+  echo "Users: ${TEST_USERS// /, } @$TEST_DOMAIN, password <user>-test-password"
+}
+
+cmd_logs() {
+  local mode="${1:-}"
+  [[ " ${MODES[*]} " == *" $mode "* ]] || die "usage: fmailtest logs secure|limited|plain"
+  "$RUNTIME" logs "$(container_name "$mode")"
+}
+
+cmd_smoke() { "$HERE/smoke-test.sh"; }
+
+main() {
+  local command="${1:-}"
+  shift || true
+  case "$command" in
+    up) cmd_up ;;
+    down) cmd_down ;;
+    reset) cmd_reset ;;
+    status) cmd_status ;;
+    logs) cmd_logs "$@" ;;
+    smoke) cmd_smoke ;;
+    *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 64 ;;
+  esac
+}
+
+main "$@"

@@ -29,6 +29,9 @@ macOS and iOS for later.
 ├── packages/
 │   └── mail_protocol/        Pure Dart MIME, IMAP and SMTP, written from
 │                             scratch with no runtime dependencies
+├── test-data/mail/           Sample emails shared by tests and the test server
+├── test-server/              Local Dovecot + Postfix test servers (Podman/Docker)
+├── scripts/                  Developer scripts (live account check)
 ├── tool/                     Repository checks run in CI (never shipped)
 │   ├── bin/                  Command-line entry points
 │   ├── lib/src/              Check logic, one class per concern
@@ -60,6 +63,25 @@ flutter analyze                               # static analysis
 ```
 
 Windows builds need a Windows machine; CI builds them on every push.
+
+Integration tests use local test mail servers; see
+[test-server/README.md](test-server/README.md):
+
+```bash
+test-server/fmailtest up && test-server/fmailtest smoke
+```
+
+### Live checks against a real account
+
+To check behaviour against a real provider, put your account settings (never
+the password) in a git-ignored `live-test.env`, and the password in the
+system keychain:
+
+```bash
+cp live-test.env.example live-test.env          # then edit it
+secret-tool store --label="Fmail test account" service fmail-test account you@example.com
+scripts/live-account-check.sh                   # read-only: TLS, capabilities, folders
+```
 
 ## Adding a dependency
 

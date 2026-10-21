@@ -1,0 +1,213 @@
+# Which fixture goes into which test mailbox, with which flags.
+# Fixtures live in test-data/mail/. Read by test-server/seed.py.
+#
+# alice  main account, "/" separator, nested and non-ASCII folders
+# bob    second account, for the unified inbox (shares a newsletter with alice)
+# carol  cPanel/Namecheap style: "INBOX." prefix and "." separator
+
+# ------------------------------------------------------------------ alice
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "people/plain-text.eml"
+flags = ["\\Seen", "\\Answered"]
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "people/thread-reply.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "people/html-alternative.eml"
+flags = ["\\Seen", "\\Flagged"]
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "people/latin1-quoted-printable.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "people/rfc2231-filename.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "people/read-receipt-requested.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "receipts/mdn-displayed.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "newsletters/one-click-unsubscribe.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "newsletters/web-link-only-unsubscribe.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "newsletters/mailing-list-discussion.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "notifications/github.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "notifications/password-reset.eml"
+flags = ["\\Seen"]
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "security/phishing-link-mismatch.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "security/punycode-lookalike.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "security/risky-attachments.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "security/hostile-html.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "malformed/missing-date-unknown-charset.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "malformed/unterminated-multipart.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "malformed/raw-utf8-headers.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "malformed/deep-nesting.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "malformed/bad-base64.eml"
+
+[[message]]
+user = "alice"
+mailbox = "INBOX"
+file = "malformed/encoded-word-edge-cases.eml"
+
+[[message]]
+user = "alice"
+mailbox = "Sent"
+file = "sent/lunch-reply.eml"
+flags = ["\\Seen"]
+
+[[message]]
+user = "alice"
+mailbox = "Sent"
+file = "sent/report-with-receipt-request.eml"
+flags = ["\\Seen"]
+
+[[message]]
+user = "alice"
+mailbox = "Drafts"
+file = "drafts/unfinished.eml"
+flags = ["\\Seen", "\\Draft"]
+
+[[message]]
+user = "alice"
+mailbox = "Archive"
+file = "people/folded-headers-groups.eml"
+flags = ["\\Seen"]
+
+[[message]]
+user = "alice"
+mailbox = "Trash"
+file = "newsletters/body-link-only.eml"
+flags = ["\\Seen"]
+
+[[message]]
+user = "alice"
+mailbox = "Junk"
+file = "newsletters/one-click-dkim-fail.eml"
+
+[[message]]
+user = "alice"
+mailbox = "Projects/2026"
+file = "people/attachment-inline-image.eml"
+flags = ["\\Seen"]
+
+[[message]]
+user = "alice"
+mailbox = "日本語"
+file = "people/japanese-iso-2022-jp.eml"
+
+# -------------------------------------------------------------------- bob
+[[message]]
+user = "bob"
+mailbox = "INBOX"
+file = "newsletters/one-click-unsubscribe.eml"
+
+[[message]]
+user = "bob"
+mailbox = "INBOX"
+file = "notifications/github.eml"
+flags = ["\\Seen"]
+
+[[message]]
+user = "bob"
+mailbox = "Sent"
+file = "people/plain-text.eml"
+flags = ["\\Seen"]
+
+# ------------------------------------------------------------------ carol
+[[message]]
+user = "carol"
+mailbox = "INBOX"
+file = "people/windows-1252-8bit.eml"
+
+[[message]]
+user = "carol"
+mailbox = "INBOX"
+file = "newsletters/mailto-only-unsubscribe.eml"
+
+[[message]]
+user = "carol"
+mailbox = "INBOX"
+file = "notifications/bank-alert.eml"
+
+# INBOX.Junk is an ordinary folder for carol; her \Junk folder is INBOX.spam.
+[[message]]
+user = "carol"
+mailbox = "INBOX.Junk"
+file = "newsletters/web-link-only-unsubscribe.eml"
+flags = ["\\Seen"]
+
+[[message]]
+user = "carol"
+mailbox = "INBOX.Receipts"
+file = "notifications/delivery.eml"
+flags = ["\\Seen"]

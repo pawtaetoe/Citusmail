@@ -1,0 +1,13 @@
+From: Henry Dev <henry@project.example>
+To: dev@lists.project.example
+Subject: [project-dev] Proposal: drop Python 3.9
+Date: Mon, 19 Oct 2026 13:00:00 +0000
+Message-ID: <proposal-39@project.example>
+List-Id: Project developers <dev.lists.project.example>
+List-Post: <mailto:dev@lists.project.example>
+List-Unsubscribe: <mailto:dev-leave@lists.project.example>
+Precedence: list
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+I propose we drop support for Python 3.9 in the next release.

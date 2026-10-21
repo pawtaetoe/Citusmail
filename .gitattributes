@@ -1,0 +1,2 @@
+# Mail fixtures must stay byte-exact (8-bit charsets, line endings).
+*.eml -text

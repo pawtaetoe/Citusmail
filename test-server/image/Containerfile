@@ -1,0 +1,49 @@
+# Test mail server for development and integration tests. NOT for real mail.
+#
+# Dovecot 2.3 (IMAP, LMTP) + Postfix (SMTP submission) on Ubuntu 24.04.
+# cPanel hosts such as Namecheap also run Dovecot 2.3, so behaviour matches
+# the real servers the app talks to.
+#
+# Base image pinned by digest so builds are reproducible.
+FROM docker.io/library/ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      dovecot-imapd dovecot-lmtpd postfix ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --gid 5000 vmail \
+ && useradd --uid 5000 --gid vmail --no-create-home --home-dir /var/mail --shell /usr/sbin/nologin vmail \
+ && mkdir -p /var/mail && chown vmail:vmail /var/mail \
+ && rm -f /etc/dovecot/conf.d/*.conf
+
+COPY dovecot/ /etc/dovecot/
+COPY postfix/ /etc/fmail-postfix/
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# Test users. Passwords are public test values, see test-server/README.md.
+# carol copies the real Namecheap layout: INBOX.spam is the \Junk folder and
+# INBOX.Junk is a plain folder, so the app must trust SPECIAL-USE, not names.
+# Hashes are made with openssl (SHA512-CRYPT); each assignment fails the
+# build on error instead of silently writing an empty hash.
+RUN set -eu; \
+    alice="$(openssl passwd -6 alice-test-password)"; \
+    bob="$(openssl passwd -6 bob-test-password)"; \
+    carol="$(openssl passwd -6 carol-test-password)"; \
+    { \
+      echo "alice@fmail.test:${alice}::::::"; \
+      echo "bob@fmail.test:${bob}::::::"; \
+      echo "carol@fmail.test:${carol}::::::userdb_mail=maildir:~/Maildir userdb_namespace/inbox/prefix=INBOX. userdb_namespace/inbox/separator=. userdb_namespace/inbox/mailbox/Junk/name=spam"; \
+    } > /etc/dovecot/users; \
+    grep -c '\$6\$' /etc/dovecot/users | grep -qx 3; \
+    chown root:dovecot /etc/dovecot/users; chmod 0640 /etc/dovecot/users; \
+    chmod 0755 /usr/local/bin/entrypoint.sh
+
+# Mode is chosen at run time:
+#   secure   TLS required, full modern IMAP (CONDSTORE, QRESYNC, MOVE, ...)
+#   limited  TLS required, old-style IMAP without CONDSTORE/QRESYNC/MOVE, to
+#            test the app's fallbacks
+#   plain    no TLS at all, only to prove the app refuses such servers
+ENV FMAIL_TEST_MODE=secure
+EXPOSE 143 993 587 465
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

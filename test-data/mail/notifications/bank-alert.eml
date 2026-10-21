@@ -1,0 +1,9 @@
+From: Example Bank <no-reply@alerts.bank.example>
+To: carol@fmail.test
+Subject: Card payment of $42.00 approved
+Date: Wed, 14 Oct 2026 20:15:00 +0000
+Message-ID: <txn-998877@alerts.bank.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+A card payment of $42.00 to Noodle House was approved.

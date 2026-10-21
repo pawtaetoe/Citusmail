@@ -1,0 +1,6 @@
+# TLS for secure and limited modes. Certificates come from the test CA.
+smtpd_tls_cert_file = /etc/fmail-certs/mail.crt
+smtpd_tls_key_file = /etc/fmail-certs/mail.key
+smtpd_tls_protocols = >=TLSv1.2
+smtpd_tls_mandatory_protocols = >=TLSv1.2
+smtpd_tls_security_level = may

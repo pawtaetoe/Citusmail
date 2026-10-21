@@ -1,0 +1,18 @@
+From: Octo Cat <notifications@github.com>
+Reply-To: owner/repo <reply+ABC123@reply.github.com>
+To: owner/repo <repo@noreply.github.com>
+Cc: Alice Example <alice@fmail.test>, Mention <mention@noreply.github.com>
+Subject: Re: [owner/repo] Fix crash on startup (PR #12)
+Date: Tue, 20 Oct 2026 08:00:00 +0000
+Message-ID: <owner/repo/pull/12/c100@github.com>
+List-Id: owner/repo <repo.owner.github.com>
+List-Unsubscribe: <mailto:unsub+ABC@reply.github.com>,
+ <https://github.com/notifications/unsubscribe/ABC>
+X-GitHub-Reason: mention
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+@alice can you review this?
+
+--
+Reply to this email directly or view it on GitHub.

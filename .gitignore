@@ -19,6 +19,9 @@ coverage/
 # Never commit secrets or local mail data
 *.env
 .env*
+# ...except these, which hold no secrets:
+!test-server/servers.env
+!live-test.env.example
 *.keystore
 *.jks
 key.properties
@@ -37,3 +40,10 @@ test-data/private/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test mail server generated files (certificates, keys)
+test-server/.generated/
+
+# Python
+__pycache__/
+*.pyc
