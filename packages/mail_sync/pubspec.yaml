@@ -12,6 +12,7 @@ environment:
 
 dependencies:
   mail_protocol: any
+  mail_sort: any
   mail_store: any
 
 dev_dependencies:

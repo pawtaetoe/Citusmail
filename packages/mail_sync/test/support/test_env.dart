@@ -7,6 +7,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
@@ -118,7 +119,7 @@ final class TestDevice {
       connector,
       MailboxSynchronizer(
         store,
-        const SummaryMapper(PeopleClassifier()),
+        const SummaryMapper(HeaderRuleClassifier()),
         settings: settings,
       ),
       OutboxReplayer(store),

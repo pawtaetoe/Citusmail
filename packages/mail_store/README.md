@@ -11,11 +11,13 @@ Encrypted local storage for the app. Pure Dart (no Flutter), built on
 | --- | --- |
 | `accounts` | Email, servers, login name. **Never the password** (it lives in the system keychain under `Account.keychainKey`) |
 | `mailboxes` | Folders, their special use, and sync state (UIDVALIDITY, UIDNEXT, HIGHESTMODSEQ) |
-| `messages` | Summaries: subject, sender, dates, flags, category, size |
+| `messages` | Summaries: subject, sender, dates, flags, size, list id, and the category (automatic decision plus the one shown) |
 | `message_addresses`, `message_headers` | Recipients, and the few headers sorting and unsubscribe need |
 | `message_bodies` | Full raw messages that were downloaded |
 | `message_search` | Full-text index (FTS5 trigram: works for every script) |
 | `outbox` | Actions not yet confirmed by the server, replayed in order |
+| `category_choices` | The user's "Move to" choices, per sender or mailing list |
+| `settings` | Small app-wide values (never secrets) |
 
 ## Guarantees
 
@@ -32,7 +34,10 @@ Encrypted local storage for the app. Pure Dart (no Flutter), built on
   use savepoints); a failed schema migration changes nothing.
 - **The cache is rebuildable.** A wrong key or a damaged file can be
   handled with `MailDatabase.destroy` and a fresh sync. Only the outbox and
-  manual category choices are local-only.
+  category choices are local-only.
+- **Choices can't go stale.** The category shown is recomputed in the same
+  transaction as any change to a message or a choice: the user's choice for
+  the message's list, else for its sender, else the automatic decision.
 
 ## Notes
 

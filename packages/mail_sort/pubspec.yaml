@@ -1,0 +1,19 @@
+name: mail_sort
+description: >-
+  Sorts mail into People, Newsletters and Notifications using header rules,
+  and remembers the user's corrections per sender or mailing list. Runs
+  entirely on the device. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  mail_protocol: any
+  mail_store: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

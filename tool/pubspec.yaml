@@ -15,6 +15,7 @@ executables:
 dependencies:
   mail_protocol: any
   mail_setup: any
+  mail_sort: any
   mail_store: any
   mail_sync: any
 

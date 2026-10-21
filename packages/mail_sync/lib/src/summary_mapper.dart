@@ -5,36 +5,8 @@
 import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
-
-/// What a classifier gets to decide a message's category.
-final class ClassificationInput {
-  const ClassificationInput({
-    required this.from,
-    required this.headers,
-    this.mailboxUse,
-  });
-
-  final MailAddress? from;
-
-  /// Selected headers, lower-case names (see [SummaryMapper.headerFields]).
-  final Map<String, List<String>> headers;
-  final SpecialUse? mailboxUse;
-}
-
-/// Decides People / Newsletters / Notifications. Rules come in Stage 7.
-abstract interface class MessageClassifier {
-  (MessageCategory, CategorySource) classify(ClassificationInput input);
-}
-
-/// Puts everything in People (until the rule-based sorter exists).
-final class PeopleClassifier implements MessageClassifier {
-  const PeopleClassifier();
-
-  @override
-  (MessageCategory, CategorySource) classify(ClassificationInput input) =>
-      (MessageCategory.people, CategorySource.rule);
-}
 
 /// Turns FETCH results into summaries for the store.
 final class SummaryMapper {
@@ -81,7 +53,7 @@ final class SummaryMapper {
 
     final headers = _headers(message.headerFields);
     final from = envelope?.from.firstOrNull;
-    final (category, source) = classifier.classify(
+    final decision = classifier.classify(
       ClassificationInput(from: from, headers: headers, mailboxUse: mailboxUse),
     );
     return MessageSummary(
@@ -102,8 +74,9 @@ final class SummaryMapper {
       modSeq: message.modSeq,
       hasAttachments:
           message.bodyStructure?.allParts.any((p) => p.isAttachment) ?? false,
-      category: category,
-      categorySource: source,
+      category: decision.category,
+      categorySource: decision.source,
+      listId: ListId.fromHeaders(headers),
       snippet: _snippet(message.preview),
       headers: headers,
     );

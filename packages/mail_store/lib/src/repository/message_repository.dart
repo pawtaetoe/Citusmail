@@ -9,6 +9,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
 import '../model/message.dart';
+import 'category_refresh.dart';
 import 'search_query.dart';
 
 /// Which messages to list. Results are newest first; page with [before].
@@ -55,12 +56,13 @@ final class MessageRepository {
   static const _columns =
       'm.id, m.mailbox_id, b.account_id, m.uid, m.message_id_header, m.in_reply_to, '
       'm.thread_references, m.subject, m.from_name, m.from_address, m.sent_at, m.received_at, m.size, '
-      'm.flags, m.keywords, m.mod_seq, m.has_attachments, m.category, m.category_source, m.snippet';
+      'm.flags, m.keywords, m.mod_seq, m.has_attachments, m.category, m.category_source, m.snippet, m.list_id';
   static const _from =
       'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id';
 
-  /// Inserts or updates summaries by UID, in one transaction. A category
-  /// the user chose by hand is kept; rules never overwrite it.
+  /// Inserts or updates summaries by UID, in one transaction. The summary
+  /// carries the automatic category; the category shown also follows the
+  /// user's choices (see [CategoryRefresh]), which rules never overwrite.
   void upsertSummaries(int mailboxId, List<MessageSummary> summaries) =>
       _db.transaction(() {
         for (final s in summaries) {
@@ -69,8 +71,8 @@ final class MessageRepository {
                       .select(
                         'INSERT INTO messages (mailbox_id, uid, message_id_header, in_reply_to, thread_references, '
                         'subject, from_name, from_address, sent_at, received_at, size, flags, keywords, mod_seq, '
-                        'has_attachments, category, category_source, snippet) '
-                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                        'has_attachments, auto_category, auto_source, category, category_source, list_id, snippet) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                         'ON CONFLICT (mailbox_id, uid) DO UPDATE SET '
                         'message_id_header = excluded.message_id_header, in_reply_to = excluded.in_reply_to, '
                         'thread_references = excluded.thread_references, subject = excluded.subject, '
@@ -78,8 +80,8 @@ final class MessageRepository {
                         'sent_at = excluded.sent_at, received_at = excluded.received_at, size = excluded.size, '
                         'flags = excluded.flags, keywords = excluded.keywords, mod_seq = excluded.mod_seq, '
                         'has_attachments = excluded.has_attachments, snippet = excluded.snippet, '
-                        "category = CASE WHEN messages.category_source = 'manual' THEN messages.category ELSE excluded.category END, "
-                        "category_source = CASE WHEN messages.category_source = 'manual' THEN 'manual' ELSE excluded.category_source END "
+                        'auto_category = excluded.auto_category, auto_source = excluded.auto_source, '
+                        'list_id = excluded.list_id '
                         'RETURNING id',
                         [
                           mailboxId,
@@ -99,12 +101,16 @@ final class MessageRepository {
                           s.hasAttachments ? 1 : 0,
                           s.category.name,
                           s.categorySource.name,
+                          s.category.name,
+                          s.categorySource.name,
+                          s.listId,
                           s.snippet,
                         ],
                       )
                       .first
                       .columnAt(0)
                   as int;
+          CategoryRefresh.byId(_db, id);
           _replaceAddresses(id, s);
           _replaceHeaders(id, s.headers);
           _indexSummary(id, s);
@@ -280,15 +286,7 @@ final class MessageRepository {
         'SELECT name, address FROM message_addresses WHERE message_id = ? AND kind = ? ORDER BY position',
         [messageId, kind],
       )
-      .map((r) {
-        final address = r['address'] as String;
-        final at = address.lastIndexOf('@');
-        return MailAddress(
-          displayName: r['name'] as String?,
-          localPart: at > 0 ? address.substring(0, at) : address,
-          domain: at > 0 ? address.substring(at + 1) : '',
-        );
-      })
+      .map((r) => _address(r['name'] as String?, r['address'] as String)!)
       .toList(growable: false);
 
   /// Stored headers of a message: lower-case name -> values.
@@ -342,15 +340,57 @@ final class MessageRepository {
     return rows.isEmpty ? null : rows.first.columnAt(0) as Uint8List;
   }
 
-  /// Sets the category (a manual choice is kept across syncs).
-  void setCategory(
-    int messageId,
-    MessageCategory category,
-    CategorySource source,
-  ) => _db.execute(
-    'UPDATE messages SET category = ?, category_source = ? WHERE id = ?',
-    [category.name, source.name, messageId],
-  );
+  /// Up to [limit] messages with an id above [afterId], in id order, with
+  /// what sorting needs. For re-sorting stored mail without downloading.
+  List<SortableMessage> sortable({int afterId = 0, int limit = 500}) {
+    final rows = _db.select(
+      'SELECT m.id, m.from_name, m.from_address, b.special_use '
+      'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id '
+      'WHERE m.id > ? ORDER BY m.id LIMIT ?',
+      [afterId, limit.clamp(1, 5000)],
+    );
+    if (rows.isEmpty) return const [];
+    final ids = [for (final r in rows) r['id'] as int];
+    final headers = <int, Map<String, List<String>>>{};
+    for (final row in _db.select(
+      'SELECT message_id, name, value FROM message_headers '
+      'WHERE message_id BETWEEN ? AND ? ORDER BY message_id, name, position',
+      [ids.first, ids.last],
+    )) {
+      headers
+          .putIfAbsent(row['message_id'] as int, () => {})
+          .putIfAbsent(row['name'] as String, () => [])
+          .add(row['value'] as String);
+    }
+    return [
+      for (final row in rows)
+        SortableMessage(
+          id: row['id'] as int,
+          from: _address(
+            row['from_name'] as String?,
+            row['from_address'] as String?,
+          ),
+          headers: headers[row['id'] as int] ?? const {},
+          mailboxUse: switch (row['special_use'] as String?) {
+            final use? => SpecialUse.values.asNameMap()[use],
+            null => null,
+          },
+        ),
+    ];
+  }
+
+  /// Stores new automatic decisions (e.g. after the rules changed). The
+  /// user's choices still take precedence.
+  void updateAutomaticCategories(List<AutomaticCategory> decisions) =>
+      _db.transaction(() {
+        for (final d in decisions) {
+          _db.execute(
+            'UPDATE messages SET auto_category = ?, auto_source = ?, list_id = ? WHERE id = ?',
+            [d.category.name, d.source.name, d.listId, d.messageId],
+          );
+          CategoryRefresh.byId(_db, d.messageId);
+        }
+      });
 
   // ---------------------------------------------------------------------
 
@@ -413,17 +453,30 @@ final class MessageRepository {
     );
   }
 
-  static StoredMessage _fromRow(Row row) {
-    final fromAddress = row['from_address'] as String?;
-    MailAddress? from;
-    if (fromAddress != null) {
-      final at = fromAddress.lastIndexOf('@');
-      from = MailAddress(
-        displayName: row['from_name'] as String?,
-        localPart: at > 0 ? fromAddress.substring(0, at) : fromAddress,
-        domain: at > 0 ? fromAddress.substring(at + 1) : '',
-      );
+  /// Splits a stored `MailAddress.address` back into its parts, undoing
+  /// the quoting of a local part such as `"john doe"`, so that `.address`
+  /// gives back exactly the stored text.
+  static MailAddress? _address(String? name, String? address) {
+    if (address == null) return null;
+    final at = address.lastIndexOf('@');
+    var local = at > 0 ? address.substring(0, at) : address;
+    if (local.length >= 2 && local.startsWith('"') && local.endsWith('"')) {
+      local = local
+          .substring(1, local.length - 1)
+          .replaceAllMapped(RegExp(r'\\(.)'), (m) => m.group(1)!);
     }
+    return MailAddress(
+      displayName: name,
+      localPart: local,
+      domain: at > 0 ? address.substring(at + 1) : '',
+    );
+  }
+
+  static StoredMessage _fromRow(Row row) {
+    final from = _address(
+      row['from_name'] as String?,
+      row['from_address'] as String?,
+    );
     final sentAt = row['sent_at'] as int?;
     final references = (row['thread_references'] as String?) ?? '';
     final keywords = (row['keywords'] as String)
@@ -456,6 +509,7 @@ final class MessageRepository {
         row['category_source'] as String,
       ),
       snippet: row['snippet'] as String?,
+      listId: row['list_id'] as String?,
     );
   }
 }

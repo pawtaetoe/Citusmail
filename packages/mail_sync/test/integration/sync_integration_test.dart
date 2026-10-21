@@ -9,9 +9,12 @@
 // Tests that change mail use folders with random names.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 import 'package:test/test.dart';
@@ -169,6 +172,74 @@ void main() {
     expect(result.wasReset, isTrue);
     expect(me.mailbox(folder).syncState.uidValidity, isNot(before));
     expect(me.messages(folder).map((m) => m.subject), ['after']);
+  });
+
+  group('sorting', () {
+    test('the seeded inbox is sorted by header rules', () async {
+      final alice = device('alice');
+      await alice.sync(['INBOX']);
+      Set<String?> subjects(MessageCategory category) => alice.store.messages
+          .list(MessageQuery.unified(category, limit: 500))
+          .map((m) => m.subject)
+          .toSet();
+
+      expect(subjects(MessageCategory.newsletters), {
+        '50% off everything this week',
+        "Today's deals",
+        '[project-dev] Proposal: drop Python 3.9',
+      });
+      expect(subjects(MessageCategory.notifications), {
+        'Re: [owner/repo] Fix crash on startup (PR #12)',
+        'Reset your password',
+      });
+      expect(
+        alice.store.messages.list(
+          const MessageQuery.unified(MessageCategory.people, limit: 500),
+        ),
+        hasLength(17),
+      );
+      final list = alice
+          .messages('INBOX')
+          .firstWhere((m) => m.subject!.startsWith('[project-dev]'));
+      expect(list.listId, 'dev.lists.project.example');
+    });
+
+    test('a correction covers earlier and later mail across syncs', () async {
+      final folder = scratchFolder();
+      Uint8List newsletter(int n) => utf8.encode(
+        'From: Shop Weekly <news@shop.example>\r\n'
+        'To: alice@fmail.test\r\n'
+        'Subject: Offer $n\r\n'
+        'Message-ID: <offer-$n-$folder@shop.example>\r\n'
+        'Date: Thu, 22 Oct 2026 10:0$n:00 +0000\r\n'
+        'List-Unsubscribe: <mailto:leave@shop.example>\r\n'
+        '\r\n'
+        'Offer $n\r\n',
+      );
+      final other = await servers.otherDevice('alice');
+      await other.create(folder);
+      await other.append(folder, newsletter(1));
+
+      final me = device('alice');
+      await me.sync([folder]);
+      final first = me.messages(folder).single;
+      expect(first.category, MessageCategory.newsletters);
+
+      final move = CategoryCorrections(me.store)
+          .move(first, MessageCategory.people);
+      expect(move!.choice.scope, ChoiceScope.sender);
+      await other.append(folder, newsletter(2));
+      await other.logout();
+      await me.sync([folder]);
+      await me.sync([folder]);
+
+      final messages = me.messages(folder);
+      expect(messages, hasLength(2));
+      for (final m in messages) {
+        expect(m.category, MessageCategory.people, reason: m.subject);
+        expect(m.categorySource, CategorySource.manual);
+      }
+    });
   });
 
   group('offline actions', () {

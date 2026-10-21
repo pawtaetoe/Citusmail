@@ -9,9 +9,11 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../services/app_services.dart';
+import 'sorting_text.dart';
 
 /// Temporary home screen until the full inbox UI (Stage 8): accounts with
-/// their sync status, and the latest messages from every inbox.
+/// their sync status, and the latest messages from every inbox, sorted
+/// into People, Newsletters and Notifications.
 class AccountsPage extends StatefulWidget {
   const AccountsPage({
     super.key,
@@ -29,6 +31,7 @@ class AccountsPage extends StatefulWidget {
 class _AccountsPageState extends State<AccountsPage> {
   StreamSubscription<SyncEvent>? _events;
   final Map<int, SyncEvent> _lastEvent = {};
+  MessageCategory _category = MessageCategory.people;
 
   MailStore get _store => widget.services.store;
 
@@ -77,11 +80,44 @@ class _AccountsPageState extends State<AccountsPage> {
     setState(() {});
   }
 
+  void _move(StoredMessage message, MessageCategory category) {
+    final corrections = widget.services.corrections;
+    final move = corrections.move(message, category);
+    if (move == null) return _tell(SortingText.cannotMove);
+    setState(() {});
+    _tell(
+      SortingText.moved(move.choice),
+      undo: () {
+        corrections.revert(move);
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
+  void _decideAgain(StoredMessage message) {
+    final removed = widget.services.corrections.undo(message);
+    setState(() {});
+    if (removed != null) _tell(SortingText.forgotten(removed));
+  }
+
+  void _tell(String text, {VoidCallback? undo}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text),
+          action: undo == null
+              ? null
+              : SnackBarAction(label: 'Undo', onPressed: undo),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final accounts = _store.accounts.all();
     final latest = _store.messages.list(
-      const MessageQuery(inboxesOnly: true, limit: 50),
+      MessageQuery.unified(_category, limit: 50),
     );
     return Scaffold(
       appBar: AppBar(
@@ -119,12 +155,31 @@ class _AccountsPageState extends State<AccountsPage> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
+          SegmentedButton<MessageCategory>(
+            segments: [
+              for (final category in MessageCategory.values)
+                ButtonSegment(
+                  value: category,
+                  label: Text(SortingText.category(category)),
+                ),
+            ],
+            selected: {_category},
+            showSelectedIcon: false,
+            onSelectionChanged: (selected) =>
+                setState(() => _category = selected.single),
+          ),
+          const SizedBox(height: 8),
           if (latest.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('No messages yet.'),
+              child: Text('No messages here yet.'),
             ),
-          for (final message in latest) _MessageRow(message: message),
+          for (final message in latest)
+            _MessageRow(
+              message: message,
+              onMove: (category) => _move(message, category),
+              onDecideAgain: () => _decideAgain(message),
+            ),
         ],
       ),
     );
@@ -193,9 +248,15 @@ class _AccountCard extends StatelessWidget {
 }
 
 class _MessageRow extends StatelessWidget {
-  const _MessageRow({required this.message});
+  const _MessageRow({
+    required this.message,
+    required this.onMove,
+    required this.onDecideAgain,
+  });
 
   final StoredMessage message;
+  final void Function(MessageCategory category) onMove;
+  final VoidCallback onDecideAgain;
 
   @override
   Widget build(BuildContext context) {
@@ -216,9 +277,27 @@ class _MessageRow extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: Text(
+      leading: Text(
         MaterialLocalizations.of(context)
             .formatShortDate(message.receivedAt.toLocal()),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      trailing: PopupMenuButton<VoidCallback>(
+        tooltip: 'Sort',
+        onSelected: (action) => action(),
+        itemBuilder: (_) => [
+          for (final category in MessageCategory.values)
+            if (category != message.category)
+              PopupMenuItem(
+                value: () => onMove(category),
+                child: Text(SortingText.moveTo(category)),
+              ),
+          if (message.categorySource == CategorySource.manual)
+            PopupMenuItem(
+              value: onDecideAgain,
+              child: const Text(SortingText.decideAgain),
+            ),
+        ],
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 import 'package:test/test.dart';
@@ -54,7 +55,7 @@ void main() {
   });
 
   group('SummaryMapper', () {
-    const mapper = SummaryMapper(PeopleClassifier());
+    const mapper = SummaryMapper(HeaderRuleClassifier());
 
     FetchedMessage fetched({
       int? uid = 7,

@@ -24,7 +24,9 @@ Planned optional features (off by default, each asks first):
 
 ## What stays on your device
 
-Mail, contacts, settings and caches are stored encrypted on the device. App
+Mail, contacts, settings and caches are stored encrypted on the device.
+Sorting into People, Newsletters and Notifications runs on the device from
+a few message headers; your "Move to" choices are stored with your mail. App
 settings such as your block list can sync between your devices through a
 hidden folder in your own mail account. They never go to anyone else.
 

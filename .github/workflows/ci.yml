@@ -42,6 +42,9 @@ jobs:
       - name: Test mail_setup
         working-directory: packages/mail_setup
         run: dart test
+      - name: Test mail_sort
+        working-directory: packages/mail_sort
+        run: dart test
       - name: Test repository tools
         working-directory: tool
         run: dart test

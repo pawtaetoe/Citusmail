@@ -16,6 +16,7 @@ import 'dart:io';
 
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
@@ -165,7 +166,7 @@ Future<void> _checkSync(LiveSettings s, String password) async {
     final synchronizer = AccountSynchronizer(
       store,
       connector,
-      MailboxSynchronizer(store, const SummaryMapper(PeopleClassifier())),
+      MailboxSynchronizer(store, const SummaryMapper(HeaderRuleClassifier())),
       OutboxReplayer(store),
     );
     await synchronizer.sync(account, mailboxIds: const {});
@@ -186,6 +187,14 @@ Future<void> _checkSync(LiveSettings s, String password) async {
     );
     final withPreview = messages.where((m) => m.snippet != null).length;
     _ok('${messages.length} summaries stored, $withPreview with previews');
+    // Counts only: nothing about individual messages is printed.
+    final counts = {
+      for (final category in MessageCategory.values)
+        category.name: messages.where((m) => m.category == category).length,
+    };
+    _ok(
+      'sorted: ${counts.entries.map((e) => '${e.value} ${e.key}').join(', ')}',
+    );
   } finally {
     store.close();
     dir.deleteSync(recursive: true);

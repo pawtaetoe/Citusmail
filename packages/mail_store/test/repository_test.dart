@@ -24,11 +24,13 @@ MessageSummary summary(
   MessageCategory category = MessageCategory.people,
   MessageFlags flags = MessageFlags.none,
   MailAddress? from,
+  String? listId,
 }) => MessageSummary(
   uid: uid,
   subject: subject ?? 'Message $uid',
   receivedAt: at ?? DateTime.utc(2026, 10, 1).add(Duration(minutes: uid)),
   category: category,
+  listId: listId,
   flags: flags,
   from:
       from ??
@@ -248,24 +250,6 @@ void main() {
       ]);
       expect(store.messages.uids(inbox.id), [1, 2]);
       expect(store.messages.byUid(inbox.id, 1)!.subject, 'Changed');
-    });
-
-    test('a manual category survives later syncs', () {
-      store.messages.upsertSummaries(inbox.id, [
-        summary(1, category: MessageCategory.newsletters),
-      ]);
-      final id = store.messages.byUid(inbox.id, 1)!.id;
-      store.messages.setCategory(
-        id,
-        MessageCategory.people,
-        CategorySource.manual,
-      );
-      store.messages.upsertSummaries(inbox.id, [
-        summary(1, category: MessageCategory.newsletters),
-      ]);
-      final message = store.messages.byId(id)!;
-      expect(message.category, MessageCategory.people);
-      expect(message.categorySource, CategorySource.manual);
     });
 
     test('addresses, selected headers and flags round-trip', () {
@@ -645,6 +629,295 @@ void main() {
           reason: bad,
         );
       }
+    });
+  });
+
+  group('category choices', () {
+    late StoredMailbox inbox;
+    late StoredMailbox other;
+    const shop = MailAddress(localPart: 'News', domain: 'Shop.example');
+    const henry = MailAddress(localPart: 'henry', domain: 'project.example');
+
+    setUp(() {
+      final account = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+        folder('Archive', use: 'Archive'),
+      ]);
+      inbox = boxes.firstWhere((b) => b.encodedName == 'INBOX');
+      other = boxes.firstWhere((b) => b.encodedName == 'Archive');
+    });
+
+    StoredMessage at(StoredMailbox box, int uid) =>
+        store.messages.byUid(box.id, uid)!;
+
+    test('a sender choice re-sorts earlier mail in every folder, '
+        'ignoring ASCII case', () {
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, from: shop, category: MessageCategory.newsletters),
+        summary(2), // another sender
+      ]);
+      store.messages.upsertSummaries(other.id, [
+        summary(7, from: shop, category: MessageCategory.newsletters),
+      ]);
+
+      store.categoryChoices.save(
+        CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: 'news@shop.EXAMPLE',
+          category: MessageCategory.people,
+        ),
+      );
+
+      for (final m in [at(inbox, 1), at(other, 7)]) {
+        expect(m.category, MessageCategory.people);
+        expect(m.categorySource, CategorySource.manual);
+      }
+      expect(at(inbox, 2).categorySource, CategorySource.rule);
+    });
+
+    test('a choice applies to mail synced later and survives re-syncs', () {
+      store.categoryChoices.save(
+        CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: shop.address,
+          category: MessageCategory.notifications,
+        ),
+      );
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, from: shop, category: MessageCategory.newsletters),
+      ]);
+      expect(at(inbox, 1).category, MessageCategory.notifications);
+      // The server sends the same message again (e.g. flags changed).
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, from: shop, category: MessageCategory.newsletters),
+      ]);
+      expect(at(inbox, 1).category, MessageCategory.notifications);
+      expect(at(inbox, 1).categorySource, CategorySource.manual);
+    });
+
+    test('removing a choice brings back the automatic category', () {
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, from: shop, category: MessageCategory.newsletters),
+      ]);
+      store.categoryChoices.save(
+        CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: shop.address,
+          category: MessageCategory.people,
+        ),
+      );
+      expect(
+        store.categoryChoices.remove(ChoiceScope.sender, 'NEWS@shop.example'),
+        isTrue,
+      );
+      expect(
+        store.categoryChoices.remove(ChoiceScope.sender, shop.address),
+        isFalse,
+      );
+      expect(at(inbox, 1).category, MessageCategory.newsletters);
+      expect(at(inbox, 1).categorySource, CategorySource.rule);
+      expect(store.categoryChoices.all(), isEmpty);
+    });
+
+    test('a list choice covers every poster and wins over a sender choice', () {
+      const list = 'dev.lists.project.example';
+      store.messages.upsertSummaries(inbox.id, [
+        summary(
+          1,
+          from: henry,
+          listId: list,
+          category: MessageCategory.newsletters,
+        ),
+        summary(
+          2,
+          from: shop,
+          listId: list,
+          category: MessageCategory.newsletters,
+        ),
+        summary(3, from: henry), // Henry writing directly, not via the list
+      ]);
+      store.categoryChoices
+        ..save(
+          CategoryChoice(
+            scope: ChoiceScope.sender,
+            key: henry.address,
+            category: MessageCategory.notifications,
+          ),
+        )
+        ..save(
+          CategoryChoice(
+            scope: ChoiceScope.list,
+            key: list,
+            category: MessageCategory.people,
+          ),
+        );
+      expect(at(inbox, 1).category, MessageCategory.people);
+      expect(at(inbox, 2).category, MessageCategory.people);
+      expect(at(inbox, 3).category, MessageCategory.notifications);
+      expect(at(inbox, 1).listId, list);
+
+      store.categoryChoices.remove(ChoiceScope.list, list);
+      expect(at(inbox, 1).category, MessageCategory.notifications); // sender
+      expect(at(inbox, 2).category, MessageCategory.newsletters); // automatic
+    });
+
+    test('quoted local parts round-trip, so choices match them', () {
+      const quoted = MailAddress(
+        localPart: 'john "jd" doe',
+        domain: 'x.example',
+      );
+      store.messages.upsertSummaries(inbox.id, [summary(1, from: quoted)]);
+      final stored = at(inbox, 1).from!;
+      expect(stored.localPart, 'john "jd" doe');
+      expect(stored.address, quoted.address);
+      store.categoryChoices.save(
+        CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: stored.address,
+          category: MessageCategory.notifications,
+        ),
+      );
+      expect(at(inbox, 1).category, MessageCategory.notifications);
+    });
+
+    test('changing a choice replaces it', () {
+      store.messages.upsertSummaries(inbox.id, [summary(1, from: shop)]);
+      for (final category in [
+        MessageCategory.newsletters,
+        MessageCategory.notifications,
+      ]) {
+        store.categoryChoices.save(
+          CategoryChoice(
+            scope: ChoiceScope.sender,
+            key: shop.address,
+            category: category,
+          ),
+        );
+      }
+      expect(store.categoryChoices.all(), hasLength(1));
+      expect(
+        store.categoryChoices.find(ChoiceScope.sender, shop.address)!.category,
+        MessageCategory.notifications,
+      );
+      expect(at(inbox, 1).category, MessageCategory.notifications);
+    });
+
+    test('unified category lists follow choices', () {
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, from: shop, category: MessageCategory.newsletters),
+      ]);
+      store.categoryChoices.save(
+        CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: shop.address,
+          category: MessageCategory.people,
+        ),
+      );
+      expect(
+        store.messages.list(
+          const MessageQuery.unified(MessageCategory.newsletters),
+        ),
+        isEmpty,
+      );
+      expect(
+        store.messages.list(const MessageQuery.unified(MessageCategory.people)),
+        hasLength(1),
+      );
+    });
+
+    test('re-sorting reads stored mail and keeps choices on top', () {
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026),
+          from: shop,
+          headers: const {
+            'List-Unsubscribe': ['<mailto:u@shop.example>'],
+          },
+        ),
+        summary(2, from: henry),
+      ]);
+      store.categoryChoices.save(
+        CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: henry.address,
+          category: MessageCategory.notifications,
+        ),
+      );
+
+      final batch = store.messages.sortable();
+      expect(batch.map((m) => m.from?.address), [
+        'News@Shop.example',
+        'henry@project.example',
+      ]);
+      expect(batch.first.headers, {
+        'list-unsubscribe': ['<mailto:u@shop.example>'],
+      });
+      expect(batch.first.mailboxUse, isNull);
+      expect(store.messages.sortable(afterId: batch.last.id), isEmpty);
+
+      store.messages.updateAutomaticCategories([
+        for (final m in batch)
+          AutomaticCategory(
+            messageId: m.id,
+            category: MessageCategory.newsletters,
+            source: CategorySource.rule,
+            listId: 'l.shop.example',
+          ),
+      ]);
+      expect(at(inbox, 1).category, MessageCategory.newsletters);
+      expect(at(inbox, 1).listId, 'l.shop.example');
+      expect(at(inbox, 2).category, MessageCategory.notifications); // chosen
+    });
+
+    test('keys are validated and compared in ASCII lower case only', () {
+      expect(
+        () => CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: '  ',
+          category: MessageCategory.people,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: 'a' * 513,
+          category: MessageCategory.people,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        CategoryChoice(
+          scope: ChoiceScope.sender,
+          key: ' Jürgen@Beispiel.EXAMPLE ',
+          category: MessageCategory.people,
+        ).key,
+        'jürgen@beispiel.example',
+      );
+      expect(
+        () => MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026),
+          categorySource: CategorySource.manual,
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('settings', () {
+    test('read, write, overwrite, delete, and persist', () {
+      expect(store.settings.read('k'), isNull);
+      store.settings
+        ..write('k', 'one')
+        ..write('k', 'two');
+      temp.reopen();
+      store = temp.store;
+      expect(store.settings.read('k'), 'two');
+      store.settings.delete('k');
+      expect(store.settings.read('k'), isNull);
     });
   });
 }

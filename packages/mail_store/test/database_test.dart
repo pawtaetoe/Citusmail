@@ -166,6 +166,40 @@ void main() {
       temp.store = MailStore.open(temp.path, temp.key);
     });
 
+    test('version 1 data is carried into version 2 sorting columns', () {
+      temp.store.close();
+      MailDatabase.destroy(temp.path);
+      final v1 = MailDatabase.open(
+        temp.path,
+        temp.key,
+        migrations: schemaMigrations.sublist(0, 1),
+      );
+      v1
+        ..execute(
+          'INSERT INTO accounts (id, email, username, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, created_at) '
+          "VALUES (1, 'a@fmail.test', 'a', 'h', 993, 'implicitTls', 'h', 465, 'implicitTls', 0)",
+        )
+        ..execute(
+          "INSERT INTO mailboxes (id, account_id, encoded_name, name) VALUES (1, 1, 'INBOX', 'INBOX')",
+        )
+        ..execute(
+          'INSERT INTO messages (mailbox_id, uid, received_at, category, category_source) VALUES '
+          "(1, 1, 0, 'newsletters', 'rule'), (1, 2, 0, 'notifications', 'manual')",
+        )
+        ..close();
+
+      temp.store = MailStore.open(temp.path, temp.key);
+      final rows = temp.store.database.select(
+        'SELECT uid, category, category_source, auto_category, auto_source, list_id FROM messages ORDER BY uid',
+      );
+      expect(rows.map((r) => [for (final v in r.values) v]), [
+        [1, 'newsletters', 'rule', 'newsletters', 'rule', null],
+        [2, 'notifications', 'rule', 'notifications', 'rule', null],
+      ]);
+      expect(temp.store.categoryChoices.all(), isEmpty);
+      expect(temp.store.settings.read('anything'), isNull);
+    });
+
     test('a failing migration rolls back completely', () {
       temp.store.close();
       final broken = [

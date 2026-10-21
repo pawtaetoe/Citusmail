@@ -7,8 +7,9 @@ import 'package:mail_protocol/mail_protocol.dart';
 /// The shared folders messages are sorted into across all accounts.
 enum MessageCategory { people, newsletters, notifications }
 
-/// Who decided a message's category. A manual choice is never overwritten
-/// by rules.
+/// Who decided a message's category: header rules, the provider's own
+/// labels, or the user (a "Move to" choice for the sender or list, which
+/// rules never overwrite).
 enum CategorySource { rule, provider, manual }
 
 /// IMAP system flags as bits, plus other keywords ($Forwarded, $Junk...).
@@ -103,8 +104,16 @@ final class MessageSummary {
     this.categorySource = CategorySource.rule,
     this.snippet,
     this.headers = const {},
+    this.listId,
   }) {
     if (uid < 1) throw ArgumentError.value(uid, 'uid', 'must be at least 1');
+    if (categorySource == CategorySource.manual) {
+      throw ArgumentError.value(
+        categorySource,
+        'categorySource',
+        'a summary carries the automatic decision; user choices are stored as CategoryChoice',
+      );
+    }
   }
 
   final int uid;
@@ -124,9 +133,16 @@ final class MessageSummary {
   final MessageFlags flags;
   final int? modSeq;
   final bool hasAttachments;
+
+  /// The automatic decision (rules or provider). The category shown may
+  /// differ when the user chose one for the sender or list.
   final MessageCategory category;
   final CategorySource categorySource;
   final String? snippet;
+
+  /// The normalized List-Id (lower case), if the message came through a
+  /// mailing list.
+  final String? listId;
 
   /// Selected headers (lower-case name -> values) kept for sorting,
   /// unsubscribe and phishing checks.
@@ -154,6 +170,7 @@ final class StoredMessage {
     this.sentAt,
     this.modSeq,
     this.snippet,
+    this.listId,
   });
 
   final int id;
@@ -171,10 +188,52 @@ final class StoredMessage {
   final MessageFlags flags;
   final int? modSeq;
   final bool hasAttachments;
+
+  /// The category shown, and who decided it.
   final MessageCategory category;
   final CategorySource categorySource;
   final String? snippet;
 
+  /// Normalized List-Id, for mailing-list messages.
+  final String? listId;
+
   @override
   String toString() => 'StoredMessage($id, mailbox $mailboxId, uid $uid)';
+}
+
+/// A stored message with what sorting needs, for re-sorting without
+/// downloading anything.
+final class SortableMessage {
+  const SortableMessage({
+    required this.id,
+    required this.from,
+    required this.headers,
+    required this.mailboxUse,
+  });
+
+  final int id;
+  final MailAddress? from;
+
+  /// Stored headers, lower-case names.
+  final Map<String, List<String>> headers;
+  final SpecialUse? mailboxUse;
+}
+
+/// A new automatic decision for a stored message.
+final class AutomaticCategory {
+  AutomaticCategory({
+    required this.messageId,
+    required this.category,
+    required this.source,
+    this.listId,
+  }) {
+    if (source == CategorySource.manual) {
+      throw ArgumentError.value(source, 'source', 'must be automatic');
+    }
+  }
+
+  final int messageId;
+  final MessageCategory category;
+  final CategorySource source;
+  final String? listId;
 }

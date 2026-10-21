@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'account_synchronizer.dart';
@@ -42,7 +43,7 @@ final class SyncEngine {
   SyncEngine(
     this._store,
     this._connector, {
-    MessageClassifier classifier = const PeopleClassifier(),
+    MessageClassifier classifier = const HeaderRuleClassifier(),
     SyncSettings settings = const SyncSettings(),
     this.fullSyncInterval = const Duration(minutes: 15),
     this.changeDelay = const Duration(milliseconds: 500),

@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:mail_setup/mail_setup.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18,12 +19,20 @@ final class AppServices {
         store,
         DefaultMailConnector(KeychainCredentials(secrets)),
       ),
-      actions = MailActions(store);
+      actions = MailActions(store),
+      corrections = CategoryCorrections(store),
+      resorter = Resorter(store);
 
   final MailStore store;
   final SecretStore secrets;
   final SyncEngine sync;
   final MailActions actions;
+
+  /// "Move to People / Newsletters / Notifications".
+  final CategoryCorrections corrections;
+
+  /// Re-sorts stored mail after the sorting rules change.
+  final Resorter resorter;
 
   /// Saves a verified account: settings in the encrypted store, password in
   /// the keychain. If the keychain write fails, the account is removed
@@ -127,7 +136,16 @@ abstract final class AppStartup {
       } else {
         key = DatabaseKey.fromBytes(_hexToBytes(stored));
       }
-      return StartupReady(AppServices(MailStore.open(path, key), keychain));
+      final services = AppServices(MailStore.open(path, key), keychain);
+      // Before sync starts: mail stored by an older version (or with older
+      // rules) is sorted again from its stored headers.
+      try {
+        await services.resorter.resortIfNeeded();
+      } on Object {
+        await services.dispose();
+        rethrow;
+      }
+      return StartupReady(services);
     } on SecretStoreUnavailableException catch (e) {
       return StartupKeychainUnavailable(e.message);
     } on WrongKeyException {

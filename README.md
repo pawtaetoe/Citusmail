@@ -30,6 +30,7 @@ macOS and iOS for later.
 │   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
 │                             from scratch with no runtime dependencies
 │   ├── mail_setup/           Account setup: discovery and login verification
+│   ├── mail_sort/            Sorting into People, Newsletters, Notifications
 │   ├── mail_store/           Encrypted local storage (SQLite3MultipleCiphers)
 │   └── mail_sync/            Sync engine: folders, messages, offline queue, IDLE
 ├── test-data/mail/           Sample emails shared by tests and the test server
@@ -45,7 +46,7 @@ macOS and iOS for later.
 └── pubspec.yaml              Dart workspace root (one shared lock file)
 ```
 
-More packages (storage, sync, sorting) are added as milestones need them.
+More packages are added as milestones need them.
 
 ## Building
 
@@ -63,6 +64,7 @@ flutter analyze                               # static analysis
 (cd packages/mail_store && dart test)         # storage tests
 (cd packages/mail_sync && dart test)          # sync engine unit tests
 (cd packages/mail_setup && dart test)         # account setup unit tests
+(cd packages/mail_sort && dart test)          # sorting rules and corrections
 (cd tool && dart test)                        # repository tool tests
 (cd app && flutter test)                      # app tests
 (cd app && flutter run -d linux)              # run on Linux

@@ -132,4 +132,48 @@ const List<Migration> schemaMigrations = [
     ) STRICT''',
     'CREATE INDEX outbox_by_account ON outbox (account_id, state, id)',
   ]),
+
+  // Sorting (Stage 7). A message's shown category is now derived: the
+  // user's choice for its mailing list or sender if there is one, else the
+  // automatic decision. Keeping both lets a choice be undone without
+  // downloading anything again.
+  Migration(2, [
+    // The automatic decision (rules now, provider labels later).
+    '''
+    ALTER TABLE messages ADD COLUMN auto_category TEXT NOT NULL DEFAULT 'people'
+      CHECK (auto_category IN ('people', 'newsletters', 'notifications'))''',
+    '''
+    ALTER TABLE messages ADD COLUMN auto_source TEXT NOT NULL DEFAULT 'rule'
+      CHECK (auto_source IN ('rule', 'provider'))''',
+    // Normalized List-Id (lower case), so a choice can follow a list.
+    'ALTER TABLE messages ADD COLUMN list_id TEXT',
+    // Version 1 only had automatic decisions in practice (no UI could set
+    // a manual one), so every stored category is carried over as one.
+    '''
+    UPDATE messages SET auto_category = category,
+      auto_source = CASE WHEN category_source = 'provider' THEN 'provider' ELSE 'rule' END''',
+    'UPDATE messages SET category_source = auto_source',
+    'CREATE INDEX messages_by_from_address ON messages (from_address COLLATE NOCASE)',
+    'CREATE INDEX messages_by_list_id ON messages (list_id) WHERE list_id IS NOT NULL',
+
+    // "Move to People / Newsletters / Notifications": remembered per
+    // mailing list or per sender. Local-only until multi-device app data
+    // sync (M3). Keys are stored in lower case.
+    '''
+    CREATE TABLE category_choices (
+      scope TEXT NOT NULL CHECK (scope IN ('sender', 'list')),
+      key TEXT NOT NULL COLLATE NOCASE CHECK (length(key) BETWEEN 1 AND 512),
+      category TEXT NOT NULL CHECK (category IN ('people', 'newsletters', 'notifications')),
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (scope, key)
+    ) STRICT''',
+
+    // Small app-wide values (e.g. which sorting rules version the stored
+    // categories were computed with).
+    '''
+    CREATE TABLE settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    ) STRICT''',
+  ]),
 ];
