@@ -9,6 +9,7 @@ environment:
 workspace:
   - app
   - packages/mail_protocol
+  - packages/mail_setup
   - packages/mail_store
   - packages/mail_sync
   - tool

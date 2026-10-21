@@ -58,7 +58,8 @@ sign_cert() {
     "extendedKeyUsage=serverAuth" \
     "subjectAltName=$san" > "$ext"
   new_key "$OUT_DIR/$name.key"
-  openssl req -new -key "$OUT_DIR/$name.key" -subj "/CN=${san%%,*}" \
+  local first_name="${san%%,*}"
+  openssl req -new -key "$OUT_DIR/$name.key" -subj "/CN=${first_name#DNS:}" \
     | openssl x509 -req -CA "$OUT_DIR/ca.crt" -CAkey "$OUT_DIR/ca.key" \
         -CAcreateserial -sha256 -extfile "$ext" "$@" -out "$OUT_DIR/$name.crt" 2>/dev/null
   rm -f "$ext"

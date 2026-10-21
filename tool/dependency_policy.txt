@@ -64,10 +64,36 @@ runtime string_scanner            used by yaml (dart.dev)
 runtime term_glyph                used by source_span (dart.dev)
 runtime async                     async utilities used by hooks (dart.dev)
 
+# --- Runtime: app platform plugins (Stage 6) -------------------------------
+# Keychain: reviewed 2026-10-22. No network code. Android: Android Keystore +
+# AES-GCM; Windows: Credential Manager + DPAPI/BCrypt AES; Linux: libsecret.
+# The app sets resetOnError: false (the default would silently wipe secrets).
+runtime flutter_secure_storage                    system keychain access (steenbakker.dev)
+runtime flutter_secure_storage_platform_interface keychain plugin interface (steenbakker.dev)
+runtime flutter_secure_storage_linux              libsecret backend (steenbakker.dev)
+runtime flutter_secure_storage_windows            Credential Manager/DPAPI backend (steenbakker.dev)
+runtime flutter_secure_storage_darwin             Apple Keychain backend, for later (steenbakker.dev)
+runtime flutter_secure_storage_web                web backend; never used by this app (steenbakker.dev)
+runtime path_provider                             app data folder location (flutter.dev)
+runtime path_provider_platform_interface          path_provider interface (flutter.dev)
+runtime path_provider_android                     Android backend (flutter.dev)
+runtime path_provider_foundation                  Apple backend, for later (flutter.dev)
+runtime path_provider_linux                       Linux backend (flutter.dev)
+runtime path_provider_windows                     Windows backend (flutter.dev)
+runtime plugin_platform_interface                 plugin plumbing (flutter.dev)
+runtime xdg_directories                           Linux XDG folders (flutter.dev)
+runtime win32                                     Windows API bindings used by plugins (halildurmus.dev)
+runtime ffi_leak_tracker                          used by win32 (halildurmus.dev)
+runtime jni                                       Java interop used by path_provider_android (dart.dev)
+runtime jni_flutter                               Java interop (dart.dev)
+runtime jni_util                                  Java interop (dart.dev)
+runtime objective_c                               Apple interop, for later (dart.dev)
+runtime args                                      command-line parsing used by jni tooling (dart.dev)
+runtime package_config                            package resolution used by jni tooling (dart.dev)
+
 # --- Dev only: lints, test runner and their dependencies (dart.dev) --------
 dev _fe_analyzer_shared           analyzer internals for test runner
 dev analyzer                      used by test runner
-dev args                          test runner
 dev boolean_selector              test runner
 dev clock                         flutter_test
 dev cli_config                    test coverage
@@ -87,7 +113,6 @@ dev lints                         lint rules
 dev matcher                       test assertions
 dev mime                          test runner
 dev node_preamble                 test runner
-dev package_config                test runner
 dev pool                          test runner
 dev shelf                         test runner (local only)
 dev shelf_packages_handler        test runner

@@ -4,30 +4,10 @@
 
 import 'package:flutter/material.dart';
 
-/// Placeholder product name. The final name is still open, so it lives in one
-/// place to make renaming easy.
-const String appName = 'Fmail';
+import 'src/app.dart';
+
+export 'src/app.dart' show FmailApp, appName;
 
 void main() {
-  runApp(const MailApp());
-}
-
-class MailApp extends StatelessWidget {
-  const MailApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: appName,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.indigo),
-      darkTheme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        brightness: Brightness.dark,
-      ),
-      home: const Scaffold(
-        body: Center(child: Text('$appName is under construction')),
-      ),
-    );
-  }
+  runApp(const FmailApp());
 }

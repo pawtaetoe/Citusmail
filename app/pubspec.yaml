@@ -10,8 +10,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_secure_storage: ^11.2.0
   mail_protocol: any
+  mail_setup: any
   mail_store: any
+  mail_sync: any
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:

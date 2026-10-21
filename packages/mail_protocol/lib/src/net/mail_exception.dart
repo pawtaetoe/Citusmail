@@ -41,12 +41,36 @@ enum TlsFailure {
   handshakeFailed,
 }
 
+/// Details of a certificate that was rejected, for explaining the problem
+/// (e.g. "the certificate is for *.web-hosting.com").
+final class RejectedCertificate {
+  const RejectedCertificate({
+    required this.subject,
+    required this.issuer,
+    required this.validFrom,
+    required this.validUntil,
+  });
+
+  /// e.g. `/CN=*.web-hosting.com`.
+  final String subject;
+  final String issuer;
+  final DateTime validFrom;
+  final DateTime validUntil;
+
+  /// The common name from [subject], if any.
+  String? get commonName =>
+      RegExp(r'CN=([^/,]+)').firstMatch(subject)?.group(1)?.trim();
+}
+
 /// The TLS handshake or certificate check failed. The connection was
 /// closed before anything, including credentials, was sent.
 final class MailTlsException extends MailException {
-  const MailTlsException(this.failure, super.message);
+  const MailTlsException(this.failure, super.message, {this.certificate});
 
   final TlsFailure failure;
+
+  /// The certificate the server presented, when it was rejected.
+  final RejectedCertificate? certificate;
 
   /// Classifies a Dart [HandshakeException] message.
   static TlsFailure classify(String details) {

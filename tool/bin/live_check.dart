@@ -15,6 +15,7 @@ library;
 import 'dart:io';
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
@@ -22,6 +23,7 @@ Future<void> main() async {
   try {
     final settings = LiveSettings.load(File('live-test.env'));
     final password = await Keychain.lookup(settings.email);
+    await _checkDiscovery(settings, password);
     await _checkImap(settings, password);
     await _checkSmtp(settings, password);
     await _checkSync(settings, password);
@@ -96,6 +98,29 @@ Future<void> _checkImap(LiveSettings s, String password) async {
   } finally {
     await client.logout();
   }
+}
+
+/// Discovery as the setup screen runs it (without asking Mozilla), then a
+/// real login with the found settings. Nothing is saved or sent.
+Future<void> _checkDiscovery(LiveSettings s, String password) async {
+  stdout.writeln('Account discovery for ${s.email}');
+  final watch = Stopwatch()..start();
+  final result = await AccountDiscovery().discover(s.email);
+  final found = result.settings;
+  if (found == null) throw StateError('discovery found nothing');
+  _ok(
+    'found via ${found.source.name} in ${watch.elapsedMilliseconds} ms: IMAP ${found.imap}, SMTP ${found.smtp}',
+  );
+  _ok(
+    'warnings: ${found.warnings.isEmpty ? 'none' : found.warnings.map((w) => w.name).join(', ')}',
+  );
+  final verified = await const AccountVerifier().verify(found, password);
+  if (!verified.succeeded) {
+    throw StateError(
+      'verification failed: ${verified.problem} ${verified.message}',
+    );
+  }
+  _ok('verified with a real IMAP login and SMTP authentication');
 }
 
 Future<void> _checkSmtp(LiveSettings s, String password) async {

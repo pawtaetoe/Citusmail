@@ -78,6 +78,9 @@ final class MailSocket implements LineSource {
     Duration timeout = const Duration(seconds: 30),
     MailSocketLimits limits = const MailSocketLimits(),
   }) async {
+    // The certificate is always rejected when the trust store rejects it;
+    // it is only remembered to explain the error.
+    X509Certificate? rejected;
     try {
       final address = endpoint.connectAddress ?? endpoint.host;
       RawSocket socket = await RawSocket.connect(
@@ -91,8 +94,10 @@ final class MailSocket implements LineSource {
             socket,
             host: endpoint.host, // SNI and certificate name check
             context: tls.createContext(),
-            // Never accept a certificate the trust store rejects.
-            onBadCertificate: (_) => false,
+            onBadCertificate: (certificate) {
+              rejected = certificate;
+              return false; // never accept what the trust store rejects
+            },
           ).timeout(timeout);
         } on Object {
           await socket.close();
@@ -106,11 +111,8 @@ final class MailSocket implements LineSource {
         tls,
         secure: endpoint.security == ConnectionSecurity.implicitTls,
       );
-    } on HandshakeException catch (e) {
-      throw MailTlsException(
-        MailTlsException.classify(e.toString()),
-        'TLS with ${endpoint.host} failed: ${e.message}',
-      );
+    } on TlsException catch (e) {
+      throw _tlsError(e, endpoint.host, rejected);
     } on SocketException catch (e) {
       final text = e.toString();
       if (text.toLowerCase().contains('timed out')) {
@@ -119,15 +121,27 @@ final class MailSocket implements LineSource {
       throw MailConnectionException(
         'cannot connect to $endpoint: ${e.message}',
       );
-    } on TlsException catch (e) {
-      throw MailTlsException(
-        MailTlsException.classify(e.toString()),
-        'TLS with ${endpoint.host} failed: ${e.message}',
-      );
     } on TimeoutException {
       throw MailTimeoutException('TLS handshake with $endpoint timed out');
     }
   }
+
+  static MailTlsException _tlsError(
+    TlsException e,
+    String host,
+    X509Certificate? rejected,
+  ) => MailTlsException(
+    MailTlsException.classify(e.toString()),
+    'TLS with $host failed: ${e.message}',
+    certificate: rejected == null
+        ? null
+        : RejectedCertificate(
+            subject: rejected.subject,
+            issuer: rejected.issuer,
+            validFrom: rejected.startValidity,
+            validUntil: rejected.endValidity,
+          ),
+  );
 
   /// Upgrades this plain connection to TLS after the server accepted
   /// STARTTLS.
@@ -151,26 +165,21 @@ final class MailSocket implements LineSource {
     // ignore: cancel_subscriptions
     final subscription = _subscription!;
     _subscription = null;
+    X509Certificate? rejected;
     try {
       _socket = await RawSecureSocket.secure(
         _socket,
         subscription: subscription,
         host: host,
         context: _tls.createContext(),
-        onBadCertificate: (_) => false,
-      );
-    } on HandshakeException catch (e) {
-      _closed = true;
-      throw MailTlsException(
-        MailTlsException.classify(e.toString()),
-        'TLS with $host failed: ${e.message}',
+        onBadCertificate: (certificate) {
+          rejected = certificate;
+          return false;
+        },
       );
     } on TlsException catch (e) {
       _closed = true;
-      throw MailTlsException(
-        MailTlsException.classify(e.toString()),
-        'TLS with $host failed: ${e.message}',
-      );
+      throw _tlsError(e, host, rejected);
     }
     _secure = true;
     _listen();
