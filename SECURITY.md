@@ -25,7 +25,9 @@ public issue. We aim to reply within 7 days.
    Credential Manager, Android Keystore). Never in the database, settings,
    logs or error messages. If no keychain is available the app refuses to
    save the secret.
-3. **Local data is encrypted** (SQLCipher, key in the keychain).
+3. **Local data is encrypted** (SQLite3MultipleCiphers with
+   ChaCha20-Poly1305, random 256-bit key in the keychain). Opening fails
+   closed if encryption is not available.
    Attachments stay in the app's private folder, and temporary copies are
    removed after use.
 4. **Received mail cannot run or load anything by default.** No JavaScript,

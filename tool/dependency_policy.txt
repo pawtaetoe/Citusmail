@@ -37,24 +37,46 @@ runtime material_color_utilities  Flutter SDK dependency (material.io)
 runtime meta                      Flutter SDK dependency (dart.dev)
 runtime vector_math               Flutter SDK dependency (google.dev)
 
+# --- Runtime: encrypted database (Stage 4) -----------------------------------
+runtime sqlite3                   SQLite FFI bindings; loads SQLite3MultipleCiphers (simonbinder.eu, drift author)
+runtime ffi                       C interop used by sqlite3 (dart.dev)
+runtime path                      path handling used by sqlite3 (dart.dev)
+runtime typed_data                byte buffers used by sqlite3 (dart.dev)
+runtime web                       web bindings in sqlite3; unused on native platforms (dart.dev)
+runtime crypto                    SHA-256 check of the downloaded native library (dart.dev)
+
+# Build-time only: run by sqlite3's build hook to download the prebuilt
+# native library and verify it against pinned SHA-256 hashes. Listed as
+# runtime because the dependency graph cannot tell build hooks apart.
+runtime hooks                     build hook API (dart.dev)
+runtime code_assets               native code asset API for hooks (dart.dev)
+runtime native_toolchain_c        C toolchain helpers for hooks (labs.dart.dev)
+runtime record_use                build hook support (dart.dev)
+runtime process                   process helpers used by hooks (tools.dart.dev)
+runtime platform                  platform detection used by hooks (dart.dev)
+runtime file                      file system helpers used by hooks (dart.dev)
+runtime glob                      file matching used by hooks (dart.dev)
+runtime pub_semver                version parsing used by hooks (dart.dev)
+runtime logging                   hook logging (dart.dev)
+runtime yaml                      reads hook options from pubspec.yaml (dart.dev)
+runtime source_span               used by yaml (dart.dev)
+runtime string_scanner            used by yaml (dart.dev)
+runtime term_glyph                used by source_span (dart.dev)
+runtime async                     async utilities used by hooks (dart.dev)
+
 # --- Dev only: lints, test runner and their dependencies (dart.dev) --------
 dev _fe_analyzer_shared           analyzer internals for test runner
 dev analyzer                      used by test runner
 dev args                          test runner
-dev async                         test runner
 dev boolean_selector              test runner
 dev clock                         flutter_test
 dev cli_config                    test coverage
 dev cli_util                      test coverage
 dev convert                       test runner
 dev coverage                      test coverage
-dev crypto                        test runner
 dev fake_async                    flutter_test
-dev ffi                           test tooling
-dev file                          test runner
 dev flutter_lints                 lint rules
 dev frontend_server_client        test runner
-dev glob                          test runner
 dev http_multi_server             test runner (local only)
 dev http_parser                   test runner
 dev io                            test runner
@@ -62,33 +84,24 @@ dev leak_tracker                  flutter_test
 dev leak_tracker_flutter_testing  flutter_test
 dev leak_tracker_testing          flutter_test
 dev lints                         lint rules
-dev logging                       test runner
 dev matcher                       test assertions
 dev mime                          test runner
 dev node_preamble                 test runner
 dev package_config                test runner
-dev path                          test runner
 dev pool                          test runner
-dev pub_semver                    test runner
 dev shelf                         test runner (local only)
 dev shelf_packages_handler        test runner
 dev shelf_static                  test runner
 dev shelf_web_socket              test runner
 dev source_map_stack_trace        test runner
 dev source_maps                   test runner
-dev source_span                   test runner
 dev stack_trace                   test runner
 dev stream_channel                test runner
-dev string_scanner                test runner
-dev term_glyph                    test runner
 dev test                          test runner
 dev test_api                      test runner
 dev test_core                     test runner
-dev typed_data                    test runner
 dev vm_service                    test runner
 dev watcher                       test runner
-dev web                           test runner
 dev web_socket                    test runner
 dev web_socket_channel            test runner
 dev webkit_inspection_protocol    test runner
-dev yaml                          test runner

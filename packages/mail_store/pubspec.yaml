@@ -1,0 +1,19 @@
+name: mail_store
+description: >-
+  Encrypted local storage for the app: accounts, folders, message
+  summaries, bodies, full-text search and the offline action queue.
+  Pure Dart (no Flutter), on SQLite3MultipleCiphers via package:sqlite3.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  mail_protocol: any
+  sqlite3: ^3.7.1
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

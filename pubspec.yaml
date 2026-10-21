@@ -9,4 +9,14 @@ environment:
 workspace:
   - app
   - packages/mail_protocol
+  - packages/mail_store
   - tool
+
+# Native SQLite for every package and the app: SQLite3MultipleCiphers, an
+# encrypting SQLite build. package:sqlite3 downloads the prebuilt library
+# for each platform and checks it against SHA-256 hashes pinned in the
+# package. See packages/mail_store/README.md.
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc

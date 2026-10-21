@@ -1,0 +1,229 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:mail_store/mail_store.dart';
+import 'package:test/test.dart';
+
+import 'support/temp_store.dart';
+
+const secretSubject = 'TOP-SECRET-SUBJECT-4f8a2c';
+const secretBody = 'confidential-body-text-91be7d';
+
+bool fileContains(String path, String text) {
+  final file = File(path);
+  if (!file.existsSync()) return false;
+  return latin1.decode(file.readAsBytesSync()).contains(text) ||
+      utf8.decode(file.readAsBytesSync(), allowMalformed: true).contains(text);
+}
+
+void main() {
+  late TempStore temp;
+  setUp(() => temp = TempStore.create());
+  tearDown(() => temp.dispose());
+
+  void storeSecrets() {
+    final account = temp.addAccount();
+    final mailbox =
+        temp.store.mailboxes.replaceAll(account.id, []).firstOrNull ??
+        (() {
+          temp.store.database.execute(
+            "INSERT INTO mailboxes (account_id, encoded_name, name) VALUES (?, 'INBOX', 'INBOX')",
+            [account.id],
+          );
+          return temp.store.mailboxes.inbox(account.id)!;
+        })();
+    temp.store.messages.upsertSummaries(mailbox.id, [
+      MessageSummary(
+        uid: 1,
+        receivedAt: DateTime.utc(2026),
+        subject: secretSubject,
+      ),
+    ]);
+    final id = temp.store.messages.byUid(mailbox.id, 1)!.id;
+    temp.store.messages.saveBody(
+      id,
+      Uint8List.fromList(utf8.encode('Subject: x\r\n\r\n$secretBody')),
+      searchableText: secretBody,
+    );
+  }
+
+  group('encryption on disk', () {
+    test('no plaintext in the database or its WAL file, open or closed', () {
+      storeSecrets();
+      for (final suffix in ['', '-wal']) {
+        expect(
+          fileContains('${temp.path}$suffix', secretSubject),
+          isFalse,
+          reason: 'subject in $suffix',
+        );
+        expect(
+          fileContains('${temp.path}$suffix', secretBody),
+          isFalse,
+          reason: 'body in $suffix',
+        );
+        expect(
+          fileContains('${temp.path}$suffix', 'CREATE TABLE'),
+          isFalse,
+          reason: 'schema in $suffix',
+        );
+      }
+      temp.store.close();
+      final header = File(temp.path).readAsBytesSync().sublist(0, 16);
+      expect(latin1.decode(header), isNot('SQLite format 3\u0000'));
+      expect(fileContains(temp.path, secretSubject), isFalse);
+      temp.store = MailStore.open(
+        temp.path,
+        temp.key,
+      ); // so dispose() can close it
+    });
+
+    test('the right key reopens the data; a wrong key is refused', () {
+      storeSecrets();
+      temp.reopen();
+      expect(temp.store.messages.search(secretSubject), hasLength(1));
+      temp.store.close();
+      expect(
+        () => MailStore.open(temp.path, DatabaseKey.generate()),
+        throwsA(isA<WrongKeyException>()),
+      );
+      temp.store = MailStore.open(temp.path, temp.key);
+    });
+
+    test('safe settings are active', () {
+      final db = temp.store.database;
+      int pragma(String name) =>
+          db.select('PRAGMA $name').first.columnAt(0) as int;
+      expect(pragma('temp_store'), 2, reason: 'temporary data stays in memory');
+      expect(pragma('secure_delete'), 1);
+      expect(pragma('foreign_keys'), 1);
+      expect(db.select('PRAGMA journal_mode').first.columnAt(0), 'wal');
+      expect(db.select('PRAGMA cipher').first.columnAt(0), 'chacha20');
+    });
+
+    test('destroy removes the database and its side files', () {
+      storeSecrets();
+      temp.store.close();
+      MailDatabase.destroy(temp.path);
+      for (final suffix in ['', '-wal', '-shm']) {
+        expect(File('${temp.path}$suffix').existsSync(), isFalse);
+      }
+      temp.store = MailStore.open(temp.path, temp.key); // fresh, empty
+      expect(temp.store.accounts.all(), isEmpty);
+    });
+  });
+
+  group('DatabaseKey', () {
+    test('is 32 random bytes and never printed', () {
+      final a = DatabaseKey.generate(), b = DatabaseKey.generate();
+      expect(a.bytes, hasLength(32));
+      expect(a.hex, matches(RegExp(r'^[0-9a-f]{64}$')));
+      expect(a.hex, isNot(b.hex));
+      expect(a.toString(), isNot(contains(a.hex)));
+      expect(DatabaseKey.fromBytes(a.bytes).hex, a.hex);
+    });
+
+    test('rejects wrong sizes', () {
+      expect(
+        () => DatabaseKey.fromBytes(List.filled(31, 0)),
+        throwsArgumentError,
+      );
+      expect(
+        () => DatabaseKey.fromBytes(List.filled(33, 0)),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('schema migrations', () {
+    test('a new database is at the latest schema', () {
+      expect(temp.store.database.schemaVersion, schemaMigrations.last.version);
+    });
+
+    test('a database from a newer app version is refused, not damaged', () {
+      temp.store.database.execute('PRAGMA user_version = 999');
+      temp.store.close();
+      expect(
+        () => MailStore.open(temp.path, temp.key),
+        throwsA(isA<DatabaseTooNewException>()),
+      );
+      final db = MailDatabase.open(
+        temp.path,
+        temp.key,
+        migrations: [
+          ...schemaMigrations,
+          for (var v = schemaMigrations.last.version + 1; v <= 999; v++)
+            Migration(v, const []),
+        ],
+      );
+      expect(db.schemaVersion, 999);
+      db.execute('PRAGMA user_version = ${schemaMigrations.last.version}');
+      db.close();
+      temp.store = MailStore.open(temp.path, temp.key);
+    });
+
+    test('a failing migration rolls back completely', () {
+      temp.store.close();
+      final broken = [
+        ...schemaMigrations,
+        Migration(schemaMigrations.last.version + 1, const [
+          'CREATE TABLE half_done (x INTEGER)',
+          'THIS IS NOT SQL',
+        ]),
+      ];
+      expect(
+        () => MailDatabase.open(temp.path, temp.key, migrations: broken),
+        throwsA(isA<MigrationException>()),
+      );
+      temp.store = MailStore.open(temp.path, temp.key);
+      expect(temp.store.database.schemaVersion, schemaMigrations.last.version);
+      expect(
+        temp.store.database.select(
+          "SELECT name FROM sqlite_master WHERE name = 'half_done'",
+        ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('transactions', () {
+    test('an exception rolls everything back', () {
+      expect(
+        () => temp.store.transaction(() {
+          temp.addAccount('a@x.example');
+          throw StateError('boom');
+        }),
+        throwsStateError,
+      );
+      expect(temp.store.accounts.all(), isEmpty);
+    });
+
+    test('an inner failure rolls back only the inner part', () {
+      temp.store.transaction(() {
+        temp.addAccount('outer@x.example');
+        try {
+          temp.store.transaction(() {
+            temp.addAccount('inner@x.example');
+            throw StateError('inner');
+          });
+        } on StateError {
+          // handled
+        }
+      });
+      expect(temp.store.accounts.all().map((a) => a.email), [
+        'outer@x.example',
+      ]);
+    });
+
+    test('async work inside a transaction is refused', () {
+      expect(
+        () => temp.store.transaction(() => Future.value(1)),
+        throwsStateError,
+      );
+    });
+  });
+}

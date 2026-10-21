@@ -33,6 +33,9 @@ jobs:
       - name: Test mail_protocol
         working-directory: packages/mail_protocol
         run: dart test
+      - name: Test mail_store
+        working-directory: packages/mail_store
+        run: dart test
       - name: Test repository tools
         working-directory: tool
         run: dart test

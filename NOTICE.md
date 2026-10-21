@@ -1,7 +1,7 @@
 # Third-party notices
 
 The app's source code is licensed under the [Mozilla Public License 2.0](LICENSE).
-It includes the following third-party data:
+It includes the following third-party data and libraries:
 
 ## WHATWG Encoding Standard
 
@@ -14,3 +14,15 @@ Character set tables and labels in
 - Licence: [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
 - Changes: the indexes are repacked (delta-encoded and compressed) for
   embedding; the mappings are unchanged.
+
+## SQLite and SQLite3MultipleCiphers
+
+Bundled as a native library by `package:sqlite3` (see the root
+`pubspec.yaml`).
+
+- SQLite: https://sqlite.org, dedicated to the public domain.
+- SQLite3MultipleCiphers: https://github.com/utelle/SQLite3MultipleCiphers,
+  Copyright © Ulrich Telle, MIT License. It includes cipher implementations
+  under their own permissive licences; see the upstream LICENSE file.
+- `package:sqlite3`: https://github.com/simolus3/sqlite3.dart,
+  Copyright © Simon Binder, MIT License.
