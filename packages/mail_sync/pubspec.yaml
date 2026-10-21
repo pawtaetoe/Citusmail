@@ -14,6 +14,7 @@ dependencies:
   mail_protocol: any
   mail_sort: any
   mail_store: any
+  mail_view: any
 
 dev_dependencies:
   lints: ^6.0.0

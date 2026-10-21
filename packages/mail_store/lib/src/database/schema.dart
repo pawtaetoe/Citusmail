@@ -13,7 +13,7 @@ final class Migration {
 
 /// The schema, as a list of migrations. Never edit a released migration:
 /// add a new one. The cache can always be rebuilt from the server, but
-/// migrations keep the user's local-only data (outbox, corrections).
+/// migrations keep the user's local-only data (the outbox).
 const List<Migration> schemaMigrations = [
   Migration(1, [
     // Accounts. Passwords are NOT stored here: they live in the system
@@ -175,5 +175,16 @@ const List<Migration> schemaMigrations = [
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     ) STRICT''',
+  ]),
+
+  // Sorting is fully automatic (decided after Stage 7): "Move to" choices
+  // are gone, so the shown category is the automatic one again. Custom
+  // folders replace manual sorting.
+  Migration(3, [
+    'UPDATE messages SET category = auto_category, category_source = auto_source',
+    'DROP TABLE category_choices',
+    'DROP INDEX messages_by_list_id',
+    'ALTER TABLE messages DROP COLUMN auto_category',
+    'ALTER TABLE messages DROP COLUMN auto_source',
   ]),
 ];

@@ -9,7 +9,6 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
 import '../model/message.dart';
-import 'category_refresh.dart';
 import 'search_query.dart';
 
 /// Which messages to list. Results are newest first; page with [before].
@@ -19,20 +18,34 @@ final class MessageQuery {
     this.accountIds,
     this.inboxesOnly = false,
     this.category,
+    this.section,
     this.unreadOnly = false,
+    this.flaggedOnly = false,
     this.before,
     this.limit = 50,
   });
 
-  /// The unified inbox of one category across all accounts.
-  const MessageQuery.unified(
-    MessageCategory this.category, {
+  /// One Smart Inbox section, across the inboxes of [accountIds] (or all
+  /// accounts).
+  const MessageQuery.smart(
+    SmartSection this.section, {
+    this.accountIds,
     this.before,
     this.limit = 50,
   }) : mailboxIds = null,
-       accountIds = null,
        inboxesOnly = true,
-       unreadOnly = false;
+       category = null,
+       unreadOnly = false,
+       flaggedOnly = false;
+
+  /// The classic inbox: every inbox message, newest first.
+  const MessageQuery.inbox({this.accountIds, this.before, this.limit = 50})
+    : mailboxIds = null,
+      inboxesOnly = true,
+      category = null,
+      section = null,
+      unreadOnly = false,
+      flaggedOnly = false;
 
   final List<int>? mailboxIds;
   final List<int>? accountIds;
@@ -40,11 +53,38 @@ final class MessageQuery {
   /// Only messages in each account's INBOX.
   final bool inboxesOnly;
   final MessageCategory? category;
+  final SmartSection? section;
   final bool unreadOnly;
+
+  /// Only pinned (flagged) messages.
+  final bool flaggedOnly;
 
   /// Keyset paging: only messages older than this one.
   final StoredMessage? before;
   final int limit;
+
+  /// The same query, continuing after [last].
+  MessageQuery after(StoredMessage last) => MessageQuery(
+    mailboxIds: mailboxIds,
+    accountIds: accountIds,
+    inboxesOnly: inboxesOnly,
+    category: category,
+    section: section,
+    unreadOnly: unreadOnly,
+    flaggedOnly: flaggedOnly,
+    before: last,
+    limit: limit,
+  );
+}
+
+/// How many messages a Smart Inbox section has.
+final class SectionCount {
+  const SectionCount(this.total, this.unread);
+
+  static const empty = SectionCount(0, 0);
+
+  final int total;
+  final int unread;
 }
 
 /// Messages, their addresses, selected headers, bodies and search index.
@@ -60,9 +100,35 @@ final class MessageRepository {
   static const _from =
       'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id';
 
-  /// Inserts or updates summaries by UID, in one transaction. The summary
-  /// carries the automatic category; the category shown also follows the
-  /// user's choices (see [CategoryRefresh]), which rules never overwrite.
+  /// Whether General mail `m` (in mailbox `b`) is important: the server
+  /// marks it (`$Important` keyword, or the same message in the account's
+  /// `\Important` folder), it replies to a message in a Sent folder, or
+  /// its sender was written to from a Sent folder. All on-device.
+  static const _importantExpression =
+      '('
+      r"(' ' || m.keywords || ' ') LIKE '% $important %' "
+      'OR EXISTS (SELECT 1 FROM messages i JOIN mailboxes ib ON ib.id = i.mailbox_id '
+      "WHERE i.message_id_header = m.message_id_header AND ib.account_id = b.account_id AND ib.special_use = 'important') "
+      'OR EXISTS (SELECT 1 FROM messages s JOIN mailboxes sb ON sb.id = s.mailbox_id '
+      "WHERE s.message_id_header = m.in_reply_to AND sb.special_use = 'sent') "
+      'OR EXISTS (SELECT 1 FROM message_addresses a JOIN messages s ON s.id = a.message_id '
+      'JOIN mailboxes sb ON sb.id = s.mailbox_id '
+      "WHERE a.address = m.from_address COLLATE NOCASE AND a.kind IN ('to', 'cc', 'bcc') AND sb.special_use = 'sent')"
+      ')';
+
+  /// The [SmartSection] of message `m`, by name (see its documentation
+  /// for the order).
+  static const _sectionExpression =
+      'CASE '
+      "WHEN (m.flags & ${MessageFlags.flaggedBit}) != 0 THEN 'pinned' "
+      "WHEN m.category = 'newsletters' THEN 'newsletters' "
+      "WHEN m.category = 'notifications' THEN 'notifications' "
+      "WHEN $_importantExpression THEN 'important' "
+      "ELSE 'general' END";
+
+  static String _placeholders(int count) => List.filled(count, '?').join(', ');
+
+  /// Inserts or updates summaries by UID, in one transaction.
   void upsertSummaries(int mailboxId, List<MessageSummary> summaries) =>
       _db.transaction(() {
         for (final s in summaries) {
@@ -71,8 +137,8 @@ final class MessageRepository {
                       .select(
                         'INSERT INTO messages (mailbox_id, uid, message_id_header, in_reply_to, thread_references, '
                         'subject, from_name, from_address, sent_at, received_at, size, flags, keywords, mod_seq, '
-                        'has_attachments, auto_category, auto_source, category, category_source, list_id, snippet) '
-                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                        'has_attachments, category, category_source, list_id, snippet) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                         'ON CONFLICT (mailbox_id, uid) DO UPDATE SET '
                         'message_id_header = excluded.message_id_header, in_reply_to = excluded.in_reply_to, '
                         'thread_references = excluded.thread_references, subject = excluded.subject, '
@@ -80,7 +146,7 @@ final class MessageRepository {
                         'sent_at = excluded.sent_at, received_at = excluded.received_at, size = excluded.size, '
                         'flags = excluded.flags, keywords = excluded.keywords, mod_seq = excluded.mod_seq, '
                         'has_attachments = excluded.has_attachments, snippet = excluded.snippet, '
-                        'auto_category = excluded.auto_category, auto_source = excluded.auto_source, '
+                        'category = excluded.category, category_source = excluded.category_source, '
                         'list_id = excluded.list_id '
                         'RETURNING id',
                         [
@@ -99,9 +165,7 @@ final class MessageRepository {
                           s.flags.keywords.join(' '),
                           s.modSeq,
                           s.hasAttachments ? 1 : 0,
-                          s.category.name,
-                          s.categorySource.name,
-                          s.category.name,
+                          s.category.storageName,
                           s.categorySource.name,
                           s.listId,
                           s.snippet,
@@ -110,7 +174,6 @@ final class MessageRepository {
                       .first
                       .columnAt(0)
                   as int;
-          CategoryRefresh.byId(_db, id);
           _replaceAddresses(id, s);
           _replaceHeaders(id, s.headers);
           _indexSummary(id, s);
@@ -206,19 +269,26 @@ final class MessageRepository {
     final where = <String>[];
     final args = <Object?>[];
     if (query.mailboxIds case final ids?) {
-      where.add('m.mailbox_id IN (${List.filled(ids.length, '?').join(', ')})');
+      where.add('m.mailbox_id IN (${_placeholders(ids.length)})');
       args.addAll(ids);
     }
     if (query.accountIds case final ids?) {
-      where.add('b.account_id IN (${List.filled(ids.length, '?').join(', ')})');
+      where.add('b.account_id IN (${_placeholders(ids.length)})');
       args.addAll(ids);
     }
     if (query.inboxesOnly) where.add("upper(b.encoded_name) = 'INBOX'");
     if (query.category case final category?) {
       where.add('m.category = ?');
-      args.add(category.name);
+      args.add(category.storageName);
     }
     if (query.unreadOnly) where.add('(m.flags & ${MessageFlags.seenBit}) = 0');
+    if (query.flaggedOnly) {
+      where.add('(m.flags & ${MessageFlags.flaggedBit}) != 0');
+    }
+    if (query.section case final section?) {
+      where.add('$_sectionExpression = ?');
+      args.add(section.name);
+    }
     if (query.before case final before?) {
       where.add('(m.received_at < ? OR (m.received_at = ? AND m.id < ?))');
       final at = before.receivedAt.millisecondsSinceEpoch;
@@ -379,18 +449,38 @@ final class MessageRepository {
     ];
   }
 
-  /// Stores new automatic decisions (e.g. after the rules changed). The
-  /// user's choices still take precedence.
-  void updateAutomaticCategories(List<AutomaticCategory> decisions) =>
-      _db.transaction(() {
-        for (final d in decisions) {
-          _db.execute(
-            'UPDATE messages SET auto_category = ?, auto_source = ?, list_id = ? WHERE id = ?',
-            [d.category.name, d.source.name, d.listId, d.messageId],
-          );
-          CategoryRefresh.byId(_db, d.messageId);
-        }
-      });
+  /// Stores new sorting decisions (e.g. after the rules changed).
+  void updateCategories(List<CategoryDecision> decisions) => _db.transaction(
+    () => _db.executeMany(
+      'UPDATE messages SET category = ?, category_source = ?, list_id = ? WHERE id = ?',
+      [
+        for (final d in decisions)
+          [d.category.storageName, d.source.name, d.listId, d.messageId],
+      ],
+    ),
+  );
+
+  /// Totals and unread counts of every Smart Inbox section, across the
+  /// inboxes of [accountIds] (or all accounts).
+  Map<SmartSection, SectionCount> sectionCounts({List<int>? accountIds}) {
+    final where = ["upper(b.encoded_name) = 'INBOX'"];
+    final args = <Object?>[];
+    if (accountIds != null) {
+      where.add('b.account_id IN (${_placeholders(accountIds.length)})');
+      args.addAll(accountIds);
+    }
+    final counts = {for (final s in SmartSection.values) s: SectionCount.empty};
+    for (final row in _db.select(
+      'SELECT section, count(*) AS total, sum(unread) AS unread FROM ('
+      'SELECT $_sectionExpression AS section, (m.flags & ${MessageFlags.seenBit}) = 0 AS unread '
+      '$_from WHERE ${where.join(' AND ')}) GROUP BY section',
+      args,
+    )) {
+      counts[SmartSection.values.byName(row['section'] as String)] =
+          SectionCount(row['total'] as int, row['unread'] as int? ?? 0);
+    }
+    return counts;
+  }
 
   // ---------------------------------------------------------------------
 
@@ -504,7 +594,7 @@ final class MessageRepository {
       flags: MessageFlags(row['flags'] as int, Set.unmodifiable(keywords)),
       modSeq: row['mod_seq'] as int?,
       hasAttachments: row['has_attachments'] == 1,
-      category: MessageCategory.values.byName(row['category'] as String),
+      category: MessageCategory.fromStorage(row['category'] as String),
       categorySource: CategorySource.values.byName(
         row['category_source'] as String,
       ),

@@ -11,6 +11,7 @@ environment:
   sdk: ^3.13.5
 
 dependencies:
+  ffi: ^2.2.0
   mail_protocol: any
   sqlite3: ^3.7.1
 

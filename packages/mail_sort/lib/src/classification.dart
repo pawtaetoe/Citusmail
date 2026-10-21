@@ -65,14 +65,13 @@ final class Classification {
   final MessageCategory category;
   final SortingReason reason;
 
-  /// Never [CategorySource.manual]: user choices are applied by the store.
   final CategorySource source;
 
   @override
   String toString() => 'Classification(${category.name}, ${reason.name})';
 }
 
-/// Decides People / Newsletters / Notifications from a message's headers.
+/// Decides General / Newsletters / Notifications from a message's headers.
 abstract interface class MessageClassifier {
   /// Changes whenever the same input could get a different answer (new
   /// rules or service lists), so stored mail is re-sorted after updates.

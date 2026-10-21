@@ -73,6 +73,7 @@ final class TestCredentials implements CredentialProvider {
 final class TestDevice {
   TestDevice._(
     this.directory,
+    this.key,
     this.store,
     this.account,
     this.connector,
@@ -88,10 +89,8 @@ final class TestDevice {
     SyncSettings settings = const SyncSettings(),
   }) {
     final directory = Directory.systemTemp.createTempSync('mail_sync_test');
-    final store = MailStore.open(
-      '${directory.path}/mail.db',
-      DatabaseKey.generate(),
-    );
+    final key = DatabaseKey.generate();
+    final store = MailStore.open('${directory.path}/mail.db', key);
     final account = store.accounts.add(
       NewAccount(
         email: '$user@fmail.test',
@@ -126,6 +125,7 @@ final class TestDevice {
     );
     return TestDevice._(
       directory,
+      key,
       store,
       account,
       connector,
@@ -135,6 +135,7 @@ final class TestDevice {
   }
 
   final Directory directory;
+  final DatabaseKey key;
   final MailStore store;
   final Account account;
   final DefaultMailConnector connector;
@@ -174,11 +175,22 @@ final class TestDevice {
     MessageQuery(mailboxIds: [mailbox(encodedName).id], limit: 500),
   );
 
+  String get databasePath => '${directory.path}/mail.db';
+
   void dispose() {
     store.close();
     directory.deleteSync(recursive: true);
   }
 }
+
+/// A connector factory the sync worker can run. Top-level, so the closure
+/// holds only [servers] (plain data) and can be sent to the worker.
+ConnectorFactory testConnector(TestServers servers) =>
+    (credentials) => DefaultMailConnector(
+      credentials,
+      tls: servers.tls,
+      endpointFor: servers.endpointFor,
+    );
 
 /// A unique folder name for one test run.
 String scratchFolder([String prefix = 'Sync']) =>

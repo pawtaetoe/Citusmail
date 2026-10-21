@@ -13,26 +13,20 @@ import 'package:path_provider/path_provider.dart';
 import 'secret_store.dart';
 
 /// Everything the running app uses.
+///
+/// The UI reads the encrypted store directly (fast, synchronous queries);
+/// syncing, downloading messages and replaying offline changes happen in
+/// the background [worker], which has its own connection to the same file.
 final class AppServices {
-  AppServices(this.store, this.secrets)
-    : sync = SyncEngine(
-        store,
-        DefaultMailConnector(KeychainCredentials(secrets)),
-      ),
-      actions = MailActions(store),
-      corrections = CategoryCorrections(store),
-      resorter = Resorter(store);
+  AppServices(this.store, this.secrets, this.worker)
+    : actions = MailActions(store);
 
   final MailStore store;
   final SecretStore secrets;
-  final SyncEngine sync;
+  final SyncWorker worker;
+
+  /// Local changes (read, pin, move, delete); the worker sends them on.
   final MailActions actions;
-
-  /// "Move to People / Newsletters / Notifications".
-  final CategoryCorrections corrections;
-
-  /// Re-sorts stored mail after the sorting rules change.
-  final Resorter resorter;
 
   /// Saves a verified account: settings in the encrypted store, password in
   /// the keychain. If the keychain write fails, the account is removed
@@ -65,6 +59,7 @@ final class AppServices {
       store.accounts.remove(account.id);
       rethrow;
     }
+    await worker.accountsChanged();
     return account;
   }
 
@@ -72,10 +67,11 @@ final class AppServices {
   Future<void> removeAccount(Account account) async {
     store.accounts.remove(account.id);
     await secrets.delete(account.keychainKey);
+    await worker.accountsChanged();
   }
 
   Future<void> dispose() async {
-    await sync.dispose();
+    await worker.close();
     store.close();
   }
 }
@@ -136,15 +132,21 @@ abstract final class AppStartup {
       } else {
         key = DatabaseKey.fromBytes(_hexToBytes(stored));
       }
-      final services = AppServices(MailStore.open(path, key), keychain);
-      // Before sync starts: mail stored by an older version (or with older
-      // rules) is sorted again from its stored headers.
+      final store = MailStore.open(path, key);
+      final SyncWorker worker;
       try {
-        await services.resorter.resortIfNeeded();
+        // Before the worker starts: mail stored by an older version (or
+        // with older rules) is sorted again from its stored headers.
+        await Resorter(store).resortIfNeeded();
+        worker = await SyncWorker.spawn(
+          SyncWorkerConfig(databasePath: path, key: key),
+          credentials: KeychainCredentials(keychain),
+        );
       } on Object {
-        await services.dispose();
+        store.close();
         rethrow;
       }
+      final services = AppServices(store, keychain, worker);
       return StartupReady(services);
     } on SecretStoreUnavailableException catch (e) {
       return StartupKeychainUnavailable(e.message);

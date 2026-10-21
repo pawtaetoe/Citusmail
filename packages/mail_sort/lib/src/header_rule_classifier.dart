@@ -11,16 +11,18 @@ import 'sorting_rules.dart';
 ///
 /// | # | Rule | Category |
 /// | - | ---- | -------- |
-/// | 1 | Sent or Drafts folder | People |
+/// | 1 | Sent or Drafts folder | General |
 /// | 2 | Known service (GitHub...) | Notifications |
-/// | 3 | `Auto-Submitted: auto-replied` (out-of-office, bounce) | People |
+/// | 3 | `Auto-Submitted: auto-replied` (out-of-office, bounce) | General |
 /// | 4 | One-click unsubscribe (RFC 8058) | Newsletters |
 /// | 5 | `noreply`-style sender, `Auto-Submitted: auto-generated` | Notifications |
 /// | 6 | `List-Id` or `List-Unsubscribe` | Newsletters |
 /// | 7 | `Precedence: bulk` / `list` / `junk` | Newsletters |
-/// | - | anything else | People |
+/// | - | anything else | General |
 ///
-/// The user's "Move to" choices are applied on top by the store.
+/// Pinned and Important are worked out by the store when listing the Smart
+/// Inbox (see `SmartSection`), because they change as the user pins mail
+/// and writes to people.
 final class HeaderRuleClassifier implements MessageClassifier {
   const HeaderRuleClassifier();
 
@@ -38,8 +40,8 @@ final class HeaderRuleClassifier implements MessageClassifier {
     BulkPrecedenceRule(),
   ];
 
-  static const _people = Classification(
-    MessageCategory.people,
+  static const _general = Classification(
+    MessageCategory.general,
     SortingReason.noSignal,
   );
 
@@ -52,6 +54,6 @@ final class HeaderRuleClassifier implements MessageClassifier {
       final decision = rule.apply(input);
       if (decision != null) return decision;
     }
-    return _people;
+    return _general;
   }
 }

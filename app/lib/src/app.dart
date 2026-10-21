@@ -7,10 +7,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mail_setup/mail_setup.dart';
 
-import 'home/accounts_page.dart';
 import 'services/app_services.dart';
 import 'setup/setup_controller.dart';
 import 'setup/setup_page.dart';
+import 'ui/fmail_theme.dart';
+import 'ui/mail_shell.dart';
 
 /// Placeholder product name. The final name is still open, so it lives in
 /// one place to make renaming easy.
@@ -27,11 +28,8 @@ class FmailApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: appName,
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(colorSchemeSeed: Colors.indigo),
-    darkTheme: ThemeData(
-      colorSchemeSeed: Colors.indigo,
-      brightness: Brightness.dark,
-    ),
+    theme: FmailTheme.light(),
+    darkTheme: FmailTheme.dark(),
     home: _StartupGate(startup: startup),
   );
 }
@@ -46,9 +44,29 @@ class _StartupGate extends StatefulWidget {
 }
 
 class _StartupGateState extends State<_StartupGate> {
-  late Future<StartupResult> _result = widget.startup();
+  late Future<StartupResult> _result = _start();
 
-  void _retry() => setState(() => _result = widget.startup());
+  /// Starts up, reporting an unexpected failure to the console (and the
+  /// screen) instead of losing it.
+  Future<StartupResult> _start() =>
+      widget.startup().catchError((Object error, StackTrace stack) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'fmail',
+            context: ErrorDescription('while starting up'),
+          ),
+        );
+        Error.throwWithStackTrace(error, stack);
+      });
+
+  void _retry() {
+    final next = _start();
+    setState(() {
+      _result = next;
+    });
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<StartupResult>(
@@ -56,7 +74,8 @@ class _StartupGateState extends State<_StartupGate> {
     builder: (context, snapshot) => switch (snapshot.data) {
       null when snapshot.hasError => _Problem(
         title: 'Fmail couldn\'t start',
-        message: 'Something unexpected went wrong.',
+        message:
+            'Something unexpected went wrong. (${snapshot.error.runtimeType}: ${snapshot.error})',
         actionLabel: 'Try again',
         onAction: _retry,
       ),
@@ -123,9 +142,10 @@ class _HomeState extends State<_Home> {
         onCancel: hasAccounts ? () => setState(() => _adding = false) : null,
       );
     }
-    return AccountsPage(
+    return MailShell(
       services: widget.services,
       onAddAccount: () => setState(() => _adding = true),
+      onAccountsChanged: () => setState(() {}),
     );
   }
 

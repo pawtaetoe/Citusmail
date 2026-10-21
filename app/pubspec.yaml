@@ -16,7 +16,9 @@ dependencies:
   mail_sort: any
   mail_store: any
   mail_sync: any
+  mail_view: any
   path_provider: ^2.1.6
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

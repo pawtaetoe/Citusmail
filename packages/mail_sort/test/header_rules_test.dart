@@ -53,7 +53,7 @@ Matcher sortedAs(MessageCategory category, SortingReason reason) =>
 
 void main() {
   group('every fixture lands where the plan says', () {
-    const people = MessageCategory.people;
+    const general = MessageCategory.general;
     const newsletters = MessageCategory.newsletters;
     const notifications = MessageCategory.notifications;
 
@@ -97,12 +97,12 @@ void main() {
         newsletters,
         SortingReason.bulkPrecedence,
       ),
-      'receipts/mdn-displayed.eml': (people, SortingReason.noSignal),
+      'receipts/mdn-displayed.eml': (general, SortingReason.noSignal),
     };
     for (final dir in ['people', 'security', 'malformed']) {
       for (final file in Directory('${fixtureDir.path}/$dir').listSync()) {
         expected['$dir/${file.uri.pathSegments.last}'] = (
-          people,
+          general,
           SortingReason.noSignal,
         );
       }
@@ -126,18 +126,18 @@ void main() {
       });
     }
 
-    test('own mail in Sent and Drafts is People', () {
+    test('own mail in Sent and Drafts is General', () {
       expect(
         classifier.classify(
           fixture('sent/lunch-reply.eml', mailboxUse: SpecialUse.sent),
         ),
-        sortedAs(people, SortingReason.ownMail),
+        sortedAs(general, SortingReason.ownMail),
       );
       expect(
         classifier.classify(
           fixture('drafts/unfinished.eml', mailboxUse: SpecialUse.drafts),
         ),
-        sortedAs(people, SortingReason.ownMail),
+        sortedAs(general, SortingReason.ownMail),
       );
       // Even a newsletter saved to Drafts.
       expect(
@@ -149,7 +149,7 @@ void main() {
               ),
             )
             .category,
-        people,
+        general,
       );
     });
   });
@@ -202,7 +202,7 @@ void main() {
             },
           ),
         ),
-        sortedAs(MessageCategory.people, SortingReason.noSignal),
+        sortedAs(MessageCategory.general, SortingReason.noSignal),
       );
     });
 
@@ -221,7 +221,7 @@ void main() {
       );
     });
 
-    test('auto-replies (out of office, bounces) stay in People', () {
+    test('auto-replies (out of office, bounces) stay in General', () {
       for (final value in [
         'auto-replied',
         'Auto-Replied; owner=x',
@@ -237,7 +237,7 @@ void main() {
               },
             ),
           ),
-          sortedAs(MessageCategory.people, SortingReason.autoReply),
+          sortedAs(MessageCategory.general, SortingReason.autoReply),
           reason: value,
         );
       }
@@ -279,7 +279,7 @@ void main() {
               },
             ),
           ),
-          sortedAs(MessageCategory.people, SortingReason.noSignal),
+          sortedAs(MessageCategory.general, SortingReason.noSignal),
         );
       },
     );
@@ -311,7 +311,7 @@ void main() {
                 ),
               )
               .category,
-          MessageCategory.people,
+          MessageCategory.general,
           reason: value,
         );
       }
@@ -327,14 +327,14 @@ void main() {
             },
           ),
         ),
-        sortedAs(MessageCategory.people, SortingReason.noSignal),
+        sortedAs(MessageCategory.general, SortingReason.noSignal),
       );
     });
 
     test('no sender at all is handled', () {
       expect(
         classifier.classify(const ClassificationInput(from: null, headers: {})),
-        sortedAs(MessageCategory.people, SortingReason.noSignal),
+        sortedAs(MessageCategory.general, SortingReason.noSignal),
       );
     });
 

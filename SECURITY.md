@@ -28,11 +28,16 @@ public issue. We aim to reply within 7 days.
 3. **Local data is encrypted** (SQLite3MultipleCiphers with
    ChaCha20-Poly1305, random 256-bit key in the keychain). Opening fails
    closed if encryption is not available.
-   Attachments stay in the app's private folder, and temporary copies are
-   removed after use.
+   Downloaded messages and their attachments stay inside the encrypted
+   database. An attachment leaves it only when the user saves it: into
+   Downloads, under a sanitised name, never overwriting a file and never
+   opened automatically.
 4. **Received mail cannot run or load anything by default.** No JavaScript,
    iframes, forms, remote images, CSS or fonts. No link or DNS prefetching.
-   Links show their real destination before opening.
+   Links show their real destination before opening. Mail is shown with
+   the app's own renderer (`packages/mail_view`), which turns HTML into a
+   simple document that has no way to express a remote resource, instead
+   of a web view.
 5. **Logs contain no personal data.** No message content, addresses or
    tokens. Debug logging is off in release builds.
 6. **Untrusted input is parsed defensively.** Everything from the network

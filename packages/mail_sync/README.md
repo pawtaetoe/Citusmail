@@ -22,6 +22,27 @@ Pure Dart.
 New mail is fetched as summaries only (envelope, flags, structure, a few
 headers, and a server-side preview when available), never whole messages.
 
+## Opening messages and older mail
+
+- `SyncEngine.loadBody` downloads a whole message when the user opens it
+  (BODY.PEEK, so opening alone never marks it read on the server), stores
+  it encrypted and indexes its text for search. Messages over 50 MB are
+  not downloaded.
+- `SyncEngine.fetchOlder` loads the next page of older summaries.
+- Both use `OnDemandConnections`: one connection per account, reused for a
+  couple of minutes and closed when idle; requests on one account take
+  turns, so a folder selected by one is never changed under another.
+
+## Background worker (`SyncWorker`)
+
+The app runs the engine in a background isolate, so syncing never makes
+the UI stutter. The worker opens its own connection to the encrypted
+database (transactions take the write lock up front, so the two
+connections never fail each other); the UI reads what it writes.
+Passwords are not given to the worker: it asks the UI for one at each
+login, so only the UI isolate uses the keychain. If the worker crashes it
+is restarted (at most three times in ten minutes).
+
 ## Rules that keep data correct
 
 - **Interrupted syncs repeat safely.** Summaries are stored in batches and

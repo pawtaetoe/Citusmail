@@ -13,7 +13,8 @@ no analytics, no crash reporting and no advertising.
 | Common server names of your domain | When adding an account, if nothing else found them | A connection test without any login |
 | Mozilla's mail server database | Only if you allow it during setup | Your email domain, never the full address |
 | Unsubscribe addresses or links | Only when you tap Unsubscribe | What the newsletter's unsubscribe method requires |
-| Remote images in an email | Only when you tap "Load images" or trust the sender | A normal image request to the sender's server |
+| A link in an email | Only when you tap it and confirm the address | Your browser opens the link |
+| Remote images in an email | Never yet; later only when you tap "Load images" or trust the sender | A normal image request to the sender's server |
 
 Planned optional features (off by default, each asks first):
 
@@ -25,8 +26,8 @@ Planned optional features (off by default, each asks first):
 ## What stays on your device
 
 Mail, contacts, settings and caches are stored encrypted on the device.
-Sorting into People, Newsletters and Notifications runs on the device from
-a few message headers; your "Move to" choices are stored with your mail. App
+Sorting into Important, General, Newsletters and Notifications runs on the
+device from a few message headers and your Sent folder. App
 settings such as your block list can sync between your devices through a
 hidden folder in your own mail account. They never go to anyone else.
 

@@ -91,6 +91,22 @@ runtime objective_c                               Apple interop, for later (dart
 runtime args                                      command-line parsing used by jni tooling (dart.dev)
 runtime package_config                            package resolution used by jni tooling (dart.dev)
 
+# --- Runtime: mail display and links (Stage 8) ------------------------------
+# html/csslib: pure Dart parser, no dart:io, no network, no FFI (reviewed
+# 0.15.6). url_launcher: hands a URL to the OS (GTK g_app_info / gtk_show_uri,
+# Windows ShellExecute, Android intent) only after the user confirms; the
+# app always asks for an external browser, never an in-app web view.
+runtime html                              HTML parser for safe mail display (dart.dev)
+runtime csslib                            used by html; CSS is never applied (dart.dev)
+runtime url_launcher                      opens a confirmed link in the browser (flutter.dev)
+runtime url_launcher_platform_interface   url_launcher interface (flutter.dev)
+runtime url_launcher_linux                Linux backend (flutter.dev)
+runtime url_launcher_windows              Windows backend (flutter.dev)
+runtime url_launcher_android              Android backend (flutter.dev)
+runtime url_launcher_ios                  Apple backend, for later (flutter.dev)
+runtime url_launcher_macos                Apple backend, for later (flutter.dev)
+runtime url_launcher_web                  web backend; never used by this app (flutter.dev)
+
 # --- Dev only: lints, test runner and their dependencies (dart.dev) --------
 dev _fe_analyzer_shared           analyzer internals for test runner
 dev analyzer                      used by test runner

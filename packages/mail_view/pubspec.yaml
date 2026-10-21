@@ -1,0 +1,19 @@
+name: mail_view
+description: >-
+  Turns a raw email into something safe to show: a simple document (text,
+  structure, links, embedded images) with no way to load anything from the
+  network, plus attachments with sanitised file names. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  html: ^0.15.6
+  mail_protocol: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

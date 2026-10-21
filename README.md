@@ -30,9 +30,12 @@ macOS and iOS for later.
 │   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
 │                             from scratch with no runtime dependencies
 │   ├── mail_setup/           Account setup: discovery and login verification
-│   ├── mail_sort/            Sorting into People, Newsletters, Notifications
+│   ├── mail_sort/            Sorting into General, Newsletters, Notifications
 │   ├── mail_store/           Encrypted local storage (SQLite3MultipleCiphers)
-│   └── mail_sync/            Sync engine: folders, messages, offline queue, IDLE
+│   ├── mail_sync/            Sync engine and background worker: folders, messages,
+│                             offline queue, IDLE, opening messages, older mail
+│   └── mail_view/            Safe display: HTML and text to a document that
+│                             cannot load anything; attachment names
 ├── test-data/mail/           Sample emails shared by tests and the test server
 ├── test-server/              Local Dovecot + Postfix test servers (Podman/Docker)
 ├── scripts/                  Developer scripts (live account check)
@@ -64,7 +67,8 @@ flutter analyze                               # static analysis
 (cd packages/mail_store && dart test)         # storage tests
 (cd packages/mail_sync && dart test)          # sync engine unit tests
 (cd packages/mail_setup && dart test)         # account setup unit tests
-(cd packages/mail_sort && dart test)          # sorting rules and corrections
+(cd packages/mail_sort && dart test)          # sorting rules
+(cd packages/mail_view && dart test)          # safe mail display
 (cd tool && dart test)                        # repository tool tests
 (cd app && flutter test)                      # app tests
 (cd app && flutter run -d linux)              # run on Linux

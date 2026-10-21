@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'database_key.dart';
+import 'file_permissions.dart';
 import 'schema.dart';
 import 'store_exception.dart';
 
@@ -50,6 +51,7 @@ final class MailDatabase {
       _migrate(db, migrations);
       final database = MailDatabase._(db, path);
       database._verifyFileIsEncrypted();
+      FilePermissions.restrict(path);
       return database;
     } on Object {
       db.close();
@@ -72,10 +74,17 @@ final class MailDatabase {
 
   /// Runs [action] atomically. Nested calls use savepoints, so an inner
   /// failure rolls back only the inner part (and rethrows).
+  ///
+  /// The outermost level takes the write lock up front (BEGIN IMMEDIATE).
+  /// The UI and the sync worker each have a connection; a transaction that
+  /// read first and wrote later could otherwise fail if the other
+  /// connection wrote in between. Waiting for the lock is bounded by
+  /// `busy_timeout`.
   T transaction<T>(T Function() action) {
     _checkOpen();
+    final outermost = _savepointDepth == 0;
     final name = 'sp${_savepointDepth++}';
-    _db.execute('SAVEPOINT $name');
+    _db.execute(outermost ? 'BEGIN IMMEDIATE' : 'SAVEPOINT $name');
     try {
       final result = action();
       if (result is Future) {
@@ -83,11 +92,15 @@ final class MailDatabase {
           'transactions are synchronous; do not return a Future',
         );
       }
-      _db.execute('RELEASE $name');
+      _db.execute(outermost ? 'COMMIT' : 'RELEASE $name');
       return result;
     } on Object {
-      _db.execute('ROLLBACK TO $name');
-      _db.execute('RELEASE $name');
+      if (outermost) {
+        _db.execute('ROLLBACK');
+      } else {
+        _db.execute('ROLLBACK TO $name');
+        _db.execute('RELEASE $name');
+      }
       rethrow;
     } finally {
       _savepointDepth--;

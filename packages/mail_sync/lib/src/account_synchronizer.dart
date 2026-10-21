@@ -8,6 +8,7 @@ import 'package:mail_store/mail_store.dart';
 import 'connector.dart';
 import 'mailbox_synchronizer.dart';
 import 'outbox_replayer.dart';
+import 'sync_worker.dart';
 
 /// Why a sync could not finish, in terms the app can act on.
 enum SyncFailureKind {
@@ -34,6 +35,7 @@ final class SyncFailure {
   final String message;
 
   static SyncFailure from(Object error) => switch (error) {
+    SyncWorkerException(:final failure) => failure,
     ImapAuthenticationException() ||
     SmtpAuthenticationException() => SyncFailure(
       SyncFailureKind.authentication,

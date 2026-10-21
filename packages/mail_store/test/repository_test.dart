@@ -21,7 +21,7 @@ MessageSummary summary(
   int uid, {
   String? subject,
   DateTime? at,
-  MessageCategory category = MessageCategory.people,
+  MessageCategory category = MessageCategory.general,
   MessageFlags flags = MessageFlags.none,
   MailAddress? from,
   String? listId,
@@ -326,7 +326,7 @@ void main() {
             i,
             category: i.isEven
                 ? MessageCategory.newsletters
-                : MessageCategory.people,
+                : MessageCategory.general,
           ),
       ]);
       store.messages.upsertSummaries(bobInbox.id, [
@@ -345,8 +345,9 @@ void main() {
       StoredMessage? cursor;
       while (true) {
         final page = store.messages.list(
-          MessageQuery.unified(
-            MessageCategory.newsletters,
+          MessageQuery(
+            inboxesOnly: true,
+            category: MessageCategory.newsletters,
             before: cursor,
             limit: 7,
           ),
@@ -366,7 +367,11 @@ void main() {
         reason: 'no duplicates across pages',
       );
       final all = store.messages.list(
-        const MessageQuery.unified(MessageCategory.newsletters, limit: 500),
+        const MessageQuery(
+          inboxesOnly: true,
+          category: MessageCategory.newsletters,
+          limit: 500,
+        ),
       );
       expect(
         all.map((m) => m.id).toList(),
@@ -632,278 +637,196 @@ void main() {
     });
   });
 
-  group('category choices', () {
+  group('smart inbox', () {
+    late Account alice;
     late StoredMailbox inbox;
-    late StoredMailbox other;
-    const shop = MailAddress(localPart: 'News', domain: 'Shop.example');
-    const henry = MailAddress(localPart: 'henry', domain: 'project.example');
+    late StoredMailbox sent;
+    late StoredMailbox important;
+
+    MailAddress address(String a) =>
+        MailAddress(localPart: a.split('@').first, domain: a.split('@').last);
 
     setUp(() {
-      final account = temp.addAccount();
-      final boxes = store.mailboxes.replaceAll(account.id, [
+      alice = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(alice.id, [
         folder('INBOX'),
-        folder('Archive', use: 'Archive'),
+        folder('Sent', use: 'Sent'),
+        folder('Important', use: 'Important'),
       ]);
-      inbox = boxes.firstWhere((b) => b.encodedName == 'INBOX');
-      other = boxes.firstWhere((b) => b.encodedName == 'Archive');
+      inbox = boxes.firstWhere((b) => b.isInbox);
+      sent = boxes.firstWhere((b) => b.specialUse == SpecialUse.sent);
+      important = boxes.firstWhere((b) => b.specialUse == SpecialUse.important);
     });
 
-    StoredMessage at(StoredMailbox box, int uid) =>
-        store.messages.byUid(box.id, uid)!;
+    Set<String?> section(SmartSection s, {List<int>? accounts}) => store
+        .messages
+        .list(MessageQuery.smart(s, accountIds: accounts, limit: 500))
+        .map((m) => m.subject)
+        .toSet();
 
-    test('a sender choice re-sorts earlier mail in every folder, '
-        'ignoring ASCII case', () {
-      store.messages.upsertSummaries(inbox.id, [
-        summary(1, from: shop, category: MessageCategory.newsletters),
-        summary(2), // another sender
-      ]);
-      store.messages.upsertSummaries(other.id, [
-        summary(7, from: shop, category: MessageCategory.newsletters),
-      ]);
-
-      store.categoryChoices.save(
-        CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: 'news@shop.EXAMPLE',
-          category: MessageCategory.people,
+    test('every inbox message is in exactly one section', () {
+      // Alice wrote to Carol (as Cc) and sent message <q@x>.
+      store.messages.upsertSummaries(sent.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026),
+          messageId: 'q@x',
+          from: address('alice@fmail.test'),
+          to: [address('dave@x.example')],
+          cc: [address('Carol@X.example')],
         ),
-      );
-
-      for (final m in [at(inbox, 1), at(other, 7)]) {
-        expect(m.category, MessageCategory.people);
-        expect(m.categorySource, CategorySource.manual);
-      }
-      expect(at(inbox, 2).categorySource, CategorySource.rule);
-    });
-
-    test('a choice applies to mail synced later and survives re-syncs', () {
-      store.categoryChoices.save(
-        CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: shop.address,
-          category: MessageCategory.notifications,
+      ]);
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, subject: 'stranger'),
+        summary(2, subject: 'from carol', from: address('carol@x.example')),
+        MessageSummary(
+          uid: 3,
+          subject: 'reply to alice',
+          receivedAt: DateTime.utc(2026, 2),
+          inReplyTo: 'q@x',
+          from: address('erin@x.example'),
         ),
-      );
-      store.messages.upsertSummaries(inbox.id, [
-        summary(1, from: shop, category: MessageCategory.newsletters),
-      ]);
-      expect(at(inbox, 1).category, MessageCategory.notifications);
-      // The server sends the same message again (e.g. flags changed).
-      store.messages.upsertSummaries(inbox.id, [
-        summary(1, from: shop, category: MessageCategory.newsletters),
-      ]);
-      expect(at(inbox, 1).category, MessageCategory.notifications);
-      expect(at(inbox, 1).categorySource, CategorySource.manual);
-    });
-
-    test('removing a choice brings back the automatic category', () {
-      store.messages.upsertSummaries(inbox.id, [
-        summary(1, from: shop, category: MessageCategory.newsletters),
-      ]);
-      store.categoryChoices.save(
-        CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: shop.address,
-          category: MessageCategory.people,
+        summary(
+          4,
+          subject: 'server says important',
+          flags: MessageFlags.fromImap([r'$Important']),
         ),
+        MessageSummary(
+          uid: 5,
+          subject: 'in gmail important folder',
+          receivedAt: DateTime.utc(2026, 3),
+          messageId: 'imp@x',
+        ),
+        summary(
+          6,
+          subject: 'newsletter from carol',
+          from: address('carol@x.example'),
+          category: MessageCategory.newsletters,
+        ),
+        summary(7, subject: 'alert', category: MessageCategory.notifications),
+        summary(
+          8,
+          subject: 'pinned newsletter',
+          category: MessageCategory.newsletters,
+          flags: MessageFlags.fromImap([r'\Flagged', r'\Seen']),
+        ),
+      ]);
+      store.messages.upsertSummaries(important.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026, 3),
+          messageId: 'imp@x',
+        ),
+      ]);
+
+      expect(section(SmartSection.pinned), {'pinned newsletter'});
+      expect(section(SmartSection.important), {
+        'from carol',
+        'reply to alice',
+        'server says important',
+        'in gmail important folder',
+      });
+      expect(section(SmartSection.general), {'stranger'});
+      expect(section(SmartSection.newsletters), {'newsletter from carol'});
+      expect(section(SmartSection.notifications), {'alert'});
+
+      final counts = store.messages.sectionCounts();
+      expect(counts[SmartSection.important]!.total, 4);
+      expect(counts[SmartSection.important]!.unread, 4);
+      expect(counts[SmartSection.pinned]!.total, 1);
+      expect(counts[SmartSection.pinned]!.unread, 0);
+      expect(
+        counts.values.fold<int>(0, (sum, c) => sum + c.total),
+        8,
+        reason: 'only inbox messages, each counted once',
       );
       expect(
-        store.categoryChoices.remove(ChoiceScope.sender, 'NEWS@shop.example'),
-        isTrue,
+        store.messages.list(const MessageQuery.inbox(limit: 500)),
+        hasLength(8),
       );
-      expect(
-        store.categoryChoices.remove(ChoiceScope.sender, shop.address),
-        isFalse,
-      );
-      expect(at(inbox, 1).category, MessageCategory.newsletters);
-      expect(at(inbox, 1).categorySource, CategorySource.rule);
-      expect(store.categoryChoices.all(), isEmpty);
     });
 
-    test('a list choice covers every poster and wins over a sender choice', () {
-      const list = 'dev.lists.project.example';
-      store.messages.upsertSummaries(inbox.id, [
+    test('sections can be limited to one account', () {
+      final bob = temp.addAccount('bob@fmail.test');
+      final bobInbox = store.mailboxes.replaceAll(bob.id, [
+        folder('INBOX'),
+      ]).single;
+      store.messages.upsertSummaries(inbox.id, [summary(1, subject: 'a')]);
+      store.messages.upsertSummaries(bobInbox.id, [summary(1, subject: 'b')]);
+      expect(section(SmartSection.general), {'a', 'b'});
+      expect(section(SmartSection.general, accounts: [bob.id]), {'b'});
+      expect(
+        store.messages
+            .sectionCounts(accountIds: [alice.id])[SmartSection.general]!
+            .total,
+        1,
+      );
+    });
+
+    test('pins across every folder', () {
+      store.messages.upsertSummaries(sent.id, [
         summary(
           1,
-          from: henry,
-          listId: list,
-          category: MessageCategory.newsletters,
+          subject: 'pinned sent',
+          flags: MessageFlags.fromImap([r'\Flagged']),
         ),
-        summary(
-          2,
-          from: shop,
-          listId: list,
-          category: MessageCategory.newsletters,
-        ),
-        summary(3, from: henry), // Henry writing directly, not via the list
+        summary(2, subject: 'plain sent'),
       ]);
-      store.categoryChoices
-        ..save(
-          CategoryChoice(
-            scope: ChoiceScope.sender,
-            key: henry.address,
-            category: MessageCategory.notifications,
-          ),
-        )
-        ..save(
-          CategoryChoice(
-            scope: ChoiceScope.list,
-            key: list,
-            category: MessageCategory.people,
-          ),
-        );
-      expect(at(inbox, 1).category, MessageCategory.people);
-      expect(at(inbox, 2).category, MessageCategory.people);
-      expect(at(inbox, 3).category, MessageCategory.notifications);
-      expect(at(inbox, 1).listId, list);
-
-      store.categoryChoices.remove(ChoiceScope.list, list);
-      expect(at(inbox, 1).category, MessageCategory.notifications); // sender
-      expect(at(inbox, 2).category, MessageCategory.newsletters); // automatic
+      expect(
+        store.messages
+            .list(const MessageQuery(flaggedOnly: true))
+            .map((m) => m.subject),
+        ['pinned sent'],
+      );
     });
 
-    test('quoted local parts round-trip, so choices match them', () {
+    test('re-sorting reads stored mail and writes new decisions', () {
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026),
+          from: address('news@shop.example'),
+          headers: const {
+            'List-Unsubscribe': ['<mailto:u@shop.example>'],
+          },
+        ),
+      ]);
+      final batch = store.messages.sortable();
+      expect(batch.single.from?.address, 'news@shop.example');
+      expect(batch.single.headers, {
+        'list-unsubscribe': ['<mailto:u@shop.example>'],
+      });
+      expect(store.messages.sortable(afterId: batch.last.id), isEmpty);
+      store.messages.updateCategories([
+        CategoryDecision(
+          messageId: batch.single.id,
+          category: MessageCategory.newsletters,
+          source: CategorySource.rule,
+          listId: 'l.shop.example',
+        ),
+      ]);
+      final m = store.messages.byUid(inbox.id, 1)!;
+      expect(m.category, MessageCategory.newsletters);
+      expect(m.listId, 'l.shop.example');
+    });
+
+    test('quoted local parts round-trip', () {
       const quoted = MailAddress(
         localPart: 'john "jd" doe',
         domain: 'x.example',
       );
       store.messages.upsertSummaries(inbox.id, [summary(1, from: quoted)]);
-      final stored = at(inbox, 1).from!;
+      final stored = store.messages.byUid(inbox.id, 1)!.from!;
       expect(stored.localPart, 'john "jd" doe');
       expect(stored.address, quoted.address);
-      store.categoryChoices.save(
-        CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: stored.address,
-          category: MessageCategory.notifications,
-        ),
-      );
-      expect(at(inbox, 1).category, MessageCategory.notifications);
     });
 
-    test('changing a choice replaces it', () {
-      store.messages.upsertSummaries(inbox.id, [summary(1, from: shop)]);
-      for (final category in [
-        MessageCategory.newsletters,
-        MessageCategory.notifications,
-      ]) {
-        store.categoryChoices.save(
-          CategoryChoice(
-            scope: ChoiceScope.sender,
-            key: shop.address,
-            category: category,
-          ),
-        );
+    test('categories are stored under their schema names', () {
+      expect(MessageCategory.general.storageName, 'people');
+      for (final c in MessageCategory.values) {
+        expect(MessageCategory.fromStorage(c.storageName), c);
       }
-      expect(store.categoryChoices.all(), hasLength(1));
-      expect(
-        store.categoryChoices.find(ChoiceScope.sender, shop.address)!.category,
-        MessageCategory.notifications,
-      );
-      expect(at(inbox, 1).category, MessageCategory.notifications);
-    });
-
-    test('unified category lists follow choices', () {
-      store.messages.upsertSummaries(inbox.id, [
-        summary(1, from: shop, category: MessageCategory.newsletters),
-      ]);
-      store.categoryChoices.save(
-        CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: shop.address,
-          category: MessageCategory.people,
-        ),
-      );
-      expect(
-        store.messages.list(
-          const MessageQuery.unified(MessageCategory.newsletters),
-        ),
-        isEmpty,
-      );
-      expect(
-        store.messages.list(const MessageQuery.unified(MessageCategory.people)),
-        hasLength(1),
-      );
-    });
-
-    test('re-sorting reads stored mail and keeps choices on top', () {
-      store.messages.upsertSummaries(inbox.id, [
-        MessageSummary(
-          uid: 1,
-          receivedAt: DateTime.utc(2026),
-          from: shop,
-          headers: const {
-            'List-Unsubscribe': ['<mailto:u@shop.example>'],
-          },
-        ),
-        summary(2, from: henry),
-      ]);
-      store.categoryChoices.save(
-        CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: henry.address,
-          category: MessageCategory.notifications,
-        ),
-      );
-
-      final batch = store.messages.sortable();
-      expect(batch.map((m) => m.from?.address), [
-        'News@Shop.example',
-        'henry@project.example',
-      ]);
-      expect(batch.first.headers, {
-        'list-unsubscribe': ['<mailto:u@shop.example>'],
-      });
-      expect(batch.first.mailboxUse, isNull);
-      expect(store.messages.sortable(afterId: batch.last.id), isEmpty);
-
-      store.messages.updateAutomaticCategories([
-        for (final m in batch)
-          AutomaticCategory(
-            messageId: m.id,
-            category: MessageCategory.newsletters,
-            source: CategorySource.rule,
-            listId: 'l.shop.example',
-          ),
-      ]);
-      expect(at(inbox, 1).category, MessageCategory.newsletters);
-      expect(at(inbox, 1).listId, 'l.shop.example');
-      expect(at(inbox, 2).category, MessageCategory.notifications); // chosen
-    });
-
-    test('keys are validated and compared in ASCII lower case only', () {
-      expect(
-        () => CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: '  ',
-          category: MessageCategory.people,
-        ),
-        throwsArgumentError,
-      );
-      expect(
-        () => CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: 'a' * 513,
-          category: MessageCategory.people,
-        ),
-        throwsArgumentError,
-      );
-      expect(
-        CategoryChoice(
-          scope: ChoiceScope.sender,
-          key: ' Jürgen@Beispiel.EXAMPLE ',
-          category: MessageCategory.people,
-        ).key,
-        'jürgen@beispiel.example',
-      );
-      expect(
-        () => MessageSummary(
-          uid: 1,
-          receivedAt: DateTime.utc(2026),
-          categorySource: CategorySource.manual,
-        ),
-        throwsArgumentError,
-      );
+      expect(() => MessageCategory.fromStorage('x'), throwsFormatException);
     });
   });
 

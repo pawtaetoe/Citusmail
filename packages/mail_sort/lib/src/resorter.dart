@@ -10,7 +10,7 @@ import 'list_id.dart';
 
 /// Re-sorts stored mail from its stored headers when the rules change
 /// (and once after upgrading from a version without sorting). Nothing is
-/// downloaded; the user's choices stay on top.
+/// downloaded.
 final class Resorter {
   Resorter(
     this._store, {
@@ -48,7 +48,7 @@ final class Resorter {
           limit: batchSize,
         );
         if (batch.isEmpty) return null;
-        _store.messages.updateAutomaticCategories([
+        _store.messages.updateCategories([
           for (final message in batch) decide(message),
         ]);
         count += batch.length;
@@ -62,8 +62,8 @@ final class Resorter {
     return count;
   }
 
-  /// The automatic decision for one stored message.
-  AutomaticCategory decide(SortableMessage message) {
+  /// The decision for one stored message.
+  CategoryDecision decide(SortableMessage message) {
     final decision = classifier.classify(
       ClassificationInput(
         from: message.from,
@@ -71,7 +71,7 @@ final class Resorter {
         mailboxUse: message.mailboxUse,
       ),
     );
-    return AutomaticCategory(
+    return CategoryDecision(
       messageId: message.id,
       category: decision.category,
       source: decision.source,

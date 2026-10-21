@@ -261,6 +261,35 @@ void main() {
       expect(find.text('A keychain is needed'), findsOneWidget);
     });
 
+    testWidgets('an unexpected failure is shown, and Try again retries', (
+      tester,
+    ) async {
+      var attempts = 0;
+      final reported = <FlutterErrorDetails>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = reported.add;
+      addTearDown(() => FlutterError.onError = previous);
+
+      await tester.pumpWidget(
+        FmailApp(
+          startup: () async {
+            attempts++;
+            if (attempts == 1) throw StateError('disk on fire');
+            return const StartupKeychainUnavailable('locked');
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('disk on fire'), findsOneWidget);
+      expect(reported.single.exception, isA<StateError>());
+
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+      expect(attempts, 2);
+      expect(find.text('A keychain is needed'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('unreadable data offers a fresh start', (tester) async {
       await tester.pumpWidget(
         FmailApp(startup: () async => const StartupDataUnreadable('/tmp/x.db')),

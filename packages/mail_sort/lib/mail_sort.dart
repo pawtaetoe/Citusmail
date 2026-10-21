@@ -5,7 +5,6 @@
 /// Sorts mail into People, Newsletters and Notifications, on the device.
 library;
 
-export 'src/category_corrections.dart';
 export 'src/classification.dart';
 export 'src/header_rule_classifier.dart';
 export 'src/list_id.dart';

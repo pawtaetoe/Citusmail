@@ -4,13 +4,41 @@
 
 import 'package:mail_protocol/mail_protocol.dart';
 
-/// The shared folders messages are sorted into across all accounts.
-enum MessageCategory { people, newsletters, notifications }
+/// What automatic sorting decided a message is. Sorting is always automatic;
+/// users group mail their own way with custom folders.
+enum MessageCategory {
+  /// Everything without a newsletter or notification signal. Stored as
+  /// 'people', its name in schema versions 1 and 2, because SQLite cannot
+  /// change the CHECK constraint that lists the allowed values.
+  general('people'),
+  newsletters('newsletters'),
+  notifications('notifications');
 
-/// Who decided a message's category: header rules, the provider's own
-/// labels, or the user (a "Move to" choice for the sender or list, which
-/// rules never overwrite).
-enum CategorySource { rule, provider, manual }
+  const MessageCategory(this.storageName);
+
+  /// The value in the database.
+  final String storageName;
+
+  static MessageCategory fromStorage(String value) => values.firstWhere(
+    (c) => c.storageName == value,
+    orElse: () => throw FormatException('unknown category: $value'),
+  );
+}
+
+/// Who decided a message's category: header rules, or the provider's own
+/// labels (later).
+enum CategorySource { rule, provider }
+
+/// The Smart Inbox sections. Every inbox message is in exactly one, the
+/// first that applies:
+///
+/// 1. [pinned]: flagged (`\Flagged`, a star in other mail apps);
+/// 2. [newsletters] and [notifications]: by category;
+/// 3. [important]: General mail from someone the user has written to, a
+///    reply to the user's own mail, or marked important by the server
+///    (`$Important` keyword or the `\Important` folder);
+/// 4. [general]: everything else.
+enum SmartSection { pinned, important, general, notifications, newsletters }
 
 /// IMAP system flags as bits, plus other keywords ($Forwarded, $Junk...).
 final class MessageFlags {
@@ -100,20 +128,13 @@ final class MessageSummary {
     this.flags = MessageFlags.none,
     this.modSeq,
     this.hasAttachments = false,
-    this.category = MessageCategory.people,
+    this.category = MessageCategory.general,
     this.categorySource = CategorySource.rule,
     this.snippet,
     this.headers = const {},
     this.listId,
   }) {
     if (uid < 1) throw ArgumentError.value(uid, 'uid', 'must be at least 1');
-    if (categorySource == CategorySource.manual) {
-      throw ArgumentError.value(
-        categorySource,
-        'categorySource',
-        'a summary carries the automatic decision; user choices are stored as CategoryChoice',
-      );
-    }
   }
 
   final int uid;
@@ -133,15 +154,12 @@ final class MessageSummary {
   final MessageFlags flags;
   final int? modSeq;
   final bool hasAttachments;
-
-  /// The automatic decision (rules or provider). The category shown may
-  /// differ when the user chose one for the sender or list.
   final MessageCategory category;
   final CategorySource categorySource;
   final String? snippet;
 
   /// The normalized List-Id (lower case), if the message came through a
-  /// mailing list.
+  /// mailing list (for bulk actions on a list later).
   final String? listId;
 
   /// Selected headers (lower-case name -> values) kept for sorting,
@@ -189,7 +207,6 @@ final class StoredMessage {
   final int? modSeq;
   final bool hasAttachments;
 
-  /// The category shown, and who decided it.
   final MessageCategory category;
   final CategorySource categorySource;
   final String? snippet;
@@ -219,18 +236,14 @@ final class SortableMessage {
   final SpecialUse? mailboxUse;
 }
 
-/// A new automatic decision for a stored message.
-final class AutomaticCategory {
-  AutomaticCategory({
+/// A new sorting decision for a stored message (after the rules changed).
+final class CategoryDecision {
+  const CategoryDecision({
     required this.messageId,
     required this.category,
     required this.source,
     this.listId,
-  }) {
-    if (source == CategorySource.manual) {
-      throw ArgumentError.value(source, 'source', 'must be automatic');
-    }
-  }
+  });
 
   final int messageId;
   final MessageCategory category;

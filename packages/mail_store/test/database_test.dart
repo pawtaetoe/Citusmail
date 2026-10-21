@@ -139,6 +139,16 @@ void main() {
     });
   });
 
+  test('database files and folder are private to the user', () {
+    temp.store.database.execute('CREATE TABLE t (x)'); // creates the WAL
+    temp.reopen();
+    String mode(String path) =>
+        (FileStat.statSync(path).mode & 0x1FF).toRadixString(8);
+    expect(mode(temp.path), '600');
+    expect(mode('${temp.path}-wal'), '600');
+    expect(mode(temp.directory.path), '700');
+  }, testOn: 'linux || mac-os');
+
   group('schema migrations', () {
     test('a new database is at the latest schema', () {
       expect(temp.store.database.schemaVersion, schemaMigrations.last.version);
@@ -166,37 +176,71 @@ void main() {
       temp.store = MailStore.open(temp.path, temp.key);
     });
 
-    test('version 1 data is carried into version 2 sorting columns', () {
+    MailDatabase openAt(int version) {
       temp.store.close();
       MailDatabase.destroy(temp.path);
-      final v1 = MailDatabase.open(
+      final db = MailDatabase.open(
         temp.path,
         temp.key,
-        migrations: schemaMigrations.sublist(0, 1),
+        migrations: schemaMigrations.sublist(0, version),
       );
-      v1
+      db
         ..execute(
           'INSERT INTO accounts (id, email, username, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, created_at) '
           "VALUES (1, 'a@fmail.test', 'a', 'h', 993, 'implicitTls', 'h', 465, 'implicitTls', 0)",
         )
         ..execute(
           "INSERT INTO mailboxes (id, account_id, encoded_name, name) VALUES (1, 1, 'INBOX', 'INBOX')",
+        );
+      return db;
+    }
+
+    List<List<Object?>> categories() => temp.store.database
+        .select(
+          'SELECT uid, category, category_source FROM messages ORDER BY uid',
         )
+        .map((r) => [for (final v in r.values) v])
+        .toList();
+
+    test('version 1 categories carry over to the latest schema', () {
+      openAt(1)
         ..execute(
           'INSERT INTO messages (mailbox_id, uid, received_at, category, category_source) VALUES '
           "(1, 1, 0, 'newsletters', 'rule'), (1, 2, 0, 'notifications', 'manual')",
         )
         ..close();
-
       temp.store = MailStore.open(temp.path, temp.key);
-      final rows = temp.store.database.select(
-        'SELECT uid, category, category_source, auto_category, auto_source, list_id FROM messages ORDER BY uid',
-      );
-      expect(rows.map((r) => [for (final v in r.values) v]), [
-        [1, 'newsletters', 'rule', 'newsletters', 'rule', null],
-        [2, 'notifications', 'rule', 'notifications', 'rule', null],
+      expect(categories(), [
+        [1, 'newsletters', 'rule'],
+        [2, 'notifications', 'rule'],
       ]);
-      expect(temp.store.categoryChoices.all(), isEmpty);
+      expect(
+        temp.store.messages.byUid(1, 1)!.category,
+        MessageCategory.newsletters,
+      );
+    });
+
+    test('version 2 "Move to" choices are dropped; rules decide again', () {
+      openAt(2)
+        ..execute(
+          'INSERT INTO messages (mailbox_id, uid, received_at, from_address, category, category_source, auto_category, auto_source) '
+          "VALUES (1, 1, 0, 'news@shop.example', 'people', 'manual', 'newsletters', 'rule')",
+        )
+        ..execute(
+          'INSERT INTO category_choices (scope, key, category, updated_at) '
+          "VALUES ('sender', 'news@shop.example', 'people', 0)",
+        )
+        ..close();
+      temp.store = MailStore.open(temp.path, temp.key);
+      expect(categories(), [
+        [1, 'newsletters', 'rule'],
+      ]);
+      expect(
+        temp.store.database.select(
+          "SELECT name FROM sqlite_master WHERE name IN ('category_choices', 'messages_by_list_id')",
+        ),
+        isEmpty,
+      );
       expect(temp.store.settings.read('anything'), isNull);
     });
 

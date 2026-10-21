@@ -14,7 +14,7 @@ abstract interface class SortingRule {
   Classification? apply(ClassificationInput input);
 }
 
-/// Mail in Sent or Drafts is the user's own: always People.
+/// Mail in Sent or Drafts is the user's own: always General.
 final class OwnMailRule implements SortingRule {
   const OwnMailRule();
 
@@ -22,7 +22,7 @@ final class OwnMailRule implements SortingRule {
   Classification? apply(ClassificationInput input) =>
       switch (input.mailboxUse) {
         SpecialUse.sent || SpecialUse.drafts => const Classification(
-          MessageCategory.people,
+          MessageCategory.general,
           SortingReason.ownMail,
         ),
         _ => null,
@@ -45,15 +45,16 @@ final class KnownServiceRule implements SortingRule {
 }
 
 /// `Auto-Submitted: auto-replied` (RFC 3834) is an answer to the user's
-/// own mail, such as an out-of-office reply or a bounce: People, even if
-/// it carries bulk headers.
+/// own mail, such as an out-of-office reply or a bounce: General (and
+/// Important when it replies to a sent message), even if it carries bulk
+/// headers.
 final class AutoReplyRule implements SortingRule {
   const AutoReplyRule();
 
   @override
   Classification? apply(ClassificationInput input) =>
       input.token('auto-submitted') == 'auto-replied'
-      ? const Classification(MessageCategory.people, SortingReason.autoReply)
+      ? const Classification(MessageCategory.general, SortingReason.autoReply)
       : null;
 }
 
