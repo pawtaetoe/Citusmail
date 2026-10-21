@@ -1,0 +1,19 @@
+name: mail_sync
+description: >-
+  Keeps the encrypted local store in step with the mail servers: folder and
+  message sync (QRESYNC, CONDSTORE or plain IMAP), offline action replay,
+  sending, and IDLE. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  mail_protocol: any
+  mail_store: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

@@ -14,6 +14,8 @@ executables:
 
 dependencies:
   mail_protocol: any
+  mail_store: any
+  mail_sync: any
 
 dev_dependencies:
   lints: ^6.0.0

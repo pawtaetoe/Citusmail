@@ -637,6 +637,20 @@ final class ImapClient {
     }
   }
 
+  /// Deletes a folder (and the messages in it) on the server. Succeeds
+  /// quietly if it does not exist.
+  Future<void> deleteMailbox(String encodedName) async {
+    if (encodedName.toUpperCase() == 'INBOX') {
+      throw ArgumentError('INBOX cannot be deleted');
+    }
+    try {
+      await _run(ImapCommand('DELETE')..string(encodedName));
+    } on ImapCommandException catch (e) {
+      if (e.code?.name != 'NONEXISTENT') rethrow;
+    }
+    if (_selected?.name == encodedName) _selected = null;
+  }
+
   /// Waits for server events (IDLE, RFC 2177) until [until] completes or
   /// [ImapTimeouts.idle] passes, whichever is first. Events arrive on
   /// [events]. Call again to keep waiting.

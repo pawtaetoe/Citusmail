@@ -18,11 +18,19 @@ final class FetchItems {
     this.modSeq = false,
     this.header = false,
     this.fullMessage = false,
+    this.preview = false,
+    List<String> headerFields = const [],
     List<String> sections = const [],
-  }) : sections = List.unmodifiable(sections) {
+  }) : sections = List.unmodifiable(sections),
+       headerFields = List.unmodifiable(headerFields) {
     for (final section in sections) {
       if (!_section.hasMatch(section)) {
         throw ArgumentError.value(section, 'sections', 'invalid section');
+      }
+    }
+    for (final field in headerFields) {
+      if (!_fieldName.hasMatch(field)) {
+        throw ArgumentError.value(field, 'headerFields', 'invalid header name');
       }
     }
   }
@@ -59,7 +67,15 @@ final class FetchItems {
   /// so reading never marks a message as seen by itself.
   final List<String> sections;
 
+  /// A short text preview (RFC 8970). Only when the server has PREVIEW.
+  final bool preview;
+
+  /// Only these header fields (BODY.PEEK[HEADER.FIELDS (...)]); read the
+  /// result with [FetchedMessage.headerFields].
+  final List<String> headerFields;
+
   static final _section = RegExp(r'^\d+(\.\d+)*(\.(HEADER|TEXT|MIME))?$');
+  static final _fieldName = RegExp(r'^[!-9;-~]+$');
 
   /// e.g. `(UID FLAGS BODY.PEEK[1.2])`.
   String toSyntax() {
@@ -73,6 +89,9 @@ final class FetchItems {
       if (modSeq) 'MODSEQ',
       if (header) 'BODY.PEEK[HEADER]',
       if (fullMessage) 'BODY.PEEK[]',
+      if (preview) 'PREVIEW',
+      if (headerFields.isNotEmpty)
+        'BODY.PEEK[HEADER.FIELDS (${headerFields.join(' ')})]',
       for (final s in sections) 'BODY.PEEK[$s]',
     ];
     if (items.isEmpty) throw StateError('nothing to fetch');

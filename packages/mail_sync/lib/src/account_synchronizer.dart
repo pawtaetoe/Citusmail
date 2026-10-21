@@ -1,0 +1,134 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_store/mail_store.dart';
+
+import 'connector.dart';
+import 'mailbox_synchronizer.dart';
+import 'outbox_replayer.dart';
+
+/// Why a sync could not finish, in terms the app can act on.
+enum SyncFailureKind {
+  /// Wrong password or login refused: ask the user, do not retry blindly.
+  authentication,
+
+  /// TLS or certificate problem: show it, do not retry blindly.
+  security,
+
+  /// Offline, timeout, server unreachable: retry with backoff.
+  network,
+
+  /// The server misbehaved: retry later.
+  server,
+}
+
+/// A sync that could not finish.
+final class SyncFailure {
+  const SyncFailure(this.kind, this.message);
+
+  final SyncFailureKind kind;
+
+  /// Safe to show: no credentials or mail content.
+  final String message;
+
+  static SyncFailure from(Object error) => switch (error) {
+    ImapAuthenticationException() ||
+    SmtpAuthenticationException() => SyncFailure(
+      SyncFailureKind.authentication,
+      (error as MailException).message,
+    ),
+    MailTlsException() || MailSecurityException() => SyncFailure(
+      SyncFailureKind.security,
+      (error as MailException).message,
+    ),
+    MailConnectionException() || MailTimeoutException() => SyncFailure(
+      SyncFailureKind.network,
+      (error as MailException).message,
+    ),
+    MailException(:final message) => SyncFailure(
+      SyncFailureKind.server,
+      message,
+    ),
+    _ => SyncFailure(SyncFailureKind.server, error.toString()),
+  };
+}
+
+/// The outcome of one account sync.
+final class AccountSyncReport {
+  AccountSyncReport({
+    required this.replay,
+    required Map<int, MailboxSyncResult> mailboxes,
+  }) : mailboxes = Map.unmodifiable(mailboxes);
+
+  final ReplayResult replay;
+
+  /// Result per mailbox id.
+  final Map<int, MailboxSyncResult> mailboxes;
+}
+
+/// One full sync of an account, in a fixed order:
+///
+/// 1. refresh the folder list;
+/// 2. replay queued local actions (so the server has the user's changes);
+/// 3. sync each folder (so the cache has everyone else's changes),
+///    without overwriting changes still waiting in the queue.
+final class AccountSynchronizer {
+  AccountSynchronizer(
+    this._store,
+    this._connector,
+    this._mailboxSync,
+    this._replayer,
+  );
+
+  final MailStore _store;
+  final MailConnector _connector;
+  final MailboxSynchronizer _mailboxSync;
+  final OutboxReplayer _replayer;
+
+  /// Syncs [account]. With [mailboxIds], only those folders are synced
+  /// (the folder list and the queue are always handled).
+  Future<AccountSyncReport> sync(
+    Account account, {
+    Set<int>? mailboxIds,
+  }) async {
+    final imap = await _connector.imap(account);
+    try {
+      _store.mailboxes.replaceAll(account.id, await imap.listMailboxes());
+      final replay = await _replayer.replay(
+        imap,
+        account,
+        smtp: () => _connector.smtp(account),
+      );
+
+      final results = <int, MailboxSyncResult>{};
+      for (final mailbox in _store.mailboxes.forAccount(account.id)) {
+        if (!mailbox.selectable) continue;
+        if (mailboxIds != null && !mailboxIds.contains(mailbox.id)) continue;
+        results[mailbox.id] = await _mailboxSync.sync(
+          imap,
+          mailbox,
+          pendingUids: pendingUids(account.id, mailbox.id),
+        );
+      }
+      return AccountSyncReport(replay: replay, mailboxes: results);
+    } finally {
+      await imap.logout();
+    }
+  }
+
+  /// UIDs in [mailboxId] with local changes still queued.
+  Set<int> pendingUids(int accountId, int mailboxId) {
+    final uids = <int>{};
+    for (final entry in _store.outbox.all(accountId)) {
+      final action = entry.action;
+      if (entry.state == OutboxState.pending &&
+          action is UidAction &&
+          action.mailboxId == mailboxId) {
+        uids.addAll(action.uids);
+      }
+    }
+    return uids;
+  }
+}

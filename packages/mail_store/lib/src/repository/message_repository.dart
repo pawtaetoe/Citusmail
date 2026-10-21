@@ -150,6 +150,29 @@ final class MessageRepository {
       .map((r) => r.columnAt(0) as int)
       .toList(growable: false);
 
+  /// Cached flags of every message in a folder, by UID.
+  Map<int, MessageFlags> flagsByUid(int mailboxId) => {
+    for (final row in _db.select(
+      'SELECT uid, flags, keywords FROM messages WHERE mailbox_id = ?',
+      [mailboxId],
+    ))
+      row['uid'] as int: MessageFlags(
+        row['flags'] as int,
+        Set.unmodifiable(
+          (row['keywords'] as String).split(' ').where((k) => k.isNotEmpty),
+        ),
+      ),
+  };
+
+  int? lowestUid(int mailboxId) =>
+      _db
+              .select('SELECT min(uid) FROM messages WHERE mailbox_id = ?', [
+                mailboxId,
+              ])
+              .first
+              .columnAt(0)
+          as int?;
+
   int? highestUid(int mailboxId) =>
       _db
               .select('SELECT max(uid) FROM messages WHERE mailbox_id = ?', [

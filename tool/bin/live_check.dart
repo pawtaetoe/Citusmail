@@ -15,6 +15,8 @@ library;
 import 'dart:io';
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_store/mail_store.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 Future<void> main() async {
   try {
@@ -22,6 +24,7 @@ Future<void> main() async {
     final password = await Keychain.lookup(settings.email);
     await _checkImap(settings, password);
     await _checkSmtp(settings, password);
+    await _checkSync(settings, password);
     stdout.writeln('\nAll live checks passed.');
   } on Object catch (e) {
     stderr.writeln('\nLive check failed: $e');
@@ -108,6 +111,69 @@ Future<void> _checkSmtp(LiveSettings s, String password) async {
   } finally {
     await client.quit();
   }
+}
+
+/// Syncs INBOX twice into a temporary encrypted store, deleted afterwards.
+/// No actions are queued, so nothing on the server changes.
+Future<void> _checkSync(LiveSettings s, String password) async {
+  stdout.writeln('Sync engine (temporary encrypted store)');
+  final dir = Directory.systemTemp.createTempSync('fmail_live');
+  final store = MailStore.open('${dir.path}/live.db', DatabaseKey.generate());
+  try {
+    final account = store.accounts.add(
+      NewAccount(
+        email: s.email,
+        username: s.email,
+        imap: ServerSettings(
+          host: s.imapHost,
+          port: s.imapPort,
+          security: ConnectionSecurity.implicitTls,
+        ),
+        smtp: ServerSettings(
+          host: s.smtpHost,
+          port: s.smtpPort,
+          security: ConnectionSecurity.implicitTls,
+        ),
+      ),
+    );
+    final connector = DefaultMailConnector(_FixedPassword(password));
+    final synchronizer = AccountSynchronizer(
+      store,
+      connector,
+      MailboxSynchronizer(store, const SummaryMapper(PeopleClassifier())),
+      OutboxReplayer(store),
+    );
+    await synchronizer.sync(account, mailboxIds: const {});
+    final inbox = store.mailboxes.inbox(account.id)!;
+    for (final label in ['first', 'second']) {
+      final watch = Stopwatch()..start();
+      final result = (await synchronizer.sync(
+        account,
+        mailboxIds: {inbox.id},
+      )).mailboxes[inbox.id]!;
+      _ok(
+        '$label sync: ${result.method.name}, +${result.added} ~${result.updated} -${result.removed} '
+        '(${watch.elapsedMilliseconds} ms)',
+      );
+    }
+    final messages = store.messages.list(
+      MessageQuery(mailboxIds: [inbox.id], limit: 500),
+    );
+    final withPreview = messages.where((m) => m.snippet != null).length;
+    _ok('${messages.length} summaries stored, $withPreview with previews');
+  } finally {
+    store.close();
+    dir.deleteSync(recursive: true);
+  }
+}
+
+final class _FixedPassword implements CredentialProvider {
+  _FixedPassword(this._password);
+
+  final String _password;
+
+  @override
+  Future<String> passwordFor(Account account) async => _password;
 }
 
 void _ok(String message) => stdout.writeln('  ok  $message');

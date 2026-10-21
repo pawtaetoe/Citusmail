@@ -29,7 +29,8 @@ macOS and iOS for later.
 ├── packages/
 │   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
 │                             from scratch with no runtime dependencies
-│   └── mail_store/           Encrypted local storage (SQLite3MultipleCiphers)
+│   ├── mail_store/           Encrypted local storage (SQLite3MultipleCiphers)
+│   └── mail_sync/            Sync engine: folders, messages, offline queue, IDLE
 ├── test-data/mail/           Sample emails shared by tests and the test server
 ├── test-server/              Local Dovecot + Postfix test servers (Podman/Docker)
 ├── scripts/                  Developer scripts (live account check)
@@ -59,6 +60,7 @@ dart format --set-exit-if-changed .           # formatting
 flutter analyze                               # static analysis
 (cd packages/mail_protocol && dart test)      # protocol tests
 (cd packages/mail_store && dart test)         # storage tests
+(cd packages/mail_sync && dart test)          # sync engine unit tests
 (cd tool && dart test)                        # repository tool tests
 (cd app && flutter test)                      # app tests
 (cd app && flutter run -d linux)              # run on Linux

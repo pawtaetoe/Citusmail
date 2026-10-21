@@ -36,6 +36,9 @@ jobs:
       - name: Test mail_store
         working-directory: packages/mail_store
         run: dart test
+      - name: Test mail_sync
+        working-directory: packages/mail_sync
+        run: dart test
       - name: Test repository tools
         working-directory: tool
         run: dart test
@@ -77,6 +80,11 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - name: IMAP and SMTP integration tests
         working-directory: packages/mail_protocol
+        env:
+          FMAIL_INTEGRATION: "1"
+        run: dart test test/integration
+      - name: Sync engine integration tests (incl. multi-device convergence)
+        working-directory: packages/mail_sync
         env:
           FMAIL_INTEGRATION: "1"
         run: dart test test/integration

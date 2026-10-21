@@ -68,6 +68,13 @@ final class OutboxRepository {
       .whereType<OutboxEntry>()
       .toList(growable: false);
 
+  /// Replaces the action of an entry (e.g. to record that SMTP accepted a
+  /// message) without changing its place in the queue.
+  void updateAction(int id, OutboxAction action) => _db.execute(
+    'UPDATE outbox SET action = ? WHERE id = ?',
+    [action.encode(), id],
+  );
+
   /// The server has the change: remove the entry.
   void complete(int id) => _db.execute('DELETE FROM outbox WHERE id = ?', [id]);
 

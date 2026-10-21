@@ -120,7 +120,12 @@ void main() {
       store.messages.upsertSummaries(inbox.id, [summary(1)]);
       store.outbox.enqueue(
         a.id,
-        SetFlagsAction(mailboxId: inbox.id, uids: [1], add: [r'\Seen']),
+        SetFlagsAction(
+          mailboxId: inbox.id,
+          uidValidity: 1,
+          uids: [1],
+          add: [r'\Seen'],
+        ),
       );
       store.accounts.remove(a.id);
       for (final table in [
@@ -508,12 +513,13 @@ void main() {
       final actions = <OutboxAction>[
         SetFlagsAction(
           mailboxId: 1,
+          uidValidity: 9,
           uids: [1, 2],
           add: [r'\Seen'],
           remove: [r'\Flagged'],
         ),
-        MoveAction(mailboxId: 1, uids: [3], targetMailboxId: 2),
-        DeleteAction(mailboxId: 1, uids: [4]),
+        MoveAction(mailboxId: 1, uidValidity: 9, uids: [3], targetMailboxId: 2),
+        DeleteAction(mailboxId: 1, uidValidity: 9, uids: [4]),
       ];
       for (final action in actions) {
         store.outbox.enqueue(account.id, action);
@@ -548,7 +554,7 @@ void main() {
     test('retry later, give up, retry by hand, complete', () {
       final entry = store.outbox.enqueue(
         account.id,
-        DeleteAction(mailboxId: 1, uids: [1]),
+        DeleteAction(mailboxId: 1, uidValidity: 9, uids: [1]),
       );
       final now = DateTime.utc(2026, 10, 21, 12);
       store.outbox.retryLater(
@@ -583,7 +589,10 @@ void main() {
         "INSERT INTO outbox (account_id, action, created_at) VALUES (?, '{\"type\":\"wipeEverything\"}', 0)",
         [account.id],
       );
-      store.outbox.enqueue(account.id, DeleteAction(mailboxId: 1, uids: [1]));
+      store.outbox.enqueue(
+        account.id,
+        DeleteAction(mailboxId: 1, uidValidity: 9, uids: [1]),
+      );
       final due = store.outbox.due(account.id);
       expect(due.single.action, isA<DeleteAction>());
       expect(
@@ -597,15 +606,22 @@ void main() {
 
     test('invalid actions are rejected', () {
       expect(
-        () => SetFlagsAction(mailboxId: 1, uids: [], add: ['x']),
+        () =>
+            SetFlagsAction(mailboxId: 1, uidValidity: 9, uids: [], add: ['x']),
         throwsArgumentError,
       );
       expect(
-        () => SetFlagsAction(mailboxId: 1, uids: [0], add: ['x']),
+        () =>
+            SetFlagsAction(mailboxId: 1, uidValidity: 9, uids: [0], add: ['x']),
         throwsArgumentError,
       );
       expect(
-        () => MoveAction(mailboxId: 1, uids: [1], targetMailboxId: 1),
+        () => MoveAction(
+          mailboxId: 1,
+          uidValidity: 9,
+          uids: [1],
+          targetMailboxId: 1,
+        ),
         throwsArgumentError,
       );
       expect(
@@ -619,7 +635,9 @@ void main() {
       for (final bad in [
         '[]',
         '{"type":"move","mailboxId":"1","uids":[1],"targetMailboxId":2}',
-        '{"type":"setFlags","mailboxId":1,"uids":[-1],"add":[],"remove":[]}',
+        '{"type":"setFlags","mailboxId":1,"uidValidity":9,"uids":[-1],"add":[],"remove":[]}',
+        '{"type":"delete","mailboxId":1,"uids":[1]}',
+        '{"type":"setFlags","mailboxId":1,"uidValidity":9,"uids":[1],"add":[],"remove":[]}',
       ]) {
         expect(
           () => OutboxAction.decode(bad),

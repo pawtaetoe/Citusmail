@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 /// An action done locally that the server must also get. Every action is
-/// idempotent: replaying it after a crash or on another device's changes
+/// idempotent: replaying it after a crash or after another device's changes
 /// is harmless (a message already gone counts as done).
 sealed class OutboxAction {
   const OutboxAction();
@@ -18,39 +18,53 @@ sealed class OutboxAction {
   /// Parses a stored action. Throws [FormatException] for anything that is
   /// not a valid action, so a corrupted entry fails instead of misbehaving.
   static OutboxAction decode(String text) {
-    final json = jsonDecode(text);
+    final Object? json;
+    try {
+      json = jsonDecode(text);
+    } on FormatException {
+      throw const FormatException('action is not JSON');
+    }
     if (json is! Map<String, Object?>) {
       throw const FormatException('action is not an object');
     }
-    return switch (json['type']) {
-      'setFlags' => SetFlagsAction(
-        mailboxId: _int(json, 'mailboxId'),
-        uids: _ints(json, 'uids'),
-        add: _strings(json, 'add'),
-        remove: _strings(json, 'remove'),
-      ),
-      'move' => MoveAction(
-        mailboxId: _int(json, 'mailboxId'),
-        uids: _ints(json, 'uids'),
-        targetMailboxId: _int(json, 'targetMailboxId'),
-      ),
-      'delete' => DeleteAction(
-        mailboxId: _int(json, 'mailboxId'),
-        uids: _ints(json, 'uids'),
-      ),
-      'append' => AppendAction(
-        mailboxId: _int(json, 'mailboxId'),
-        flags: _strings(json, 'flags'),
-      ),
-      'send' => SendAction(
-        from: _string(json, 'from'),
-        recipients: _strings(json, 'recipients'),
-        sentMailboxId: json['sentMailboxId'] == null
-            ? null
-            : _int(json, 'sentMailboxId'),
-      ),
-      _ => throw FormatException('unknown action type ${json['type']}'),
-    };
+    try {
+      return switch (json['type']) {
+        'setFlags' => SetFlagsAction(
+          mailboxId: _int(json, 'mailboxId'),
+          uidValidity: _int(json, 'uidValidity'),
+          uids: _uids(json),
+          add: _strings(json, 'add'),
+          remove: _strings(json, 'remove'),
+        ),
+        'move' => MoveAction(
+          mailboxId: _int(json, 'mailboxId'),
+          uidValidity: _int(json, 'uidValidity'),
+          uids: _uids(json),
+          targetMailboxId: _int(json, 'targetMailboxId'),
+        ),
+        'delete' => DeleteAction(
+          mailboxId: _int(json, 'mailboxId'),
+          uidValidity: _int(json, 'uidValidity'),
+          uids: _uids(json),
+        ),
+        'append' => AppendAction(
+          mailboxId: _int(json, 'mailboxId'),
+          flags: _strings(json, 'flags'),
+        ),
+        'send' => SendAction(
+          from: _string(json, 'from'),
+          recipients: _strings(json, 'recipients'),
+          sentMailboxId: json['sentMailboxId'] == null
+              ? null
+              : _int(json, 'sentMailboxId'),
+          smtpAccepted: json['smtpAccepted'] == true,
+        ),
+        _ => throw FormatException('unknown action type ${json['type']}'),
+      };
+    } on ArgumentError catch (e) {
+      // Constructor validation failed: the stored data is not a valid action.
+      throw FormatException('invalid action: ${e.message}');
+    }
   }
 
   static int _int(Map<String, Object?> json, String key) {
@@ -65,12 +79,12 @@ sealed class OutboxAction {
     return value;
   }
 
-  static List<int> _ints(Map<String, Object?> json, String key) {
-    final value = json[key];
+  static List<int> _uids(Map<String, Object?> json) {
+    final value = json['uids'];
     if (value is! List || value.any((v) => v is! int || v < 1)) {
-      throw FormatException('$key must be a list of UIDs');
+      throw const FormatException('uids must be a list of UIDs');
     }
-    return List<int>.unmodifiable(value.cast<int>());
+    return value.cast<int>();
   }
 
   static List<String> _strings(Map<String, Object?> json, String key) {
@@ -78,85 +92,101 @@ sealed class OutboxAction {
     if (value is! List || value.any((v) => v is! String)) {
       throw FormatException('$key must be a list of strings');
     }
-    return List<String>.unmodifiable(value.cast<String>());
+    return value.cast<String>();
   }
 }
 
-/// Add and/or remove flags (read, flagged...).
-final class SetFlagsAction extends OutboxAction {
-  SetFlagsAction({
+/// An action on messages identified by UID in one folder.
+///
+/// Records the folder's UIDVALIDITY when the action was taken: if the
+/// server has since reset the folder, the same UIDs may name different
+/// messages, so the action must not be replayed.
+sealed class UidAction extends OutboxAction {
+  UidAction({
     required this.mailboxId,
+    required this.uidValidity,
     required List<int> uids,
-    List<String> add = const [],
-    List<String> remove = const [],
-  }) : uids = List.unmodifiable(uids),
-       add = List.unmodifiable(add),
-       remove = List.unmodifiable(remove) {
-    _requireUids(this.uids);
-    if (add.isEmpty && remove.isEmpty) throw ArgumentError('nothing to change');
+  }) : uids = List.unmodifiable(uids) {
+    if (this.uids.isEmpty || this.uids.any((u) => u < 1)) {
+      throw ArgumentError('UIDs must be at least 1');
+    }
+    if (uidValidity < 1) throw ArgumentError('UIDVALIDITY must be at least 1');
   }
 
   final int mailboxId;
+  final int uidValidity;
   final List<int> uids;
+
+  Map<String, Object?> get _common => {
+    'mailboxId': mailboxId,
+    'uidValidity': uidValidity,
+    'uids': uids,
+  };
+}
+
+/// Add and/or remove flags (read, flagged...).
+final class SetFlagsAction extends UidAction {
+  SetFlagsAction({
+    required super.mailboxId,
+    required super.uidValidity,
+    required super.uids,
+    List<String> add = const [],
+    List<String> remove = const [],
+  }) : add = List.unmodifiable(add),
+       remove = List.unmodifiable(remove) {
+    if (add.isEmpty && remove.isEmpty) throw ArgumentError('nothing to change');
+  }
+
   final List<String> add;
   final List<String> remove;
 
   @override
   Map<String, Object?> toJson() => {
     'type': 'setFlags',
-    'mailboxId': mailboxId,
-    'uids': uids,
+    ..._common,
     'add': add,
     'remove': remove,
   };
 }
 
 /// Move messages to another folder (archive, sort into a folder...).
-final class MoveAction extends OutboxAction {
+final class MoveAction extends UidAction {
   MoveAction({
-    required this.mailboxId,
-    required List<int> uids,
+    required super.mailboxId,
+    required super.uidValidity,
+    required super.uids,
     required this.targetMailboxId,
-  }) : uids = List.unmodifiable(uids) {
-    _requireUids(this.uids);
+  }) {
     if (mailboxId == targetMailboxId) {
       throw ArgumentError('source and target are the same folder');
     }
   }
 
-  final int mailboxId;
-  final List<int> uids;
   final int targetMailboxId;
 
   @override
   Map<String, Object?> toJson() => {
     'type': 'move',
-    'mailboxId': mailboxId,
-    'uids': uids,
+    ..._common,
     'targetMailboxId': targetMailboxId,
   };
 }
 
 /// Delete messages: move them to Trash, or remove them for good when
 /// they already are in Trash.
-final class DeleteAction extends OutboxAction {
-  DeleteAction({required this.mailboxId, required List<int> uids})
-    : uids = List.unmodifiable(uids) {
-    _requireUids(this.uids);
-  }
-
-  final int mailboxId;
-  final List<int> uids;
+final class DeleteAction extends UidAction {
+  DeleteAction({
+    required super.mailboxId,
+    required super.uidValidity,
+    required super.uids,
+  });
 
   @override
-  Map<String, Object?> toJson() => {
-    'type': 'delete',
-    'mailboxId': mailboxId,
-    'uids': uids,
-  };
+  Map<String, Object?> toJson() => {'type': 'delete', ..._common};
 }
 
-/// Store a message (the entry's data) in a folder, e.g. a draft.
+/// Store a message (the entry's data) in a folder, e.g. a draft. Replays
+/// skip it if a message with the same Message-ID is already there.
 final class AppendAction extends OutboxAction {
   AppendAction({required this.mailboxId, List<String> flags = const []})
     : flags = List.unmodifiable(flags);
@@ -178,6 +208,7 @@ final class SendAction extends OutboxAction {
     required this.from,
     required List<String> recipients,
     this.sentMailboxId,
+    this.smtpAccepted = false,
   }) : recipients = List.unmodifiable(recipients) {
     if (this.recipients.isEmpty) throw ArgumentError('no recipients');
   }
@@ -189,19 +220,25 @@ final class SendAction extends OutboxAction {
   final List<String> recipients;
   final int? sentMailboxId;
 
+  /// Set as soon as the SMTP server accepted the message, before saving to
+  /// Sent, so a crash in between never sends the message twice.
+  final bool smtpAccepted;
+
+  SendAction markAccepted() => SendAction(
+    from: from,
+    recipients: recipients,
+    sentMailboxId: sentMailboxId,
+    smtpAccepted: true,
+  );
+
   @override
   Map<String, Object?> toJson() => {
     'type': 'send',
     'from': from,
     'recipients': recipients,
     'sentMailboxId': sentMailboxId,
+    'smtpAccepted': smtpAccepted,
   };
-}
-
-void _requireUids(List<int> uids) {
-  if (uids.isEmpty || uids.any((u) => u < 1)) {
-    throw ArgumentError('UIDs must be at least 1');
-  }
 }
 
 /// Whether the entry is waiting or has given up.

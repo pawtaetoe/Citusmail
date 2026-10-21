@@ -10,6 +10,7 @@ workspace:
   - app
   - packages/mail_protocol
   - packages/mail_store
+  - packages/mail_sync
   - tool
 
 # Native SQLite for every package and the app: SQLite3MultipleCiphers, an

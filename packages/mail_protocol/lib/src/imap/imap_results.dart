@@ -416,6 +416,7 @@ final class FetchedMessage {
     this.modSeq,
     this.envelope,
     this.bodyStructure,
+    this.preview,
     Map<String, Uint8List> sections = const {},
   }) : sections = Map.unmodifiable(sections);
 
@@ -429,6 +430,7 @@ final class FetchedMessage {
     DateTime? internalDate;
     ImapEnvelope? envelope;
     ImapBodyPart? body;
+    String? preview;
     final sections = <String, Uint8List>{};
     for (var i = 0; i + 1 < items.length; i += 2) {
       final name = items[i].asText?.toUpperCase() ?? '';
@@ -451,6 +453,8 @@ final class FetchedMessage {
           envelope = ImapEnvelope.fromValue(value);
         case 'BODYSTRUCTURE' || 'BODY':
           body = ImapBodyPart.fromValue(value);
+        case 'PREVIEW':
+          preview = value.asText;
         default:
           final section = _sectionName(name);
           if (section != null) {
@@ -467,6 +471,7 @@ final class FetchedMessage {
       modSeq: modSeq,
       envelope: envelope,
       bodyStructure: body,
+      preview: preview,
       sections: sections,
     );
   }
@@ -480,6 +485,19 @@ final class FetchedMessage {
   final int? modSeq;
   final ImapEnvelope? envelope;
   final ImapBodyPart? bodyStructure;
+
+  /// PREVIEW text (RFC 8970), if requested and available.
+  final String? preview;
+
+  /// The raw header lines from a HEADER.FIELDS fetch, if requested.
+  Uint8List? get headerFields {
+    for (final entry in sections.entries) {
+      if (entry.key.toUpperCase().startsWith('HEADER.FIELDS')) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
 
   /// Body sections by name, e.g. `''` (whole message), `HEADER`, `1.2`.
   final Map<String, Uint8List> sections;

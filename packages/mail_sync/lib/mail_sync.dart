@@ -1,0 +1,15 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+/// Keeps the local store in step with the mail servers.
+library;
+
+export 'src/account_synchronizer.dart';
+export 'src/connector.dart';
+export 'src/idle_watcher.dart';
+export 'src/mail_actions.dart';
+export 'src/mailbox_synchronizer.dart';
+export 'src/outbox_replayer.dart';
+export 'src/summary_mapper.dart';
+export 'src/sync_engine.dart';
