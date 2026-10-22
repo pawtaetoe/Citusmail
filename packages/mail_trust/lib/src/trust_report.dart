@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'authentication_results.dart';
+
 /// How worried to be, in increasing order.
 enum TrustLevel {
   /// Nothing found.
@@ -83,7 +85,9 @@ final class TrustReport {
     Map<String, LinkVerdict> links = const {},
     Map<String, AttachmentVerdict> attachments = const {},
     this.verified = false,
+    List<AuthResult> dkimPasses = const [],
   }) : findings = List.unmodifiable(findings),
+       dkimPasses = List.unmodifiable(dkimPasses),
        _links = Map.unmodifiable(links),
        _attachments = Map.unmodifiable(attachments);
 
@@ -95,6 +99,11 @@ final class TrustReport {
   /// Whether the user's own server verified the sender's domain (DMARC
   /// pass, or a DKIM signature from that domain).
   final bool verified;
+
+  /// DKIM signatures the user's own server checked and found valid, from
+  /// any domain (a newsletter service signs with its own). Used to trust
+  /// signed headers such as one-click unsubscribe.
+  final List<AuthResult> dkimPasses;
 
   final Map<String, LinkVerdict> _links;
   final Map<String, AttachmentVerdict> _attachments;

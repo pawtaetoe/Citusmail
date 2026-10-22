@@ -4,12 +4,15 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:fmail/src/services/app_services.dart';
 import 'package:fmail/src/services/secret_store.dart';
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
+import 'package:mail_web/mail_web.dart';
 
 /// No server is reachable: nothing in these tests touches the network.
 final class _OfflineConnector implements MailConnector {
@@ -64,7 +67,9 @@ final class TestApp {
   final MailStore store;
   final AppServices services;
 
-  static Future<TestApp> create() async {
+  /// [web] answers one-click requests; by default every lookup fails, so
+  /// nothing can reach the network.
+  static Future<TestApp> create({WebClient? web}) async {
     final directory = Directory.systemTemp.createTempSync('fmail_app_test');
 
     final path = '${directory.path}/mail.db';
@@ -181,8 +186,65 @@ final class TestApp {
     return TestApp._(
       directory,
       store,
-      AppServices(store, _MemorySecrets(), worker),
+      AppServices(store, _MemorySecrets(), worker, web: web ?? offlineWeb),
     );
+  }
+
+  /// A web client whose lookups all fail.
+  static final offlineWeb = WebClient(
+    resolver: (_) async => throw const SocketException('offline (test)'),
+  );
+
+  static const _authResults =
+      'mail.fmail.test; spf=pass smtp.mailfrom=x.example; dmarc=pass header.from=x.example';
+
+  /// Adds an inbox message with [fixture] (from test-data/mail) as its
+  /// body. Ten older messages carry the server's Authentication-Results,
+  /// so most of the inbox has it and the app learns to trust
+  /// `mail.fmail.test`.
+  StoredMessage seedFixture(
+    String fixture, {
+    required String subject,
+    required int uid,
+    DateTime? receivedAt,
+  }) {
+    final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+    final raw = File('../test-data/mail/$fixture').readAsBytesSync();
+    final parsed = const MimeParser().parse(raw);
+    store.messages.upsertSummaries(inbox.id, [
+      for (var i = 0; i < 10; i++)
+        MessageSummary(
+          uid: 50 + i,
+          receivedAt: DateTime.utc(2026, 9, 1, i),
+          subject: 'Older $i',
+          from: const MailAddress(localPart: 'old', domain: 'x.example'),
+          flags: MessageFlags.fromImap([r'\Seen']),
+          headers: const {
+            'authentication-results': [_authResults],
+          },
+        ),
+      MessageSummary(
+        uid: uid,
+        receivedAt: receivedAt ?? DateTime.utc(2026, 10, 21),
+        subject: subject,
+        from: parsed.from.first,
+        listId: ListId.parse(parsed.headers.value('list-id')),
+        headers: {
+          for (final name in ['authentication-results', 'list-id'])
+            if (parsed.headers.contains(name))
+              name: [for (final f in parsed.headers.all(name)) f.value],
+        },
+      ),
+    ]);
+    final message = store.messages.byUid(inbox.id, uid)!;
+    store.messages.saveBody(
+      message.id,
+      Uint8List.fromList(
+        String.fromCharCodes(raw).replaceAll('\n', '\r\n').codeUnits,
+      ),
+      searchableText: subject,
+    );
+    return message;
   }
 
   Future<void> dispose() async {

@@ -18,6 +18,7 @@ import 'mail_text.dart';
 import 'move_dialog.dart';
 import 'rich_document_view.dart';
 import 'trust_banner.dart';
+import 'unsubscribe_dialog.dart';
 
 /// The right pane: actions, the message header, its body (built lazily,
 /// block by block) and attachments, in a column of comfortable reading
@@ -200,17 +201,22 @@ final class _Header extends StatelessWidget {
             ),
           ),
         ],
-        ReaderReady(:final view, :final trust) => [
-          TrustBanner(report: trust),
-          if (view.body.blockedImages > 0)
+        final ReaderReady ready => [
+          TrustBanner(report: ready.trust),
+          if (ready.unsubscribe.available || ready.unsubscribed != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: UnsubscribeStatus(controller: controller, reader: ready),
+            ),
+          if (ready.view.body.blockedImages > 0)
             _Notice(
               icon: Icons.shield_outlined,
-              text: view.body.blockedImages == 1
+              text: ready.view.body.blockedImages == 1
                   ? '1 remote image was blocked, so the sender can\'t tell you opened this.'
-                  : '${view.body.blockedImages} remote images were blocked, so the sender can\'t '
+                  : '${ready.view.body.blockedImages} remote images were blocked, so the sender can\'t '
                         'tell you opened this.',
             ),
-          if (view.body.truncated)
+          if (ready.view.body.truncated)
             const _Notice(
               icon: Icons.content_cut,
               text: 'Part of this message was too large or complex to show.',

@@ -63,6 +63,7 @@ final class _Check {
   final _links = <String, LinkVerdict>{};
   final _attachments = <String, AttachmentVerdict>{};
   var _verified = false;
+  final _dkimPasses = <AuthResult>[];
 
   /// Brands already reported as imitated, so one trick gives one finding.
   final _imitated = <Brand>{};
@@ -127,6 +128,7 @@ final class _Check {
       dmarc ??= r.dmarc;
       spf ??= r.spf;
       for (final dkim in r.dkim) {
+        if (dkim.passed) _dkimPasses.add(dkim);
         final d = dkim.domain;
         if (dkim.passed &&
             registrable != null &&
@@ -336,6 +338,7 @@ final class _Check {
       links: _links,
       attachments: _attachments,
       verified: _verified,
+      dkimPasses: _dkimPasses,
     );
   }
 }

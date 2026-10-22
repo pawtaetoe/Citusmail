@@ -94,16 +94,24 @@ abstract final class LinkOpener {
               ],
       ),
     );
-    if (open != true) return;
+    if (open != true || !context.mounted) return;
+    await launch(context, link);
+  }
+
+  /// Opens [link] in the browser without asking (the caller already
+  /// showed where it goes). Returns whether a browser took it.
+  static Future<bool> launch(BuildContext context, Uri link) async {
+    final messenger = ScaffoldMessenger.of(context);
     final launched = await launchUrl(
       link,
       mode: LaunchMode.externalApplication,
     );
-    if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (!launched) {
+      messenger.showSnackBar(
         const SnackBar(content: Text('No app could open this link.')),
       );
     }
+    return launched;
   }
 
   /// The host as people read it: international names decoded, so a

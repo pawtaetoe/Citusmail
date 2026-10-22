@@ -15,7 +15,9 @@ workspace:
   - packages/mail_store
   - packages/mail_sync
   - packages/mail_trust
+  - packages/mail_unsubscribe
   - packages/mail_view
+  - packages/mail_web
   - tool
 
 # Native SQLite for every package and the app: SQLite3MultipleCiphers, an

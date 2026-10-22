@@ -450,6 +450,36 @@ final class MessageRepository {
     ];
   }
 
+  /// Inbox messages of [accountId] from one list (by [listId]) or, for
+  /// mail without one, from one sender: what "archive earlier mail" acts
+  /// on after unsubscribing. Newest first, at most [limit].
+  List<StoredMessage> inboxFromList(
+    int accountId, {
+    String? listId,
+    String? fromAddress,
+    int limit = 2000,
+  }) {
+    final inbox = inboxIds(accountIds: [accountId]);
+    if (inbox.isEmpty || (listId == null && fromAddress == null)) {
+      return const [];
+    }
+    final match = listId != null
+        ? 'm.list_id = ?'
+        : 'm.from_address = ? COLLATE NOCASE';
+    return _db
+        .select(
+          'SELECT $_columns $_from WHERE m.mailbox_id = ? AND $match '
+          'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+          [
+            inbox.first,
+            listId?.toLowerCase() ?? fromAddress,
+            limit.clamp(1, 5000),
+          ],
+        )
+        .map(_fromRow)
+        .toList(growable: false);
+  }
+
   /// Stored headers of a message: lower-case name -> values.
   Map<String, List<String>> headers(int messageId) {
     final result = <String, List<String>>{};

@@ -165,6 +165,8 @@ void main() {
       );
       expect(good.level, TrustLevel.ok);
       expect(good.verified, isTrue);
+      expect(good.dkimPasses.single.domain, 'shop.example');
+      expect(good.dkimPasses.single.properties['header.s'], 'mail');
       expect(good.findings, isEmpty);
 
       final bad = checker.check(

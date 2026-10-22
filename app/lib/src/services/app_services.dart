@@ -9,6 +9,8 @@ import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
+import 'package:mail_unsubscribe/mail_unsubscribe.dart';
+import 'package:mail_web/mail_web.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_settings.dart';
@@ -20,8 +22,9 @@ import 'secret_store.dart';
 /// syncing, downloading messages and replaying offline changes happen in
 /// the background [worker], which has its own connection to the same file.
 final class AppServices {
-  AppServices(this.store, this.secrets, this.worker)
+  AppServices(this.store, this.secrets, this.worker, {WebClient? web})
     : actions = MailActions(store, undoWindow: const Duration(seconds: 5)),
+      oneClick = OneClickUnsubscriber(web ?? WebClient()),
       drafts = DraftStore(store),
       sender = Sender(store),
       replies = ReplyBuilder(store),
@@ -38,6 +41,10 @@ final class AppServices {
   final DraftStore drafts;
   final Sender sender;
   final ReplyBuilder replies;
+
+  /// One-click unsubscribe requests (the only HTTPS the app sends to
+  /// servers named in mail; see packages/mail_web).
+  final OneClickUnsubscriber oneClick;
 
   /// The user's app settings (notifications, instant mail).
   final AppSettings settings;

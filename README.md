@@ -37,8 +37,11 @@ macOS and iOS for later.
 │                             offline queue, IDLE, opening messages, older mail
 │   ├── mail_trust/           Phishing checks on the device: sender verification,
 │                             lookalike domains, deceptive links, risky files
-│   └── mail_view/            Safe display: HTML and text to a document that
+│   ├── mail_unsubscribe/     Unsubscribing: one-click (RFC 8058), email, web page
+│   ├── mail_view/            Safe display: HTML and text to a document that
 │                             cannot load anything; attachment names
+│   └── mail_web/             The only HTTPS to servers named in mail: public
+│                             addresses only, no cookies, no redirects
 ├── assets/icon/              App icon (SVG and PNG sizes)
 ├── packaging/                Linux .deb and Flatpak, Windows installer, signing
 ├── test-data/mail/           Sample emails shared by tests and the test server
@@ -77,6 +80,8 @@ flutter analyze                               # static analysis
 (cd packages/mail_sort && dart test)          # sorting rules
 (cd packages/mail_view && dart test)          # safe mail display
 (cd packages/mail_trust && dart test)         # phishing checks
+(cd packages/mail_web && dart test)           # hardened HTTPS for one-click unsubscribe
+(cd packages/mail_unsubscribe && dart test)   # unsubscribe methods
 (cd tool && dart test)                        # repository tool tests
 (cd app && flutter test)                      # app tests
 (cd app && flutter run -d linux)              # run on Linux

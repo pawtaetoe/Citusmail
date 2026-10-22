@@ -1,0 +1,21 @@
+name: mail_unsubscribe
+description: >-
+  Unsubscribing from newsletters: reads List-Unsubscribe (RFC 2369) and
+  one-click (RFC 8058) headers, decides which method is safe to use, and
+  performs one-click requests through mail_web. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  mail_protocol: any
+  mail_trust: any
+  mail_web: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  mail_view: any
+  test: ^1.25.6

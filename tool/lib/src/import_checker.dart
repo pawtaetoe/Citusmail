@@ -53,6 +53,23 @@ final class ImportChecker {
       'HTTP is only used by account setup, after review',
       allowedIn: ['packages/mail_setup/lib/'],
     ),
+    ImportRule(
+      RegExp(
+        r'\b(RawSocket|Socket|SecureSocket|RawSecureSocket)\s*\.\s*(connect|startConnect|secure)\s*\(',
+      ),
+      'connections are opened only by MailSocket in mail_protocol (TLS rules)',
+      allowedIn: ['packages/mail_protocol/lib/'],
+    ),
+    ImportRule(
+      RegExp(r'\bRawDatagramSocket\s*\.\s*bind\s*\('),
+      'UDP is only used for DNS lookups during account setup',
+      allowedIn: ['packages/mail_setup/lib/'],
+    ),
+    ImportRule(
+      RegExp(r'\bMailSocket\s*\.\s*connect\s*\('),
+      'servers named inside mail are contacted only through mail_web',
+      allowedIn: ['packages/mail_protocol/lib/', 'packages/mail_web/lib/'],
+    ),
   ];
 
   /// Violations in one file's [content] at [path] (repository relative).

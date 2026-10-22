@@ -20,7 +20,9 @@ dependencies:
   mail_store: any
   mail_sync: any
   mail_trust: any
+  mail_unsubscribe: any
   mail_view: any
+  mail_web: any
   path_provider: ^2.1.6
   url_launcher: ^6.3.3
 

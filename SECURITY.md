@@ -45,6 +45,9 @@ public issue. We aim to reply within 7 days.
    are saved. Sender verification uses only `Authentication-Results`
    written by the user's own server, never ones the sender could have
    added.
+   Unsubscribing uses one-click (RFC 8058) only when the user's own server
+   verified a DKIM signature that covers both unsubscribe headers;
+   otherwise it falls back to an email or the sender's page.
 5. **Logs contain no personal data.** No message content, addresses or
    tokens. Debug logging is off in release builds.
 6. **Untrusted input is parsed defensively.** Everything from the network
@@ -55,6 +58,13 @@ public issue. We aim to reply within 7 days.
 8. **Least privilege.** The Android app requests only the permissions it
    needs, blocks plain-text traffic, trusts only system certificate
    authorities and disables cloud backup of app data.
+9. **Requests to servers named inside mail go through `packages/mail_web`
+   only** (CI enforces this). That client uses https on port 443 to
+   public addresses only: names that resolve into a private network
+   (routers, `localhost`, cloud metadata) are refused. It sends no cookies,
+   referrer or language, uses a generic user agent, never follows
+   redirects, and enforces time and size limits. The certificate is
+   checked for the name while connecting to the address that was checked.
 
 ## Releases
 

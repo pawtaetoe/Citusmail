@@ -11,6 +11,7 @@ import 'repository/mailbox_repository.dart';
 import 'repository/message_repository.dart';
 import 'repository/outbox_repository.dart';
 import 'repository/settings_repository.dart';
+import 'repository/unsubscribe_repository.dart';
 
 /// The app's local mail storage: one encrypted database with a repository
 /// per kind of data.
@@ -22,7 +23,8 @@ final class MailStore {
       outbox = OutboxRepository(database),
       settings = SettingsRepository(database),
       drafts = DraftRepository(database),
-      folderRules = FolderRuleRepository(database);
+      folderRules = FolderRuleRepository(database),
+      unsubscriptions = UnsubscribeRepository(database);
 
   /// Opens (or creates) the store at [path], encrypted with [key].
   /// See [MailDatabase.open] for the errors it can raise.
@@ -37,6 +39,7 @@ final class MailStore {
   final SettingsRepository settings;
   final DraftRepository drafts;
   final FolderRuleRepository folderRules;
+  final UnsubscribeRepository unsubscriptions;
 
   /// Runs [action] atomically across repositories.
   T transaction<T>(T Function() action) => database.transaction(action);

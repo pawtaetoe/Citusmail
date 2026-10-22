@@ -10,6 +10,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 import 'package:mail_trust/mail_trust.dart';
+import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
@@ -41,6 +42,8 @@ final class ReaderReady extends ReaderState {
     required this.to,
     required this.cc,
     required this.trust,
+    required this.unsubscribe,
+    this.unsubscribed,
   });
 
   @override
@@ -49,6 +52,25 @@ final class ReaderReady extends ReaderState {
 
   /// What the message checks found (phishing signs, risky files).
   final TrustReport trust;
+
+  /// How to unsubscribe from the message's list, if it has one.
+  final UnsubscribePlan unsubscribe;
+
+  /// When the user unsubscribed from this list, if they did.
+  final Unsubscription? unsubscribed;
+
+  ReaderReady copyWith({
+    StoredMessage? message,
+    Unsubscription? unsubscribed,
+  }) => ReaderReady(
+    message ?? this.message,
+    view,
+    to: to,
+    cc: cc,
+    trust: trust,
+    unsubscribe: unsubscribe,
+    unsubscribed: unsubscribed ?? this.unsubscribed,
+  );
   final List<MailAddress> to;
   final List<MailAddress> cc;
 }
@@ -247,7 +269,7 @@ final class MailController {
       final raw = _store.messages.body(message.id);
       if (raw == null) throw const BodyUnavailableException(BodyProblem.gone);
       // Parsing and checking a large message must not block the UI.
-      final (view, trust) = await compute(_parseAndCheck, (
+      final (view, trust, plan) = await compute(_parseAndCheck, (
         raw,
         _trustContext(message),
       ));
@@ -258,6 +280,8 @@ final class MailController {
         to: _store.messages.addresses(message.id, 'to'),
         cc: _store.messages.addresses(message.id, 'cc'),
         trust: trust,
+        unsubscribe: plan,
+        unsubscribed: _unsubscription(message),
       );
     } on BodyUnavailableException catch (e) {
       if (_disposed || selected?.id != message.id) return;
@@ -310,6 +334,107 @@ final class MailController {
 
   void closeMessage() => reader.value = const ReaderEmpty();
 
+  // --------------------------------------------------------- unsubscribe
+
+  /// What identifies [message]'s list (List-Id, else the sender).
+  static String? _listKey(StoredMessage message) => Unsubscription.listKeyOf(
+    listId: message.listId,
+    fromAddress: message.from?.address,
+  );
+
+  Unsubscription? _unsubscription(StoredMessage message) {
+    final key = _listKey(message);
+    return key == null
+        ? null
+        : _store.unsubscriptions.find(message.accountId, key);
+  }
+
+  /// Inbox mail from the same list as [r] (to offer archiving it).
+  List<StoredMessage> sameList(ReaderReady r) => _store.messages.inboxFromList(
+    r.message.accountId,
+    listId: r.message.listId,
+    fromAddress: r.message.listId == null ? r.message.from?.address : null,
+  );
+
+  /// Unsubscribes with [method]. One-click requests go out now; an email
+  /// goes through the outbox (so it also works offline). For a web page
+  /// the caller opens it and then calls this to remember it. Returns null
+  /// on success, or why it failed.
+  Future<String?> unsubscribe(
+    ReaderReady r,
+    UnsubscribeMethod method, {
+    bool archiveList = false,
+  }) async {
+    final problem = switch (method) {
+      OneClickMethod(:final url) => await _oneClick(url),
+      EmailMethod(:final request) => _unsubscribeEmail(r, request),
+      WebPageMethod() => null,
+    };
+    if (problem != null) return problem;
+    final kind = switch (method) {
+      OneClickMethod() => UnsubscribeKind.oneClick,
+      EmailMethod() => UnsubscribeKind.email,
+      WebPageMethod() => UnsubscribeKind.webPage,
+    };
+    final key = _listKey(r.message);
+    if (key != null) {
+      final record = _store.unsubscriptions.record(
+        accountId: r.message.accountId,
+        listKey: key,
+        listName: r.unsubscribe.listName,
+        kind: kind,
+      );
+      if (reader.value case final ReaderReady open
+          when open.message.id == r.message.id) {
+        reader.value = open.copyWith(unsubscribed: record);
+      }
+    }
+    final name = r.unsubscribe.listName;
+    final done = switch (kind) {
+      UnsubscribeKind.webPage => 'Opened the unsubscribe page for $name',
+      UnsubscribeKind.email => 'Unsubscribe email to $name is on its way',
+      UnsubscribeKind.oneClick => 'Unsubscribed from $name',
+    };
+    final earlier = archiveList ? sameList(r) : const <StoredMessage>[];
+    if (earlier.isNotEmpty) {
+      archive(earlier, done: '$done. Archived ${earlier.length}.');
+    } else {
+      onNotice?.call(done);
+    }
+    return null;
+  }
+
+  /// Null on success, or why it failed.
+  Future<String?> _oneClick(Uri url) async =>
+      switch (await services.oneClick.unsubscribe(url)) {
+        OneClickDone() => null,
+        OneClickFailed(:final reason) => reason,
+      };
+
+  /// Queues the email; null on success, or why it can't be sent.
+  String? _unsubscribeEmail(ReaderReady r, MailtoRequest request) {
+    final at = request.address.lastIndexOf('@');
+    try {
+      final pending = services.sender.send(
+        Draft(
+          accountId: r.message.accountId,
+          to: [
+            MailAddress(
+              localPart: request.address.substring(0, at),
+              domain: request.address.substring(at + 1),
+            ),
+          ],
+          subject: request.subject ?? 'unsubscribe',
+          body: request.body ?? 'unsubscribe',
+        ),
+      );
+      services.worker.syncAt(pending.accountId, pending.undoUntil);
+      return null;
+    } on ComposeException {
+      return 'Couldn\'t write the unsubscribe email: its address isn\'t usable.';
+    }
+  }
+
   /// Opens the message after (or before) the open one in the list.
   void openNext({bool previous = false}) {
     final visible = list.visible;
@@ -331,8 +456,7 @@ final class MailController {
     }
     reader.value = switch (reader.value) {
       ReaderLoading() => ReaderLoading(fresh),
-      ReaderReady(:final view, :final to, :final cc, :final trust) =>
-        ReaderReady(fresh, view, to: to, cc: cc, trust: trust),
+      final ReaderReady ready => ready.copyWith(message: fresh),
       ReaderFailed(:final reason) => ReaderFailed(fresh, reason),
       ReaderEmpty() => const ReaderEmpty(),
     };
@@ -445,7 +569,7 @@ final class MailController {
 
   /// Archives into each account's Archive folder (skipping messages already
   /// there or in accounts without one).
-  void archive(List<StoredMessage> messages) {
+  void archive(List<StoredMessage> messages, {String? done}) {
     final byAccount = <int, List<StoredMessage>>{};
     for (final m in messages) {
       final archive = archiveFor(m);
@@ -464,7 +588,7 @@ final class MailController {
           group,
           _store.mailboxes.bySpecialUse(accountId, SpecialUse.archive)!,
         ),
-    ], count == 1 ? 'Archived' : 'Archived $count');
+    ], done ?? (count == 1 ? 'Archived' : 'Archived $count'));
   }
 
   void moveTo(List<StoredMessage> messages, StoredMailbox target) => _remove([
@@ -736,13 +860,13 @@ final class MailController {
 }
 
 /// Top level, so [compute] sends only the bytes to the helper isolate.
-(MessageView, TrustReport) _parseAndCheck((Uint8List, TrustContext?) input) {
+(MessageView, TrustReport, UnsubscribePlan) _parseAndCheck(
+  (Uint8List, TrustContext?) input,
+) {
   final (raw, context) = input;
   final view = MessageView.parse(raw);
-  return (
-    view,
-    context == null
-        ? TrustReport.empty
-        : const TrustChecker().check(view, context),
-  );
+  final trust = context == null
+      ? TrustReport.empty
+      : const TrustChecker().check(view, context);
+  return (view, trust, UnsubscribePlanner.plan(view.message, trust));
 }

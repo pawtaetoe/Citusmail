@@ -12,7 +12,9 @@ no analytics, no crash reporting and no advertising.
 | Your system's DNS resolver | When adding an account | Lookups for your domain's mail records |
 | Common server names of your domain | When adding an account, if nothing else found them | A connection test without any login |
 | Mozilla's mail server database | Only if you allow it during setup | Your email domain, never the full address |
-| Unsubscribe addresses or links | Only when you tap Unsubscribe | What the newsletter's unsubscribe method requires |
+| A newsletter's one-click unsubscribe address | Only when you tap Unsubscribe and confirm | One request with the fixed text `List-Unsubscribe=One-Click` and a generic user agent. No cookies, no referrer, no language. Like any connection, it shows your IP address |
+| A newsletter's unsubscribe email address | Only when you tap Unsubscribe and confirm | An email from your account saying "unsubscribe" (a copy is kept in Sent) |
+| A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
 | A link in an email | Only when you tap it and confirm the address | Your browser opens the link |
 | Remote images in an email | Never yet; later only when you tap "Load images" or trust the sender | A normal image request to the sender's server |
 
@@ -49,6 +51,13 @@ minutes in the background, or keeps a live connection if you turn on
 Sent mail carries no app name or version. Its Message-ID is random and
 uses your own domain, and its date is written in UTC, so it does not
 reveal your time zone. Bcc recipients are never written into the message.
+
+## Unsubscribing
+
+Fmail remembers on your device which lists you unsubscribed from, so it
+can tell you when one keeps sending. It never offers to unsubscribe from
+mail that looks like a scam, because that would only confirm your address
+is read.
 
 ## Read receipts and trackers
 

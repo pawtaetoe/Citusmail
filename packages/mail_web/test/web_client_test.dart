@@ -1,0 +1,337 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_web/mail_web.dart';
+import 'package:test/test.dart';
+
+/// A plain TCP server on 127.0.0.1 that records the request and answers
+/// with [reply].
+final class _Server {
+  _Server._(this._socket, this.reply);
+
+  static Future<_Server> start(String reply) async =>
+      _Server._(await ServerSocket.bind(InternetAddress.loopbackIPv4, 0), reply)
+        .._listen();
+
+  final ServerSocket _socket;
+  final String reply;
+  final requests = <String>[];
+
+  int get port => _socket.port;
+
+  void _listen() {
+    _socket.listen((client) {
+      final received = BytesBuilder();
+      client.listen((data) {
+        received.add(data);
+        final text = latin1.decode(received.toBytes());
+        final end = text.indexOf('\r\n\r\n');
+        if (end < 0) return;
+        final length = RegExp(r'Content-Length: (\d+)')
+            .firstMatch(text)
+            ?.group(1);
+        if (text.length < end + 4 + int.parse(length ?? '0')) return;
+        requests.add(text);
+        client
+          ..write(reply)
+          ..close();
+      }, onError: (_) {});
+    });
+  }
+
+  Future<void> close() => _socket.close();
+}
+
+/// Lets tests talk to the local server: every name resolves to a public
+/// looking address, and the connector opens a plain connection to the
+/// test server instead (TLS is tested separately below).
+WebClient _client(_Server server, {List<InternetAddress>? addresses}) =>
+    WebClient(
+      resolver: (_) async => addresses ?? [InternetAddress('93.184.216.34')],
+      connector: (host, address, port, timeout) => MailSocket.connect(
+        ServerEndpoint(
+          host,
+          server.port,
+          ConnectionSecurity.startTls, // stays plain: never upgraded here
+          connectAddress: '127.0.0.1',
+        ),
+      ),
+      limits: const WebLimits(timeout: Duration(seconds: 3)),
+    );
+
+void main() {
+  group('PublicAddressPolicy', () {
+    const policy = PublicAddressPolicy();
+    bool allows(String a) => policy.allows(InternetAddress(a));
+
+    test('public addresses pass', () {
+      for (final a in ['93.184.216.34', '1.1.1.1', '2606:4700::1111']) {
+        expect(allows(a), isTrue, reason: a);
+      }
+    });
+
+    test('local, private and special addresses are refused', () {
+      for (final a in [
+        '127.0.0.1',
+        '10.1.2.3',
+        '172.16.0.1',
+        '172.31.255.255',
+        '192.168.1.1',
+        '169.254.169.254', // cloud metadata
+        '100.64.0.1',
+        '0.0.0.0',
+        '224.0.0.1',
+        '255.255.255.255',
+        '192.0.2.1',
+        '::1',
+        '::',
+        'fe80::1',
+        'fd00::1',
+        'ff02::1',
+        '::ffff:192.168.1.1',
+        '::ffff:127.0.0.1',
+        '64:ff9b::a00:1', // NAT64 of 10.0.0.1
+        '2002:c0a8:101::1', // 6to4 of 192.168.1.1
+        '2001:db8::1',
+      ]) {
+        expect(allows(a), isFalse, reason: a);
+      }
+    });
+
+    test('mapped public IPv4 passes', () {
+      expect(allows('::ffff:93.184.216.34'), isTrue);
+    });
+  });
+
+  group('WebClient', () {
+    late _Server server;
+    tearDown(() => server.close());
+
+    test('sends a minimal POST and reads the status', () async {
+      server = await _Server.start(
+        'HTTP/1.1 202 Accepted\r\nX-Thing: 1\r\nSet-Cookie: a=b\r\n\r\nbody',
+      );
+      final response = await _client(server).post(
+        Uri.parse('https://shop.example.com/unsub/abc?u=alice'),
+        body: utf8.encode('List-Unsubscribe=One-Click'),
+        contentType: 'application/x-www-form-urlencoded',
+      );
+      expect(response.statusCode, 202);
+      expect(response.ok, isTrue);
+      expect(response.headers['x-thing'], ['1']);
+
+      final request = server.requests.single;
+      expect(
+        request,
+        'POST /unsub/abc?u=alice HTTP/1.1\r\n'
+        'Host: shop.example.com\r\n'
+        'User-Agent: Mozilla/5.0\r\n'
+        'Accept: */*\r\n'
+        'Content-Type: application/x-www-form-urlencoded\r\n'
+        'Content-Length: 26\r\n'
+        'Connection: close\r\n'
+        '\r\n'
+        'List-Unsubscribe=One-Click',
+      );
+    });
+
+    test('redirects are reported, not followed', () async {
+      server = await _Server.start(
+        'HTTP/1.1 302 Found\r\nLocation: https://elsewhere.example.com/\r\n\r\n',
+      );
+      final response = await _client(
+        server,
+      ).post(Uri.parse('https://a.example.com/'), body: [], contentType: 'x/y');
+      expect(response.statusCode, 302);
+      expect(response.ok, isFalse);
+      expect(server.requests, hasLength(1));
+    });
+
+    test('garbage answers are refused', () async {
+      server = await _Server.start('SSH-2.0-OpenSSH\r\n\r\n');
+      await expectLater(
+        _client(server).post(
+          Uri.parse('https://a.example.com/'),
+          body: [],
+          contentType: 'x/y',
+        ),
+        throwsA(
+          isA<WebException>().having(
+            (e) => e.problem,
+            'problem',
+            WebProblem.badResponse,
+          ),
+        ),
+      );
+    });
+
+    test('a name pointing into a private network is never contacted', () async {
+      server = await _Server.start('HTTP/1.1 200 OK\r\n\r\n');
+      for (final addresses in [
+        [InternetAddress('192.168.1.1')],
+        [InternetAddress('93.184.216.34'), InternetAddress('127.0.0.1')],
+      ]) {
+        await expectLater(
+          _client(server, addresses: addresses).post(
+            Uri.parse('https://router.example.com/'),
+            body: [],
+            contentType: 'x/y',
+          ),
+          throwsA(
+            isA<WebException>().having(
+              (e) => e.problem,
+              'problem',
+              WebProblem.privateAddress,
+            ),
+          ),
+        );
+      }
+      expect(server.requests, isEmpty);
+    });
+
+    test('unsafe addresses are refused before any lookup', () async {
+      var lookups = 0;
+      final client = WebClient(
+        resolver: (_) async {
+          lookups++;
+          return [InternetAddress('93.184.216.34')];
+        },
+      );
+      for (final url in [
+        'http://shop.example.com/',
+        'https://user:pw@shop.example.com/',
+        'https://shop.example.com:8443/',
+        'https://192.168.1.1/',
+        'https://3232235777/',
+        'https://[::1]/',
+        'https://localhost/',
+        'https://аpple.example.com/',
+        'ftp://shop.example.com/',
+        'https://shop.example.com/${'a' * 5000}',
+      ]) {
+        await expectLater(
+          client.post(Uri.parse(url), body: [], contentType: 'x/y'),
+          throwsA(
+            isA<WebException>().having(
+              (e) => e.problem,
+              'problem',
+              WebProblem.unsafeUrl,
+            ),
+          ),
+          reason: url,
+        );
+      }
+      expect(lookups, 0);
+    });
+
+    test('a server that never answers times out', () async {
+      final silent = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      silent.listen((_) {});
+      addTearDown(silent.close);
+      server = await _Server.start('');
+      final client = WebClient(
+        resolver: (_) async => [InternetAddress('93.184.216.34')],
+        connector: (host, address, port, timeout) => MailSocket.connect(
+          ServerEndpoint(
+            host,
+            silent.port,
+            ConnectionSecurity.startTls,
+            connectAddress: '127.0.0.1',
+          ),
+        ),
+        limits: const WebLimits(timeout: Duration(milliseconds: 300)),
+      );
+      await expectLater(
+        client.post(
+          Uri.parse('https://slow.example.com/'),
+          body: [],
+          contentType: 'x/y',
+        ),
+        throwsA(
+          isA<WebException>().having(
+            (e) => e.problem,
+            'problem',
+            WebProblem.timeout,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('TLS', () {
+    final certs = Directory('../../test-server/.generated/certs');
+    final available = File('${certs.path}/mail.crt').existsSync();
+
+    test(
+      'checks the certificate against the name, not the address',
+      () async {
+        final context = SecurityContext()
+          ..useCertificateChain('${certs.path}/mail.crt')
+          ..usePrivateKey('${certs.path}/mail.key');
+        final tlsServer = await SecureServerSocket.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+          context,
+        );
+        addTearDown(tlsServer.close);
+        tlsServer.listen(
+          (client) {
+            client.listen((_) {
+              client
+                ..write('HTTP/1.1 204 No Content\r\n\r\n')
+                ..close();
+            });
+          },
+          onError: (_) {}, // a refused handshake
+        );
+        final tls = TlsSettings.trustOnly(
+          File('${certs.path}/ca.crt').readAsBytesSync(),
+        );
+        WebClient client() => WebClient(
+          resolver: (_) async => [InternetAddress('93.184.216.34')],
+          connector: (host, address, port, timeout) => MailSocket.connect(
+            ServerEndpoint(
+              host,
+              tlsServer.port,
+              ConnectionSecurity.implicitTls,
+              connectAddress: '127.0.0.1',
+            ),
+            tls: tls,
+          ),
+        );
+
+        final ok = await client().post(
+          Uri.parse('https://mail.fmail.test/x'),
+          body: [],
+          contentType: 'x/y',
+        );
+        expect(ok.statusCode, 204);
+
+        await expectLater(
+          client().post(
+            Uri.parse('https://other.fmail.test/x'),
+            body: [],
+            contentType: 'x/y',
+          ),
+          throwsA(
+            isA<WebException>().having(
+              (e) => e.problem,
+              'problem',
+              WebProblem.insecure,
+            ),
+          ),
+        );
+      },
+      skip: available
+          ? null
+          : 'needs test-server certificates: run test-server/fmailtest up once',
+    );
+  });
+}

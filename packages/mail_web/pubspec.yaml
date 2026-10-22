@@ -1,0 +1,19 @@
+name: mail_web
+description: >-
+  The only code that talks HTTPS to servers named inside mail (one-click
+  unsubscribe, and later images the user asks for). Hardened: https only,
+  public addresses only, no cookies, no referrer, generic user agent, no
+  redirects, strict limits. Pure Dart, built on mail_protocol's TLS socket.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  mail_protocol: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

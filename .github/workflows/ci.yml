@@ -58,6 +58,12 @@ jobs:
       - name: Test mail_trust
         working-directory: packages/mail_trust
         run: dart test
+      - name: Test mail_web
+        working-directory: packages/mail_web
+        run: dart test
+      - name: Test mail_unsubscribe
+        working-directory: packages/mail_unsubscribe
+        run: dart test
       - name: Test repository tools
         working-directory: tool
         run: dart test

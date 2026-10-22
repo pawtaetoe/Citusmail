@@ -1188,6 +1188,84 @@ void main() {
     });
   });
 
+  group('unsubscriptions', () {
+    late Account account;
+    late StoredMailbox inbox;
+    setUp(() {
+      account = temp.addAccount();
+      inbox = store.mailboxes.replaceAll(account.id, [folder('INBOX')]).single;
+    });
+
+    test('record, replace, find and remove', () {
+      expect(
+        Unsubscription.listKeyOf(listId: 'Weekly.Shop.Example'),
+        'list:weekly.shop.example',
+      );
+      expect(
+        Unsubscription.listKeyOf(fromAddress: 'News@Shop.example'),
+        'from:news@shop.example',
+      );
+      expect(Unsubscription.listKeyOf(), isNull);
+
+      store.unsubscriptions.record(
+        accountId: account.id,
+        listKey: 'list:weekly.shop.example',
+        listName: 'Shop Weekly',
+        kind: UnsubscribeKind.webPage,
+        now: DateTime.utc(2026, 10, 1),
+      );
+      final later = store.unsubscriptions.record(
+        accountId: account.id,
+        listKey: 'list:weekly.shop.example',
+        listName: 'Shop Weekly',
+        kind: UnsubscribeKind.oneClick,
+        now: DateTime.utc(2026, 10, 2),
+      );
+      expect(later.kind, UnsubscribeKind.oneClick);
+      expect(later.at, DateTime.utc(2026, 10, 2));
+      expect(store.unsubscriptions.forAccount(account.id), hasLength(1));
+      expect(
+        store.unsubscriptions.find(account.id, 'list:weekly.shop.example')?.id,
+        later.id,
+      );
+      expect(store.unsubscriptions.find(account.id, 'list:other'), isNull);
+      store.unsubscriptions.remove(later.id);
+      expect(store.unsubscriptions.forAccount(account.id), isEmpty);
+    });
+
+    test('inbox mail from one list or one sender', () {
+      MessageSummary from(int uid, String address, {String? listId}) =>
+          MessageSummary(
+            uid: uid,
+            receivedAt: DateTime.utc(2026, 1, uid),
+            from: MailAddress(
+              localPart: address.split('@').first,
+              domain: address.split('@').last,
+            ),
+            listId: listId,
+          );
+      store.messages.upsertSummaries(inbox.id, [
+        from(1, 'news@shop.example', listId: 'weekly.shop.example'),
+        from(2, 'deals@shop.example', listId: 'weekly.shop.example'),
+        from(3, 'news@shop.example'),
+        from(4, 'carol@x.example'),
+      ]);
+      expect(
+        store.messages
+            .inboxFromList(account.id, listId: 'Weekly.Shop.Example')
+            .map((m) => m.uid),
+        [2, 1],
+      );
+      expect(
+        store.messages
+            .inboxFromList(account.id, fromAddress: 'NEWS@shop.example')
+            .map((m) => m.uid),
+        [3, 1],
+      );
+      expect(store.messages.inboxFromList(account.id), isEmpty);
+    });
+  });
+
   group('settings', () {
     test('read, write, overwrite, delete, and persist', () {
       expect(store.settings.read('k'), isNull);

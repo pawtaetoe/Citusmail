@@ -255,4 +255,18 @@ const List<Migration> schemaMigrations = [
     // Replies to the user's own mail (Important).
     'CREATE INDEX messages_by_in_reply_to ON messages (in_reply_to) WHERE in_reply_to IS NOT NULL',
   ]),
+
+  // Unsubscribe (Stage 13): lists the user left, to show on later mail.
+  Migration(7, [
+    '''
+    CREATE TABLE unsubscriptions (
+      id INTEGER PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      list_key TEXT NOT NULL CHECK (length(list_key) BETWEEN 1 AND 400),
+      list_name TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('oneClick', 'email', 'webPage')),
+      at INTEGER NOT NULL,
+      UNIQUE (account_id, list_key)
+    ) STRICT''',
+  ]),
 ];
