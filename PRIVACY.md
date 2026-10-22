@@ -33,9 +33,13 @@ device from a few message headers and your Sent folder. Phishing checks
 (sender verification, lookalike addresses, deceptive links, risky
 attachments) also run on the device only, using the results your own mail
 server already wrote into the message and a built-in list of domain
-endings. No link, address or file is looked up anywhere. App
-settings such as your block list can sync between your devices through a
-hidden folder in your own mail account. They never go to anyone else.
+endings. No link, address or file is looked up anywhere.
+
+Blocking a sender is private: they aren't told, and the block list is kept
+on the device. Their new mail is moved to the Junk folder in your own mail
+account and never shown as a notification. A later version will let app
+settings such as the block list sync between your devices through a hidden
+folder in your own mail account. They never go to anyone else.
 
 ## Notifications
 

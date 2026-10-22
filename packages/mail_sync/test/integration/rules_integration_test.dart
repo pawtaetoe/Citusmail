@@ -102,4 +102,63 @@ void main() {
     await other.uidExpunge(back);
     await other.logout();
   });
+
+  test(
+    'mail from a blocked sender goes to the Junk folder on the server',
+    () async {
+      final device = TestDevice.create(servers, 'carol');
+      addTearDown(device.dispose);
+      final engine = SyncEngine(
+        device.store,
+        DefaultMailConnector(
+          const TestCredentials(),
+          tls: servers.tls,
+          endpointFor: servers.endpointFor,
+        ),
+      );
+      addTearDown(engine.dispose);
+      await engine.syncAccount(device.account.id);
+      final name = scratchFolder('Block');
+      final domain = '${name.toLowerCase()}.example';
+      device.store.blocks.block(BlockKind.domain, domain);
+
+      final messageId = '$name@$domain';
+      final other = await servers.otherDevice('carol');
+      await other.append(
+        'INBOX',
+        utf8.encode(
+          'From: Spammer <offers@mail.$domain>\r\n'
+          'To: carol@fmail.test\r\n'
+          'Subject: You won\r\n'
+          'Message-ID: <$messageId>\r\n'
+          'Date: Fri, 23 Oct 2026 10:00:00 +0000\r\n'
+          '\r\n'
+          'Click here.\r\n',
+        ),
+      );
+
+      final report = await engine.syncAccount(device.account.id);
+      expect(report!.movedByRules, 1);
+
+      Future<List<int>> find(String folder) async {
+        await other.select(folder, readOnly: true);
+        return (await other.uidSearch(
+          SearchCriteria.header('Message-ID', messageId),
+        )).matches.toList();
+      }
+
+      expect(await find('INBOX'), isEmpty);
+      // INBOX.spam carries \Junk; INBOX.Junk is an ordinary folder.
+      expect(await find('INBOX.Junk'), isEmpty);
+      final inJunk = await find('INBOX.spam');
+      expect(inJunk, hasLength(1));
+
+      await other.select('INBOX.spam');
+      await other.uidStore(SequenceSet.of(inJunk), FlagChange.add, {
+        r'\Deleted',
+      });
+      await other.uidExpunge(SequenceSet.of(inJunk));
+      await other.logout();
+    },
+  );
 }

@@ -17,6 +17,26 @@ import '../services/app_services.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
 
+/// How a sender can be blocked.
+final class BlockChoice {
+  const BlockChoice({
+    required this.address,
+    required this.domain,
+    required this.fromAddress,
+    required this.fromDomain,
+  });
+
+  final String address;
+
+  /// The sender's domain, or null when blocking it would make no sense (a
+  /// free mail service, or the user's own domain).
+  final String? domain;
+
+  /// Messages in the inboxes from the address, and from the domain.
+  final int fromAddress;
+  final int fromDomain;
+}
+
 /// What the reading pane shows.
 sealed class ReaderState {
   const ReaderState();
@@ -625,8 +645,13 @@ final class MailController {
   }
 
   /// Removes messages from the list with [changes], opens the next message
-  /// if the open one left, and offers Undo for a few seconds.
-  void _remove(List<RemovalReceipt Function()> changes, String done) {
+  /// if the open one left, and offers Undo for a few seconds ([alsoUndo]
+  /// reverses anything else the action did).
+  void _remove(
+    List<RemovalReceipt Function()> changes,
+    String done, {
+    VoidCallback? alsoUndo,
+  }) {
     final open = selected;
     final visible = list.visible;
     final receipts = [for (final change in changes) change()];
@@ -654,12 +679,108 @@ final class MailController {
     onNotice?.call(
       done,
       undo: () {
+        alsoUndo?.call();
         final undone = receipts.every(services.actions.undo);
         refresh();
         if (!undone) {
           onNotice?.call('Too late to undo: the change reached the server.');
         }
       },
+    );
+  }
+
+  // ------------------------------------------------------------ blocking
+
+  /// The block that applies to [message]'s sender, if any.
+  BlockedSender? blockFor(StoredMessage message) =>
+      _store.blocks.matching(message.from?.address);
+
+  /// Whether [message]'s sender can be blocked: it has one, and it isn't
+  /// one of the user's own addresses. Cheap enough for a toolbar.
+  bool canBlock(StoredMessage message) {
+    final address = message.from?.address.toLowerCase();
+    if (address == null || !address.contains('@')) return false;
+    return !_store.accounts.all().any((a) => a.email.toLowerCase() == address);
+  }
+
+  /// How [message]'s sender can be blocked, with how much mail each
+  /// choice would move; null if it can't be blocked.
+  BlockChoice? blockChoice(StoredMessage message) {
+    if (!canBlock(message)) return null;
+    final address = message.from!.address.toLowerCase();
+    final own = _store.accounts.all();
+    final domain = Domains.registrable(
+      address.substring(address.lastIndexOf('@') + 1),
+    );
+    final ownDomains = {
+      for (final a in own)
+        ?Domains.registrable(a.email.substring(a.email.lastIndexOf('@') + 1)),
+    };
+    final usableDomain =
+        domain != null &&
+        !FreeMail.isProvider(domain) &&
+        !ownDomains.contains(domain);
+    return BlockChoice(
+      address: address,
+      domain: usableDomain ? domain : null,
+      fromAddress: _inboxesFrom(BlockKind.address, address).length,
+      fromDomain: usableDomain
+          ? _inboxesFrom(BlockKind.domain, domain).length
+          : 0,
+    );
+  }
+
+  List<StoredMessage> _inboxesFrom(BlockKind kind, String value) => [
+    for (final account in _store.accounts.all())
+      ...switch (kind) {
+        BlockKind.address => _store.messages.inboxFromList(
+          account.id,
+          fromAddress: value,
+        ),
+        BlockKind.domain => _store.messages.inboxFromDomain(account.id, value),
+      },
+  ];
+
+  /// Blocks [value]: new mail from it goes to Junk. With [moveExisting],
+  /// its mail already in the inboxes goes too. Undo reverses both.
+  void block(BlockKind kind, String value, {bool moveExisting = true}) {
+    final existing = _store.blocks.all().any(
+      (b) => b.kind == kind && b.value == value.toLowerCase(),
+    );
+    final blocked = _store.blocks.block(kind, value);
+    void unblock() {
+      if (!existing) _store.blocks.unblock(blocked.id);
+      _refreshSelected();
+    }
+
+    final name = kind == BlockKind.domain
+        ? 'everyone at ${blocked.value}'
+        : blocked.value;
+    final byAccount = <int, List<StoredMessage>>{};
+    if (moveExisting) {
+      for (final m in _inboxesFrom(kind, blocked.value)) {
+        byAccount.putIfAbsent(m.accountId, () => []).add(m);
+      }
+    }
+    final moves = [
+      for (final MapEntry(key: accountId, value: messages) in byAccount.entries)
+        if (SenderBlocker.destination(_store, accountId) case final target?)
+          () => services.actions.move(messages, target),
+    ];
+    if (moves.isEmpty) {
+      _refreshSelected();
+      onNotice?.call('Blocked $name', undo: unblock);
+      return;
+    }
+    final count = byAccount.values.fold(0, (sum, l) => sum + l.length);
+    _remove(moves, 'Blocked $name. Moved $count to Junk.', alsoUndo: unblock);
+  }
+
+  void unblock(BlockedSender block) {
+    _store.blocks.unblock(block.id);
+    _refreshSelected();
+    onNotice?.call(
+      'Unblocked ${block.kind == BlockKind.domain ? 'everyone at ' : ''}${block.value}',
     );
   }
 

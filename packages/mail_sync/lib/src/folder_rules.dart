@@ -34,8 +34,9 @@ final class FolderRuleApplier {
     if (inbox == null) return 0;
     final needsRecipients = rules.any((r) => r.field == RuleField.toAddress);
 
+    final earliest = rules.map(_start).reduce((a, b) => a.isBefore(b) ? a : b);
     final moves = <int, List<StoredMessage>>{};
-    for (final message in _inboxMessages(inbox, rules)) {
+    for (final message in InboxScan.since(_store, inbox, earliest)) {
       final messageId = message.messageId;
       if (messageId == null ||
           _store.folderRules.wasMoved(account.id, messageId)) {
@@ -74,16 +75,19 @@ final class FolderRuleApplier {
 
   static DateTime _start(FolderRule rule) =>
       rule.appliesFrom.subtract(clockTolerance);
+}
 
-  /// Inbox messages received since the earliest rule start, newest first.
-  Iterable<StoredMessage> _inboxMessages(
+/// Reads an inbox page by page, newest first.
+abstract final class InboxScan {
+  /// Messages in [inbox] received at or after [earliest].
+  static Iterable<StoredMessage> since(
+    MailStore store,
     StoredMailbox inbox,
-    List<FolderRule> rules,
+    DateTime earliest,
   ) sync* {
-    final earliest = rules.map(_start).reduce((a, b) => a.isBefore(b) ? a : b);
     StoredMessage? before;
     while (true) {
-      final page = _store.messages.list(
+      final page = store.messages.list(
         MessageQuery(mailboxIds: [inbox.id], before: before, limit: 500),
       );
       for (final message in page) {

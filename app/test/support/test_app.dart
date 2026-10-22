@@ -113,6 +113,11 @@ final class TestApp {
         attributes: const {r'\Archive'},
       ),
       ImapMailboxInfo(
+        encodedName: 'Junk',
+        delimiter: '/',
+        attributes: const {r'\Junk'},
+      ),
+      ImapMailboxInfo(
         encodedName: 'Projects',
         delimiter: '/',
         attributes: const {},

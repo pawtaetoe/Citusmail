@@ -13,6 +13,7 @@ import 'package:mail_view/mail_view.dart';
 import '../mail/mail_controller.dart';
 import 'attachment_saver.dart';
 import 'avatar.dart';
+import 'block_dialog.dart';
 import 'link_opener.dart';
 import 'mail_text.dart';
 import 'move_dialog.dart';
@@ -184,6 +185,8 @@ final class _Header extends StatelessWidget {
       const SizedBox(height: 16),
       _Sender(message: message, reader: reader),
       const SizedBox(height: 20),
+      if (controller.blockFor(message) case final block?)
+        _BlockedNotice(controller: controller, block: block),
       ...switch (reader) {
         ReaderLoading() => [
           const Padding(
@@ -287,6 +290,18 @@ final class _Toolbar extends StatelessWidget {
         ),
         _Action('Forward (F)', Icons.forward, () => controller.forward(ready)),
       ],
+      if (controller.blockFor(message) case final block?)
+        _Action(
+          'Unblock sender',
+          Icons.how_to_reg_outlined,
+          () => controller.unblock(block),
+        )
+      else if (controller.canBlock(message))
+        _Action(
+          'Block sender',
+          Icons.block,
+          () => BlockDialog.show(context, controller, message),
+        ),
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -450,6 +465,45 @@ final class _Sender extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Shown on mail from a sender the user blocked.
+final class _BlockedNotice extends StatelessWidget {
+  const _BlockedNotice({required this.controller, required this.block});
+
+  final MailController controller;
+  final BlockedSender block;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.block, size: 18, color: colors.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              block.kind == BlockKind.domain
+                  ? 'You blocked everyone at ${block.value}.'
+                  : 'You blocked ${block.value}.',
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+          ),
+          TextButton(
+            onPressed: () => controller.unblock(block),
+            child: const Text('Unblock'),
+          ),
+        ],
+      ),
     );
   }
 }

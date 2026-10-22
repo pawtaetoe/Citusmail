@@ -12,7 +12,7 @@ import 'package:mail_store/mail_store.dart';
 /// message is announced by only one of them.
 ///
 /// Only unread mail in the Pinned, Important and General sections counts;
-/// newsletters and notifications never interrupt. The first claim of an
+/// newsletters, notifications and blocked senders never interrupt. The first claim of an
 /// account (or after its inbox was reset) only sets the mark, so adding an
 /// account does not announce its whole inbox.
 final class NewMailTracker {
@@ -46,7 +46,12 @@ final class NewMailTracker {
         for (final m in _store.messages.list(
           MessageQuery.smart(section, accountIds: [accountId], limit: 200),
         ))
-          if (m.uid > mark.uid && m.mailboxId == inbox.id && !m.flags.seen) m,
+          if (m.uid > mark.uid &&
+              m.mailboxId == inbox.id &&
+              !m.flags.seen &&
+              // Normally already moved to Junk; never announced anyway.
+              _store.blocks.matching(m.from?.address) == null)
+            m,
     ]..sort((a, b) => a.receivedAt.compareTo(b.receivedAt));
     return NewMail(
       accountId,

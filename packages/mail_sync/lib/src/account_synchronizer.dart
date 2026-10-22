@@ -9,6 +9,7 @@ import 'connector.dart';
 import 'folder_rules.dart';
 import 'mailbox_synchronizer.dart';
 import 'outbox_replayer.dart';
+import 'sender_blocker.dart';
 import 'sync_worker.dart';
 
 /// Why a sync could not finish, in terms the app can act on.
@@ -68,7 +69,7 @@ final class AccountSyncReport {
 
   final ReplayResult replay;
 
-  /// Inbox messages moved into custom folders by the user's rules.
+  /// Inbox messages moved by blocks (to Junk) and the user's folder rules.
   final int movedByRules;
 
   /// Result per mailbox id.
@@ -88,6 +89,7 @@ final class AccountSynchronizer {
     this._mailboxSync,
     this._replayer, {
     this._rules,
+    this._blocker,
   });
 
   final MailStore _store;
@@ -95,6 +97,7 @@ final class AccountSynchronizer {
   final MailboxSynchronizer _mailboxSync;
   final OutboxReplayer _replayer;
   final FolderRuleApplier? _rules;
+  final SenderBlocker? _blocker;
 
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled).
@@ -121,12 +124,13 @@ final class AccountSynchronizer {
           pendingUids: pendingUids(account.id, mailbox.id),
         );
       }
-      // 4. The user's folder rules on new inbox mail; their moves go to
-      // the server right away, in this same session.
+      // 4. Blocked senders, then the user's folder rules, on new inbox
+      // mail; their moves go to the server right away, in this session.
       var movedByRules = 0;
       final inbox = _store.mailboxes.inbox(account.id);
-      if (_rules != null && inbox != null && results.containsKey(inbox.id)) {
-        movedByRules = _rules.apply(account);
+      if (inbox != null && results.containsKey(inbox.id)) {
+        movedByRules =
+            (_blocker?.apply(account) ?? 0) + (_rules?.apply(account) ?? 0);
         if (movedByRules > 0) {
           await _replayer.replay(
             imap,

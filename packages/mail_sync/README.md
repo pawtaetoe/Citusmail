@@ -37,6 +37,15 @@ Mail servers like cPanel's have no server-side filters, so the app does it.
 - New folders follow the server's layout (`FolderNames`): its separator,
   and the `INBOX.` prefix cPanel servers require.
 
+## Blocked senders (`SenderBlocker`)
+
+Before the folder rules run, new inbox mail from a blocked address or
+domain (and its subdomains) moves to the account's Junk folder, chosen by
+its `\Junk` flag, never by name (cPanel has both `INBOX.spam` with the
+flag and a plain `INBOX.Junk`). Without a Junk folder it goes to Trash;
+without either it stays. Same timing and "never twice" rules as folder
+rules. `NewMailTracker` never announces blocked senders either.
+
 ## Undo (`MailActions`)
 
 Every action returns a receipt. Moves and deletes wait a few seconds

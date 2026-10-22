@@ -8,6 +8,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 
 import '../mail/mail_controller.dart';
+import 'block_dialog.dart';
 import 'link_opener.dart';
 import 'trust_banner.dart';
 
@@ -199,10 +200,23 @@ final class UnsubscribeStatus extends StatelessWidget {
       final hint = record.kind == UnsubscribeKind.webPage
           ? ' The page may need another step.'
           : '';
-      return TrustReasons(
-        level: TrustLevel.caution,
-        reasons: [
-          '$said ${reader.unsubscribe.listName} is still sending.$hint',
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TrustReasons(
+            level: TrustLevel.caution,
+            reasons: [
+              '$said ${reader.unsubscribe.listName} is still sending.$hint',
+            ],
+          ),
+          if (controller.blockFor(reader.message) == null &&
+              controller.canBlock(reader.message))
+            TextButton.icon(
+              icon: const Icon(Icons.block, size: 18),
+              label: const Text('Block sender'),
+              onPressed: () =>
+                  BlockDialog.show(context, controller, reader.message),
+            ),
         ],
       );
     }

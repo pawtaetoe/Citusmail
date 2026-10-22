@@ -17,6 +17,7 @@ import 'mailbox_synchronizer.dart';
 import 'message_loader.dart';
 import 'on_demand_connections.dart';
 import 'outbox_replayer.dart';
+import 'sender_blocker.dart';
 import 'summary_mapper.dart';
 
 /// Something the UI may want to show.
@@ -65,6 +66,7 @@ final class SyncEngine {
       _mailboxSync,
       OutboxReplayer(_store),
       rules: FolderRuleApplier(_store),
+      blocker: SenderBlocker(_store),
     );
   }
 

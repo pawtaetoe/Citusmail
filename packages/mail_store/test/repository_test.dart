@@ -1264,6 +1264,79 @@ void main() {
       );
       expect(store.messages.inboxFromList(account.id), isEmpty);
     });
+
+    test('inbox mail from a domain and its subdomains', () {
+      MessageSummary from(int uid, String address) => MessageSummary(
+        uid: uid,
+        receivedAt: DateTime.utc(2026, 1, uid),
+        from: MailAddress(
+          localPart: address.split('@').first,
+          domain: address.split('@').last,
+        ),
+      );
+      store.messages.upsertSummaries(inbox.id, [
+        from(1, 'news@Shop.Example'),
+        from(2, 'x@mail.shop.example'),
+        from(3, 'x@evilshop.example'),
+        from(4, 'x@shop.example.org'),
+      ]);
+      expect(
+        store.messages
+            .inboxFromDomain(account.id, 'shop.example')
+            .map((m) => m.uid),
+        [2, 1],
+      );
+      expect(store.messages.inboxFromDomain(account.id, '%'), isEmpty);
+    });
+  });
+
+  group('blocked senders', () {
+    test('block, match and unblock', () {
+      final address = store.blocks.block(
+        BlockKind.address,
+        ' News@Shop.Example ',
+        now: DateTime.utc(2026, 10, 1),
+      );
+      expect(address.value, 'news@shop.example');
+      final again = store.blocks.block(BlockKind.address, 'news@shop.example');
+      expect(again.id, address.id);
+      expect(again.since, DateTime.utc(2026, 10, 1), reason: 'keeps the date');
+
+      final domain = store.blocks.block(BlockKind.domain, 'spam.example');
+      expect(store.blocks.all(), hasLength(2));
+
+      expect(store.blocks.matching('NEWS@shop.example')?.id, address.id);
+      expect(store.blocks.matching('other@shop.example'), isNull);
+      expect(store.blocks.matching('x@spam.example')?.id, domain.id);
+      expect(store.blocks.matching('x@mail.spam.example')?.id, domain.id);
+      expect(store.blocks.matching('x@notspam.example'), isNull);
+      expect(store.blocks.matching('x@spam.example.org'), isNull);
+      expect(store.blocks.matching(null), isNull);
+      expect(store.blocks.matching('no-at-sign'), isNull);
+
+      expect(domain.matches('a@b.spam.example'), isTrue);
+      expect(domain.matches('a@spam.example.org'), isFalse);
+      expect(address.matches('News@Shop.example'), isTrue);
+
+      store.blocks.unblock(address.id);
+      expect(store.blocks.matching('news@shop.example'), isNull);
+    });
+
+    test('invalid values are refused', () {
+      for (final (kind, value) in [
+        (BlockKind.address, 'not an address'),
+        (BlockKind.address, '@shop.example'),
+        (BlockKind.domain, 'shop'),
+        (BlockKind.domain, 'a@shop.example'),
+        (BlockKind.domain, ''),
+      ]) {
+        expect(
+          () => store.blocks.block(kind, value),
+          throwsArgumentError,
+          reason: value,
+        );
+      }
+    });
   });
 
   group('settings', () {

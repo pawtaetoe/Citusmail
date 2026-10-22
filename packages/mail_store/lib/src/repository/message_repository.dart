@@ -480,6 +480,29 @@ final class MessageRepository {
         .toList(growable: false);
   }
 
+  /// Inbox messages of [accountId] from [domain] or its subdomains, newest
+  /// first, at most [limit] (what "block everyone at" moves).
+  List<StoredMessage> inboxFromDomain(
+    int accountId,
+    String domain, {
+    int limit = 2000,
+  }) {
+    final inbox = inboxIds(accountIds: [accountId]);
+    final d = domain.toLowerCase();
+    if (inbox.isEmpty || !RegExp(r'^[a-z0-9.-]+$').hasMatch(d)) {
+      return const [];
+    }
+    return _db
+        .select(
+          'SELECT $_columns $_from WHERE m.mailbox_id = ? '
+          'AND (lower(m.from_address) LIKE ? OR lower(m.from_address) LIKE ?) '
+          'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+          [inbox.first, '%@$d', '%.$d', limit.clamp(1, 5000)],
+        )
+        .map(_fromRow)
+        .toList(growable: false);
+  }
+
   /// Stored headers of a message: lower-case name -> values.
   Map<String, List<String>> headers(int messageId) {
     final result = <String, List<String>>{};

@@ -269,4 +269,17 @@ const List<Migration> schemaMigrations = [
       UNIQUE (account_id, list_key)
     ) STRICT''',
   ]),
+
+  // Block sender (Stage 14): for every account. Mail from a blocked
+  // sender goes to Junk on the server; see SenderBlocker in mail_sync.
+  Migration(8, [
+    '''
+    CREATE TABLE blocked_senders (
+      id INTEGER PRIMARY KEY,
+      kind TEXT NOT NULL CHECK (kind IN ('address', 'domain')),
+      value TEXT NOT NULL CHECK (length(value) BETWEEN 3 AND 320 AND value = lower(value)),
+      since INTEGER NOT NULL,
+      UNIQUE (kind, value)
+    ) STRICT''',
+  ]),
 ];

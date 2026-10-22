@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../app.dart' show appName;
 import '../background/background_mail.dart';
 import '../services/app_services.dart';
+import 'block_dialog.dart';
 
 /// App settings: notifications, instant mail on Android, and what the app
 /// does with your data.
@@ -72,6 +73,17 @@ final class _SettingsPageState extends State<SettingsPage> {
               onChanged: _setInstant,
             ),
           ],
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.block),
+            title: const Text('Blocked senders'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BlockedSendersPage(services: widget.services),
+              ),
+            ),
+          ),
           const Divider(),
           ListTile(
             title: const Text('Privacy'),
