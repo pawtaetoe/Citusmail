@@ -7,12 +7,16 @@ import 'dart:typed_data';
 /// A message body reduced to what is safe to show: text with simple
 /// structure, links, and images that are already inside the message.
 ///
-/// There is deliberately no way to express a remote resource here, so a
-/// renderer of this model cannot make network requests.
+/// The only remote resources it can name are content images
+/// ([RemoteImageInline]), as addresses. A renderer shows them only when
+/// the app hands it bytes, which it fetches only after the user asks
+/// (through `mail_web`). Tracking pixels are not in the document at all.
 final class RichDocument {
   const RichDocument(
     this.blocks, {
-    this.blockedImages = 0,
+    this.remoteImages = 0,
+    this.trackers = 0,
+    this.trackerHosts = const {},
     this.truncated = false,
   });
 
@@ -20,8 +24,14 @@ final class RichDocument {
 
   final List<Block> blocks;
 
-  /// Remote images left out (including tracking pixels).
-  final int blockedImages;
+  /// Content images on the sender's servers (not loaded by default).
+  final int remoteImages;
+
+  /// Tracking pixels found and left out for good.
+  final int trackers;
+
+  /// Where those trackers would have reported to (at most a few hosts).
+  final Set<String> trackerHosts;
 
   /// Parts were left out because the message was too large or too deeply
   /// nested to show safely.
@@ -40,7 +50,7 @@ final class RichDocument {
                   out.write(text);
                 case LineBreak():
                   out.write('\n');
-                case ImageInline(:final alt):
+                case ImageInline(:final alt) || RemoteImageInline(:final alt):
                   if (alt.isNotEmpty) out.write(alt);
               }
             }
@@ -170,6 +180,28 @@ final class ImageInline extends Inline {
 
   /// `image/png`, `image/jpeg`, `image/gif` or `image/webp`.
   final String mimeType;
+  final String alt;
+
+  /// Size hints from the HTML, in logical pixels.
+  final double? width;
+  final double? height;
+  final Uri? link;
+}
+
+/// A content image on the sender's server. Not loaded unless the user
+/// asks: until then, a renderer shows only [alt]. Tracking pixels never
+/// become one of these.
+final class RemoteImageInline extends Inline {
+  const RemoteImageInline(
+    this.url, {
+    this.alt = '',
+    this.width,
+    this.height,
+    this.link,
+  });
+
+  /// `https:` (an `http:` or `//` address is upgraded to https).
+  final Uri url;
   final String alt;
 
   /// Size hints from the HTML, in logical pixels.

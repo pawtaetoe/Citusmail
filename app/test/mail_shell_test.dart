@@ -105,7 +105,10 @@ void main() {
     await tester.tap(find.text('Hello there'));
     await settle(tester);
     expect(find.textContaining('Visible', findRichText: true), findsWidgets);
-    expect(find.textContaining('remote image was blocked'), findsOneWidget);
+    expect(
+      find.textContaining('Blocked a tracker that would tell tracker.example'),
+      findsOneWidget,
+    );
     expect(
       store.messages
           .list(const MessageQuery.inbox())

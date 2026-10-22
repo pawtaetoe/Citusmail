@@ -11,17 +11,23 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_web/mail_web.dart';
 import 'package:test/test.dart';
 
-/// A plain TCP server on 127.0.0.1 that records the request and answers
-/// with [reply].
+/// A plain TCP server on 127.0.0.1 that records each request and answers
+/// with [reply], or with [routes] by request line ("GET /a").
 final class _Server {
-  _Server._(this._socket, this.reply);
+  _Server._(this._socket, this.reply, this.routes);
 
-  static Future<_Server> start(String reply) async =>
-      _Server._(await ServerSocket.bind(InternetAddress.loopbackIPv4, 0), reply)
-        .._listen();
+  static Future<_Server> start(
+    String reply, {
+    Map<String, String> routes = const {},
+  }) async => _Server._(
+    await ServerSocket.bind(InternetAddress.loopbackIPv4, 0),
+    reply,
+    routes,
+  ).._listen();
 
   final ServerSocket _socket;
   final String reply;
+  final Map<String, String> routes;
   final requests = <String>[];
 
   int get port => _socket.port;
@@ -39,8 +45,9 @@ final class _Server {
             ?.group(1);
         if (text.length < end + 4 + int.parse(length ?? '0')) return;
         requests.add(text);
+        final line = text.split(' HTTP/1.1').first;
         client
-          ..write(reply)
+          ..add(latin1.encode(routes[line] ?? reply))
           ..close();
       }, onError: (_) {});
     });
@@ -262,6 +269,129 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('downloads', () {
+    late _Server server;
+    tearDown(() => server.close());
+
+    Future<WebDownload> get(
+      String reply, {
+      Map<String, String> routes = const {},
+      int maxBytes = 1000,
+      bool Function(Uri)? allow,
+      List<InternetAddress>? addresses,
+    }) async {
+      server = await _Server.start(reply, routes: routes);
+      return _client(server, addresses: addresses).get(
+        Uri.parse('https://cdn.example.com/a.png'),
+        maxBytes: maxBytes,
+        allow: allow,
+      );
+    }
+
+    Matcher fails(WebProblem problem) => throwsA(
+      isA<WebException>().having((e) => e.problem, 'problem', problem),
+    );
+
+    test('a body by Content-Length', () async {
+      final d = await get(
+        'HTTP/1.1 200 OK\r\nContent-Type: image/PNG; x=y\r\n'
+        'Content-Length: 5\r\n\r\nhello',
+      );
+      expect(utf8.decode(d.bytes), 'hello');
+      expect(d.contentType, 'image/png');
+      expect(server.requests.single, startsWith('GET /a.png HTTP/1.1\r\n'));
+      expect(server.requests.single, isNot(contains('Content-Length')));
+    });
+
+    test('a chunked body', () async {
+      final d = await get(
+        'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n'
+        '3\r\nhel\r\n2;ext=1\r\nlo\r\n0\r\n\r\n',
+      );
+      expect(utf8.decode(d.bytes), 'hello');
+    });
+
+    test('too large, compressed, without a length, or missing', () async {
+      await expectLater(
+        get('HTTP/1.1 200 OK\r\nContent-Length: 5000\r\n\r\n'),
+        fails(WebProblem.tooLarge),
+      );
+      await server.close();
+      await expectLater(
+        get(
+          'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n'
+          '400\r\n${'x' * 1024}\r\n0\r\n\r\n',
+        ),
+        fails(WebProblem.tooLarge),
+      );
+      await server.close();
+      await expectLater(
+        get(
+          'HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n'
+          'Content-Length: 1\r\n\r\nx',
+        ),
+        fails(WebProblem.badResponse),
+      );
+      await server.close();
+      await expectLater(
+        get('HTTP/1.1 200 OK\r\n\r\nbody until close'),
+        fails(WebProblem.badResponse),
+      );
+      await server.close();
+      await expectLater(
+        get('HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n'),
+        fails(WebProblem.notAvailable),
+      );
+    });
+
+    test('redirects are followed, each checked again', () async {
+      final d = await get(
+        'HTTP/1.1 500 X\r\n\r\n',
+        routes: {
+          'GET /a.png': 'HTTP/1.1 302 Found\r\nLocation: /b.png\r\nContent-Length: 0\r\n\r\n',
+          'GET /b.png': 'HTTP/1.1 301 Moved\r\nLocation: https://img.example.com/c.png\r\n\r\n',
+          'GET /c.png': 'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok',
+        },
+      );
+      expect(utf8.decode(d.bytes), 'ok');
+      expect(d.url.toString(), 'https://img.example.com/c.png');
+      expect(server.requests, hasLength(3));
+      expect(server.requests.last, contains('Host: img.example.com\r\n'));
+    });
+
+    test('a redirect to plain http, a tracker or a loop is refused', () async {
+      await expectLater(
+        get('HTTP/1.1 302 Found\r\nLocation: http://cdn.example.com/x\r\n\r\n'),
+        fails(WebProblem.unsafeUrl),
+      );
+      await server.close();
+      await expectLater(
+        get(
+          'HTTP/1.1 302 Found\r\nLocation: https://track.example.com/open\r\n\r\n',
+          allow: (u) => u.host != 'track.example.com',
+        ),
+        fails(WebProblem.unsafeUrl),
+      );
+      await server.close();
+      await expectLater(
+        get('HTTP/1.1 302 Found\r\nLocation: /a.png\r\n\r\n'),
+        fails(WebProblem.badResponse),
+      );
+      expect(server.requests, hasLength(4), reason: 'first + 3 redirects');
+    });
+
+    test('a private address is refused for downloads too', () async {
+      await expectLater(
+        get(
+          'HTTP/1.1 200 OK\r\n\r\n',
+          addresses: [InternetAddress('10.0.0.5')],
+        ),
+        fails(WebProblem.privateAddress),
+      );
+      expect(server.requests, isEmpty);
     });
   });
 

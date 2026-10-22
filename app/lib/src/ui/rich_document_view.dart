@@ -2,23 +2,37 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:typed_data';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:mail_view/mail_view.dart' hide TableCell;
 import 'package:mail_view/mail_view.dart' as view show TableCell;
 
+/// Fetches a remote image the user chose to load; null if it can't be
+/// shown.
+typedef RemoteImageSource = Future<Uint8List?> Function(Uri url);
+
 /// Draws one top-level block of a [RichDocument]. The reader builds
 /// blocks lazily as they scroll into view, so a very long message costs no
-/// more than what is on screen. The document only has text, structure and
-/// image bytes from inside the message, so drawing never touches the
-/// network.
+/// more than what is on screen. Drawing never touches the network by
+/// itself: remote images appear only through [images], which the reader
+/// passes only after the user asked to load them.
 final class BlockView extends StatefulWidget {
-  const BlockView({super.key, required this.block, required this.onLink});
+  const BlockView({
+    super.key,
+    required this.block,
+    required this.onLink,
+    this.images,
+  });
 
   final Block block;
 
   /// A link was tapped (the caller confirms before opening anything).
   final void Function(Uri link) onLink;
+
+  /// Loads remote images; null while they stay hidden.
+  final RemoteImageSource? images;
 
   @override
   State<BlockView> createState() => _BlockViewState();
@@ -232,28 +246,76 @@ final class _BlockViewState extends State<BlockView> {
         case LineBreak():
           spans.add(const TextSpan(text: '\n'));
         case ImageInline():
-          spans.add(WidgetSpan(child: _image(inline)));
+          spans.add(
+            WidgetSpan(
+              child: _image(
+                inline.bytes,
+                alt: inline.alt,
+                width: inline.width,
+                height: inline.height,
+                link: inline.link,
+              ),
+            ),
+          );
+        case RemoteImageInline():
+          final source = widget.images;
+          if (source != null) {
+            spans.add(
+              WidgetSpan(
+                child: _RemoteImage(
+                  inline,
+                  source: source,
+                  build: (bytes) => _image(
+                    bytes,
+                    alt: inline.alt,
+                    width: inline.width,
+                    height: inline.height,
+                    link: inline.link,
+                  ),
+                ),
+              ),
+            );
+          } else if (inline.alt.isNotEmpty) {
+            // Hidden: its description stands in for it.
+            spans.add(
+              TextSpan(
+                text: '[${inline.alt}]',
+                style: const TextStyle(fontStyle: FontStyle.italic),
+              ),
+            );
+          }
       }
     }
     return Text.rich(TextSpan(style: base, children: spans));
   }
 
-  Widget _image(ImageInline image) {
+  /// Widest an image is drawn; it is also decoded no larger than this
+  /// (times the screen density), so a large image costs little memory.
+  static const _maxWidth = 640.0;
+
+  Widget _image(
+    Uint8List bytes, {
+    required String alt,
+    double? width,
+    double? height,
+    Uri? link,
+  }) {
+    final density = MediaQuery.devicePixelRatioOf(context);
     final picture = Image.memory(
-      image.bytes,
-      width: image.width,
-      height: image.height,
+      bytes,
+      width: width,
+      height: height,
+      // Never upscaled; only shrinks large images while decoding.
+      cacheWidth: (_maxWidth * density).round(),
       fit: BoxFit.contain,
       gaplessPlayback: true,
-      semanticLabel: image.alt.isEmpty ? null : image.alt,
-      errorBuilder: (_, _, _) =>
-          Text(image.alt.isEmpty ? '[image]' : '[${image.alt}]'),
+      semanticLabel: alt.isEmpty ? null : alt,
+      errorBuilder: (_, _, _) => Text(alt.isEmpty ? '[image]' : '[$alt]'),
     );
     final constrained = ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 640, maxHeight: 2000),
+      constraints: const BoxConstraints(maxWidth: _maxWidth, maxHeight: 2000),
       child: picture,
     );
-    final link = image.link;
     if (link == null) return constrained;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -263,4 +325,46 @@ final class _BlockViewState extends State<BlockView> {
       ),
     );
   }
+}
+
+/// A remote image being fetched: a placeholder of its size while it
+/// loads, the image when it arrives, its description if it can't be shown.
+final class _RemoteImage extends StatefulWidget {
+  const _RemoteImage(this.image, {required this.source, required this.build});
+
+  final RemoteImageInline image;
+  final RemoteImageSource source;
+  final Widget Function(Uint8List bytes) build;
+
+  @override
+  State<_RemoteImage> createState() => _RemoteImageState();
+}
+
+final class _RemoteImageState extends State<_RemoteImage> {
+  late final Future<Uint8List?> _bytes = widget.source(widget.image.url);
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder(
+    future: _bytes,
+    builder: (context, snapshot) {
+      final bytes = snapshot.data;
+      if (bytes != null) return widget.build(bytes);
+      final alt = widget.image.alt;
+      if (snapshot.connectionState == ConnectionState.done) {
+        return alt.isEmpty
+            ? const SizedBox.shrink()
+            : Text(
+                '[$alt]',
+                style: const TextStyle(fontStyle: FontStyle.italic),
+              );
+      }
+      return SizedBox(
+        width: (widget.image.width ?? 48).clamp(16, 640),
+        height: (widget.image.height ?? 48).clamp(16, 400),
+        child: ColoredBox(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        ),
+      );
+    },
+  );
 }

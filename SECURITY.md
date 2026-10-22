@@ -36,8 +36,13 @@ public issue. We aim to reply within 7 days.
    iframes, forms, remote images, CSS or fonts. No link or DNS prefetching.
    Links show their real destination before opening. Mail is shown with
    the app's own renderer (`packages/mail_view`), which turns HTML into a
-   simple document that has no way to express a remote resource, instead
-   of a web view.
+   simple document instead of a web view. The only remote resource it can
+   name is a content image, as an address; it is fetched only after the
+   user asks, through `packages/mail_web`, and only a real PNG, JPEG, GIF
+   or WebP of a size safe to decode is shown. Tracking pixels are left out
+   of the document. Every image (embedded or loaded) has its header read
+   first and is refused above 16384 pixels a side or 40 megapixels, and is
+   decoded no larger than it is drawn.
    Every message is checked on the device for signs of phishing
    (`packages/mail_trust`). A suspicious message gets a red or amber
    warning that says why, its links open only after a warning where the

@@ -64,6 +64,7 @@ final class ReaderReady extends ReaderState {
     required this.trust,
     required this.unsubscribe,
     this.unsubscribed,
+    this.imagesShown = false,
   });
 
   @override
@@ -79,9 +80,18 @@ final class ReaderReady extends ReaderState {
   /// When the user unsubscribed from this list, if they did.
   final Unsubscription? unsubscribed;
 
+  /// Whether the message's remote images may load (the user asked, for
+  /// this message or for this verified sender).
+  final bool imagesShown;
+
+  /// Whether images may be loaded at all: never for mail that looks like
+  /// a scam.
+  bool get imagesAllowed => trust.level != TrustLevel.danger;
+
   ReaderReady copyWith({
     StoredMessage? message,
     Unsubscription? unsubscribed,
+    bool? imagesShown,
   }) => ReaderReady(
     message ?? this.message,
     view,
@@ -90,6 +100,7 @@ final class ReaderReady extends ReaderState {
     trust: trust,
     unsubscribe: unsubscribe,
     unsubscribed: unsubscribed ?? this.unsubscribed,
+    imagesShown: imagesShown ?? this.imagesShown,
   );
   final List<MailAddress> to;
   final List<MailAddress> cc;
@@ -302,6 +313,10 @@ final class MailController {
         trust: trust,
         unsubscribe: plan,
         unsubscribed: _unsubscription(message),
+        imagesShown:
+            trust.level != TrustLevel.danger &&
+            trust.verified &&
+            _store.imageSenders.isAllowed(message.from?.address),
       );
     } on BodyUnavailableException catch (e) {
       if (_disposed || selected?.id != message.id) return;
@@ -353,6 +368,26 @@ final class MailController {
   }
 
   void closeMessage() => reader.value = const ReaderEmpty();
+
+  // -------------------------------------------------------------- images
+
+  /// Loads the open message's images; with [always], also for later mail
+  /// from this sender (only offered when the server verified the sender).
+  void showImages(ReaderReady r, {bool always = false}) {
+    if (!r.imagesAllowed) return;
+    final from = r.message.from?.address;
+    if (always && r.trust.verified && from != null) {
+      try {
+        _store.imageSenders.allow(from);
+      } on ArgumentError {
+        // An address that can't be stored: load this time only.
+      }
+    }
+    if (reader.value case final ReaderReady open
+        when open.message.id == r.message.id) {
+      reader.value = open.copyWith(imagesShown: true);
+    }
+  }
 
   // --------------------------------------------------------- unsubscribe
 

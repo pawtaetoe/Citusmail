@@ -200,8 +200,9 @@ final class OneClickUnsubscriber {
         WebProblem.timeout => 'Couldn\'t reach ${url.host}. Are you online?',
         WebProblem.insecure =>
           '${url.host} doesn\'t have a valid security certificate.',
-        WebProblem.badResponse =>
-          '${url.host} gave an answer that made no sense.',
+        WebProblem.badResponse ||
+        WebProblem.notAvailable ||
+        WebProblem.tooLarge => '${url.host} gave an answer that made no sense.',
       });
     }
   }

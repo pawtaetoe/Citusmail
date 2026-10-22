@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 
+import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import 'block_dialog.dart';
 import 'link_opener.dart';
@@ -116,10 +117,10 @@ final class _UnsubscribeDialogState extends State<UnsubscribeDialog> {
 
   String _explanation() => switch (_method) {
     OneClickMethod(:final url) =>
-      'Fmail asks ${url.host} to stop sending you this list. Nothing else '
+      '$appName asks ${url.host} to stop sending you this list. Nothing else '
           'about you is sent.',
     EmailMethod(:final request) =>
-      'Fmail sends an unsubscribe email from your address to '
+      '$appName sends an unsubscribe email from your address to '
           '${request.address}. A copy goes to your Sent folder.',
     WebPageMethod(:final url) =>
       'This list unsubscribes on its website, ${url.host}. The page opens '

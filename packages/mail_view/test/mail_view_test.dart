@@ -4,7 +4,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:mail_view/mail_view.dart';
 import 'package:test/test.dart';
@@ -57,6 +56,11 @@ void expectSafe(RichDocument d) {
   }
 }
 
+/// A real 1 x 1 PNG.
+final _png = base64.decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+);
+
 void main() {
   group('hostile HTML', () {
     late MessageView view;
@@ -86,7 +90,11 @@ void main() {
       expect(links(view.body).map((u) => u.toString()), [
         'https://evil.example/normal-link',
       ]);
-      expect(view.body.blockedImages, greaterThanOrEqualTo(2));
+      // The pixel is a tracker; "x" and srcset-only images are not
+      // loadable at all.
+      expect(view.body.trackers, 1);
+      expect(view.body.remoteImages, 0);
+      expect(inlines(view.body.blocks).whereType<RemoteImageInline>(), isEmpty);
     });
 
     test('the form and its password field are gone', () {
@@ -180,19 +188,46 @@ void main() {
       expect(d.plainText.trim(), 'shown');
     });
 
-    test('remote images are blocked; tracking pixels leave nothing', () {
+    test('remote images wait as addresses; tracking pixels leave nothing', () {
       final d = convert(
         '<p><img src="https://t.example/p.gif" width="1" height="1" alt="pixel">'
         '<img src="http://cdn.example/logo.png" alt="Logo">'
-        '<img src="//cdn.example/x.png"><img src="relative.png"></p>',
+        '<img src="//cdn.example/x.png"><img src="relative.png" alt="rel">'
+        '<img src="https://x.example/track/open?id=1" alt="o">'
+        '<img src="https://r.us-east-1.awstrack.me/I0/abc">'
+        '<img src="https://cdn.example/s.png" style="width: 1px; height:1px">'
+        '<img src="javascript:alert(1)" alt="js"></p>',
       );
-      expect(d.blockedImages, 4);
-      expect(d.plainText.trim(), '[Logo]');
+      final remote = inlines(d.blocks).whereType<RemoteImageInline>().toList();
+      expect(remote.map((i) => i.url.toString()), [
+        'https://cdn.example/logo.png',
+        'https://cdn.example/x.png',
+      ]);
+      expect(remote.first.alt, 'Logo');
+      expect(d.remoteImages, 2);
+      expect(d.trackers, 4);
+      expect(d.trackerHosts, {
+        't.example',
+        'x.example',
+        'r.us-east-1.awstrack.me',
+        'cdn.example',
+      });
+      expect(d.plainText, contains('[rel]'));
+      expect(d.plainText, contains('[js]'));
+      expect(d.plainText, isNot(contains('pixel')));
       expect(inlines(d.blocks).whereType<ImageInline>(), isEmpty);
     });
 
+    test('remote images beyond the limit are counted, not kept', () {
+      final d = const HtmlConverter(
+        limits: HtmlConverterLimits(maxRemoteImages: 2),
+      ).convert('<img src="https://a.example/1.png">' * 5);
+      expect(d.remoteImages, 5);
+      expect(inlines(d.blocks).whereType<RemoteImageInline>(), hasLength(2));
+    });
+
     test('embedded images: cid and data URIs; never SVG or oversized', () {
-      final png = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 1, 2, 3]);
+      final png = _png;
       final d = convert(
         '<img src="cid:logo@x" alt="cid">'
         '<img src="CID:%3Clogo@x%3E">'
@@ -207,11 +242,14 @@ void main() {
       expect(images, hasLength(3));
       expect(images.first.alt, 'cid');
       expect(images.every((i) => i.mimeType == 'image/png'), isTrue);
-      expect(
-        d.blockedImages,
-        0,
-        reason: 'broken embedded images are not remote',
+      expect(d.remoteImages + d.trackers, 0);
+
+      // The bytes decide: a "PNG" that isn't one is left out.
+      final fake = convert(
+        '<img src="data:image/png;base64,${base64.encode([0x89, 0x50, 0x4E, 0x47, 1, 2])}" alt="fake">',
       );
+      expect(inlines(fake.blocks).whereType<ImageInline>(), isEmpty);
+      expect(fake.plainText.trim(), '[fake]');
 
       final big = const HtmlConverter(
         limits: HtmlConverterLimits(maxImageBytes: 4),
@@ -220,7 +258,7 @@ void main() {
     });
 
     test('links around embedded images are kept', () {
-      final png = Uint8List.fromList([1, 2, 3]);
+      final png = _png;
       final d = convert(
         '<a href="https://shop.example"><img src="cid:a"></a>',
         cid: (_) => (bytes: png, mimeType: 'image/png'),

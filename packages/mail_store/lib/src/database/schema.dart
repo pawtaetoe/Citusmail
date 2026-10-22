@@ -282,4 +282,14 @@ const List<Migration> schemaMigrations = [
       UNIQUE (kind, value)
     ) STRICT''',
   ]),
+
+  // Load images (Stage 15): senders whose images load without asking.
+  Migration(9, [
+    '''
+    CREATE TABLE image_senders (
+      id INTEGER PRIMARY KEY,
+      address TEXT NOT NULL UNIQUE CHECK (length(address) BETWEEN 3 AND 320 AND address = lower(address)),
+      since INTEGER NOT NULL
+    ) STRICT''',
+  ]),
 ];

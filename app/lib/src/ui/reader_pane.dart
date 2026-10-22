@@ -10,6 +10,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
+import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import 'attachment_saver.dart';
 import 'avatar.dart';
@@ -93,6 +94,12 @@ final class ReaderPane extends StatelessWidget {
                             itemBuilder: (_, i) => BlockView(
                               block: view.body.blocks[i],
                               onLink: onLink,
+                              images:
+                                  reader is ReaderReady &&
+                                      reader.imagesShown &&
+                                      reader.imagesAllowed
+                                  ? controller.services.images.load
+                                  : null,
                             ),
                           ),
                         ),
@@ -211,14 +218,7 @@ final class _Header extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: UnsubscribeStatus(controller: controller, reader: ready),
             ),
-          if (ready.view.body.blockedImages > 0)
-            _Notice(
-              icon: Icons.shield_outlined,
-              text: ready.view.body.blockedImages == 1
-                  ? '1 remote image was blocked, so the sender can\'t tell you opened this.'
-                  : '${ready.view.body.blockedImages} remote images were blocked, so the sender can\'t '
-                        'tell you opened this.',
-            ),
+          _PrivacyNotice(controller: controller, reader: ready),
           if (ready.view.body.truncated)
             const _Notice(
               icon: Icons.content_cut,
@@ -466,6 +466,95 @@ final class _Sender extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// What the app kept from the sender: trackers, hidden images (with the
+/// choice to load them), and an ignored read-receipt request.
+final class _PrivacyNotice extends StatelessWidget {
+  const _PrivacyNotice({required this.controller, required this.reader});
+
+  final MailController controller;
+  final ReaderReady reader;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = reader.view.body;
+    final trackers = body.trackers == 1
+        ? 'Blocked a tracker'
+        : 'Blocked ${body.trackers} trackers';
+    final images = body.remoteImages == 1
+        ? '1 image is'
+        : '${body.remoteImages} images are';
+    final lines = <String>[
+      if (body.trackers > 0)
+        '$trackers that would tell ${_hosts(body.trackerHosts)} when you open this.',
+      if (body.remoteImages > 0 && !reader.imagesShown)
+        reader.imagesAllowed
+            ? '$images hidden. Loading them shows the sender your IP address '
+                  'and that you opened this.'
+            : 'Images are hidden because this message may be a scam.',
+      if (reader.view.message.headers.contains('disposition-notification-to'))
+        'The sender asked to be told when you read this. $appName didn\'t tell them.',
+    ];
+    if (lines.isEmpty) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final canLoad =
+        body.remoteImages > 0 && !reader.imagesShown && reader.imagesAllowed;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield_outlined, size: 18, color: colors.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final line in lines)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      line,
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                    ),
+                  ),
+                if (canLoad)
+                  Wrap(
+                    spacing: 4,
+                    children: [
+                      TextButton(
+                        onPressed: () => controller.showImages(reader),
+                        child: const Text('Load images'),
+                      ),
+                      if (reader.trust.verified)
+                        TextButton(
+                          onPressed: () =>
+                              controller.showImages(reader, always: true),
+                          child: const Text('Always from this sender'),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _hosts(Set<String> hosts) {
+    if (hosts.isEmpty) return 'the sender';
+    final list = hosts.take(2).toList();
+    return list.length < hosts.length
+        ? '${list.join(', ')} and others'
+        : list.join(' and ');
   }
 }
 

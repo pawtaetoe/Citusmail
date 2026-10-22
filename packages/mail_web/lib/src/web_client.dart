@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
 
@@ -33,6 +34,12 @@ enum WebProblem {
 
   /// The server's answer was not valid HTTP.
   badResponse,
+
+  /// The server answered, but not with the thing asked for (404...).
+  notAvailable,
+
+  /// The answer was larger than allowed.
+  tooLarge,
 }
 
 final class WebException implements Exception {
@@ -45,16 +52,32 @@ final class WebException implements Exception {
   String toString() => 'WebException(${problem.name}): $message';
 }
 
-/// The status and headers of an answer. The body is not read.
+/// The status and headers of an answer, and its body when one was asked
+/// for.
 final class WebResponse {
-  const WebResponse(this.statusCode, this.headers);
+  const WebResponse(this.statusCode, this.headers, {this.body});
 
   final int statusCode;
 
   /// Lower-case name -> values.
   final Map<String, List<String>> headers;
 
+  /// Only read for a successful GET.
+  final Uint8List? body;
+
   bool get ok => statusCode >= 200 && statusCode < 300;
+}
+
+/// A downloaded file.
+final class WebDownload {
+  const WebDownload(this.url, this.contentType, this.bytes);
+
+  /// Where it finally came from (after redirects).
+  final Uri url;
+
+  /// The `Content-Type` the server claimed (lower case, no parameters).
+  final String? contentType;
+  final Uint8List bytes;
 }
 
 /// Limits for one request.
@@ -109,6 +132,55 @@ final class WebClient {
   final HostResolver _resolve;
   final WebConnector _connect;
 
+  /// Redirect statuses [get] follows.
+  static const _redirects = {301, 302, 303, 307, 308};
+
+  /// Downloads [url]: at most [maxBytes], following at most
+  /// [maxRedirects] redirects. Every address on the way is checked like
+  /// the first, and also by [allow] when given (for example to refuse
+  /// trackers). Throws [WebException].
+  Future<WebDownload> get(
+    Uri url, {
+    required int maxBytes,
+    int maxRedirects = 3,
+    bool Function(Uri url)? allow,
+  }) async {
+    var current = url;
+    for (var hop = 0; ; hop++) {
+      if (allow != null && !allow(current)) {
+        throw const WebException(WebProblem.unsafeUrl, 'address not allowed');
+      }
+      final response = await _request('GET', current, maxBody: maxBytes);
+      if (_redirects.contains(response.statusCode)) {
+        final location = response.headers['location']?.firstOrNull;
+        if (location == null || hop >= maxRedirects) {
+          throw const WebException(
+            WebProblem.badResponse,
+            'too many or broken redirects',
+          );
+        }
+        final next = Uri.tryParse(location);
+        if (next == null) {
+          throw const WebException(WebProblem.badResponse, 'broken redirect');
+        }
+        current = current.resolveUri(next);
+        continue;
+      }
+      if (response.statusCode != 200 || response.body == null) {
+        throw WebException(
+          WebProblem.notAvailable,
+          '${current.host} answered ${response.statusCode}',
+        );
+      }
+      final type = response.headers['content-type']?.firstOrNull
+          ?.split(';')
+          .first
+          .trim()
+          .toLowerCase();
+      return WebDownload(current, type, response.body!);
+    }
+  }
+
   /// POSTs [body] to [url] and returns the answer's status and headers.
   /// Throws [WebException].
   Future<WebResponse> post(
@@ -122,6 +194,7 @@ final class WebClient {
     Uri url, {
     List<int> body = const [],
     String? contentType,
+    int? maxBody,
   }) async {
     final target = _check(url);
     try {
@@ -130,6 +203,7 @@ final class WebClient {
         target,
         body,
         contentType,
+        maxBody,
       ).timeout(limits.timeout);
     } on TimeoutException {
       throw WebException(WebProblem.timeout, '${target.host} took too long');
@@ -149,6 +223,7 @@ final class WebClient {
     Uri target,
     List<int> body,
     String? contentType,
+    int? maxBody,
   ) async {
     final List<InternetAddress> addresses;
     try {
@@ -175,7 +250,13 @@ final class WebClient {
     );
     try {
       await socket.write(_requestBytes(method, target, body, contentType));
-      return await _readResponse(socket);
+      final response = await _readResponse(socket);
+      if (maxBody == null || response.statusCode != 200) return response;
+      return WebResponse(
+        response.statusCode,
+        response.headers,
+        body: await _readBody(socket, response.headers, maxBody),
+      );
     } finally {
       await socket.close();
     }
@@ -228,6 +309,50 @@ final class WebClient {
           .add(line.substring(colon + 1).trim());
     }
     return WebResponse(int.parse(match.group(1)!), headers);
+  }
+
+  /// The body after the headers: by `Content-Length`, or in chunks. A body
+  /// that ends only when the connection closes, or that is compressed, is
+  /// refused.
+  Future<Uint8List> _readBody(
+    MailSocket socket,
+    Map<String, List<String>> headers,
+    int maxBytes,
+  ) async {
+    final encoding = headers['content-encoding']?.firstOrNull?.toLowerCase();
+    if (encoding != null && encoding != 'identity') {
+      throw const WebException(WebProblem.badResponse, 'compressed answer');
+    }
+    final transfer = headers['transfer-encoding']?.join(',').toLowerCase();
+    if (transfer != null && transfer.contains('chunked')) {
+      final out = BytesBuilder(copy: false);
+      while (true) {
+        final line = latin1.decode(
+          await socket.readLine(timeout: limits.timeout),
+        );
+        final size = int.tryParse(line.split(';').first.trim(), radix: 16);
+        if (size == null || size < 0) {
+          throw const WebException(WebProblem.badResponse, 'broken chunk');
+        }
+        if (size == 0) break; // trailers follow; not needed
+        if (out.length + size > maxBytes) {
+          throw const WebException(WebProblem.tooLarge, 'too large');
+        }
+        out.add(await socket.readBytes(size, timeout: limits.timeout));
+        await socket.readLine(timeout: limits.timeout); // CRLF after chunk
+      }
+      return out.takeBytes();
+    }
+    final length = int.tryParse(
+      headers['content-length']?.firstOrNull?.trim() ?? '',
+    );
+    if (length == null || length < 0) {
+      throw const WebException(WebProblem.badResponse, 'no length');
+    }
+    if (length > maxBytes) {
+      throw const WebException(WebProblem.tooLarge, 'too large');
+    }
+    return socket.readBytes(length, timeout: limits.timeout);
   }
 
   /// [url] if this client will request it; throws [WebException] otherwise.

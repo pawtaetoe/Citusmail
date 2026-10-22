@@ -10,6 +10,7 @@ import '../app.dart' show appName;
 import '../background/background_mail.dart';
 import '../services/app_services.dart';
 import 'block_dialog.dart';
+import 'image_senders_page.dart';
 
 /// App settings: notifications, instant mail on Android, and what the app
 /// does with your data.
@@ -66,14 +67,25 @@ final class _SettingsPageState extends State<SettingsPage> {
               title: const Text('Instant mail'),
               subtitle: const Text(
                 'Keeps a live connection to your mail server so new mail arrives at once. '
-                'Android requires a permanent "Fmail is connected" notification and it uses more '
-                'battery. When off, Fmail checks about every 15 minutes.',
+                'Android requires a permanent "$appName is connected" notification and it uses more '
+                'battery. When off, $appName checks about every 15 minutes.',
               ),
               value: settings.instantMail,
               onChanged: _setInstant,
             ),
           ],
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Images'),
+            subtitle: const Text('Senders whose images load automatically'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ImageSendersPage(services: widget.services),
+              ),
+            ),
+          ),
           ListTile(
             leading: const Icon(Icons.block),
             title: const Text('Blocked senders'),

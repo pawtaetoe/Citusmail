@@ -39,6 +39,7 @@ abstract final class DocumentLinks {
         final link = switch (inline) {
           TextRun(:final link) => link,
           ImageInline(:final link) => link,
+          RemoteImageInline(:final link) => link,
           LineBreak() => null,
         };
         if (link != current) flush();

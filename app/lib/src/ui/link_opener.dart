@@ -40,6 +40,8 @@ abstract final class LinkOpener {
     }
     if (link.scheme == 'http') reasons.add('This link is not encrypted.');
     final risky = level != TrustLevel.ok;
+    // Opened without the parameters that only report the click.
+    final (link: cleaned, :removed) = LinkCleaner.clean(link);
 
     final open = await showDialog<bool>(
       context: context,
@@ -56,10 +58,18 @@ abstract final class LinkOpener {
             ),
             const SizedBox(height: 8),
             SelectableText(
-              link.toString(),
+              cleaned.toString(),
               maxLines: 6,
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (removed.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Tracking removed from the link: ${removed.take(4).join(', ')}'
+                '${removed.length > 4 ? ' and ${removed.length - 4} more' : ''}.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (reasons.isNotEmpty) ...[
               const SizedBox(height: 12),
               if (risky)
@@ -95,7 +105,7 @@ abstract final class LinkOpener {
       ),
     );
     if (open != true || !context.mounted) return;
-    await launch(context, link);
+    await launch(context, cleaned);
   }
 
   /// Opens [link] in the browser without asking (the caller already

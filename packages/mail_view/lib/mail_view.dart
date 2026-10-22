@@ -8,6 +8,8 @@ library;
 
 export 'src/document.dart';
 export 'src/html_converter.dart';
+export 'src/image_header.dart';
 export 'src/message_view.dart';
 export 'src/plain_text_converter.dart';
 export 'src/safe_file_name.dart';
+export 'src/trackers.dart';

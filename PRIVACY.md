@@ -15,8 +15,8 @@ no analytics, no crash reporting and no advertising.
 | A newsletter's one-click unsubscribe address | Only when you tap Unsubscribe and confirm | One request with the fixed text `List-Unsubscribe=One-Click` and a generic user agent. No cookies, no referrer, no language. Like any connection, it shows your IP address |
 | A newsletter's unsubscribe email address | Only when you tap Unsubscribe and confirm | An email from your account saying "unsubscribe" (a copy is kept in Sent) |
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
-| A link in an email | Only when you tap it and confirm the address | Your browser opens the link |
-| Remote images in an email | Never yet; later only when you tap "Load images" or trust the sender | A normal image request to the sender's server |
+| A link in an email | Only when you tap it and confirm the address | Your browser opens the link, without tracking parameters such as `utm_source` |
+| Images in an email | Only when you tap "Load images", or for a sender you chose "Always from this sender" for (and only when your mail server verified the mail is from them) | A request for each image with a generic user agent: no cookies, no referrer, no language. Like any connection, it shows your IP address, and the sender can tell the message was opened. Tracking pixels are never requested |
 
 Planned optional features (off by default, each asks first):
 
@@ -65,5 +65,13 @@ is read.
 
 ## Read receipts and trackers
 
-Read-receipt requests are ignored, and remote images (including tracking
-pixels) are blocked by default.
+Read receipts are never sent. When a sender asks for one, the message
+says so, and that nothing was sent.
+
+Images stay hidden until you load them, so senders can't see when or
+where you open their mail. Tracking pixels (tiny or invisible images,
+known tracking services and addresses) are removed for good: they are not
+loaded even when you load a message's images, nor after a redirect. Links
+lose their tracking parameters (`utm_*`, `fbclid`, `gclid`, `mc_eid` and
+similar) before they open. A link that itself goes through a click
+tracker still reports the click; the confirmation shows where it goes.

@@ -14,6 +14,7 @@ import 'package:mail_web/mail_web.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_settings.dart';
+import 'remote_images.dart';
 import 'secret_store.dart';
 
 /// Everything the running app uses.
@@ -22,9 +23,17 @@ import 'secret_store.dart';
 /// syncing, downloading messages and replaying offline changes happen in
 /// the background [worker], which has its own connection to the same file.
 final class AppServices {
-  AppServices(this.store, this.secrets, this.worker, {WebClient? web})
+  factory AppServices(
+    MailStore store,
+    SecretStore secrets,
+    SyncWorker worker, {
+    WebClient? web,
+  }) => AppServices._(store, secrets, worker, web ?? WebClient());
+
+  AppServices._(this.store, this.secrets, this.worker, WebClient web)
     : actions = MailActions(store, undoWindow: const Duration(seconds: 5)),
-      oneClick = OneClickUnsubscriber(web ?? WebClient()),
+      oneClick = OneClickUnsubscriber(web),
+      images = RemoteImages(web),
       drafts = DraftStore(store),
       sender = Sender(store),
       replies = ReplyBuilder(store),
@@ -45,6 +54,9 @@ final class AppServices {
   /// One-click unsubscribe requests (the only HTTPS the app sends to
   /// servers named in mail; see packages/mail_web).
   final OneClickUnsubscriber oneClick;
+
+  /// Images the user chose to load (same hardened client).
+  final RemoteImages images;
 
   /// The user's app settings (notifications, instant mail).
   final AppSettings settings;

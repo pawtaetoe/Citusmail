@@ -1339,6 +1339,21 @@ void main() {
     });
   });
 
+  group('image senders', () {
+    test('allow, check and remove', () {
+      final a = store.imageSenders.allow(' News@Shop.Example ');
+      expect(a.address, 'news@shop.example');
+      expect(store.imageSenders.allow('news@shop.example').id, a.id);
+      expect(store.imageSenders.isAllowed('NEWS@shop.example'), isTrue);
+      expect(store.imageSenders.isAllowed('other@shop.example'), isFalse);
+      expect(store.imageSenders.isAllowed(null), isFalse);
+      expect(store.imageSenders.all(), hasLength(1));
+      expect(() => store.imageSenders.allow('nope'), throwsArgumentError);
+      store.imageSenders.remove(a.id);
+      expect(store.imageSenders.isAllowed('news@shop.example'), isFalse);
+    });
+  });
+
   group('settings', () {
     test('read, write, overwrite, delete, and persist', () {
       expect(store.settings.read('k'), isNull);

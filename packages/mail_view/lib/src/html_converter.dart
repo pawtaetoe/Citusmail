@@ -9,6 +9,8 @@ import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html;
 
 import 'document.dart';
+import 'image_header.dart';
+import 'trackers.dart';
 
 /// An image part of the message, found by its Content-ID.
 typedef ContentIdImage = ({Uint8List bytes, String mimeType});
@@ -25,7 +27,11 @@ final class HtmlConverterLimits {
     this.maxImageBytes = 5 * 1024 * 1024,
     this.maxTableCells = 5000,
     this.maxSourceLength = 5000000,
+    this.maxRemoteImages = 200,
   });
+
+  /// Remote images beyond this many are left out (still counted).
+  final int maxRemoteImages;
 
   /// HTML longer than this is cut before parsing.
   final int maxSourceLength;
@@ -76,7 +82,9 @@ final class HtmlConverter {
     }
     return RichDocument(
       List.unmodifiable(root.blocks),
-      blockedImages: converter.blockedImages,
+      remoteImages: converter.remoteImages,
+      trackers: converter.trackers,
+      trackerHosts: Set.unmodifiable(converter.trackerHosts),
       truncated: converter.truncated,
     );
   }
@@ -110,7 +118,10 @@ final class _Sink {
   bool _spaceWanted = false;
 
   bool get _hasContent => _inlines.any(
-    (i) => i is ImageInline || (i is TextRun && i.text.trim().isNotEmpty),
+    (i) =>
+        i is ImageInline ||
+        i is RemoteImageInline ||
+        (i is TextRun && i.text.trim().isNotEmpty),
   );
 
   void addText(String text, _Context context) {
@@ -135,7 +146,9 @@ final class _Sink {
       _append(TextRun(text, style: context.style, link: context.link));
 
   void addInline(Inline inline) {
-    if (inline is ImageInline && _spaceWanted && _inlines.isNotEmpty) {
+    if ((inline is ImageInline || inline is RemoteImageInline) &&
+        _spaceWanted &&
+        _inlines.isNotEmpty) {
       _append(const TextRun(' '));
     }
     _inlines.add(inline);
@@ -211,7 +224,9 @@ final class _Conversion {
 
   final HtmlConverterLimits limits;
   final ContentIdResolver? resolveContentId;
-  int blockedImages = 0;
+  int remoteImages = 0;
+  int trackers = 0;
+  final trackerHosts = <String>{};
   bool truncated = false;
   int _blocks = 0;
   int _textLength = 0;
@@ -566,14 +581,35 @@ final class _Conversion {
     final alt = (img.attributes['alt'] ?? '').trim();
     final width = _size(img.attributes['width']);
     final height = _size(img.attributes['height']);
+    final remote = _remoteUrl(src);
+    if (remote != null) {
+      if (TrackingPixels.isTracker(
+        remote,
+        width: width,
+        height: height,
+        style: img.attributes['style'],
+      )) {
+        // Never shown, never loaded, not even its description.
+        trackers++;
+        if (trackerHosts.length < 5) trackerHosts.add(remote.host);
+        return;
+      }
+      remoteImages++;
+      if (remoteImages > limits.maxRemoteImages) return;
+      sink.addInline(
+        RemoteImageInline(
+          remote,
+          alt: alt,
+          width: width,
+          height: height,
+          link: context.link,
+        ),
+      );
+      return;
+    }
     final embedded = _embeddedImage(src);
     if (embedded == null) {
-      // Remote (or broken) image: never loaded. Only real content images
-      // leave their description; tracking pixels leave nothing.
-      final lower = src.toLowerCase();
-      if (!lower.startsWith('cid:') && !lower.startsWith('data:')) {
-        blockedImages++;
-      }
+      // Broken or unusable: its description stands in for it.
       final tiny =
           (width != null && width <= 2) || (height != null && height <= 2);
       if (alt.isNotEmpty && !tiny) {
@@ -623,7 +659,26 @@ final class _Conversion {
         : image.mimeType.toLowerCase();
     if (!_imageTypes.contains(type)) return null; // never SVG
     if (image.bytes.length > limits.maxImageBytes) return null;
-    return (bytes: image.bytes, mimeType: type);
+    // The bytes decide, not the label: a readable header of an allowed
+    // type and a size safe to decode.
+    final info = ImageHeader.read(image.bytes);
+    if (info == null) return null;
+    return (bytes: image.bytes, mimeType: info.mimeType);
+  }
+
+  /// A remote image's address as https, or null for anything else
+  /// (`cid:`, `data:`, relative or unusable addresses).
+  static Uri? _remoteUrl(String src) {
+    if (src.isEmpty || src.length > 4096) return null;
+    var text = src;
+    if (text.startsWith('//')) text = 'https:$text';
+    final uri = Uri.tryParse(text);
+    if (uri == null || uri.host.isEmpty) return null;
+    return switch (uri.scheme.toLowerCase()) {
+      'https' => uri,
+      'http' => uri.replace(scheme: 'https'),
+      _ => null,
+    };
   }
 
   /// `data:image/png;base64,...` only.
