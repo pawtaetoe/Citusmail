@@ -8,6 +8,9 @@ import 'package:mail_store/mail_store.dart';
 
 /// User-facing names, icons and dates for mail, in one place.
 abstract final class MailText {
+  /// The colour of pins everywhere.
+  static const pinColor = Color(0xFFE5484D);
+
   static String section(SmartSection section) => switch (section) {
     SmartSection.pinned => 'Pinned',
     SmartSection.important => 'Important',
@@ -26,7 +29,7 @@ abstract final class MailText {
 
   static Color sectionColor(SmartSection section, ColorScheme colors) =>
       switch (section) {
-        SmartSection.pinned => const Color(0xFFE5484D),
+        SmartSection.pinned => pinColor,
         SmartSection.important => const Color(0xFFF5A524),
         SmartSection.general => colors.primary,
         SmartSection.notifications => const Color(0xFF30A46C),

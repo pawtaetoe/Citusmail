@@ -244,6 +244,32 @@ void main() {
       expect(temp.store.settings.read('anything'), isNull);
     });
 
+    test('version 5 mail gets its Smart Inbox section', () {
+      openAt(5)
+        ..execute(
+          "INSERT INTO mailboxes (id, account_id, encoded_name, name, special_use) VALUES (2, 1, 'Sent', 'Sent', 'sent')",
+        )
+        ..execute(
+          'INSERT INTO messages (id, mailbox_id, uid, received_at, from_address, category, flags) VALUES '
+          "(1, 1, 1, 0, 'a@x', 'newsletters', 0), (2, 1, 2, 0, 'b@x', 'people', 4), "
+          "(3, 1, 3, 0, 'friend@x', 'people', 0), (4, 1, 4, 0, 'stranger@x', 'people', 0), "
+          "(5, 2, 1, 0, 'me@x', 'people', 1)",
+        )
+        ..execute(
+          "INSERT INTO message_addresses (message_id, kind, position, address) VALUES (5, 'to', 0, 'Friend@x')",
+        )
+        ..close();
+      temp.store = MailStore.open(temp.path, temp.key);
+      expect(
+        temp.store.database
+            .select(
+              'SELECT id, section FROM messages WHERE mailbox_id = 1 ORDER BY id',
+            )
+            .map((r) => r['section']),
+        ['newsletters', 'pinned', 'important', 'general'],
+      );
+    });
+
     test('a failing migration rolls back completely', () {
       temp.store.close();
       final broken = [

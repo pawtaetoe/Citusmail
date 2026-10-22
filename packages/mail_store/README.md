@@ -34,6 +34,11 @@ Encrypted local storage for the app. Pure Dart (no Flutter), built on
 - **The cache is rebuildable.** A wrong key or a damaged file can be
   handled with `MailDatabase.destroy` and a fresh sync. Only the outbox is
   local-only.
+- **Lists cost what is on screen.** Every message stores its Smart Inbox
+  section (`SectionSql`), refreshed in the same transaction as anything
+  that changes it; lists and counts read indexes in date order (checked by
+  query-plan tests), so a page takes under a millisecond with 20,000
+  messages. The unified inbox reads each account's inbox and merges.
 - **Safe with two connections.** The UI and the sync worker each open the
   database; transactions take the write lock up front (`BEGIN IMMEDIATE`)
   so neither can fail half-way because the other wrote.

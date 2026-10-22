@@ -747,6 +747,67 @@ void main() {
       );
     });
 
+    test('sections follow later changes: writing to someone, pinning', () {
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, subject: 'from dave', from: address('dave@x.example')),
+        MessageSummary(
+          uid: 2,
+          subject: 'thread',
+          receivedAt: DateTime.utc(2026, 4),
+          inReplyTo: 'later@x',
+          from: address('erin@x.example'),
+        ),
+      ]);
+      expect(section(SmartSection.general), {'from dave', 'thread'});
+
+      // Alice writes to Dave, in reply to nothing; and sends <later@x>.
+      store.messages.upsertSummaries(sent.id, [
+        MessageSummary(
+          uid: 9,
+          receivedAt: DateTime.utc(2026, 5),
+          messageId: 'later@x',
+          to: [address('DAVE@x.example')],
+        ),
+      ]);
+      expect(section(SmartSection.important), {'from dave', 'thread'});
+
+      final dave = store.messages
+          .list(const MessageQuery.smart(SmartSection.important))
+          .first;
+      store.messages.updateFlags(inbox.id, [
+        (
+          uid: dave.uid,
+          flags: MessageFlags.fromImap([r'\Flagged']),
+          modSeq: null,
+        ),
+      ]);
+      expect(section(SmartSection.pinned), {dave.subject});
+      expect(section(SmartSection.important), hasLength(1));
+    });
+
+    test('lists read an index in date order, never the whole folder', () {
+      for (final query in [
+        const MessageQuery.smart(SmartSection.general),
+        const MessageQuery.inbox(),
+        const MessageQuery(unreadOnly: true),
+      ]) {
+        final plan = store.messages
+            .debugQueryPlan(query, mailboxId: inbox.id)
+            .join(' | ');
+        expect(plan, contains('USING INDEX'), reason: plan);
+        expect(
+          plan,
+          isNot(contains('TEMP B-TREE')),
+          reason: 'no sorting: $plan',
+        );
+      }
+      final pins = store.messages
+          .debugQueryPlan(const MessageQuery(flaggedOnly: true))
+          .join(' | ');
+      expect(pins, contains('messages_pinned'), reason: pins);
+      expect(pins, isNot(contains('TEMP B-TREE')), reason: pins);
+    });
+
     test('sections can be limited to one account', () {
       final bob = temp.addAccount('bob@fmail.test');
       final bobInbox = store.mailboxes.replaceAll(bob.id, [

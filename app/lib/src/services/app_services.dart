@@ -21,7 +21,7 @@ import 'secret_store.dart';
 /// the background [worker], which has its own connection to the same file.
 final class AppServices {
   AppServices(this.store, this.secrets, this.worker)
-    : actions = MailActions(store),
+    : actions = MailActions(store, undoWindow: const Duration(seconds: 5)),
       drafts = DraftStore(store),
       sender = Sender(store),
       replies = ReplyBuilder(store),

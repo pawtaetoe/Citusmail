@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import '../repository/section_sql.dart';
+
 /// One schema step. Versions are consecutive from 1; a migration runs in a
 /// transaction, so it applies completely or not at all.
 final class Migration {
@@ -235,5 +237,22 @@ const List<Migration> schemaMigrations = [
       moved_at INTEGER NOT NULL,
       PRIMARY KEY (account_id, message_id_header)
     ) STRICT''',
+  ]),
+
+  // Speed (UI revamp): the Smart Inbox section is stored per message and
+  // indexed, so lists and counts no longer work it out for the whole
+  // inbox on every refresh. See SectionSql for how it stays current.
+  Migration(6, [
+    '''
+    ALTER TABLE messages ADD COLUMN section TEXT NOT NULL DEFAULT 'general'
+      CHECK (section IN ('pinned', 'important', 'general', 'notifications', 'newsletters'))''',
+    'UPDATE messages SET section = ${SectionSql.expression}',
+    'CREATE INDEX messages_by_section ON messages (mailbox_id, section, received_at DESC, id DESC)',
+    // Unread counts per folder read only unread rows.
+    'CREATE INDEX messages_unread ON messages (mailbox_id, section) WHERE (flags & 1) = 0',
+    // Pins across every folder, newest first.
+    'CREATE INDEX messages_pinned ON messages (received_at DESC, id DESC) WHERE (flags & 4) != 0',
+    // Replies to the user's own mail (Important).
+    'CREATE INDEX messages_by_in_reply_to ON messages (in_reply_to) WHERE in_reply_to IS NOT NULL',
   ]),
 ];

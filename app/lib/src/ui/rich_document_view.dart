@@ -7,25 +7,24 @@ import 'package:flutter/material.dart';
 import 'package:mail_view/mail_view.dart' hide TableCell;
 import 'package:mail_view/mail_view.dart' as view show TableCell;
 
-/// Draws a [RichDocument]. It only has text, structure and image bytes
-/// that came inside the message, so drawing it never touches the network.
-final class RichDocumentView extends StatefulWidget {
-  const RichDocumentView({
-    super.key,
-    required this.document,
-    required this.onLink,
-  });
+/// Draws one top-level block of a [RichDocument]. The reader builds
+/// blocks lazily as they scroll into view, so a very long message costs no
+/// more than what is on screen. The document only has text, structure and
+/// image bytes from inside the message, so drawing never touches the
+/// network.
+final class BlockView extends StatefulWidget {
+  const BlockView({super.key, required this.block, required this.onLink});
 
-  final RichDocument document;
+  final Block block;
 
   /// A link was tapped (the caller confirms before opening anything).
   final void Function(Uri link) onLink;
 
   @override
-  State<RichDocumentView> createState() => _RichDocumentViewState();
+  State<BlockView> createState() => _BlockViewState();
 }
 
-final class _RichDocumentViewState extends State<RichDocumentView> {
+final class _BlockViewState extends State<BlockView> {
   /// Tap handlers for links, recreated on every build and disposed.
   final _recognizers = <TapGestureRecognizer>[];
 
@@ -45,10 +44,7 @@ final class _RichDocumentViewState extends State<RichDocumentView> {
   @override
   Widget build(BuildContext context) {
     _disposeRecognizers();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: _blocks(context, widget.document.blocks),
-    );
+    return _block(context, widget.block);
   }
 
   List<Widget> _blocks(BuildContext context, List<Block> blocks) => [

@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
@@ -12,9 +14,12 @@ import 'attachment_saver.dart';
 import 'avatar.dart';
 import 'link_opener.dart';
 import 'mail_text.dart';
+import 'move_dialog.dart';
 import 'rich_document_view.dart';
 
-/// The right pane: actions, the message header, its body and attachments.
+/// The right pane: actions, the message header, its body (built lazily,
+/// block by block) and attachments, in a column of comfortable reading
+/// width.
 final class ReaderPane extends StatelessWidget {
   const ReaderPane({
     super.key,
@@ -27,134 +32,200 @@ final class ReaderPane extends StatelessWidget {
   /// On phones the reader covers the list, so it needs a way back.
   final bool showBack;
 
+  /// Lines longer than this are hard to read.
+  static const readingWidth = 760.0;
+
   @override
-  Widget build(BuildContext context) {
-    final reader = controller.reader;
-    final message = controller.selected;
-    if (message == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.mail_outline,
-              size: 48,
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Select a message to read it',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _Toolbar(controller: controller, message: message, showBack: showBack),
-        const Divider(),
-        Expanded(
-          child: ColoredBox(
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
-            child: SelectionArea(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                children: [
-                  Text(
-                    MailText.subject(message),
-                    style: Theme.of(context).textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 16),
-                  // The message sits on a card, as in Spark.
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant
-                            .withValues(alpha: 0.6),
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: controller.reader,
+    builder: (context, reader, _) {
+      final message = reader.message;
+      if (message == null) return const _NothingOpen();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Toolbar(
+            controller: controller,
+            reader: reader,
+            message: message,
+            showBack: showBack,
+          ),
+          const Divider(),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final side = max(
+                  20.0,
+                  (constraints.maxWidth - readingWidth) / 2,
+                );
+                final padding = EdgeInsets.symmetric(horizontal: side);
+                final view = reader is ReaderReady ? reader.view : null;
+                void onLink(Uri link) => LinkOpener.open(
+                  context,
+                  link,
+                  onMailto: controller.composeTo,
+                );
+                return SelectionArea(
+                  child: CustomScrollView(
+                    key: ValueKey(message.id),
+                    slivers: [
+                      SliverPadding(
+                        padding: padding.copyWith(top: 20),
+                        sliver: SliverToBoxAdapter(
+                          child: _Header(
+                            message: message,
+                            reader: reader,
+                            controller: controller,
+                          ),
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _Sender(message: message, reader: reader),
-                        const SizedBox(height: 16),
-                        ...switch (reader) {
-                          ReaderLoading() => [
-                            const Padding(
-                              padding: EdgeInsets.all(32),
-                              child: Center(child: CircularProgressIndicator()),
+                      if (view != null)
+                        SliverPadding(
+                          padding: padding,
+                          sliver: SliverList.builder(
+                            itemCount: view.body.blocks.length,
+                            itemBuilder: (_, i) => BlockView(
+                              block: view.body.blocks[i],
+                              onLink: onLink,
                             ),
-                          ],
-                          ReaderFailed(:final reason) => [
-                            _Notice(icon: Icons.cloud_off, text: reason),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton(
-                                onPressed: () => controller.open(message),
-                                child: const Text('Try again'),
-                              ),
-                            ),
-                          ],
-                          ReaderReady(:final view) && final ready => [
-                            if (view.body.blockedImages > 0)
-                              _Notice(
-                                icon: Icons.shield_outlined,
-                                text: view.body.blockedImages == 1
-                                    ? '1 remote image was blocked, so the sender can\'t tell you opened this.'
-                                    : '${view.body.blockedImages} remote images were blocked, so the sender can\'t '
-                                          'tell you opened this.',
-                              ),
-                            if (view.body.truncated)
-                              const _Notice(
-                                icon: Icons.content_cut,
-                                text: 'Part of this message was too large or complex to show.',
-                              ),
-                            RichDocumentView(
-                              document: view.body,
-                              onLink: (link) => LinkOpener.open(
-                                context,
-                                link,
-                                onMailto: controller.composeTo,
-                              ),
-                            ),
-                            if (view.attachments.isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              _Attachments(attachments: view.attachments),
+                          ),
+                        ),
+                      SliverPadding(
+                        padding: padding.copyWith(bottom: 40),
+                        sliver: SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (view != null &&
+                                  view.attachments.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                _Attachments(attachments: view.attachments),
+                              ],
+                              if (reader is ReaderReady) ...[
+                                const SizedBox(height: 24),
+                                _ReplyBar(
+                                  controller: controller,
+                                  reader: reader,
+                                ),
+                              ],
                             ],
-                            const SizedBox(height: 20),
-                            _ReplyBar(controller: controller, reader: ready),
-                          ],
-                          ReaderEmpty() => const [],
-                        },
-                      ],
-                    ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
-        ),
-      ],
+        ],
+      );
+    },
+  );
+}
+
+final class _NothingOpen extends StatelessWidget {
+  const _NothingOpen();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.mail_outline, size: 48, color: colors.outlineVariant),
+          const SizedBox(height: 12),
+          Text(
+            'Select a message to read it',
+            style: TextStyle(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Press ? for keyboard shortcuts',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colors.outline),
+          ),
+        ],
+      ),
     );
   }
 }
 
+/// Subject, sender and notices (blocked images, loading, problems).
+final class _Header extends StatelessWidget {
+  const _Header({
+    required this.message,
+    required this.reader,
+    required this.controller,
+  });
+
+  final StoredMessage message;
+  final ReaderState reader;
+  final MailController controller;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        MailText.subject(message),
+        style: Theme.of(context).textTheme.headlineSmall
+            ?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 16),
+      _Sender(message: message, reader: reader),
+      const SizedBox(height: 20),
+      ...switch (reader) {
+        ReaderLoading() => [
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+        ReaderFailed(:final reason) => [
+          _Notice(icon: Icons.cloud_off, text: reason),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => controller.open(message),
+              child: const Text('Try again'),
+            ),
+          ),
+        ],
+        ReaderReady(:final view) => [
+          if (view.body.blockedImages > 0)
+            _Notice(
+              icon: Icons.shield_outlined,
+              text: view.body.blockedImages == 1
+                  ? '1 remote image was blocked, so the sender can\'t tell you opened this.'
+                  : '${view.body.blockedImages} remote images were blocked, so the sender can\'t '
+                        'tell you opened this.',
+            ),
+          if (view.body.truncated)
+            const _Notice(
+              icon: Icons.content_cut,
+              text: 'Part of this message was too large or complex to show.',
+            ),
+        ],
+        ReaderEmpty() => const [],
+      },
+    ],
+  );
+}
+
+/// The reader's actions. On narrow screens the less frequent ones move into
+/// a "More" menu, so every button keeps a comfortable size.
 final class _Toolbar extends StatelessWidget {
   const _Toolbar({
     required this.controller,
+    required this.reader,
     required this.message,
     required this.showBack,
   });
 
   final MailController controller;
+  final ReaderState reader;
   final StoredMessage message;
   final bool showBack;
 
@@ -162,52 +233,97 @@ final class _Toolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final archive = controller.archiveFor(message);
     final inTrash = controller.isInTrash(message);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Row(
-        children: [
-          IconButton(
-            tooltip: showBack ? 'Back' : 'Close',
-            icon: Icon(showBack ? Icons.arrow_back : Icons.close),
-            onPressed: controller.closeMessage,
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: message.flags.flagged ? 'Unpin' : 'Pin',
-            isSelected: message.flags.flagged,
-            icon: const Icon(Icons.push_pin_outlined),
-            selectedIcon: const Icon(Icons.push_pin, color: Color(0xFFE5484D)),
-            onPressed: () => controller.togglePin(message),
-          ),
-          IconButton(
-            tooltip: message.flags.seen ? 'Mark as unread' : 'Mark as read',
-            icon: Icon(
-              message.flags.seen
-                  ? Icons.mark_email_unread_outlined
-                  : Icons.mark_email_read_outlined,
-            ),
-            onPressed: () => controller.toggleRead(message),
-          ),
-          if (archive != null && archive.id != message.mailboxId)
-            IconButton(
-              tooltip: 'Archive',
-              icon: const Icon(Icons.archive_outlined),
-              onPressed: () => controller.archive(message),
-            ),
-          IconButton(
-            tooltip: inTrash ? 'Delete forever' : 'Move to Trash',
-            icon: Icon(
-              inTrash ? Icons.delete_forever_outlined : Icons.delete_outline,
-            ),
-            onPressed: () => _delete(context, inTrash),
-          ),
-          IconButton(
-            tooltip: 'Move to folder',
-            icon: const Icon(Icons.drive_file_move_outline),
-            onPressed: () => _move(context),
-          ),
-        ],
+    final ready = reader is ReaderReady ? reader as ReaderReady : null;
+    final actions = <_Action>[
+      if (archive != null && archive.id != message.mailboxId)
+        _Action(
+          'Archive (E)',
+          Icons.archive_outlined,
+          () => controller.archive([message]),
+        ),
+      _Action(
+        inTrash ? 'Delete forever' : 'Move to Trash (#)',
+        inTrash ? Icons.delete_forever_outlined : Icons.delete_outline,
+        () => _delete(context, inTrash),
       ),
+      _Action(
+        'Move to folder (V)',
+        Icons.drive_file_move_outline,
+        () => MoveDialog.show(context, controller, [message]),
+      ),
+      _Action(
+        message.flags.flagged ? 'Unpin (S)' : 'Pin (S)',
+        message.flags.flagged ? Icons.push_pin : Icons.push_pin_outlined,
+        () => controller.togglePin([message]),
+        color: message.flags.flagged ? MailText.pinColor : null,
+      ),
+      _Action(
+        message.flags.seen ? 'Mark as unread (U)' : 'Mark as read (U)',
+        message.flags.seen
+            ? Icons.mark_email_unread_outlined
+            : Icons.mark_email_read_outlined,
+        () => controller.toggleRead([message]),
+      ),
+      if (ready != null) ...[
+        _Action('Reply (R)', Icons.reply, () => controller.reply(ready)),
+        _Action(
+          'Reply all (A)',
+          Icons.reply_all,
+          () => controller.replyAll(ready),
+        ),
+        _Action('Forward (F)', Icons.forward, () => controller.forward(ready)),
+      ],
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Back button + as many 48dp buttons as fit; the rest in "More".
+        final room = ((constraints.maxWidth - 64) / 48).floor().clamp(
+          2,
+          actions.length,
+        );
+        final shown = room >= actions.length
+            ? actions
+            : actions.take(room - 1).toList();
+        final more = actions.skip(shown.length).toList();
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: showBack ? 'Back (Esc)' : 'Close (Esc)',
+                icon: Icon(showBack ? Icons.arrow_back : Icons.close),
+                onPressed: controller.closeMessage,
+              ),
+              const Spacer(),
+              for (final a in shown)
+                IconButton(
+                  tooltip: a.label,
+                  icon: Icon(a.icon, color: a.color),
+                  onPressed: a.onPressed,
+                ),
+              if (more.isNotEmpty)
+                PopupMenuButton<VoidCallback>(
+                  tooltip: 'More',
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (action) => action(),
+                  itemBuilder: (_) => [
+                    for (final a in more)
+                      PopupMenuItem(
+                        value: a.onPressed,
+                        child: Row(
+                          children: [
+                            Icon(a.icon, size: 20),
+                            const SizedBox(width: 12),
+                            Text(a.label),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -234,54 +350,17 @@ final class _Toolbar extends StatelessWidget {
       );
       if (confirmed != true) return;
     }
-    controller.delete(message);
+    controller.delete([message]);
   }
+}
 
-  Future<void> _move(BuildContext context) async {
-    final targets = controller.moveTargets(message);
-    var always = false;
-    final sender = message.from?.address;
-    final target = await showDialog<StoredMailbox>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => SimpleDialog(
-          title: const Text('Move to'),
-          children: [
-            if (sender != null)
-              CheckboxListTile(
-                value: always,
-                onChanged: (v) => setState(() => always = v ?? false),
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text('Always move mail from $sender here'),
-              ),
-            for (final box in targets)
-              SimpleDialogOption(
-                onPressed: () => Navigator.pop(context, box),
-                child: Row(
-                  children: [
-                    Icon(MailText.folderIcon(box), size: 20),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        box.isInbox
-                            ? 'Inbox'
-                            : box.name.replaceAll(box.delimiter ?? '/', ' / '),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (target == null) return;
-    if (always && controller.canHaveRules(target)) {
-      controller.moveAlways(message, target);
-    } else {
-      controller.moveTo(message, target);
-    }
-  }
+final class _Action {
+  const _Action(this.label, this.icon, this.onPressed, {this.color});
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final Color? color;
 }
 
 final class _Sender extends StatelessWidget {

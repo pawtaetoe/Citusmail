@@ -15,7 +15,8 @@ import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'settings_page.dart';
 
-/// The dark navigation column: inboxes, pins, folders and accounts.
+/// The dark navigation column: inboxes, pins, folders and accounts. It
+/// rebuilds only when counts, the place shown or sync status change.
 final class Sidebar extends StatelessWidget {
   const Sidebar({
     super.key,
@@ -33,23 +34,27 @@ final class Sidebar extends StatelessWidget {
   final VoidCallback? onNavigated;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([
+      controller.counts,
+      controller.location,
+      controller.status,
+    ]),
+    builder: (context, _) => _build(context),
+  );
+
+  Widget _build(BuildContext context) {
     final colors = SidebarColors.of(context);
     final store = controller.services.store;
     final accounts = store.accounts.all();
-    final syncing = accounts.any(
-      (a) => controller.lastEvent(a.id) is AccountSyncStarted,
-    );
+    final counts = controller.counts.value;
+    final here = controller.location.value;
+    final syncing = controller.status.value is SyncRunning;
 
     void go(MailLocation location) {
       controller.goTo(location);
       onNavigated?.call();
     }
-
-    int inboxUnread(int? accountId) => controller
-        .inboxCounts(accountId: accountId)
-        .values
-        .fold(0, (sum, c) => sum + c.unread);
 
     return Material(
       color: colors.background,
@@ -59,137 +64,139 @@ final class Sidebar extends StatelessWidget {
           data: IconThemeData(color: colors.muted, size: 20),
           child: DefaultTextStyle.merge(
             style: TextStyle(color: colors.text),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-                  child: Row(
-                    children: [
-                      Text(
-                        appName,
-                        style: TextStyle(
-                          color: colors.text,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        tooltip: 'Settings',
-                        icon: Icon(
-                          Icons.settings_outlined,
-                          color: colors.muted,
-                        ),
-                        onPressed: () {
-                          onNavigated?.call();
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  SettingsPage(services: controller.services),
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        tooltip: 'Check for new mail',
-                        onPressed: syncing ? null : controller.syncNow,
-                        icon: syncing
-                            ? SizedBox.square(
-                                dimension: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: colors.muted,
-                                ),
-                              )
-                            : Icon(Icons.sync, color: colors.muted),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    children: [
-                      _Entry(
-                        icon: Icons.inbox,
-                        label: 'Inbox',
-                        bold: true,
-                        badge: inboxUnread(null),
-                        selected: controller.location == const InboxLocation(),
-                        onTap: () => go(const InboxLocation()),
-                      ),
-                      if (accounts.length > 1)
-                        for (final account in accounts)
-                          _Entry(
-                            indent: 1,
-                            label: account.displayName ?? account.email,
-                            badge: inboxUnread(account.id),
-                            selected:
-                                controller.location ==
-                                InboxLocation(accountId: account.id),
-                            onTap: () =>
-                                go(InboxLocation(accountId: account.id)),
-                          ),
-                      if (controller.outbox case final outbox
-                          when outbox.isNotEmpty)
-                        _Entry(
-                          icon: Icons.outbox_outlined,
-                          label: 'Outbox',
-                          badge: outbox.length,
-                          selected:
-                              controller.location == const OutboxLocation(),
-                          onTap: () => go(const OutboxLocation()),
-                        ),
-                      _Entry(
-                        icon: Icons.push_pin_outlined,
-                        label: 'Pins',
-                        selected: controller.location == const PinsLocation(),
-                        onTap: () => go(const PinsLocation()),
-                      ),
-                      for (final account in accounts) ...[
-                        _Heading(
-                          accounts.length > 1
-                              ? (account.displayName ?? account.email)
-                              : 'Folders',
-                          onAdd: () => NewFolderDialog.show(
-                            context,
-                            controller,
-                            account.id,
+            child: FocusTraversalGroup(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 8, 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          appName,
+                          style: TextStyle(
+                            color: colors.text,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        for (final (mailbox, depth) in _folders(store, account))
-                          _Entry(
-                            icon: MailText.folderIcon(mailbox),
-                            indent: depth,
-                            label: MailText.folder(mailbox),
-                            badge: mailbox.specialUse == null
-                                ? controller.unreadIn(mailbox.id)
-                                : 0,
-                            selected:
-                                controller.location ==
-                                FolderLocation(mailbox.id, account.id),
-                            onTap: () =>
-                                go(FolderLocation(mailbox.id, account.id)),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'Settings',
+                          icon: Icon(
+                            Icons.settings_outlined,
+                            color: colors.muted,
                           ),
+                          onPressed: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    SettingsPage(services: controller.services),
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Check for new mail',
+                          onPressed: syncing ? null : controller.syncNow,
+                          icon: syncing
+                              ? SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: colors.muted,
+                                  ),
+                                )
+                              : Icon(Icons.sync, color: colors.muted),
+                        ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                const Divider(color: Colors.white12),
-                for (final account in accounts)
-                  _AccountRow(
-                    account: account,
-                    event: controller.lastEvent(account.id),
-                    onRemove: () => onRemoveAccount(account),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      children: [
+                        _Entry(
+                          icon: Icons.inbox,
+                          label: 'Inbox',
+                          bold: true,
+                          badge: counts.inboxUnread,
+                          selected: here == const InboxLocation(),
+                          onTap: () => go(const InboxLocation()),
+                        ),
+                        if (accounts.length > 1)
+                          for (final account in accounts)
+                            _Entry(
+                              indent: 1,
+                              label: account.displayName ?? account.email,
+                              badge: counts.perAccountUnread[account.id] ?? 0,
+                              selected:
+                                  here == InboxLocation(accountId: account.id),
+                              onTap: () =>
+                                  go(InboxLocation(accountId: account.id)),
+                            ),
+                        if (counts.outbox > 0)
+                          _Entry(
+                            icon: Icons.outbox_outlined,
+                            label: 'Outbox',
+                            badge: counts.outbox,
+                            selected: here == const OutboxLocation(),
+                            onTap: () => go(const OutboxLocation()),
+                          ),
+                        _Entry(
+                          icon: Icons.push_pin_outlined,
+                          label: 'Pins',
+                          selected: here == const PinsLocation(),
+                          onTap: () => go(const PinsLocation()),
+                        ),
+                        for (final account in accounts) ...[
+                          _Heading(
+                            accounts.length > 1
+                                ? (account.displayName ?? account.email)
+                                : 'Folders',
+                            onAdd: () => NewFolderDialog.show(
+                              context,
+                              controller,
+                              account.id,
+                            ),
+                          ),
+                          for (final (mailbox, depth) in _folders(
+                            store,
+                            account,
+                          ))
+                            _Entry(
+                              icon: MailText.folderIcon(mailbox),
+                              indent: depth,
+                              label: MailText.folder(mailbox),
+                              badge: mailbox.specialUse == null
+                                  ? counts.folderUnread[mailbox.id] ?? 0
+                                  : 0,
+                              selected:
+                                  here ==
+                                  FolderLocation(mailbox.id, account.id),
+                              onTap: () =>
+                                  go(FolderLocation(mailbox.id, account.id)),
+                            ),
+                        ],
+                      ],
+                    ),
                   ),
-                _Entry(
-                  icon: Icons.person_add_alt,
-                  label: 'Add account',
-                  onTap: onAddAccount,
-                ),
-                const SizedBox(height: 8),
-              ],
+                  Divider(color: colors.selected),
+                  for (final account in accounts)
+                    _AccountRow(
+                      account: account,
+                      event: controller.lastEvent(account.id),
+                      onRemove: () => onRemoveAccount(account),
+                    ),
+                  _Entry(
+                    icon: Icons.person_add_alt,
+                    label: 'Add account',
+                    onTap: onAddAccount,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
           ),
         ),

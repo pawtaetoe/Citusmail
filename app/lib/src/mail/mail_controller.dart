@@ -13,19 +13,13 @@ import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
 import 'mail_location.dart';
-
-/// One Smart Inbox section as shown: its newest messages and counts.
-final class SectionPreview {
-  const SectionPreview(this.section, this.count, this.messages);
-
-  final SmartSection section;
-  final SectionCount count;
-  final List<StoredMessage> messages;
-}
+import 'message_list_model.dart';
 
 /// What the reading pane shows.
 sealed class ReaderState {
   const ReaderState();
+
+  StoredMessage? get message => null;
 }
 
 final class ReaderEmpty extends ReaderState {
@@ -35,6 +29,7 @@ final class ReaderEmpty extends ReaderState {
 final class ReaderLoading extends ReaderState {
   const ReaderLoading(this.message);
 
+  @override
   final StoredMessage message;
 }
 
@@ -46,6 +41,7 @@ final class ReaderReady extends ReaderState {
     required this.cc,
   });
 
+  @override
   final StoredMessage message;
   final MessageView view;
   final List<MailAddress> to;
@@ -55,53 +51,111 @@ final class ReaderReady extends ReaderState {
 final class ReaderFailed extends ReaderState {
   const ReaderFailed(this.message, this.reason);
 
+  @override
   final StoredMessage message;
   final String reason;
 }
 
-/// The state behind the mail screen: where the user is, what the list
-/// shows, which message is open. Reads come straight from the store; slow
-/// work (sync, downloads) goes to the background worker.
-final class MailController extends ChangeNotifier {
-  MailController(this.services) {
+/// Counts for the sidebar and section headers, read together.
+final class MailCounts {
+  const MailCounts({
+    required this.sections,
+    required this.perAccountUnread,
+    required this.folderUnread,
+    required this.outbox,
+  });
+
+  static const empty = MailCounts(
+    sections: {},
+    perAccountUnread: {},
+    folderUnread: {},
+    outbox: 0,
+  );
+
+  final Map<SmartSection, SectionCount> sections;
+  final Map<int, int> perAccountUnread;
+  final Map<int, int> folderUnread;
+  final int outbox;
+
+  int get inboxUnread => sections.values.fold(0, (sum, c) => sum + c.unread);
+}
+
+/// How the accounts' sync is going, in one line for the list header.
+sealed class SyncStatus {
+  const SyncStatus();
+}
+
+final class SyncIdle extends SyncStatus {
+  const SyncIdle(this.lastSynced);
+
+  final DateTime? lastSynced;
+}
+
+final class SyncRunning extends SyncStatus {
+  const SyncRunning();
+}
+
+final class SyncProblem extends SyncStatus {
+  const SyncProblem(this.kind, this.account);
+
+  final SyncFailureKind kind;
+  final String account;
+}
+
+/// The mail screen's state, in separate pieces so each part of the screen
+/// rebuilds only when its own data changes:
+///
+/// - [location] and [smartLayout]: where the user is;
+/// - [list]: what the list shows (paged; index reads only);
+/// - [counts]: sidebar and section counts;
+/// - [reader]: the open message;
+/// - [selection]: messages picked for a bulk action;
+/// - [status]: sync status.
+final class MailController {
+  MailController(this.services) : list = MessageListModel(services.store) {
     _events = services.worker.events.listen(_onSyncEvent);
-    _reload();
+    list.show(location.value, smart: smartLayout.value);
+    _refreshCounts();
   }
 
   final AppServices services;
+  final MessageListModel list;
+  final location = ValueNotifier<MailLocation>(const InboxLocation());
+  final smartLayout = ValueNotifier<bool>(true);
+  final counts = ValueNotifier<MailCounts>(MailCounts.empty);
+  final reader = ValueNotifier<ReaderState>(const ReaderEmpty());
+  final selection = ValueNotifier<Set<int>>(const {});
+  final status = ValueNotifier<SyncStatus>(const SyncIdle(null));
+
   late final StreamSubscription<SyncEvent> _events;
+  final Map<int, SyncEvent> _lastEvent = {};
   Timer? _refreshSoon;
   bool _disposed = false;
 
   MailStore get _store => services.store;
 
-  /// How many messages a Smart Inbox section shows before "Show all".
-  static const previewSize = 5;
-  static const pageSize = 50;
+  StoredMessage? get selected => reader.value.message;
 
-  // ------------------------------------------------------------- location
+  /// Opens the compose window (set by the screen that can show it).
+  void Function(Draft draft)? onCompose;
 
-  MailLocation _location = const InboxLocation();
-  MailLocation get location => _location;
+  /// Tells the user something; with [undo], offers to take it back.
+  void Function(String message, {VoidCallback? undo})? onNotice;
 
-  bool _smart = true;
+  // ------------------------------------------------------------ location
 
-  /// Smart (sections) or Classic (one list) inbox.
-  bool get smartLayout => _smart;
-
-  bool get showsSections => _location is InboxLocation && _smart;
-
-  void goTo(MailLocation location) {
-    _location = location;
-    _messages = const [];
-    _reachedEnd = false;
-    _reload();
+  void goTo(MailLocation target) {
+    clearSelection();
+    location.value = target;
+    list.show(target, smart: smartLayout.value);
   }
 
   void setSmartLayout(bool smart) {
-    if (_smart == smart) return;
-    _smart = smart;
-    goTo(_location is InboxLocation ? _location : const InboxLocation());
+    if (smartLayout.value == smart) return;
+    smartLayout.value = smart;
+    goTo(
+      location.value is InboxLocation ? location.value : const InboxLocation(),
+    );
   }
 
   void search(String text) {
@@ -109,118 +163,18 @@ final class MailController extends ChangeNotifier {
     goTo(trimmed.isEmpty ? const InboxLocation() : SearchLocation(trimmed));
   }
 
-  // ----------------------------------------------------------------- lists
+  // --------------------------------------------------------------- lists
 
-  List<SectionPreview> _sections = const [];
-
-  /// Smart Inbox sections that have mail, in order.
-  List<SectionPreview> get sections => _sections;
-
-  List<StoredMessage> _messages = const [];
-
-  /// The list for every location except the Smart Inbox.
-  List<StoredMessage> get messages => _messages;
-
-  bool _reachedEnd = false;
-  bool _loadingOlder = false;
-
-  /// Whether more (stored or on the server) may follow.
-  bool get canLoadMore =>
-      !_reachedEnd &&
-      _location is! SearchLocation &&
-      _location is! OutboxLocation;
-  bool get loadingOlder => _loadingOlder;
-
-  Map<SmartSection, SectionCount> inboxCounts({int? accountId}) => _store
-      .messages
-      .sectionCounts(accountIds: accountId == null ? null : [accountId]);
-
-  int unreadIn(int mailboxId) => _store.messages.unreadCount(mailboxId);
-
-  void _reload() {
-    final location = _location;
-    if (location is InboxLocation && _smart) {
-      final counts = inboxCounts(accountId: location.accountId);
-      _sections = [
-        for (final section in SmartSection.values)
-          if (counts[section]!.total > 0)
-            SectionPreview(
-              section,
-              counts[section]!,
-              _store.messages.list(
-                MessageQuery.smart(
-                  section,
-                  accountIds: _accounts(location.accountId),
-                  limit: previewSize,
-                ),
-              ),
-            ),
-      ];
-    } else {
-      // Keep at least as many messages as already shown.
-      final wanted = _messages.length < pageSize ? pageSize : _messages.length;
-      _messages = switch (location) {
-        SearchLocation(:final text) => _store.messages.search(text, limit: 200),
-        OutboxLocation() => const [],
-        _ => _store.messages.list(_query(location, limit: wanted)),
-      };
-    }
-    _refreshSelected();
-    _notify();
-  }
-
-  MessageQuery _query(
-    MailLocation location, {
-    StoredMessage? before,
-    int limit = pageSize,
-  }) => switch (location) {
-    InboxLocation(:final accountId) => MessageQuery.inbox(
-      accountIds: _accounts(accountId),
-      before: before,
-      limit: limit,
-    ),
-    SectionLocation(:final section, :final accountId) => MessageQuery.smart(
-      section,
-      accountIds: _accounts(accountId),
-      before: before,
-      limit: limit,
-    ),
-    FolderLocation(:final mailboxId) => MessageQuery(
-      mailboxIds: [mailboxId],
-      before: before,
-      limit: limit,
-    ),
-    PinsLocation() => MessageQuery(
-      flaggedOnly: true,
-      before: before,
-      limit: limit,
-    ),
-    SearchLocation() ||
-    OutboxLocation() => throw StateError('not a paged message list'),
-  };
-
-  static List<int>? _accounts(int? accountId) =>
-      accountId == null ? null : [accountId];
-
-  /// Shows more of the list: stored messages first, then older mail from
-  /// the server.
+  /// Shows more of a flat list: stored messages first, then older mail
+  /// from the server.
   Future<void> loadMore() async {
-    if (!canLoadMore || _loadingOlder || _messages.isEmpty) return;
-    final location = _location;
-    final page = _store.messages.list(_query(location, before: _messages.last));
-    if (page.isNotEmpty) {
-      _messages = [..._messages, ...page];
-      _notify();
-      return;
-    }
-    final folders = _foldersToExtend(location);
+    if (list.loadMoreStored() || list.loadingOlder || list.reachedEnd) return;
+    final folders = _foldersToExtend(location.value);
     if (folders.isEmpty) {
-      _reachedEnd = true;
-      _notify();
+      list.setLoadingOlder(false, reachedEnd: true);
       return;
     }
-    _loadingOlder = true;
-    _notify();
+    list.setLoadingOlder(true);
     var added = 0;
     try {
       for (final mailboxId in folders) {
@@ -228,50 +182,59 @@ final class MailController extends ChangeNotifier {
       }
     } on SyncWorkerException {
       // Offline: try again on the next scroll.
-    } finally {
-      _loadingOlder = false;
     }
-    if (_disposed || _location != location) return;
-    if (added == 0) _reachedEnd = true;
-    final more = _store.messages.list(_query(location, before: _messages.last));
-    _messages = [..._messages, ...more];
-    _notify();
+    if (_disposed) return;
+    list.setLoadingOlder(false, reachedEnd: added == 0);
+    list.loadMoreStored();
   }
 
-  /// Server folders whose older mail would extend [location].
-  List<int> _foldersToExtend(MailLocation location) => switch (location) {
+  List<int> _foldersToExtend(MailLocation at) => switch (at) {
     FolderLocation(:final mailboxId) => [mailboxId],
-    InboxLocation(:final accountId) || SectionLocation(:final accountId) => [
-      for (final account in _store.accounts.all())
-        if (accountId == null || account.id == accountId)
-          ?_store.mailboxes.inbox(account.id)?.id,
-    ],
+    InboxLocation(:final accountId) ||
+    SectionLocation(:final accountId) => _store.messages.inboxIds(
+      accountIds: accountId == null ? null : [accountId],
+    ),
     _ => const [],
   };
 
-  // ---------------------------------------------------------------- reader
+  /// Re-reads the list, the counts and the open message.
+  void refresh() {
+    if (_disposed) return;
+    list.refresh();
+    _refreshCounts();
+    _refreshSelected();
+  }
 
-  ReaderState _reader = const ReaderEmpty();
-  ReaderState get reader => _reader;
+  void _refreshCounts() {
+    final accounts = _store.accounts.all();
+    counts.value = MailCounts(
+      sections: _store.messages.sectionCounts(),
+      perAccountUnread: {
+        for (final a in accounts)
+          a.id: _store.messages
+              .sectionCounts(accountIds: [a.id])
+              .values
+              .fold(0, (sum, c) => sum + c.unread),
+      },
+      folderUnread: _store.messages.unreadCounts(),
+      outbox: _store.outbox.sends().length,
+    );
+  }
 
-  StoredMessage? get selected => switch (_reader) {
-    ReaderEmpty() => null,
-    ReaderLoading(:final message) ||
-    ReaderReady(:final message) ||
-    ReaderFailed(:final message) => message,
-  };
+  // -------------------------------------------------------------- reader
 
   /// Opens [message]: marks it read and shows it, downloading it first if
-  /// needed.
+  /// needed. Drafts open in the compose window instead.
   Future<void> open(StoredMessage message) async {
     if (_isDraft(message)) return _editDraft(message);
     if (!message.flags.seen) {
       services.actions.markRead([message]);
       services.worker.requestSync(message.accountId);
       message = _store.messages.byId(message.id) ?? message;
+      list.refresh();
+      _refreshCounts();
     }
-    _reader = ReaderLoading(message);
-    _reload();
+    reader.value = ReaderLoading(message);
     try {
       if (_store.messages.body(message.id) == null) {
         await services.worker.loadBody(message.id);
@@ -281,7 +244,7 @@ final class MailController extends ChangeNotifier {
       // Parsing a large message must not block the UI.
       final view = await compute(_parseMessage, raw);
       if (_disposed || selected?.id != message.id) return;
-      _reader = ReaderReady(
+      reader.value = ReaderReady(
         _store.messages.byId(message.id) ?? message,
         view,
         to: _store.messages.addresses(message.id, 'to'),
@@ -289,7 +252,7 @@ final class MailController extends ChangeNotifier {
       );
     } on BodyUnavailableException catch (e) {
       if (_disposed || selected?.id != message.id) return;
-      _reader = ReaderFailed(message, switch (e.problem) {
+      reader.value = ReaderFailed(message, switch (e.problem) {
         BodyProblem.tooLarge => 'This message is too large to show.',
         BodyProblem.gone => 'This message is no longer on the server.',
         BodyProblem.folderChanged =>
@@ -297,7 +260,7 @@ final class MailController extends ChangeNotifier {
       });
     } on SyncWorkerException catch (e) {
       if (_disposed || selected?.id != message.id) return;
-      _reader = ReaderFailed(message, switch (e.failure.kind) {
+      reader.value = ReaderFailed(message, switch (e.failure.kind) {
         SyncFailureKind.network =>
           'Can\'t reach the server. The message opens once you\'re online.',
         SyncFailureKind.authentication =>
@@ -308,21 +271,258 @@ final class MailController extends ChangeNotifier {
           'The server had a problem: ${e.failure.message}',
       });
     }
-    _notify();
   }
 
+  void closeMessage() => reader.value = const ReaderEmpty();
+
+  /// Opens the message after (or before) the open one in the list.
+  void openNext({bool previous = false}) {
+    final visible = list.visible;
+    if (visible.isEmpty) return;
+    final index = visible.indexWhere((m) => m.id == selected?.id);
+    final next = index < 0
+        ? 0
+        : (previous ? index - 1 : index + 1).clamp(0, visible.length - 1);
+    if (next != index) unawaited(open(visible[next]));
+  }
+
+  void _refreshSelected() {
+    final current = selected;
+    if (current == null) return;
+    final fresh = _store.messages.byId(current.id);
+    if (fresh == null) {
+      reader.value = const ReaderEmpty();
+      return;
+    }
+    reader.value = switch (reader.value) {
+      ReaderLoading() => ReaderLoading(fresh),
+      ReaderReady(:final view, :final to, :final cc) => ReaderReady(
+        fresh,
+        view,
+        to: to,
+        cc: cc,
+      ),
+      ReaderFailed(:final reason) => ReaderFailed(fresh, reason),
+      ReaderEmpty() => const ReaderEmpty(),
+    };
+  }
+
+  // ----------------------------------------------------------- selection
+
+  bool get selecting => selection.value.isNotEmpty;
+
+  void toggleSelected(StoredMessage m) {
+    final next = {...selection.value};
+    if (!next.remove(m.id)) next.add(m.id);
+    selection.value = next;
+  }
+
+  /// Selects from the last selected message to [m] (Shift-click).
+  void selectRange(StoredMessage m) {
+    final visible = list.visible;
+    final anchor = visible.lastIndexWhere(
+      (x) => selection.value.contains(x.id),
+    );
+    final end = visible.indexWhere((x) => x.id == m.id);
+    if (anchor < 0 || end < 0) return toggleSelected(m);
+    final (from, to) = anchor < end ? (anchor, end) : (end, anchor);
+    selection.value = {
+      ...selection.value,
+      for (var i = from; i <= to; i++) visible[i].id,
+    };
+  }
+
+  void selectAllVisible() =>
+      selection.value = {for (final m in list.visible) m.id};
+
+  void clearSelection() {
+    if (selection.value.isNotEmpty) selection.value = const {};
+  }
+
+  /// The selected messages, or else the open one.
+  List<StoredMessage> get targets {
+    if (selection.value.isNotEmpty) {
+      return [for (final id in selection.value) ?_store.messages.byId(id)];
+    }
+    return [?selected];
+  }
+
+  // ------------------------------------------------------------- actions
+
+  void togglePin(List<StoredMessage> messages) {
+    if (messages.isEmpty) return;
+    final on = !messages.every((m) => m.flags.flagged);
+    final receipt = services.actions.markFlagged(messages, flagged: on);
+    _afterFlags(receipt, on ? 'Pinned' : 'Unpinned', messages.length);
+  }
+
+  void toggleRead(List<StoredMessage> messages) {
+    if (messages.isEmpty) return;
+    final read = !messages.every((m) => m.flags.seen);
+    final receipt = services.actions.markRead(messages, read: read);
+    _afterFlags(
+      receipt,
+      read ? 'Marked as read' : 'Marked as unread',
+      messages.length,
+    );
+  }
+
+  void markSectionRead(SmartSection section) {
+    final accountId = location.value.accountId;
+    final unread = _store.messages.list(
+      MessageQuery(
+        inboxesOnly: true,
+        accountIds: accountId == null ? null : [accountId],
+        section: section,
+        unreadOnly: true,
+        limit: 500,
+      ),
+    );
+    if (unread.isEmpty) return;
+    final receipt = services.actions.markRead(unread);
+    _afterFlags(receipt, 'Marked as read', unread.length, alwaysUndo: true);
+  }
+
+  void _afterFlags(
+    FlagReceipt receipt,
+    String done,
+    int count, {
+    bool alwaysUndo = false,
+  }) {
+    for (final id in receipt.accountIds) {
+      services.worker.requestSync(id);
+    }
+    clearSelection();
+    refresh();
+    if (count > 1 || alwaysUndo) {
+      onNotice?.call(
+        '$done ($count)',
+        undo: () {
+          services.actions.undo(receipt);
+          refresh();
+        },
+      );
+    }
+  }
+
+  /// The account's Archive folder, if it has one.
+  StoredMailbox? archiveFor(StoredMessage m) =>
+      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.archive);
+
+  bool isInTrash(StoredMessage m) =>
+      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
+
+  /// Archives into each account's Archive folder (skipping messages already
+  /// there or in accounts without one).
+  void archive(List<StoredMessage> messages) {
+    final byAccount = <int, List<StoredMessage>>{};
+    for (final m in messages) {
+      final archive = archiveFor(m);
+      if (archive != null && archive.id != m.mailboxId) {
+        byAccount.putIfAbsent(m.accountId, () => []).add(m);
+      }
+    }
+    if (byAccount.isEmpty) {
+      onNotice?.call('There is no Archive folder for this account.');
+      return;
+    }
+    final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
+    _remove([
+      for (final MapEntry(key: accountId, value: group) in byAccount.entries)
+        () => services.actions.move(
+          group,
+          _store.mailboxes.bySpecialUse(accountId, SpecialUse.archive)!,
+        ),
+    ], count == 1 ? 'Archived' : 'Archived $count');
+  }
+
+  void moveTo(List<StoredMessage> messages, StoredMailbox target) => _remove([
+    () => services.actions.move(messages, target),
+  ], 'Moved to ${_folderName(target)}');
+
+  /// Moves to Trash (or deletes for good when already in Trash; the caller
+  /// confirms that).
+  void delete(List<StoredMessage> messages) => _remove(
+    [() => services.actions.delete(messages)],
+    messages.every(isInTrash)
+        ? 'Deleted'
+        : (messages.length == 1
+              ? 'Moved to Trash'
+              : 'Moved ${messages.length} to Trash'),
+  );
+
+  /// "Always move mail from this sender here", then moves this message.
+  void moveAlways(StoredMessage message, StoredMailbox target) {
+    final from = message.from?.address;
+    if (from != null && canHaveRules(target)) {
+      try {
+        _store.folderRules.add(
+          accountId: target.accountId,
+          mailboxId: target.id,
+          field: RuleField.fromAddress,
+          value: from,
+        );
+      } on ArgumentError {
+        // An address a rule can't hold: just move this one.
+      }
+    }
+    moveTo([message], target);
+  }
+
+  /// Removes messages from the list with [changes], opens the next message
+  /// if the open one left, and offers Undo for a few seconds.
+  void _remove(List<RemovalReceipt Function()> changes, String done) {
+    final open = selected;
+    final visible = list.visible;
+    final receipts = [for (final change in changes) change()];
+    final removedIds = {
+      for (final r in receipts)
+        for (final row in r.snapshot.messages) row['id']! as int,
+    };
+    for (final receipt in receipts) {
+      for (final id in receipt.accountIds) {
+        services.worker.syncAt(id, receipt.undoUntil);
+      }
+    }
+    clearSelection();
+    StoredMessage? next;
+    if (open != null && removedIds.contains(open.id)) {
+      final index = visible.indexWhere((m) => m.id == open.id);
+      next = [
+        ...visible.skip(index + 1),
+        ...visible.take(index < 0 ? 0 : index).toList().reversed,
+      ].where((m) => !removedIds.contains(m.id)).firstOrNull;
+      reader.value = const ReaderEmpty();
+    }
+    refresh();
+    if (next != null) unawaited(this.open(next));
+    onNotice?.call(
+      done,
+      undo: () {
+        final undone = receipts.every(services.actions.undo);
+        refresh();
+        if (!undone) {
+          onNotice?.call('Too late to undo: the change reached the server.');
+        }
+      },
+    );
+  }
+
+  /// Folders a message can be moved to.
+  List<StoredMailbox> moveTargets(StoredMessage m) => [
+    for (final box in _store.mailboxes.forAccount(m.accountId))
+      if (box.selectable && box.id != m.mailboxId) box,
+  ];
+
+  static String _folderName(StoredMailbox m) =>
+      m.isInbox ? 'Inbox' : m.name.split(m.delimiter ?? '/').last;
+
   // ----------------------------------------------------------- composing
-
-  /// Opens the compose window (set by the screen that can show it).
-  void Function(Draft draft)? onCompose;
-
-  /// A problem to tell the user about (set by the screen).
-  void Function(String message)? onNotice;
 
   /// A new message from the account being viewed (or the first account).
   void compose() {
     final accountId =
-        _location.accountId ?? _store.accounts.all().firstOrNull?.id;
+        location.value.accountId ?? _store.accounts.all().firstOrNull?.id;
     if (accountId != null) onCompose?.call(Draft(accountId: accountId));
   }
 
@@ -343,20 +543,19 @@ final class MailController extends ChangeNotifier {
     );
   }
 
-  void reply(ReaderReady reader) =>
-      onCompose?.call(services.replies.reply(reader.message, reader.view));
+  void reply(ReaderReady r) =>
+      onCompose?.call(services.replies.reply(r.message, r.view));
 
-  void replyAll(ReaderReady reader) =>
-      onCompose?.call(services.replies.replyAll(reader.message, reader.view));
+  void replyAll(ReaderReady r) =>
+      onCompose?.call(services.replies.replyAll(r.message, r.view));
 
-  void forward(ReaderReady reader) =>
-      onCompose?.call(services.replies.forward(reader.message, reader.view));
+  void forward(ReaderReady r) =>
+      onCompose?.call(services.replies.forward(r.message, r.view));
 
   bool _isDraft(StoredMessage m) =>
       m.flags.draft &&
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.drafts;
 
-  /// A draft from the Drafts folder opens in the compose window.
   Future<void> _editDraft(StoredMessage message) async {
     try {
       if (_store.messages.body(message.id) == null) {
@@ -379,7 +578,10 @@ final class MailController extends ChangeNotifier {
   Future<String?> createFolder(int accountId, String name) async {
     try {
       final id = await services.worker.createFolder(accountId, name);
-      if (!_disposed) goTo(FolderLocation(id, accountId));
+      if (!_disposed) {
+        _refreshCounts();
+        goTo(FolderLocation(id, accountId));
+      }
       return null;
     } on ArgumentError catch (e) {
       return switch (e.message) {
@@ -407,8 +609,8 @@ final class MailController extends ChangeNotifier {
   List<FolderRule> rulesFor(int mailboxId) =>
       _store.folderRules.forMailbox(mailboxId);
 
-  /// Adds a rule; with [includeExisting] the inbox is filed at once (with
-  /// the next sync). Returns an error to show, or null.
+  /// Adds a rule; with [includeExisting] the inbox is filed with the next
+  /// sync. Returns an error to show, or null.
   String? addRule(
     StoredMailbox mailbox,
     RuleField field,
@@ -432,34 +634,12 @@ final class MailController extends ChangeNotifier {
       };
     }
     if (includeExisting) services.worker.requestSync(mailbox.accountId);
-    _notify();
     return null;
   }
 
-  void removeRule(FolderRule rule) {
-    _store.folderRules.remove(rule.id);
-    _notify();
-  }
+  void removeRule(FolderRule rule) => _store.folderRules.remove(rule.id);
 
-  /// "Always move mail from this sender here", then moves this message.
-  void moveAlways(StoredMessage message, StoredMailbox target) {
-    final from = message.from?.address;
-    if (from != null && canHaveRules(target)) {
-      try {
-        _store.folderRules.add(
-          accountId: target.accountId,
-          mailboxId: target.id,
-          field: RuleField.fromAddress,
-          value: from,
-        );
-      } on ArgumentError {
-        // An address a rule can't hold: just move this one.
-      }
-    }
-    moveTo(message, target);
-  }
-
-  // ---------------------------------------------------------------- outbox
+  // -------------------------------------------------------------- outbox
 
   /// Messages waiting to be sent or failed, oldest first.
   List<OutboxEntry> get outbox => _store.outbox.sends();
@@ -467,109 +647,16 @@ final class MailController extends ChangeNotifier {
   void retrySend(OutboxEntry entry) {
     _store.outbox.retryFailed(entry.id);
     services.worker.requestSync(entry.accountId);
-    _reload();
+    refresh();
   }
 
   void discardSend(OutboxEntry entry) {
     _store.outbox.discardFailed(entry.id);
-    _reload();
+    refresh();
   }
 
-  void closeMessage() {
-    _reader = const ReaderEmpty();
-    _notify();
-  }
+  // ---------------------------------------------------------------- sync
 
-  /// After a refresh: keep the open message current, or close it if it
-  /// left the store (moved or deleted).
-  void _refreshSelected() {
-    final current = selected;
-    if (current == null) return;
-    final fresh = _store.messages.byId(current.id);
-    if (fresh == null) {
-      _reader = const ReaderEmpty();
-      return;
-    }
-    _reader = switch (_reader) {
-      ReaderLoading() => ReaderLoading(fresh),
-      ReaderReady(:final view, :final to, :final cc) => ReaderReady(
-        fresh,
-        view,
-        to: to,
-        cc: cc,
-      ),
-      ReaderFailed(:final reason) => ReaderFailed(fresh, reason),
-      ReaderEmpty() => const ReaderEmpty(),
-    };
-  }
-
-  // --------------------------------------------------------------- actions
-
-  void togglePin(StoredMessage m) => _act(
-    m,
-    () => services.actions.markFlagged([m], flagged: !m.flags.flagged),
-  );
-
-  void toggleRead(StoredMessage m) =>
-      _act(m, () => services.actions.markRead([m], read: !m.flags.seen));
-
-  /// The account's Archive folder, if it has one.
-  StoredMailbox? archiveFor(StoredMessage m) =>
-      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.archive);
-
-  bool isInTrash(StoredMessage m) =>
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
-
-  void archive(StoredMessage m) {
-    final archive = archiveFor(m);
-    if (archive != null) moveTo(m, archive);
-  }
-
-  void moveTo(StoredMessage m, StoredMailbox target) =>
-      _act(m, () => services.actions.move([m], target), leaves: true);
-
-  void delete(StoredMessage m) =>
-      _act(m, () => services.actions.delete([m]), leaves: true);
-
-  /// Marks every unread message of a Smart Inbox section as read.
-  void markSectionRead(SmartSection section) {
-    final location = _location;
-    final unread = _store.messages
-        .list(
-          MessageQuery.smart(
-            section,
-            accountIds: _accounts(location.accountId),
-            limit: 500,
-          ),
-        )
-        .where((m) => !m.flags.seen)
-        .toList();
-    if (unread.isEmpty) return;
-    services.actions.markRead(unread);
-    for (final accountId in unread.map((m) => m.accountId).toSet()) {
-      services.worker.requestSync(accountId);
-    }
-    _reload();
-  }
-
-  /// Folders of [accountId] a message can be moved to.
-  List<StoredMailbox> moveTargets(StoredMessage m) => [
-    for (final box in _store.mailboxes.forAccount(m.accountId))
-      if (box.selectable && box.id != m.mailboxId) box,
-  ];
-
-  void _act(StoredMessage m, void Function() change, {bool leaves = false}) {
-    change();
-    services.worker.requestSync(m.accountId);
-    if (leaves && selected?.id == m.id) _reader = const ReaderEmpty();
-    _reload();
-  }
-
-  // ------------------------------------------------------------------ sync
-
-  final Map<int, SyncEvent> _lastEvent = {};
-
-  /// The latest sync news of an account (syncing, synced, failed).
   SyncEvent? lastEvent(int accountId) => _lastEvent[accountId];
 
   Future<void> syncNow() async {
@@ -582,24 +669,38 @@ final class MailController extends ChangeNotifier {
 
   void _onSyncEvent(SyncEvent event) {
     _lastEvent[event.accountId] = event;
-    // Several events arrive close together; refresh once.
+    status.value = _computeStatus();
+    // Several events arrive close together: refresh once.
     _refreshSoon?.cancel();
-    _refreshSoon = Timer(const Duration(milliseconds: 150), () {
-      if (!_disposed) _reload();
-    });
-    _notify();
+    _refreshSoon = Timer(const Duration(milliseconds: 250), refresh);
   }
 
-  void _notify() {
-    if (!_disposed) notifyListeners();
+  SyncStatus _computeStatus() {
+    if (_lastEvent.values.any((e) => e is AccountSyncStarted)) {
+      return const SyncRunning();
+    }
+    for (final MapEntry(key: accountId, value: event) in _lastEvent.entries) {
+      if (event is AccountSyncFailed) {
+        return SyncProblem(
+          event.failure.kind,
+          _store.accounts.byId(accountId)?.email ?? '',
+        );
+      }
+    }
+    return SyncIdle(DateTime.now());
   }
 
-  @override
   void dispose() {
     _disposed = true;
     _refreshSoon?.cancel();
     unawaited(_events.cancel());
-    super.dispose();
+    list.dispose();
+    location.dispose();
+    smartLayout.dispose();
+    counts.dispose();
+    reader.dispose();
+    selection.dispose();
+    status.dispose();
   }
 }
 

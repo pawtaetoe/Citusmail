@@ -14,6 +14,7 @@ import '../mail/mail_location.dart';
 import '../services/app_services.dart';
 import '../services/mail_notifier.dart';
 import '../services/new_mail_announcer.dart';
+import 'keyboard_shortcuts.dart';
 import 'message_list_pane.dart';
 import 'reader_pane.dart';
 import 'sidebar.dart';
@@ -23,6 +24,9 @@ import 'sidebar.dart';
 /// - wide (desktop): sidebar, message list and reader side by side;
 /// - medium (tablet, narrow window): list and reader, sidebar in a drawer;
 /// - narrow (phone): the list, or the open message, one at a time.
+///
+/// Each pane listens only to the state it shows, so opening a message does
+/// not rebuild the sidebar, and a sync does not rebuild the reader.
 final class MailShell extends StatefulWidget {
   const MailShell({
     super.key,
@@ -49,6 +53,8 @@ final class MailShell extends StatefulWidget {
 final class _MailShellState extends State<MailShell> {
   late final MailController _controller = MailController(widget.services);
   final _scaffold = GlobalKey<ScaffoldState>();
+  final _searchFocus = FocusNode(debugLabel: 'search');
+  final _shellFocus = FocusNode(debugLabel: 'mail shell');
   NewMailAnnouncer? _announcer;
 
   @override
@@ -56,15 +62,39 @@ final class _MailShellState extends State<MailShell> {
     super.initState();
     _controller.onCompose = (draft) =>
         unawaited(ComposeLauncher.open(context, widget.services, draft));
-    _controller.onNotice = (String text) =>
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(text)));
+    _controller.onNotice = _notice;
     unawaited(widget.services.worker.start().catchError((Object _) {}));
     if (widget.notifications) {
       unawaited(_startNotifications());
-      // Android: background checks while the app is closed.
       unawaited(_startBackground());
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_announcer?.dispose());
+    _controller.dispose();
+    _searchFocus.dispose();
+    _shellFocus.dispose();
+    super.dispose();
+  }
+
+  /// A short notice at the bottom; with [undo], an Undo button.
+  void _notice(String text, {VoidCallback? undo}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text),
+          behavior: SnackBarBehavior.floating,
+          width: MediaQuery.sizeOf(context).width > 600 ? 420 : null,
+          duration: Duration(seconds: undo == null ? 3 : 5),
+          action: undo == null
+              ? null
+              : SnackBarAction(label: 'Undo', onPressed: undo),
+        ),
+      );
   }
 
   Future<void> _startBackground() async {
@@ -90,13 +120,6 @@ final class _MailShellState extends State<MailShell> {
     if (widget.services.settings.notifications) {
       await notifier?.requestPermission();
     }
-  }
-
-  @override
-  void dispose() {
-    unawaited(_announcer?.dispose());
-    _controller.dispose();
-    super.dispose();
   }
 
   Future<void> _removeAccount(Account account) async {
@@ -126,14 +149,15 @@ final class _MailShellState extends State<MailShell> {
     widget.onAccountsChanged();
   }
 
-  void _compose() => _controller.compose();
-
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _controller,
-    builder: (context, _) => LayoutBuilder(
+  Widget build(BuildContext context) => MailKeyboardShortcuts(
+    controller: _controller,
+    searchFocus: _searchFocus,
+    focusNode: _shellFocus,
+    child: LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        final wide = width >= MailShell.wideWidth;
         Widget sidebar({bool inDrawer = false}) => Sidebar(
           controller: _controller,
           onAddAccount: widget.onAddAccount,
@@ -142,25 +166,25 @@ final class _MailShellState extends State<MailShell> {
               ? () => _scaffold.currentState?.closeDrawer()
               : null,
         );
-        final menu = width >= MailShell.wideWidth
-            ? null
-            : IconButton(
-                tooltip: 'Folders',
-                icon: const Icon(Icons.menu),
-                onPressed: () => _scaffold.currentState?.openDrawer(),
-              );
         final list = MessageListPane(
           controller: _controller,
-          onCompose: _compose,
-          leading: menu,
+          onCompose: _controller.compose,
+          searchFocus: _searchFocus,
+          leading: wide
+              ? null
+              : IconButton(
+                  tooltip: 'Folders',
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => _scaffold.currentState?.openDrawer(),
+                ),
         );
 
         final Widget body;
-        if (width >= MailShell.wideWidth) {
+        if (wide) {
           body = Row(
             children: [
-              SizedBox(width: 250, child: sidebar()),
-              SizedBox(width: 400, child: list),
+              SizedBox(width: 248, child: sidebar()),
+              SizedBox(width: (width * 0.30).clamp(360, 440), child: list),
               const VerticalDivider(width: 1),
               Expanded(child: ReaderPane(controller: _controller)),
             ],
@@ -168,26 +192,41 @@ final class _MailShellState extends State<MailShell> {
         } else if (width >= MailShell.mediumWidth) {
           body = Row(
             children: [
-              SizedBox(width: (width * 0.42).clamp(320, 400), child: list),
+              SizedBox(width: (width * 0.42).clamp(320, 420), child: list),
               const VerticalDivider(width: 1),
               Expanded(child: ReaderPane(controller: _controller)),
             ],
           );
         } else {
-          final open = _controller.selected != null;
-          body = PopScope(
-            canPop: !open,
-            onPopInvokedWithResult: (didPop, _) {
-              if (!didPop) _controller.closeMessage();
+          // Phones: one pane at a time; Back closes the message.
+          body = ListenableBuilder(
+            listenable: Listenable.merge([
+              _controller.reader,
+              _controller.selection,
+            ]),
+            builder: (context, _) {
+              final open = _controller.selected != null;
+              final selecting = _controller.selecting;
+              return PopScope(
+                canPop: !open && !selecting,
+                onPopInvokedWithResult: (didPop, _) {
+                  if (didPop) return;
+                  if (selecting) {
+                    _controller.clearSelection();
+                  } else {
+                    _controller.closeMessage();
+                  }
+                },
+                child: open
+                    ? ReaderPane(controller: _controller, showBack: true)
+                    : list,
+              );
             },
-            child: open
-                ? ReaderPane(controller: _controller, showBack: true)
-                : list,
           );
         }
         return Scaffold(
           key: _scaffold,
-          drawer: width >= MailShell.wideWidth
+          drawer: wide
               ? null
               : Drawer(width: 290, child: sidebar(inDrawer: true)),
           body: SafeArea(left: false, child: body),

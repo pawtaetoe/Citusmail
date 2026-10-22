@@ -58,7 +58,7 @@ void main() {
 
   testWidgets('write and send a new message, then undo it', (tester) async {
     await show(tester);
-    await tester.tap(find.byTooltip('New message'));
+    await tester.tap(find.byTooltip('New message (C)'));
     await tester.pumpAndSettle();
     expect(find.text('New message'), findsOneWidget);
 
@@ -98,7 +98,7 @@ void main() {
     tester,
   ) async {
     await show(tester);
-    await tester.tap(find.byTooltip('New message'));
+    await tester.tap(find.byTooltip('New message (C)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Send'));
     await tester.pump();
@@ -117,7 +117,7 @@ void main() {
 
   testWidgets('closing keeps the draft in the Drafts folder', (tester) async {
     await show(tester);
-    await tester.tap(find.byTooltip('New message'));
+    await tester.tap(find.byTooltip('New message (C)'));
     await tester.pumpAndSettle();
     await tester.enterText(field('Subject'), 'Unfinished');
     await tester.tap(find.byTooltip('Close (keeps the draft)'));
@@ -130,7 +130,7 @@ void main() {
 
   testWidgets('an empty new message is just dropped', (tester) async {
     await show(tester);
-    await tester.tap(find.byTooltip('New message'));
+    await tester.tap(find.byTooltip('New message (C)'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Close (keeps the draft)'));
     await tester.pumpAndSettle();

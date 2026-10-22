@@ -37,6 +37,14 @@ Mail servers like cPanel's have no server-side filters, so the app does it.
 - New folders follow the server's layout (`FolderNames`): its separator,
   and the `INBOX.` prefix cPanel servers require.
 
+## Undo (`MailActions`)
+
+Every action returns a receipt. Moves and deletes wait a few seconds
+(`undoWindow`) before reaching the server; undo cancels the queued change
+and restores the message exactly (summary, addresses, headers, body,
+search text) from a snapshot taken when it left. Flag changes undo by
+setting the flag back.
+
 ## Opening messages and older mail
 
 - `SyncEngine.loadBody` downloads a whole message when the user opens it

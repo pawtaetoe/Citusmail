@@ -189,6 +189,7 @@ final class StoredMessage {
     this.modSeq,
     this.snippet,
     this.listId,
+    this.section = SmartSection.general,
   });
 
   final int id;
@@ -213,6 +214,9 @@ final class StoredMessage {
 
   /// Normalized List-Id, for mailing-list messages.
   final String? listId;
+
+  /// Where the message is in the Smart Inbox (meaningful in an inbox).
+  final SmartSection section;
 
   @override
   String toString() => 'StoredMessage($id, mailbox $mailboxId, uid $uid)';

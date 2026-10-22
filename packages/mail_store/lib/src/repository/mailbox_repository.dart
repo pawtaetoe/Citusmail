@@ -7,6 +7,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
 import '../model/mailbox.dart';
+import 'section_sql.dart';
 
 /// Folders and their sync state.
 final class MailboxRepository {
@@ -58,6 +59,14 @@ final class MailboxRepository {
     int accountId,
     List<ImapMailboxInfo> serverFolders,
   ) => _db.transaction(() {
+    String uses() => _db
+        .select(
+          'SELECT encoded_name, special_use FROM mailboxes WHERE account_id = ? ORDER BY encoded_name',
+          [accountId],
+        )
+        .map((r) => '${r['encoded_name']}=${r['special_use']}')
+        .join(';');
+    final before = uses();
     final seen = <String>{};
     for (final folder in serverFolders) {
       if (!seen.add(folder.encodedName)) continue; // ignore duplicates
@@ -86,6 +95,9 @@ final class MailboxRepository {
         _db.execute('DELETE FROM mailboxes WHERE id = ?', [row['id']]);
       }
     }
+    // A Sent or Important folder appearing or going changes what counts
+    // as Important (rare: only when folders change).
+    if (uses() != before) SectionSql.refreshAccount(_db, accountId);
     return forAccount(accountId);
   });
 

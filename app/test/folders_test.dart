@@ -84,17 +84,21 @@ void main() {
     tester,
   ) async {
     await show(tester);
+    await tester.tap(find.text('Classic'));
+    await tester.pump();
     await tester.tap(find.text('Weekly deals'));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 300)),
     );
     await tester.pump();
-    await tester.tap(find.byTooltip('Move to folder'));
-    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Move to folder (V)'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.text('Always move mail from news@shop.example here'));
     await tester.pump();
-    await tester.tap(find.text('Projects').last);
-    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Projects'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     final rule = app.store.folderRules.forMailbox(projects().id).single;
     expect(rule.field, RuleField.fromAddress);
