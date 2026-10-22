@@ -294,6 +294,32 @@ void main() {
       expect(updated.modSeq, 42);
     });
 
+    test('the topmost value of a header in the newest messages', () {
+      store.messages.upsertSummaries(inbox.id, [
+        for (var uid = 1; uid <= 4; uid++)
+          MessageSummary(
+            uid: uid,
+            receivedAt: DateTime.utc(2026, 1, uid),
+            headers: {
+              if (uid != 2)
+                'Authentication-Results': ['top $uid', 'lower $uid'],
+            },
+          ),
+      ]);
+      expect(
+        store.messages.firstHeaderValues(inbox.id, 'Authentication-Results'),
+        ['top 4', 'top 3', null, 'top 1'],
+      );
+      expect(
+        store.messages.firstHeaderValues(
+          inbox.id,
+          'authentication-results',
+          limit: 2,
+        ),
+        ['top 4', 'top 3'],
+      );
+    });
+
     test('removing UIDs removes everything about those messages', () {
       store.messages.upsertSummaries(inbox.id, [
         summary(1, subject: 'findme quarterly'),

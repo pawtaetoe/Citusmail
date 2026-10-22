@@ -13,12 +13,14 @@
 library;
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
+import 'package:mail_trust/mail_trust.dart';
 
 Future<void> main() async {
   try {
@@ -91,6 +93,7 @@ Future<void> _checkImap(LiveSettings s, String password) async {
         'fetched ${fetched.messages.length} summaries: $envelopes envelopes and '
         '$structures body structures parsed',
       );
+      await _checkVerification(client, uids);
     }
 
     final idleWatch = Stopwatch()..start();
@@ -99,6 +102,35 @@ Future<void> _checkImap(LiveSettings s, String password) async {
   } finally {
     await client.logout();
   }
+}
+
+/// Whether the server writes Authentication-Results that the phishing
+/// checks can learn to trust. Prints only the server's name.
+Future<void> _checkVerification(ImapClient client, List<int> uids) async {
+  final recent = uids.sublist(uids.length > 30 ? uids.length - 30 : 0);
+  final fetched = await client.uidFetch(
+    SequenceSet.of(recent),
+    FetchItems(headerFields: const ['Authentication-Results']),
+  );
+  final topmost = [
+    for (final m in fetched.messages)
+      const HeaderParser()
+          .parse(m.headerFields ?? Uint8List(0))
+          .headers
+          .value('authentication-results'),
+  ];
+  final id = AuthServIds.learn(topmost);
+  final ids = <String, int>{};
+  for (final value in topmost.whereType<String>()) {
+    final name = AuthenticationResults.parse(value)?.authServId ?? '?';
+    ids[name] = (ids[name] ?? 0) + 1;
+  }
+  final carrying = topmost.whereType<String>().length;
+  _ok(
+    id == null
+        ? 'verification results: not learned yet ($carrying of ${topmost.length} recent messages carry any: $ids)'
+        : 'verification results trusted from "$id" ($carrying of ${topmost.length} recent messages)',
+  );
 }
 
 /// Discovery as the setup screen runs it (without asking Mozilla), then a

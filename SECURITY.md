@@ -38,6 +38,13 @@ public issue. We aim to reply within 7 days.
    the app's own renderer (`packages/mail_view`), which turns HTML into a
    simple document that has no way to express a remote resource, instead
    of a web view.
+   Every message is checked on the device for signs of phishing
+   (`packages/mail_trust`). A suspicious message gets a red or amber
+   warning that says why, its links open only after a warning where the
+   safe choice is the main button, and risky attachments ask before they
+   are saved. Sender verification uses only `Authentication-Results`
+   written by the user's own server, never ones the sender could have
+   added.
 5. **Logs contain no personal data.** No message content, addresses or
    tokens. Debug logging is off in release builds.
 6. **Untrusted input is parsed defensively.** Everything from the network

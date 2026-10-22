@@ -27,7 +27,11 @@ Planned optional features (off by default, each asks first):
 
 Mail, contacts, settings and caches are stored encrypted on the device.
 Sorting into Important, General, Newsletters and Notifications runs on the
-device from a few message headers and your Sent folder. App
+device from a few message headers and your Sent folder. Phishing checks
+(sender verification, lookalike addresses, deceptive links, risky
+attachments) also run on the device only, using the results your own mail
+server already wrote into the message and a built-in list of domain
+endings. No link, address or file is looked up anywhere. App
 settings such as your block list can sync between your devices through a
 hidden folder in your own mail account. They never go to anyone else.
 

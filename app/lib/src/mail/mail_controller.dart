@@ -9,6 +9,7 @@ import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
+import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
@@ -39,11 +40,15 @@ final class ReaderReady extends ReaderState {
     this.view, {
     required this.to,
     required this.cc,
+    required this.trust,
   });
 
   @override
   final StoredMessage message;
   final MessageView view;
+
+  /// What the message checks found (phishing signs, risky files).
+  final TrustReport trust;
   final List<MailAddress> to;
   final List<MailAddress> cc;
 }
@@ -241,14 +246,18 @@ final class MailController {
       }
       final raw = _store.messages.body(message.id);
       if (raw == null) throw const BodyUnavailableException(BodyProblem.gone);
-      // Parsing a large message must not block the UI.
-      final view = await compute(_parseMessage, raw);
+      // Parsing and checking a large message must not block the UI.
+      final (view, trust) = await compute(_parseAndCheck, (
+        raw,
+        _trustContext(message),
+      ));
       if (_disposed || selected?.id != message.id) return;
       reader.value = ReaderReady(
         _store.messages.byId(message.id) ?? message,
         view,
         to: _store.messages.addresses(message.id, 'to'),
         cc: _store.messages.addresses(message.id, 'cc'),
+        trust: trust,
       );
     } on BodyUnavailableException catch (e) {
       if (_disposed || selected?.id != message.id) return;
@@ -271,6 +280,32 @@ final class MailController {
           'The server had a problem: ${e.failure.message}',
       });
     }
+  }
+
+  /// What the message checks need besides the message: which server's
+  /// verification results to believe, learned from the account's recent
+  /// inbox mail, and the user's own domains. Null for the user's own
+  /// mail (Sent, Drafts), which needs no checking.
+  TrustContext? _trustContext(StoredMessage message) {
+    final use = _store.mailboxes.byId(message.mailboxId)?.specialUse;
+    if (use == SpecialUse.sent || use == SpecialUse.drafts) return null;
+    final inbox = _store.mailboxes.inbox(message.accountId);
+    return TrustContext(
+      trustedAuthServId: inbox == null
+          ? null
+          : AuthServIds.learn(
+              _store.messages.firstHeaderValues(
+                inbox.id,
+                'authentication-results',
+              ),
+            ),
+      ownDomains: {
+        for (final account in _store.accounts.all())
+          ?Domains.registrable(
+            account.email.substring(account.email.lastIndexOf('@') + 1),
+          ),
+      },
+    );
   }
 
   void closeMessage() => reader.value = const ReaderEmpty();
@@ -296,12 +331,8 @@ final class MailController {
     }
     reader.value = switch (reader.value) {
       ReaderLoading() => ReaderLoading(fresh),
-      ReaderReady(:final view, :final to, :final cc) => ReaderReady(
-        fresh,
-        view,
-        to: to,
-        cc: cc,
-      ),
+      ReaderReady(:final view, :final to, :final cc, :final trust) =>
+        ReaderReady(fresh, view, to: to, cc: cc, trust: trust),
       ReaderFailed(:final reason) => ReaderFailed(fresh, reason),
       ReaderEmpty() => const ReaderEmpty(),
     };
@@ -705,4 +736,13 @@ final class MailController {
 }
 
 /// Top level, so [compute] sends only the bytes to the helper isolate.
-MessageView _parseMessage(Uint8List raw) => MessageView.parse(raw);
+(MessageView, TrustReport) _parseAndCheck((Uint8List, TrustContext?) input) {
+  final (raw, context) = input;
+  final view = MessageView.parse(raw);
+  return (
+    view,
+    context == null
+        ? TrustReport.empty
+        : const TrustChecker().check(view, context),
+  );
+}

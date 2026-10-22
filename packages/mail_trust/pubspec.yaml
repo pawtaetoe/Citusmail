@@ -1,0 +1,20 @@
+name: mail_trust
+description: >-
+  Local checks that warn about suspicious mail: sender verification from
+  the user's own server (SPF, DKIM, DMARC), lookalike domains, links whose
+  text and destination differ, and risky attachments. Runs on the device
+  only. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  mail_protocol: any
+  mail_view: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

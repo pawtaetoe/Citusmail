@@ -464,6 +464,24 @@ final class MessageRepository {
     return result;
   }
 
+  /// The first (topmost) value of header [name] in each of the [limit]
+  /// newest messages of [mailboxId], newest first; null for a message
+  /// without one. Used to learn which server writes a header.
+  List<String?> firstHeaderValues(
+    int mailboxId,
+    String name, {
+    int limit = 100,
+  }) => [
+    for (final row in _db.select(
+      'SELECT (SELECT value FROM message_headers h '
+      '        WHERE h.message_id = m.id AND h.name = ? AND h.position = 0) AS value '
+      'FROM messages m WHERE m.mailbox_id = ? '
+      'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+      [name.toLowerCase(), mailboxId, limit.clamp(1, 500)],
+    ))
+      row['value'] as String?,
+  ];
+
   /// Stores the full raw message and indexes its text for search.
   void saveBody(
     int messageId,

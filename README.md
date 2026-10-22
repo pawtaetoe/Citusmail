@@ -35,6 +35,8 @@ macOS and iOS for later.
 │   ├── mail_store/           Encrypted local storage (SQLite3MultipleCiphers)
 │   ├── mail_sync/            Sync engine and background worker: folders, messages,
 │                             offline queue, IDLE, opening messages, older mail
+│   ├── mail_trust/           Phishing checks on the device: sender verification,
+│                             lookalike domains, deceptive links, risky files
 │   └── mail_view/            Safe display: HTML and text to a document that
 │                             cannot load anything; attachment names
 ├── assets/icon/              App icon (SVG and PNG sizes)
@@ -74,6 +76,7 @@ flutter analyze                               # static analysis
 (cd packages/mail_setup && dart test)         # account setup unit tests
 (cd packages/mail_sort && dart test)          # sorting rules
 (cd packages/mail_view && dart test)          # safe mail display
+(cd packages/mail_trust && dart test)         # phishing checks
 (cd tool && dart test)                        # repository tool tests
 (cd app && flutter test)                      # app tests
 (cd app && flutter run -d linux)              # run on Linux

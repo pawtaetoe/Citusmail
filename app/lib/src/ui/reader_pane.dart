@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../mail/mail_controller.dart';
@@ -16,6 +17,7 @@ import 'link_opener.dart';
 import 'mail_text.dart';
 import 'move_dialog.dart';
 import 'rich_document_view.dart';
+import 'trust_banner.dart';
 
 /// The right pane: actions, the message header, its body (built lazily,
 /// block by block) and attachments, in a column of comfortable reading
@@ -60,10 +62,12 @@ final class ReaderPane extends StatelessWidget {
                 );
                 final padding = EdgeInsets.symmetric(horizontal: side);
                 final view = reader is ReaderReady ? reader.view : null;
+                final trust = reader is ReaderReady ? reader.trust : null;
                 void onLink(Uri link) => LinkOpener.open(
                   context,
                   link,
                   onMailto: controller.composeTo,
+                  trust: trust,
                 );
                 return SelectionArea(
                   child: CustomScrollView(
@@ -99,7 +103,10 @@ final class ReaderPane extends StatelessWidget {
                               if (view != null &&
                                   view.attachments.isNotEmpty) ...[
                                 const SizedBox(height: 16),
-                                _Attachments(attachments: view.attachments),
+                                _Attachments(
+                                  attachments: view.attachments,
+                                  trust: trust ?? TrustReport.empty,
+                                ),
                               ],
                               if (reader is ReaderReady) ...[
                                 const SizedBox(height: 24),
@@ -193,7 +200,8 @@ final class _Header extends StatelessWidget {
             ),
           ),
         ],
-        ReaderReady(:final view) => [
+        ReaderReady(:final view, :final trust) => [
+          TrustBanner(report: trust),
           if (view.body.blockedImages > 0)
             _Notice(
               icon: Icons.shield_outlined,
@@ -470,9 +478,10 @@ final class _Notice extends StatelessWidget {
 }
 
 final class _Attachments extends StatelessWidget {
-  const _Attachments({required this.attachments});
+  const _Attachments({required this.attachments, required this.trust});
 
   final List<AttachmentView> attachments;
+  final TrustReport trust;
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -480,19 +489,41 @@ final class _Attachments extends StatelessWidget {
     runSpacing: 8,
     children: [
       for (final attachment in attachments)
-        ActionChip(
-          avatar: const Icon(Icons.attach_file, size: 18),
-          label: Text(
-            '${attachment.displayName} · ${MailText.size(attachment.approximateSize)}',
-          ),
-          tooltip: 'Save to Downloads',
-          onPressed: () => _save(context, attachment),
-        ),
+        _chip(context, attachment, trust.attachment(attachment.fileName)),
     ],
   );
 
-  Future<void> _save(BuildContext context, AttachmentView attachment) async {
+  Widget _chip(
+    BuildContext context,
+    AttachmentView attachment,
+    AttachmentVerdict? verdict,
+  ) {
+    final style = verdict == null
+        ? null
+        : TrustStyle.of(context, verdict.level);
+    return ActionChip(
+      avatar: Icon(
+        style?.icon ?? Icons.attach_file,
+        size: 18,
+        color: style?.foreground,
+      ),
+      backgroundColor: style?.background,
+      label: Text(
+        '${attachment.displayName} · ${MailText.size(attachment.approximateSize)}',
+        style: style == null ? null : TextStyle(color: style.foreground),
+      ),
+      tooltip: verdict == null ? 'Save to Downloads' : verdict.reason,
+      onPressed: () => _save(context, attachment, verdict),
+    );
+  }
+
+  Future<void> _save(
+    BuildContext context,
+    AttachmentView attachment,
+    AttachmentVerdict? verdict,
+  ) async {
     final messenger = ScaffoldMessenger.of(context);
+    if (verdict != null && !await _confirm(context, verdict)) return;
     try {
       final file = await AttachmentSaver.save(attachment);
       messenger.showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
@@ -502,6 +533,47 @@ final class _Attachments extends StatelessWidget {
       );
     }
   }
+
+  /// Asks before saving a risky file; "Don't save" is the main button.
+  static Future<bool> _confirm(
+    BuildContext context,
+    AttachmentVerdict verdict,
+  ) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Save this file anyway?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                verdict.fileName,
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              TrustReasons(level: verdict.level, reasons: [verdict.reason]),
+              const SizedBox(height: 12),
+              const Text(
+                'Only open it if you were expecting it from someone you know.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save anyway'),
+            ),
+            FilledButton(
+              autofocus: true,
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Don\'t save'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 }
 
 /// Reply, Reply all and Forward under the message, as in Spark.

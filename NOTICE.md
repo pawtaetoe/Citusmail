@@ -15,6 +15,16 @@ Character set tables and labels in
 - Changes: the indexes are repacked (delta-encoded and compressed) for
   embedding; the mappings are unchanged.
 
+## Public Suffix List
+
+The table of domain endings in
+`packages/mail_trust/lib/src/generated/public_suffixes.g.dart`, generated
+from `tool/third_party/publicsuffix/`.
+
+- Source: https://publicsuffix.org/
+- Licence: [Mozilla Public License 2.0](https://mozilla.org/MPL/2.0/)
+- Changes: comments removed; the rules are unchanged.
+
 ## SQLite and SQLite3MultipleCiphers
 
 Bundled as a native library by `package:sqlite3` (see the root

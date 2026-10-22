@@ -14,10 +14,12 @@ executables:
 
 dependencies:
   mail_protocol: any
+  crypto: any
   mail_setup: any
   mail_sort: any
   mail_store: any
   mail_sync: any
+  mail_trust: any
 
 dev_dependencies:
   lints: ^6.0.0

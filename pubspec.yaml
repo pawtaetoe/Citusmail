@@ -14,6 +14,7 @@ workspace:
   - packages/mail_sort
   - packages/mail_store
   - packages/mail_sync
+  - packages/mail_trust
   - packages/mail_view
   - tool
 
