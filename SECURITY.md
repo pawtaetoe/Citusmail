@@ -49,6 +49,14 @@ public issue. We aim to reply within 7 days.
    needs, blocks plain-text traffic, trusts only system certificate
    authorities and disables cloud backup of app data.
 
+## Releases
+
+Android releases are signed with a key kept outside the repository (CI
+reads it from repository secrets and deletes it after the build); a tagged
+release refuses to publish a debug-signed APK. Each release lists SHA-256
+checksums of its packages. Releases are created as drafts and published
+by hand after review.
+
 ## Review
 
 Each development stage ends with a security review of its changes before

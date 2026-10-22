@@ -5,9 +5,24 @@
 import 'package:flutter/material.dart';
 
 import 'src/app.dart';
+import 'src/background/background_mail.dart';
 
 export 'src/app.dart' show FmailApp, appName;
 
 void main() {
   runApp(const FmailApp());
+}
+
+/// Android: the periodic background check (started by BackgroundSyncWorker).
+@pragma('vm:entry-point')
+Future<void> backgroundSyncMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await BackgroundMail.runOnce();
+}
+
+/// Android: "Instant mail" (started by InstantMailService).
+@pragma('vm:entry-point')
+Future<void> instantMailMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await BackgroundMail.runInstant();
 }

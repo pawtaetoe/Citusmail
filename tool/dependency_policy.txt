@@ -125,11 +125,28 @@ runtime cross_file                        file handle type used by file_selector
 runtime http                              declared by file_selector_platform_interface, never imported (dart.dev)
 runtime http_parser                       used by http; never imported by app code (dart.dev)
 
+# --- Runtime: notifications (Stage 11) --------------------------------------
+# flutter_local_notifications shows notifications through the OS (Android
+# NotificationManager, the freedesktop Notifications service over the local
+# D-Bus session bus, Windows toasts); reviewed 22.3.2: no network code, its
+# Android part asks only for POST_NOTIFICATIONS and VIBRATE. timezone has a
+# "standalone" entry point that can download data over HTTP; nothing imports
+# it, and tool/bin/check_imports.dart fails CI if app code ever does.
+runtime flutter_local_notifications                    notifications (dexterx.dev)
+runtime flutter_local_notifications_platform_interface notifications interface (dexterx.dev)
+runtime flutter_local_notifications_linux              Linux backend over D-Bus (dexterx.dev)
+runtime flutter_local_notifications_windows            Windows toast backend (dexterx.dev)
+runtime flutter_local_notifications_web                web backend; never used by this app (dexterx.dev)
+runtime dbus                                           local D-Bus client used on Linux (canonical.com)
+runtime timezone                                       time zone data for scheduled notifications (unused) (dart.dev)
+runtime xml                                            used by the Windows backend for toast XML (renggli)
+runtime petitparser                                    used by xml (renggli)
+runtime clock                                          time abstraction used by timezone (dart.dev)
+
 # --- Dev only: lints, test runner and their dependencies (dart.dev) --------
 dev _fe_analyzer_shared           analyzer internals for test runner
 dev analyzer                      used by test runner
 dev boolean_selector              test runner
-dev clock                         flutter_test
 dev cli_config                    test coverage
 dev cli_util                      test coverage
 dev convert                       test runner
@@ -163,3 +180,10 @@ dev watcher                       test runner
 dev web_socket                    test runner
 dev web_socket_channel            test runner
 dev webkit_inspection_protocol    test runner
+
+# --- Android Gradle libraries (not in pubspec.lock; listed for review) -------
+# Pinned in app/android/app/build.gradle.kts; check_dependencies does not read
+# Gradle files, so changes there need the same review by hand.
+#   androidx.work:work-runtime 2.10.1               periodic background checks (Google)
+#   androidx.concurrent:concurrent-futures 1.2.0    future adapter for the worker (Google)
+#   com.android.tools:desugar_jdk_libs 2.1.5        Java library backports (Google)

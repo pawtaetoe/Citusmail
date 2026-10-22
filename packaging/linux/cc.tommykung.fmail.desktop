@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Fmail
+GenericName=Mail
+Comment=Private email: sorted on your device, nothing sent anywhere else
+Exec=fmail
+Icon=cc.tommykung.fmail
+Terminal=false
+Categories=Network;Email;
+Keywords=email;mail;imap;smtp;
+StartupWMClass=fmail

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -12,6 +14,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Needed by flutter_local_notifications on older Android versions.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -29,13 +33,51 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+    // Release signing: from android/key.properties (never committed) or,
+    // in CI, from environment variables filled from repository secrets.
+    val keyProperties = Properties().apply {
+        val file = rootProject.file("key.properties")
+        if (file.exists()) file.inputStream().use { load(it) }
+    }
+    fun signing(name: String, env: String): String? =
+        keyProperties.getProperty(name) ?: System.getenv(env)
+    val storePath = signing("storeFile", "FMAIL_KEYSTORE_PATH")
+
+    signingConfigs {
+        if (storePath != null) {
+            create("release") {
+                storeFile = file(storePath)
+                storePassword = signing("storePassword", "FMAIL_KEYSTORE_PASSWORD")
+                keyAlias = signing("keyAlias", "FMAIL_KEY_ALIAS")
+                keyPassword = signing("keyPassword", "FMAIL_KEY_PASSWORD")
+            }
         }
     }
+
+    buildTypes {
+        release {
+            // Without a release key, release builds are signed with the
+            // debug key and marked as such: fine for trying locally, never
+            // for distribution (CI's release job requires the key).
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            signingConfig = if (storePath != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
+    }
+}
+
+dependencies {
+    // Periodic background checks (reviewed: Google's AndroidX WorkManager).
+    implementation("androidx.work:work-runtime:2.10.1")
+    implementation("androidx.concurrent:concurrent-futures:1.2.0")
+    // Java library backports for older Android (Google).
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
 
 kotlin {

@@ -37,6 +37,8 @@ macOS and iOS for later.
 │                             offline queue, IDLE, opening messages, older mail
 │   └── mail_view/            Safe display: HTML and text to a document that
 │                             cannot load anything; attachment names
+├── assets/icon/              App icon (SVG and PNG sizes)
+├── packaging/                Linux .deb and Flatpak, Windows installer, signing
 ├── test-data/mail/           Sample emails shared by tests and the test server
 ├── test-server/              Local Dovecot + Postfix test servers (Podman/Docker)
 ├── scripts/                  Developer scripts (live account check)
@@ -62,6 +64,7 @@ liblzma-dev libsqlcipher-dev`.
 ```bash
 flutter pub get                               # resolve the whole workspace
 dart run repo_tools:check_dependencies        # dependency policy
+dart run repo_tools:check_imports             # no network libraries in shipped code
 dart format --set-exit-if-changed .           # formatting
 flutter analyze                               # static analysis
 (cd packages/mail_protocol && dart test)      # protocol tests
@@ -77,6 +80,8 @@ flutter analyze                               # static analysis
 ```
 
 Windows builds need a Windows machine; CI builds them on every push.
+Packages (.apk, .deb, Flatpak, Windows installer) and release signing:
+see [packaging/README.md](packaging/README.md).
 
 Integration tests use local test mail servers; see
 [test-server/README.md](test-server/README.md):

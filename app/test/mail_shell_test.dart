@@ -32,6 +32,7 @@ void main() {
       MaterialApp(
         theme: FmailTheme.light(),
         home: MailShell(
+          notifications: false,
           services: services,
           onAddAccount: () {},
           onAccountsChanged: () {},

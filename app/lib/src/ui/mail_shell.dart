@@ -7,10 +7,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../background/background_mail.dart';
 import '../compose/compose_launcher.dart';
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../services/app_services.dart';
+import '../services/mail_notifier.dart';
+import '../services/new_mail_announcer.dart';
 import 'message_list_pane.dart';
 import 'reader_pane.dart';
 import 'sidebar.dart';
@@ -26,11 +29,15 @@ final class MailShell extends StatefulWidget {
     required this.services,
     required this.onAddAccount,
     required this.onAccountsChanged,
+    this.notifications = true,
   });
 
   final AppServices services;
   final VoidCallback onAddAccount;
   final VoidCallback onAccountsChanged;
+
+  /// Off in tests, which must not reach the desktop's notification service.
+  final bool notifications;
 
   static const wideWidth = 1100.0;
   static const mediumWidth = 720.0;
@@ -42,6 +49,7 @@ final class MailShell extends StatefulWidget {
 final class _MailShellState extends State<MailShell> {
   late final MailController _controller = MailController(widget.services);
   final _scaffold = GlobalKey<ScaffoldState>();
+  NewMailAnnouncer? _announcer;
 
   @override
   void initState() {
@@ -52,10 +60,41 @@ final class _MailShellState extends State<MailShell> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(text)));
     unawaited(widget.services.worker.start().catchError((Object _) {}));
+    if (widget.notifications) {
+      unawaited(_startNotifications());
+      // Android: background checks while the app is closed.
+      unawaited(_startBackground());
+    }
+  }
+
+  Future<void> _startBackground() async {
+    try {
+      // The periodic check is scheduled by Android itself at launch.
+      if (widget.services.settings.instantMail) {
+        await BackgroundMail.setInstant(true);
+      }
+    } on Object {
+      // Not fatal: mail still syncs while the app is open.
+    }
+  }
+
+  Future<void> _startNotifications() async {
+    final notifier = await MailNotifier.create(
+      onOpen: (id) {
+        final message = widget.services.store.messages.byId(id);
+        if (message != null && mounted) unawaited(_controller.open(message));
+      },
+    );
+    if (!mounted) return;
+    _announcer = NewMailAnnouncer(widget.services, notifier);
+    if (widget.services.settings.notifications) {
+      await notifier?.requestPermission();
+    }
   }
 
   @override
   void dispose() {
+    unawaited(_announcer?.dispose());
     _controller.dispose();
     super.dispose();
   }

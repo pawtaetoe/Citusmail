@@ -12,6 +12,7 @@ export 'src/idle_watcher.dart';
 export 'src/mail_actions.dart';
 export 'src/mailbox_synchronizer.dart';
 export 'src/message_loader.dart';
+export 'src/new_mail.dart';
 export 'src/on_demand_connections.dart';
 export 'src/outbox_replayer.dart';
 export 'src/summary_mapper.dart';

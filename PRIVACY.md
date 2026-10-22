@@ -31,6 +31,15 @@ device from a few message headers and your Sent folder. App
 settings such as your block list can sync between your devices through a
 hidden folder in your own mail account. They never go to anyone else.
 
+## Notifications
+
+New-mail notifications show the sender and subject, never the message
+text, and only for Important and General mail. On Android the lock screen
+shows only that there is new mail. They are created on your device; no
+push service is involved. On Android, Fmail checks for mail about every 15
+minutes in the background, or keeps a live connection if you turn on
+"Instant mail" (which shows a permanent notification, as Android requires).
+
 ## Mail you send
 
 Sent mail carries no app name or version. Its Message-ID is random and

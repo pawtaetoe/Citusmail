@@ -11,6 +11,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'app_settings.dart';
 import 'secret_store.dart';
 
 /// Everything the running app uses.
@@ -23,7 +24,8 @@ final class AppServices {
     : actions = MailActions(store),
       drafts = DraftStore(store),
       sender = Sender(store),
-      replies = ReplyBuilder(store);
+      replies = ReplyBuilder(store),
+      settings = AppSettings(store);
 
   final MailStore store;
   final SecretStore secrets;
@@ -36,6 +38,9 @@ final class AppServices {
   final DraftStore drafts;
   final Sender sender;
   final ReplyBuilder replies;
+
+  /// The user's app settings (notifications, instant mail).
+  final AppSettings settings;
 
   /// Saves a verified account: settings in the encrypted store, password in
   /// the keychain. If the keychain write fails, the account is removed
@@ -170,6 +175,24 @@ abstract final class AppStartup {
       return StartupDataUnreadable(path); // malformed stored key
     } on EncryptionUnavailableException catch (e) {
       return StartupEncryptionUnavailable(e.message);
+    }
+  }
+
+  /// For background work: opens the existing encrypted store, or returns
+  /// null if there is nothing to open (no key or no data yet) or anything
+  /// is wrong. Never creates a key or a database; the app does that.
+  static Future<(MailStore, SecretStore)?> openExisting() async {
+    try {
+      final keychain = KeychainSecretStore();
+      final directory = await getApplicationSupportDirectory();
+      final path = '${directory.path}${Platform.pathSeparator}fmail.db';
+      if (!File(path).existsSync()) return null;
+      final stored = await keychain.read(_databaseKeyName);
+      if (stored == null) return null;
+      final key = DatabaseKey.fromBytes(_hexToBytes(stored));
+      return (MailStore.open(path, key), keychain as SecretStore);
+    } on Object {
+      return null;
     }
   }
 

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>cc.tommykung.fmail</id>
+  <name>Fmail</name>
+  <summary>Private email, sorted on your device</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MPL-2.0</project_license>
+  <description>
+    <p>
+      An open-source mail app that keeps your mail between you and your mail
+      server. No account with us, no servers of ours, no analytics.
+    </p>
+    <ul>
+      <li>Smart Inbox: Important, General, Notifications and Newsletters, sorted on your device</li>
+      <li>Remote images and trackers blocked; mail shown without a web browser engine</li>
+      <li>Mail stored encrypted; passwords only in the system keychain</li>
+      <li>Custom folders with rules, drafts on your server, undo send</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">cc.tommykung.fmail.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-22"/>
+  </releases>
+</component>

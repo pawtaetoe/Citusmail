@@ -13,6 +13,7 @@ import '../mail/mail_location.dart';
 import 'fmail_theme.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
+import 'settings_page.dart';
 
 /// The dark navigation column: inboxes, pins, folders and accounts.
 final class Sidebar extends StatelessWidget {
@@ -74,6 +75,22 @@ final class Sidebar extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
+                      IconButton(
+                        tooltip: 'Settings',
+                        icon: Icon(
+                          Icons.settings_outlined,
+                          color: colors.muted,
+                        ),
+                        onPressed: () {
+                          onNavigated?.call();
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  SettingsPage(services: controller.services),
+                            ),
+                          );
+                        },
+                      ),
                       IconButton(
                         tooltip: 'Check for new mail',
                         onPressed: syncing ? null : controller.syncNow,
