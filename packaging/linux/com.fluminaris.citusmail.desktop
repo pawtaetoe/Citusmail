@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=Fmail
+Name=Citusmail
 GenericName=Mail
 Comment=Private email: sorted on your device, nothing sent anywhere else
-Exec=fmail
-Icon=cc.tommykung.fmail
+Exec=citusmail
+Icon=com.fluminaris.citusmail
 Terminal=false
 Categories=Network;Email;
 Keywords=email;mail;imap;smtp;
-StartupWMClass=fmail
+StartupWMClass=citusmail

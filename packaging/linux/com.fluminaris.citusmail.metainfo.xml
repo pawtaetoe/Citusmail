@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>cc.tommykung.fmail</id>
-  <name>Fmail</name>
+  <id>com.fluminaris.citusmail</id>
+  <name>Citusmail</name>
   <summary>Private email, sorted on your device</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MPL-2.0</project_license>
@@ -17,7 +17,7 @@
       <li>Custom folders with rules, drafts on your server, undo send</li>
     </ul>
   </description>
-  <launchable type="desktop-id">cc.tommykung.fmail.desktop</launchable>
+  <launchable type="desktop-id">com.fluminaris.citusmail.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
     <release version="0.1.0" date="2026-10-22"/>

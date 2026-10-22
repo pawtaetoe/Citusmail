@@ -4,16 +4,16 @@
 #   (cd app && flutter build linux --release)
 #   packaging/linux/build-deb.sh            # writes build/packages/fmail_<version>_amd64.deb
 #
-# The app goes to /opt/fmail (it is a self-contained Flutter bundle), with a
-# /usr/bin/fmail link, a desktop entry, icons and AppStream metadata.
+# The app goes to /opt/citusmail (it is a self-contained Flutter bundle), with a
+# /usr/bin/citusmail link, a desktop entry, icons and AppStream metadata.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly root
-readonly id="cc.tommykung.fmail"
+readonly id="com.fluminaris.citusmail"
 bundle="$root/app/build/linux/x64/release/bundle"
 readonly bundle
-[[ -x "$bundle/fmail" ]] || { echo "error: build the Linux release bundle first" >&2; exit 1; }
+[[ -x "$bundle/citusmail" ]] || { echo "error: build the Linux release bundle first" >&2; exit 1; }
 
 # 0.1.0+1 in pubspec.yaml -> Debian version 0.1.0-1
 version="$(sed -n 's/^version: *//p' "$root/app/pubspec.yaml" | tr '+' '-')"
@@ -24,11 +24,11 @@ out="$root/build/packages"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
-install -d "$stage/opt/fmail" "$stage/usr/bin" "$stage/DEBIAN" \
+install -d "$stage/opt/citusmail" "$stage/usr/bin" "$stage/DEBIAN" \
   "$stage/usr/share/applications" "$stage/usr/share/metainfo" \
   "$stage/usr/share/icons/hicolor/scalable/apps"
-cp -a "$bundle/." "$stage/opt/fmail/"
-ln -s /opt/fmail/fmail "$stage/usr/bin/fmail"
+cp -a "$bundle/." "$stage/opt/citusmail/"
+ln -s /opt/citusmail/citusmail "$stage/usr/bin/citusmail"
 install -m 644 "$root/packaging/linux/$id.desktop" "$stage/usr/share/applications/"
 install -m 644 "$root/packaging/linux/$id.metainfo.xml" "$stage/usr/share/metainfo/"
 install -m 644 "$root/assets/icon/icon.svg" "$stage/usr/share/icons/hicolor/scalable/apps/$id.svg"
@@ -39,10 +39,10 @@ done
 
 installed_kb="$(du -sk "$stage" | cut -f1)"
 cat > "$stage/DEBIAN/control" <<CONTROL
-Package: fmail
+Package: citusmail
 Version: $version
 Architecture: amd64
-Maintainer: Fmail developers <noreply@invalid>
+Maintainer: Citusmail developers <noreply@invalid>
 Installed-Size: $installed_kb
 Depends: libc6 (>= 2.35), libgtk-3-0t64 | libgtk-3-0, libsecret-1-0
 Recommends: gnome-keyring | kwalletmanager

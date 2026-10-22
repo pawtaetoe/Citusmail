@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-package cc.tommykung.fmail
+package com.fluminaris.citusmail
 
 import android.content.Context
 import android.os.Handler
@@ -36,7 +36,7 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) :
             fun finish(result: Result) {
                 if (finished) return
                 finished = true
-                Log.i("Fmail", "background check finished: $result")
+                Log.i("Citusmail", "background check finished: $result")
                 main.post { engine?.destroy(); engine = null }
                 completer.set(result)
             }

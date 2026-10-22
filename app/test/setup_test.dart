@@ -312,7 +312,10 @@ void main() {
     },
   );
 
-  test('the app name is defined in one place', () => expect(appName, 'Fmail'));
+  test(
+    'the app name is defined in one place',
+    () => expect(appName, 'Citusmail'),
+  );
 }
 
 final class _MemorySecrets implements SecretStore {

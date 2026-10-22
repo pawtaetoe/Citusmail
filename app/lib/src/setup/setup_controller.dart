@@ -7,6 +7,8 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../app.dart' show appName;
+
 /// Where the account setup flow is.
 sealed class SetupState {
   const SetupState();
@@ -130,7 +132,7 @@ final class SetupController extends ChangeNotifier {
     } on ArgumentError {
       return _set(
         const EnteringCredentials(
-          error: 'That doesn\'t look like an email address Fmail can use.',
+          error: 'That doesn\'t look like an email address $appName can use.',
         ),
       );
     }
@@ -139,8 +141,8 @@ final class SetupController extends ChangeNotifier {
     _set(
       EditingSettings(
         notice: result.oauthOnly
-            ? 'Your provider only allows sign-in through its own web page (OAuth), which Fmail doesn\'t support yet.'
-            : 'Fmail couldn\'t find the settings automatically. Your provider\'s help pages list them.',
+            ? 'Your provider only allows sign-in through its own web page (OAuth), which $appName doesn\'t support yet.'
+            : '$appName couldn\'t find the settings automatically. Your provider\'s help pages list them.',
       ),
     );
   }
@@ -243,7 +245,7 @@ abstract final class SetupText {
       VerificationProblem.certificate => switch (r.tlsFailure) {
         TlsFailure.hostnameMismatch =>
           'The certificate of ${server.host} is for ${r.certificate?.commonName ?? 'a different name'}, '
-              'so Fmail can\'t be sure it\'s the right server.',
+              'so $appName can\'t be sure it\'s the right server.',
         TlsFailure.expired =>
           'The certificate of ${server.host} expired'
               '${r.certificate == null ? '' : ' on ${r.certificate!.validUntil.toLocal().toString().split(' ').first}'}.',
@@ -251,7 +253,7 @@ abstract final class SetupText {
           'The certificate of ${server.host} isn\'t from an authority your device trusts.',
       },
       VerificationProblem.security =>
-        '${server.host} doesn\'t offer an encrypted connection, so Fmail won\'t connect to it.',
+        '${server.host} doesn\'t offer an encrypted connection, so $appName won\'t connect to it.',
       VerificationProblem.network =>
         'Couldn\'t reach ${server.host}:${server.port}. Check the name and your connection.',
       VerificationProblem.server ||

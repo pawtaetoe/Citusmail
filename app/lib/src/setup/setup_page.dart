@@ -7,6 +7,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../app.dart' show appName;
 import 'setup_controller.dart';
 
 /// The add-account flow. Calls [onDone] with the saved account.
@@ -53,7 +54,7 @@ class _SetupPageState extends State<SetupPage> {
       builder: (context) => AlertDialog(
         title: const Text('Ask Mozilla\'s database?'),
         content: Text(
-          'Fmail couldn\'t find the settings itself. Mozilla keeps a public list of mail settings.\n\n'
+          '$appName couldn\'t find the settings itself. Mozilla keeps a public list of mail settings.\n\n'
           'Only the domain "$domain" is sent to Mozilla, never your email address.',
         ),
         actions: [
@@ -208,7 +209,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Fmail connects directly to your mail provider. Your password is stored only in this '
+            '$appName connects directly to your mail provider. Your password is stored only in this '
             'device\'s keychain.',
           ),
           const SizedBox(height: 24),
@@ -596,7 +597,8 @@ class _SettingsFormState extends State<_SettingsForm> {
         const SizedBox(height: 16),
         if (widget.notice != null) _Notice(text: widget.notice!),
         const _Notice(
-          text: 'Fmail only connects with encryption. Unencrypted servers are not offered.',
+          text:
+              '$appName only connects with encryption. Unencrypted servers are not offered.',
         ),
         _server(
           'Incoming (IMAP)',

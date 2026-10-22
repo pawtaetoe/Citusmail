@@ -72,15 +72,19 @@ final class Sidebar extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(20, 14, 8, 8),
                     child: Row(
                       children: [
-                        Text(
-                          appName,
-                          style: TextStyle(
-                            color: colors.text,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                        // Takes what the buttons leave, so any name fits.
+                        Expanded(
+                          child: Text(
+                            appName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.text,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                        const Spacer(),
                         IconButton(
                           tooltip: 'Settings',
                           icon: Icon(

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-package cc.tommykung.fmail
+package com.fluminaris.citusmail
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -50,7 +50,7 @@ class InstantMailService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
                 NotificationChannel(CHANNEL, "Instant mail", NotificationManager.IMPORTANCE_MIN).apply {
-                    description = "Shown while Fmail keeps a live connection for instant mail"
+                    description = "Shown while Citusmail keeps a live connection for instant mail"
                     setShowBadge(false)
                 },
             )
@@ -69,7 +69,7 @@ class InstantMailService : Service() {
         }
         return builder
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Fmail is connected")
+            .setContentTitle("Citusmail is connected")
             .setContentText("New mail arrives instantly. Turn this off in Settings.")
             .setContentIntent(open)
             .setOngoing(true)

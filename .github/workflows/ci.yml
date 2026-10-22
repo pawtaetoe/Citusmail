@@ -139,7 +139,7 @@ jobs:
           sudo apt-get install -y clang ninja-build libgtk-3-dev \
             libsecret-1-dev liblzma-dev libsqlcipher-dev flatpak shellcheck
       - name: Shellcheck packaging scripts
-        run: shellcheck packaging/linux/build-deb.sh packaging/flatpak/build-flatpak.sh
+        run: shellcheck packaging/linux/build-deb.sh packaging/flatpak/build-flatpak.sh packaging/android/build-aab.sh
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       - working-directory: app
@@ -198,7 +198,7 @@ jobs:
         run: |
           version="$(sed -n 's/^version: *//p' app/pubspec.yaml | cut -d+ -f1)"
           mkdir -p build/packages
-          cp app/build/app/outputs/flutter-apk/app-release.apk "build/packages/fmail-$version.apk"
+          cp app/build/app/outputs/flutter-apk/app-release.apk "build/packages/citusmail-$version.apk"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-package
@@ -222,7 +222,7 @@ jobs:
         run: |
           choco install innosetup --version=6.4.3 --no-progress -y
           $version = (Select-String -Path app/pubspec.yaml -Pattern '^version: *([0-9.]+)').Matches[0].Groups[1].Value
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\windows\fmail.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\windows\citusmail.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

@@ -1,4 +1,4 @@
-# Fmail (working name)
+# Citusmail
 
 A free, open source, cross-platform mail client inspired by Spark. No
 subscriptions, no pop-ups, no "Sent from" signatures, no telemetry.

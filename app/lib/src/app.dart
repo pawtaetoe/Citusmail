@@ -15,7 +15,7 @@ import 'ui/mail_shell.dart';
 
 /// Placeholder product name. The final name is still open, so it lives in
 /// one place to make renaming easy.
-const String appName = 'Fmail';
+const String appName = 'Citusmail';
 
 /// The app: opens the encrypted store, then shows setup or the home page.
 class FmailApp extends StatelessWidget {
@@ -73,7 +73,7 @@ class _StartupGateState extends State<_StartupGate> {
     future: _result,
     builder: (context, snapshot) => switch (snapshot.data) {
       null when snapshot.hasError => _Problem(
-        title: 'Fmail couldn\'t start',
+        title: '$appName couldn\'t start',
         message:
             'Something unexpected went wrong. (${snapshot.error.runtimeType}: ${snapshot.error})',
         actionLabel: 'Try again',
@@ -84,7 +84,7 @@ class _StartupGateState extends State<_StartupGate> {
       StartupKeychainUnavailable() => _Problem(
         title: 'A keychain is needed',
         message:
-            'Fmail stores passwords only in your system\'s keychain, and couldn\'t reach it. '
+            '$appName stores passwords only in your system\'s keychain, and couldn\'t reach it. '
             'On Linux, make sure GNOME Keyring or KWallet is installed and unlocked, then try again.',
         actionLabel: 'Try again',
         onAction: _retry,
@@ -92,7 +92,7 @@ class _StartupGateState extends State<_StartupGate> {
       StartupDataUnreadable(:final databasePath) => _Problem(
         title: 'Local data can\'t be opened',
         message:
-            'Fmail\'s local data is encrypted, and its key is missing or doesn\'t match. Your mail is '
+            '$appName\'s local data is encrypted, and its key is missing or doesn\'t match. Your mail is '
             'safe on the server. Starting fresh deletes the local copy (and any changes not yet sent); you '
             'will add your accounts again.',
         actionLabel: 'Start fresh',
@@ -104,7 +104,7 @@ class _StartupGateState extends State<_StartupGate> {
       StartupEncryptionUnavailable(:final detail) => _Problem(
         title: 'Encryption unavailable',
         message:
-            'Fmail won\'t store mail without encryption, and the encryption library is missing. ($detail)',
+            '$appName won\'t store mail without encryption, and the encryption library is missing. ($detail)',
       ),
     },
   );

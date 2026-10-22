@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "cc.tommykung" "\0"
-            VALUE "FileDescription", "Fmail" "\0"
+            VALUE "CompanyName", "Fluminaris" "\0"
+            VALUE "FileDescription", "Citusmail" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "fmail" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 Fmail developers. Licensed under the MPL 2.0." "\0"
-            VALUE "OriginalFilename", "fmail.exe" "\0"
-            VALUE "ProductName", "Fmail" "\0"
+            VALUE "InternalName", "citusmail" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Citusmail developers. Licensed under the MPL 2.0." "\0"
+            VALUE "OriginalFilename", "citusmail.exe" "\0"
+            VALUE "ProductName", "Citusmail" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

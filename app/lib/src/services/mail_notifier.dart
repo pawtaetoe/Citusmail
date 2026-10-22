@@ -9,6 +9,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
+import '../app.dart' show appName;
+
 /// Shows new-mail notifications through the system: the sender and the
 /// subject, never the text. On Android the lock screen shows only that
 /// there is new mail.
@@ -18,10 +20,10 @@ final class MailNotifier {
   final FlutterLocalNotificationsPlugin _plugin;
 
   static const _channelId = 'new_mail';
-  static const _appName = 'Fmail';
+  static const _appName = appName;
 
   /// Fixed ids identifying the app to Windows (not secret).
-  static const _windowsAppId = 'Fmail.Fmail.Mail';
+  static const _windowsAppId = 'Fluminaris.Citusmail.Mail';
   static const _windowsGuid = 'f3792bc8-af63-47a7-914b-a8425569fc47';
 
   /// Starts the notification system. [onOpen] gets the stored message id

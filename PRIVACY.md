@@ -46,7 +46,7 @@ folder in your own mail account. They never go to anyone else.
 New-mail notifications show the sender and subject, never the message
 text, and only for Important and General mail. On Android the lock screen
 shows only that there is new mail. They are created on your device; no
-push service is involved. On Android, Fmail checks for mail about every 15
+push service is involved. On Android, Citusmail checks for mail about every 15
 minutes in the background, or keeps a live connection if you turn on
 "Instant mail" (which shows a permanent notification, as Android requires).
 
@@ -58,7 +58,7 @@ reveal your time zone. Bcc recipients are never written into the message.
 
 ## Unsubscribing
 
-Fmail remembers on your device which lists you unsubscribed from, so it
+Citusmail remembers on your device which lists you unsubscribed from, so it
 can tell you when one keeps sending. It never offers to unsubscribe from
 mail that looks like a scam, because that would only confirm your address
 is read.

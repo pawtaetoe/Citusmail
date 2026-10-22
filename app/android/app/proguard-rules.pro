@@ -6,6 +6,6 @@
 -keep class * extends androidx.room.RoomDatabase { <init>(); }
 
 # Our classes started by Android from the manifest or by name.
--keep class cc.tommykung.fmail.InstantMailService { *; }
--keep class cc.tommykung.fmail.BackgroundSyncWorker { *; }
--keep class cc.tommykung.fmail.BootReceiver { *; }
+-keep class com.fluminaris.citusmail.InstantMailService { *; }
+-keep class com.fluminaris.citusmail.BackgroundSyncWorker { *; }
+-keep class com.fluminaris.citusmail.BootReceiver { *; }
