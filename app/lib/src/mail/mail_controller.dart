@@ -372,6 +372,93 @@ final class MailController extends ChangeNotifier {
     }
   }
 
+  // ------------------------------------------------------ custom folders
+
+  /// Creates a folder on the server and opens it. Returns an error to
+  /// show, or null on success.
+  Future<String?> createFolder(int accountId, String name) async {
+    try {
+      final id = await services.worker.createFolder(accountId, name);
+      if (!_disposed) goTo(FolderLocation(id, accountId));
+      return null;
+    } on ArgumentError catch (e) {
+      return switch (e.message) {
+        final String message when message.contains('separator') =>
+          'Folder names can\'t contain "${message.split('"')[1]}" on this server.',
+        final String message when message.contains('INBOX') =>
+          'Inbox already exists.',
+        _ => 'That can\'t be a folder name.',
+      };
+    } on SyncWorkerException catch (e) {
+      return e.failure.kind == SyncFailureKind.network
+          ? 'Folders can only be created while online.'
+          : 'The server refused: ${e.failure.message}';
+    }
+  }
+
+  /// Whether rules can move mail into [mailbox] (not the inbox, Drafts or
+  /// Sent).
+  bool canHaveRules(StoredMailbox mailbox) =>
+      !mailbox.isInbox &&
+      mailbox.selectable &&
+      mailbox.specialUse != SpecialUse.drafts &&
+      mailbox.specialUse != SpecialUse.sent;
+
+  List<FolderRule> rulesFor(int mailboxId) =>
+      _store.folderRules.forMailbox(mailboxId);
+
+  /// Adds a rule; with [includeExisting] the inbox is filed at once (with
+  /// the next sync). Returns an error to show, or null.
+  String? addRule(
+    StoredMailbox mailbox,
+    RuleField field,
+    String value, {
+    bool includeExisting = false,
+  }) {
+    try {
+      _store.folderRules.add(
+        accountId: mailbox.accountId,
+        mailboxId: mailbox.id,
+        field: field,
+        value: value,
+        includeExisting: includeExisting,
+      );
+    } on ArgumentError {
+      return switch (field) {
+        RuleField.fromAddress ||
+        RuleField.toAddress => 'Enter an email address.',
+        RuleField.fromDomain => 'Enter a domain, like example.com.',
+        RuleField.subject => 'Enter some text.',
+      };
+    }
+    if (includeExisting) services.worker.requestSync(mailbox.accountId);
+    _notify();
+    return null;
+  }
+
+  void removeRule(FolderRule rule) {
+    _store.folderRules.remove(rule.id);
+    _notify();
+  }
+
+  /// "Always move mail from this sender here", then moves this message.
+  void moveAlways(StoredMessage message, StoredMailbox target) {
+    final from = message.from?.address;
+    if (from != null && canHaveRules(target)) {
+      try {
+        _store.folderRules.add(
+          accountId: target.accountId,
+          mailboxId: target.id,
+          field: RuleField.fromAddress,
+          value: from,
+        );
+      } on ArgumentError {
+        // An address a rule can't hold: just move this one.
+      }
+    }
+    moveTo(message, target);
+  }
+
   // ---------------------------------------------------------------- outbox
 
   /// Messages waiting to be sent or failed, oldest first.

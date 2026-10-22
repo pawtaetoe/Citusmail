@@ -11,6 +11,7 @@ import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import 'fmail_theme.dart';
+import 'folder_dialogs.dart';
 import 'mail_text.dart';
 
 /// The dark navigation column: inboxes, pins, folders and accounts.
@@ -134,6 +135,11 @@ final class Sidebar extends StatelessWidget {
                           accounts.length > 1
                               ? (account.displayName ?? account.email)
                               : 'Folders',
+                          onAdd: () => NewFolderDialog.show(
+                            context,
+                            controller,
+                            account.id,
+                          ),
                         ),
                         for (final (mailbox, depth) in _folders(store, account))
                           _Entry(
@@ -216,20 +222,48 @@ final class Sidebar extends StatelessWidget {
 }
 
 final class _Heading extends StatelessWidget {
-  const _Heading(this.text);
+  const _Heading(this.text, {this.onAdd});
 
   final String text;
 
+  /// "New folder", when given.
+  final VoidCallback? onAdd;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 18, 16, 6),
-    child: Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(color: SidebarColors.of(context).muted, fontSize: 12),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final muted = SidebarColors.of(context).muted;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        onAdd == null ? 18 : 6,
+        8,
+        onAdd == null ? 6 : 0,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+          ),
+          if (onAdd != null)
+            IconButton(
+              tooltip: 'New folder',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                Icons.create_new_folder_outlined,
+                size: 18,
+                color: muted,
+              ),
+              onPressed: onAdd,
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 final class _Entry extends StatelessWidget {

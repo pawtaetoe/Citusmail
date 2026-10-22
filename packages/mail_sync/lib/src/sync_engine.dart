@@ -5,11 +5,13 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'account_synchronizer.dart';
 import 'connector.dart';
+import 'folder_rules.dart';
 import 'idle_watcher.dart';
 import 'mailbox_synchronizer.dart';
 import 'message_loader.dart';
@@ -62,6 +64,7 @@ final class SyncEngine {
       _connector,
       _mailboxSync,
       OutboxReplayer(_store),
+      rules: FolderRuleApplier(_store),
     );
   }
 
@@ -207,6 +210,31 @@ final class SyncEngine {
       }),
     );
     _scheduled.removeWhere((t) => !t.isActive);
+  }
+
+  /// Creates the folder [name] on the server ("Projects/2026" makes a
+  /// subfolder) and returns its id. A folder that already exists counts
+  /// as created. Throws [ArgumentError] for an unusable name, or a
+  /// [MailException] when the server cannot be reached.
+  Future<int> createFolder(int accountId, String name) async {
+    final account = _store.accounts.byId(accountId);
+    if (account == null) throw ArgumentError.value(accountId, 'accountId');
+    final encoded = FolderNames.newFolder(
+      _store.mailboxes.forAccount(accountId),
+      name,
+    );
+    return _onDemand.run(account, (imap) async {
+      await imap.create(encoded); // an existing folder counts as created
+      _store.mailboxes.replaceAll(accountId, await imap.listMailboxes());
+      return _store.mailboxes
+          .forAccount(accountId)
+          .firstWhere(
+            (m) => m.encodedName == encoded,
+            orElse: () =>
+                throw StateError('the server did not list the new folder'),
+          )
+          .id;
+    });
   }
 
   /// Forgets the on-demand connection of an account (after it was removed

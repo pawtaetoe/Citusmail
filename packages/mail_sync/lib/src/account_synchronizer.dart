@@ -6,6 +6,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'connector.dart';
+import 'folder_rules.dart';
 import 'mailbox_synchronizer.dart';
 import 'outbox_replayer.dart';
 import 'sync_worker.dart';
@@ -62,9 +63,13 @@ final class AccountSyncReport {
   AccountSyncReport({
     required this.replay,
     required Map<int, MailboxSyncResult> mailboxes,
+    this.movedByRules = 0,
   }) : mailboxes = Map.unmodifiable(mailboxes);
 
   final ReplayResult replay;
+
+  /// Inbox messages moved into custom folders by the user's rules.
+  final int movedByRules;
 
   /// Result per mailbox id.
   final Map<int, MailboxSyncResult> mailboxes;
@@ -81,13 +86,15 @@ final class AccountSynchronizer {
     this._store,
     this._connector,
     this._mailboxSync,
-    this._replayer,
-  );
+    this._replayer, {
+    this._rules,
+  });
 
   final MailStore _store;
   final MailConnector _connector;
   final MailboxSynchronizer _mailboxSync;
   final OutboxReplayer _replayer;
+  final FolderRuleApplier? _rules;
 
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled).
@@ -114,7 +121,25 @@ final class AccountSynchronizer {
           pendingUids: pendingUids(account.id, mailbox.id),
         );
       }
-      return AccountSyncReport(replay: replay, mailboxes: results);
+      // 4. The user's folder rules on new inbox mail; their moves go to
+      // the server right away, in this same session.
+      var movedByRules = 0;
+      final inbox = _store.mailboxes.inbox(account.id);
+      if (_rules != null && inbox != null && results.containsKey(inbox.id)) {
+        movedByRules = _rules.apply(account);
+        if (movedByRules > 0) {
+          await _replayer.replay(
+            imap,
+            account,
+            smtp: () => _connector.smtp(account),
+          );
+        }
+      }
+      return AccountSyncReport(
+        replay: replay,
+        mailboxes: results,
+        movedByRules: movedByRules,
+      );
     } finally {
       await imap.logout();
     }

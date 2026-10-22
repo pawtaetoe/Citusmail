@@ -7,8 +7,9 @@ and the folder, never at the body, and sends nothing anywhere.
 ## Categories
 
 Every message gets one category from header rules. Sorting is always
-automatic; users group mail their own way with custom folders (rules that
-move mail into real server folders, a later stage).
+automatic; users group mail their own way with custom folders: rules that
+move new inbox mail into real folders on the server (`FolderRuleApplier`
+in mail_sync).
 
 The first rule that matches decides ([HeaderRuleClassifier](lib/src/header_rule_classifier.dart)):
 

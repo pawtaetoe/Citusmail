@@ -7,6 +7,7 @@ library;
 
 export 'src/account_synchronizer.dart';
 export 'src/connector.dart';
+export 'src/folder_rules.dart';
 export 'src/idle_watcher.dart';
 export 'src/mail_actions.dart';
 export 'src/mailbox_synchronizer.dart';

@@ -22,6 +22,21 @@ Pure Dart.
 New mail is fetched as summaries only (envelope, flags, structure, a few
 headers, and a server-side preview when available), never whole messages.
 
+## Custom folders and rules (`FolderRuleApplier`)
+
+After the inbox is synced, the user's rules (from address, from domain,
+sent-to address, subject contains) move matching new mail into its folder
+on the server, in the same session, so every device and mail app sees it.
+Mail servers like cPanel's have no server-side filters, so the app does it.
+
+- A rule applies to mail received from its creation (10 minutes' tolerance
+  for clock differences), or to everything with "also move existing".
+- A message a rule moved once is never moved again (by Message-ID), so one
+  the user brings back stays in the inbox.
+- A rule goes when its folder goes (deleted or renamed elsewhere).
+- New folders follow the server's layout (`FolderNames`): its separator,
+  and the `INBOX.` prefix cPanel servers require.
+
 ## Opening messages and older mail
 
 - `SyncEngine.loadBody` downloads a whole message when the user opens it

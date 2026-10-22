@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import 'fmail_theme.dart';
+import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
 
@@ -215,6 +216,15 @@ final class _Header extends StatelessWidget {
                 ),
               ),
             ),
+            if (location is FolderLocation)
+              if (store.mailboxes.byId(location.mailboxId) case final box?
+                  when controller.canHaveRules(box))
+                IconButton(
+                  tooltip: 'Folder rules',
+                  icon: const Icon(Icons.filter_alt_outlined),
+                  onPressed: () =>
+                      FolderRulesDialog.show(context, controller, box),
+                ),
           ],
         ),
       );

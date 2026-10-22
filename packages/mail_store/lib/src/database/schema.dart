@@ -210,4 +210,30 @@ const List<Migration> schemaMigrations = [
       PRIMARY KEY (draft_id, position)
     ) STRICT''',
   ]),
+
+  // Custom folders (Stage 10): the user's rules that move new inbox mail
+  // into a folder on the server. A rule goes when its folder goes (deleted
+  // or renamed elsewhere), so mail never lands somewhere unexpected.
+  Migration(5, [
+    '''
+    CREATE TABLE folder_rules (
+      id INTEGER PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      mailbox_id INTEGER NOT NULL REFERENCES mailboxes (id) ON DELETE CASCADE,
+      field TEXT NOT NULL CHECK (field IN ('fromAddress', 'fromDomain', 'toAddress', 'subject')),
+      value TEXT NOT NULL CHECK (length(value) BETWEEN 1 AND 320),
+      applies_from INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    ) STRICT''',
+    'CREATE INDEX folder_rules_by_account ON folder_rules (account_id, id)',
+    // Messages a rule already moved (by Message-ID): never moved twice, so
+    // one the user brings back to the inbox stays there.
+    '''
+    CREATE TABLE rule_moves (
+      account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      message_id_header TEXT NOT NULL,
+      moved_at INTEGER NOT NULL,
+      PRIMARY KEY (account_id, message_id_header)
+    ) STRICT''',
+  ]),
 ];

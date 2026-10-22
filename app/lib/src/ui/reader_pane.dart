@@ -239,32 +239,48 @@ final class _Toolbar extends StatelessWidget {
 
   Future<void> _move(BuildContext context) async {
     final targets = controller.moveTargets(message);
+    var always = false;
+    final sender = message.from?.address;
     final target = await showDialog<StoredMailbox>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Move to'),
-        children: [
-          for (final box in targets)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, box),
-              child: Row(
-                children: [
-                  Icon(MailText.folderIcon(box), size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      box.isInbox
-                          ? 'Inbox'
-                          : box.name.replaceAll(box.delimiter ?? '/', ' / '),
-                    ),
-                  ),
-                ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => SimpleDialog(
+          title: const Text('Move to'),
+          children: [
+            if (sender != null)
+              CheckboxListTile(
+                value: always,
+                onChanged: (v) => setState(() => always = v ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text('Always move mail from $sender here'),
               ),
-            ),
-        ],
+            for (final box in targets)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, box),
+                child: Row(
+                  children: [
+                    Icon(MailText.folderIcon(box), size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        box.isInbox
+                            ? 'Inbox'
+                            : box.name.replaceAll(box.delimiter ?? '/', ' / '),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
-    if (target != null) controller.moveTo(message, target);
+    if (target == null) return;
+    if (always && controller.canHaveRules(target)) {
+      controller.moveAlways(message, target);
+    } else {
+      controller.moveTo(message, target);
+    }
   }
 }
 

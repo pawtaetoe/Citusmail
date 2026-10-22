@@ -119,6 +119,12 @@ final class SyncWorker {
   Future<int> fetchOlder(int mailboxId, {int count = 100}) async =>
       await _request(_FetchOlder(mailboxId, count)) as int;
 
+  /// Creates a folder on the server; returns its id. Throws
+  /// [SyncWorkerException] (offline, refused) or [ArgumentError] (a name
+  /// that cannot be a folder).
+  Future<int> createFolder(int accountId, String name) async =>
+      await _request(_CreateFolder(accountId, name)) as int;
+
   /// After accounts were added, removed or changed.
   Future<void> accountsChanged() => _request(const _AccountsChanged());
 
@@ -287,6 +293,8 @@ Future<void> _workerMain(_Boot boot) async {
         await engine.loadBody(messageId);
       case _FetchOlder(:final mailboxId, :final count):
         return engine.fetchOlder(mailboxId, count: count);
+      case _CreateFolder(:final accountId, :final name):
+        return engine.createFolder(accountId, name);
       case _AccountsChanged():
         for (final account in store.accounts.all()) {
           await engine.accountChanged(account.id);
@@ -326,6 +334,7 @@ Future<void> _workerMain(_Boot boot) async {
 /// Errors cross the isolate boundary as plain values.
 Object _sendable(Object error) => switch (error) {
   BodyUnavailableException() => error,
+  ArgumentError(:final message) => ArgumentError(message?.toString()),
   _ => SyncWorkerException(SyncFailure.from(error)),
 };
 
@@ -460,6 +469,13 @@ final class _FetchOlder extends _Command {
 
   final int mailboxId;
   final int count;
+}
+
+final class _CreateFolder extends _Command {
+  const _CreateFolder(this.accountId, this.name);
+
+  final int accountId;
+  final String name;
 }
 
 final class _AccountsChanged extends _Command {

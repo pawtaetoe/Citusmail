@@ -1007,6 +1007,100 @@ void main() {
     });
   });
 
+  group('folder rules', () {
+    late Account account;
+    late StoredMailbox receipts;
+    setUp(() {
+      account = temp.addAccount();
+      receipts = store.mailboxes
+          .replaceAll(account.id, [folder('INBOX'), folder('Receipts')])
+          .firstWhere((b) => !b.isInbox);
+    });
+
+    test('add, list, normalise and remove', () {
+      final now = DateTime.utc(2026, 10, 22, 12);
+      final rule = store.folderRules.add(
+        accountId: account.id,
+        mailboxId: receipts.id,
+        field: RuleField.fromDomain,
+        value: ' @Shop.Example ',
+        now: now,
+      );
+      expect(rule.value, 'shop.example');
+      expect(rule.appliesFrom, now);
+      final existing = store.folderRules.add(
+        accountId: account.id,
+        mailboxId: receipts.id,
+        field: RuleField.subject,
+        value: 'Your Receipt',
+        includeExisting: true,
+      );
+      expect(existing.value, 'your receipt');
+      expect(
+        existing.appliesFrom,
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      );
+      expect(store.folderRules.forAccount(account.id).map((r) => r.id), [
+        rule.id,
+        existing.id,
+      ]);
+      expect(store.folderRules.forMailbox(receipts.id), hasLength(2));
+      store.folderRules.remove(rule.id);
+      expect(store.folderRules.forAccount(account.id).single.id, existing.id);
+    });
+
+    test('values are checked', () {
+      void add(RuleField field, String value) => store.folderRules.add(
+        accountId: account.id,
+        mailboxId: receipts.id,
+        field: field,
+        value: value,
+      );
+      expect(() => add(RuleField.subject, '   '), throwsArgumentError);
+      expect(
+        () => add(RuleField.fromAddress, 'no-at-sign'),
+        throwsArgumentError,
+      );
+      expect(
+        () => add(RuleField.toAddress, 'a b@x.example'),
+        throwsArgumentError,
+      );
+      expect(() => add(RuleField.fromDomain, 'localhost'), throwsArgumentError);
+      expect(() => add(RuleField.subject, 'x' * 321), throwsArgumentError);
+    });
+
+    test('a rule must point at a folder of the same account', () {
+      final other = temp.addAccount('bob@fmail.test');
+      expect(
+        () => store.folderRules.add(
+          accountId: other.id,
+          mailboxId: receipts.id,
+          field: RuleField.subject,
+          value: 'x',
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('a rule goes when its folder disappears from the server', () {
+      store.folderRules.add(
+        accountId: account.id,
+        mailboxId: receipts.id,
+        field: RuleField.subject,
+        value: 'x',
+      );
+      store.mailboxes.replaceAll(account.id, [folder('INBOX')]);
+      expect(store.folderRules.forAccount(account.id), isEmpty);
+    });
+
+    test('moves are remembered per account', () {
+      store.folderRules.recordMoved(account.id, 'm1@x');
+      store.folderRules.recordMoved(account.id, 'm1@x');
+      expect(store.folderRules.wasMoved(account.id, 'm1@x'), isTrue);
+      expect(store.folderRules.wasMoved(account.id, 'm2@x'), isFalse);
+    });
+  });
+
   group('settings', () {
     test('read, write, overwrite, delete, and persist', () {
       expect(store.settings.read('k'), isNull);
