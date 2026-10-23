@@ -210,6 +210,7 @@ void main() {
     final account = services.store.accounts.all().single;
     await services.secrets.write(account.keychainKey, 'secret');
     await services.lock.setPin('482910');
+    await services.deviceSync.start();
     final database = File('${app.directory.path}/mail.db');
     expect(database.existsSync(), isTrue);
 
@@ -218,6 +219,7 @@ void main() {
     expect(await services.secrets.read(account.keychainKey), isNull);
     expect(await services.secrets.read(AppLock.pinKey), isNull);
     expect(await services.secrets.read('database-key'), isNull);
+    expect(await services.secrets.read('sync-code'), isNull);
   });
 
   test('PIN hashing for real uses the full strength', () {

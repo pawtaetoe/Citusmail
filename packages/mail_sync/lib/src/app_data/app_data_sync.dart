@@ -19,6 +19,25 @@ abstract interface class SyncCodeProvider {
   Future<String?> syncCode();
 }
 
+/// The last exchange, as kept in the store for the settings screen.
+final class AppDataSyncStatus {
+  const AppDataSyncStatus({
+    required this.at,
+    required this.devices,
+    required this.unreadable,
+    this.problem,
+  });
+
+  final DateTime at;
+
+  /// Devices whose data was read (this one included).
+  final int devices;
+  final int unreadable;
+
+  /// Why the last try failed (it then says when it failed).
+  final String? problem;
+}
+
 /// What one exchange did.
 final class AppDataSyncReport {
   AppDataSyncReport({
@@ -66,18 +85,52 @@ final class AppDataSync {
 
   static const _accountSetting = 'sync.account';
   static const _publishedSetting = 'sync.published';
+  static const _statusSetting = 'sync.status';
 
   /// The account whose mailbox carries the data: the one chosen, else the
   /// first account.
-  Account? get account {
-    final all = _store.accounts.all();
-    final chosen = int.tryParse(_store.settings.read(_accountSetting) ?? '');
+  Account? get account => accountIn(_store);
+
+  /// [account], for code without an [AppDataSync] (the settings screen).
+  static Account? accountIn(MailStore store) {
+    final all = store.accounts.all();
+    final chosen = int.tryParse(store.settings.read(_accountSetting) ?? '');
     return all.where((a) => a.id == chosen).firstOrNull ?? all.firstOrNull;
   }
 
-  set account(Account? value) => value == null
-      ? _store.settings.delete(_accountSetting)
-      : _store.settings.write(_accountSetting, '${value.id}');
+  static void chooseAccount(MailStore store, Account account) =>
+      store.settings.write(_accountSetting, '${account.id}');
+
+  /// How the last exchange went, or null if none happened yet.
+  static AppDataSyncStatus? statusIn(MailStore store) {
+    final text = store.settings.read(_statusSetting);
+    if (text == null) return null;
+    try {
+      final json = jsonDecode(text) as Map<String, Object?>;
+      return AppDataSyncStatus(
+        at: DateTime.fromMillisecondsSinceEpoch(
+          json['at']! as int,
+          isUtc: true,
+        ),
+        devices: json['devices'] as int? ?? 0,
+        unreadable: json['unreadable'] as int? ?? 0,
+        problem: json['problem'] as String?,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Records a failed exchange (the sync of mail itself went on).
+  void recordProblem(String problem) => _store.settings.write(
+    _statusSetting,
+    jsonEncode({
+      'at': _now().toUtc().millisecondsSinceEpoch,
+      'devices': statusIn(_store)?.devices ?? 0,
+      'unreadable': 0,
+      'problem': problem,
+    }),
+  );
 
   /// Exchanges data over [imap], a logged-in connection of [syncAccount].
   /// Returns null when sync is off or this isn't the sync account.
@@ -179,6 +232,14 @@ final class AppDataSync {
         if (!current.contains(uid)) uid,
     ]);
 
+    _store.settings.write(
+      _statusSetting,
+      jsonEncode({
+        'at': now,
+        'devices': remote.length + 1,
+        'unreadable': unreadable,
+      }),
+    );
     return AppDataSyncReport(
       devices: remote.length + 1,
       changes: changes,
@@ -202,6 +263,7 @@ final class AppDataSync {
       await _remove(imap, mine.matches.toList());
     }
     _store.settings.delete(_publishedSetting);
+    _store.settings.delete(_statusSetting);
     _store.appDataSync.reset();
   }
 

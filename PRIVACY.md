@@ -15,6 +15,7 @@ no analytics, no crash reporting and no advertising.
 | A newsletter's one-click unsubscribe address | Only when you tap Unsubscribe and confirm | One request with the fixed text `List-Unsubscribe=One-Click` and a generic user agent. No cookies, no referrer, no language. Like any connection, it shows your IP address |
 | A newsletter's unsubscribe email address | Only when you tap Unsubscribe and confirm | An email from your account saying "unsubscribe" (a copy is kept in Sent) |
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
+| Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, unsubscribes, folder rules and image senders, end-to-end encrypted |
 | A link in an email | Only when you tap it and confirm the address | Your browser opens the link, without tracking parameters such as `utm_source` |
 | Images in an email | Only when you tap "Load images", or for a sender you chose "Always from this sender" for (and only when your mail server verified the mail is from them) | A request for each image with a generic user agent: no cookies, no referrer, no language. Like any connection, it shows your IP address, and the sender can tell the message was opened. Tracking pixels are never requested |
 
@@ -37,9 +38,19 @@ endings. No link, address or file is looked up anywhere.
 
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail
-account and never shown as a notification. A later version will let app
-settings such as the block list sync between your devices through a hidden
-folder in your own mail account. They never go to anyone else.
+account and never shown as a notification.
+
+## Sync between devices
+
+Off until you turn it on. Then your blocked senders, unsubscribes, folder
+rules and image senders are kept the same on all your devices. They travel
+through a "Citusmail Sync" folder in your own mail account (one message per
+device), never through a server of ours. Each message is end-to-end
+encrypted with your sync code: your mail provider, and anyone else with
+access to your mailbox, sees only sealed data plus which of your devices
+wrote it. The code is a random 128-bit secret kept only in each device's
+system keychain; with the app lock on, showing it asks for your PIN. App
+settings, the app lock and your PIN never sync.
 
 ## Notifications
 

@@ -15,6 +15,7 @@ dependencies:
   flutter_local_notifications: ^22.3.2
   flutter_secure_storage: ^11.2.0
   local_auth: ^3.0.2
+  mail_appsync: any
   mail_compose: any
   mail_protocol: any
   mail_setup: any

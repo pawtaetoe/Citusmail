@@ -12,6 +12,7 @@ import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
 import 'block_dialog.dart';
+import 'device_sync_page.dart';
 import 'image_senders_page.dart';
 
 /// App settings: notifications, instant mail on Android, and what the app
@@ -174,6 +175,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           const Divider(),
           ..._lockSettings(),
           const Divider(),
+          DeviceSyncTile(services: widget.services),
           ListTile(
             leading: const Icon(Icons.image_outlined),
             title: const Text('Images'),

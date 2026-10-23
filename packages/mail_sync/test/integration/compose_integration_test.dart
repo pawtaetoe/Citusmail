@@ -62,6 +62,18 @@ void main() {
 
   test('a reply is delivered once, saved to Sent, threaded, and marks the original answered', () async {
     final folder = scratchFolder('reply');
+    // An earlier run answered it already: start from "not answered", so
+    // the test passes on every run, not only on fresh servers.
+    final other = await servers.otherDevice('alice');
+    await other.select('INBOX');
+    final lunch = (await other.uidSearch(
+      SearchCriteria.header('Subject', 'Re: Lunch on Friday?'),
+    )).matches;
+    if (lunch.toList().isNotEmpty) {
+      await other.uidStore(lunch, FlagChange.remove, {r'\Answered'});
+    }
+    await other.logout();
+    await me.sync(['INBOX']);
     final original = me
         .messages('INBOX')
         .firstWhere(

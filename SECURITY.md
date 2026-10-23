@@ -83,6 +83,16 @@ public issue. We aim to reply within 7 days.
     wipes the device's copy (accounts, passwords, mail, keys); nothing on
     the servers changes.
 
+11. **Sync between devices is end-to-end encrypted.** A random 128-bit
+    sync code (only in each device's keychain) gives, through HKDF-SHA256,
+    the key for ChaCha20-Poly1305 (`packages/mail_appsync`, checked against
+    RFC 8439 vectors and an independent implementation). Each snapshot has
+    a fresh random nonce and is bound to the code's sync id and its
+    device's id; anything changed or sealed with another code is refused
+    before it is read. Devices only ever replace their own message, so
+    neither a sync conflict nor a malicious copy can overwrite another
+    device's data, and a removal can't be undone by an old copy.
+
 ## Releases
 
 Android releases are signed with a key kept outside the repository (CI

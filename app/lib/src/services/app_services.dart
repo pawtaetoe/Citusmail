@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import '../security/app_lock.dart';
 import '../security/pin_hasher.dart';
 import 'app_settings.dart';
+import 'device_sync.dart';
 import 'remote_images.dart';
 import 'secret_store.dart';
 
@@ -49,7 +50,8 @@ final class AppServices {
     WebClient web,
     this.lock,
     this._databasePath,
-  ) : actions = MailActions(store, undoWindow: const Duration(seconds: 5)),
+  ) : deviceSync = DeviceSync(store, secrets, worker),
+      actions = MailActions(store, undoWindow: const Duration(seconds: 5)),
       oneClick = OneClickUnsubscriber(web),
       images = RemoteImages(web),
       drafts = DraftStore(store),
@@ -64,6 +66,9 @@ final class AppServices {
 
   /// The app lock (PIN, biometrics, when to lock).
   final AppLock lock;
+
+  /// App data sync between the user's devices.
+  final DeviceSync deviceSync;
 
   /// Local changes (read, pin, move, delete); the worker sends them on.
   final MailActions actions;
@@ -153,6 +158,7 @@ final class AppServices {
       await secrets.delete(account.keychainKey);
     }
     await secrets.delete(AppLock.pinKey);
+    await secrets.delete(KeychainSyncCodes.key);
     final path = _databasePath;
     if (path != null) await AppStartup.resetLocalData(path, secrets: secrets);
   }

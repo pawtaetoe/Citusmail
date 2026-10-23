@@ -161,6 +161,7 @@ final class AccountSynchronizer {
           appData = await sync.run(imap, account);
         } on Object catch (e) {
           appDataFailure = SyncFailure.from(e);
+          sync.recordProblem(appDataFailure.message);
         }
       }
       return AccountSyncReport(
