@@ -7,22 +7,35 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mail_setup/mail_setup.dart';
 
+import 'security/lock_screen.dart';
 import 'services/app_services.dart';
 import 'setup/setup_controller.dart';
 import 'setup/setup_page.dart';
 import 'ui/fmail_theme.dart';
 import 'ui/mail_shell.dart';
 
-/// Placeholder product name. The final name is still open, so it lives in
-/// one place to make renaming easy.
+/// The product name, in one place so user-facing text never hard-codes it.
 const String appName = 'Citusmail';
 
 /// The app: opens the encrypted store, then shows setup or the home page.
-class FmailApp extends StatelessWidget {
+class FmailApp extends StatefulWidget {
   const FmailApp({super.key, this.startup = AppStartup.open});
 
   /// Replaced in tests.
   final Future<StartupResult> Function() startup;
+
+  @override
+  State<FmailApp> createState() => _FmailAppState();
+}
+
+class _FmailAppState extends State<FmailApp> {
+  final _lockHost = LockHost();
+
+  @override
+  void dispose() {
+    _lockHost.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -30,14 +43,18 @@ class FmailApp extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     theme: FmailTheme.light(),
     darkTheme: FmailTheme.dark(),
-    home: _StartupGate(startup: startup),
+    // Above the navigator: the lock covers every page and dialog.
+    builder: (context, child) =>
+        LockGate(host: _lockHost, child: child ?? const SizedBox.shrink()),
+    home: _StartupGate(startup: widget.startup, lockHost: _lockHost),
   );
 }
 
 class _StartupGate extends StatefulWidget {
-  const _StartupGate({required this.startup});
+  const _StartupGate({required this.startup, required this.lockHost});
 
   final Future<StartupResult> Function() startup;
+  final LockHost lockHost;
 
   @override
   State<_StartupGate> createState() => _StartupGateState();
@@ -47,9 +64,33 @@ class _StartupGateState extends State<_StartupGate> {
   late Future<StartupResult> _result = _start();
 
   /// Starts up, reporting an unexpected failure to the console (and the
-  /// screen) instead of losing it.
-  Future<StartupResult> _start() =>
-      widget.startup().catchError((Object error, StackTrace stack) {
+  /// screen) instead of losing it. The lock is handed to the gate before
+  /// the mail screen is ever built, so mail never shows unlocked.
+  Future<StartupResult> _start() => widget
+      .startup()
+      .then((result) {
+        if (result case StartupReady(:final services)) {
+          widget.lockHost.attach(
+            services.lock,
+            reset: () async {
+              // The mail screen goes first (nothing may read the store
+              // while it is wiped), then everything is removed, then a
+              // fresh start.
+              final restarted = Completer<StartupResult>();
+              setState(() {
+                _result = restarted.future;
+              });
+              await services.resetEverything();
+              restarted.complete(_start());
+            },
+          );
+        } else {
+          widget.lockHost.clear();
+        }
+        return result;
+      })
+      .catchError((Object error, StackTrace stack) {
+        widget.lockHost.clear();
         FlutterError.reportError(
           FlutterErrorDetails(
             exception: error,
@@ -147,12 +188,6 @@ class _HomeState extends State<_Home> {
       onAddAccount: () => setState(() => _adding = true),
       onAccountsChanged: () => setState(() {}),
     );
-  }
-
-  @override
-  void dispose() {
-    unawaited(widget.services.dispose());
-    super.dispose();
   }
 }
 

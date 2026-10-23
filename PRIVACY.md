@@ -56,6 +56,16 @@ Sent mail carries no app name or version. Its Message-ID is random and
 uses your own domain, and its date is written in UTC, so it does not
 reveal your time zone. Bcc recipients are never written into the message.
 
+## App lock
+
+With the app lock on, Citusmail asks for your PIN (or, on Android and
+Windows, your fingerprint, face or Windows Hello) when it starts and after
+you have been away for the time you choose. The PIN is never stored: only
+a slow, salted hash of it, kept in your system keychain. Fingerprints and
+faces are checked by the operating system; the app only learns "yes" or
+"no". While the lock is on, notifications show only that there is new
+mail, and the app switcher shows no picture of your mail.
+
 ## Unsubscribing
 
 Citusmail remembers on your device which lists you unsubscribed from, so it

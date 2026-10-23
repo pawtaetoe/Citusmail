@@ -143,6 +143,20 @@ runtime xml                                            used by the Windows backe
 runtime petitparser                                    used by xml (renggli)
 runtime clock                                          time abstraction used by timezone (dart.dev)
 
+# --- Runtime: app lock (Stage 16) -------------------------------------------
+# local_auth asks the OS to confirm the user: Android BiometricPrompt
+# (androidx.biometric 1.1.0) and Windows Hello (UserConsentVerifier). It
+# only answers yes or no; no fingerprint data reaches the app. Reviewed
+# 3.0.2: no network code in any part; the Android part adds only
+# USE_BIOMETRIC. Linux has no backend, so the app uses its own PIN there.
+runtime local_auth                        fingerprint, face or Windows Hello unlock (flutter.dev)
+runtime local_auth_android                Android BiometricPrompt backend (flutter.dev)
+runtime local_auth_windows                Windows Hello backend (flutter.dev)
+runtime local_auth_darwin                 Apple backend, for later (flutter.dev)
+runtime local_auth_platform_interface     plugin interface (flutter.dev)
+runtime flutter_plugin_android_lifecycle  Android lifecycle access for local_auth (flutter.dev)
+runtime intl                              message formatting used by local_auth (dart.dev)
+
 # --- Dev only: lints, test runner and their dependencies (dart.dev) --------
 dev _fe_analyzer_shared           analyzer internals for test runner
 dev analyzer                      used by test runner
@@ -186,4 +200,6 @@ dev webkit_inspection_protocol    test runner
 # Gradle files, so changes there need the same review by hand.
 #   androidx.work:work-runtime 2.10.1               periodic background checks (Google)
 #   androidx.concurrent:concurrent-futures 1.2.0    future adapter for the worker (Google)
+#   androidx.biometric:biometric 1.1.0               fingerprint/face unlock, via local_auth (Google)
+#   androidx.appcompat:appcompat 1.7.0               theme the fingerprint dialog needs (Google)
 #   com.android.tools:desugar_jdk_libs 2.1.5        Java library backports (Google)

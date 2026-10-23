@@ -85,6 +85,19 @@ final class Sidebar extends StatelessWidget {
                             ),
                           ),
                         ),
+                        ValueListenableBuilder(
+                          valueListenable: controller.services.lock.isOn,
+                          builder: (context, on, _) => on
+                              ? IconButton(
+                                  tooltip: 'Lock now',
+                                  icon: Icon(
+                                    Icons.lock_outline,
+                                    color: colors.muted,
+                                  ),
+                                  onPressed: controller.services.lock.lockNow,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
                         IconButton(
                           tooltip: 'Settings',
                           icon: Icon(

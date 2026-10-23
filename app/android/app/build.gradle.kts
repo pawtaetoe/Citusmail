@@ -76,6 +76,9 @@ dependencies {
     // Periodic background checks (reviewed: Google's AndroidX WorkManager).
     implementation("androidx.work:work-runtime:2.10.1")
     implementation("androidx.concurrent:concurrent-futures:1.2.0")
+    // The fingerprint dialog (local_auth) needs an AppCompat theme on
+    // Android 8 and older (Google).
+    implementation("androidx.appcompat:appcompat:1.7.0")
     // Java library backports for older Android (Google).
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }

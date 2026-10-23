@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 
 import '../app.dart' show appName;
 import '../background/background_mail.dart';
+import '../security/app_lock.dart';
+import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
 import 'block_dialog.dart';
 import 'image_senders_page.dart';
@@ -28,6 +30,101 @@ final class SettingsPage extends StatefulWidget {
 
 final class _SettingsPageState extends State<SettingsPage> {
   bool get _android => widget.isAndroid ?? Platform.isAndroid;
+
+  AppLock get _lock => widget.services.lock;
+  bool _biometricsAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _lock.biometrics.isAvailable().then((available) {
+      if (mounted) setState(() => _biometricsAvailable = available);
+    });
+  }
+
+  Future<void> _setLock(bool on) async {
+    if (on) {
+      final pin = await PinDialogs.choose(context);
+      if (pin == null) return;
+      await _lock.setPin(pin);
+    } else {
+      if (!await PinDialogs.confirm(
+        context,
+        title: 'Turn off the app lock?',
+        check: _lock.disable,
+      )) {
+        return;
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _changePin() async {
+    if (!await PinDialogs.confirm(
+      context,
+      title: 'Change PIN',
+      check: _lock.verify,
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    final pin = await PinDialogs.choose(context, title: 'Choose a new PIN');
+    if (pin == null) return;
+    await _lock.setPin(pin);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('PIN changed')));
+  }
+
+  Future<void> _setBiometrics(bool on) async {
+    // Turning it on asks once, so it is known to work for this person.
+    if (on &&
+        !await _lock.biometrics.authenticate(
+          'Confirm to unlock $appName this way',
+        )) {
+      return;
+    }
+    setState(() => _lock.useBiometrics = on);
+  }
+
+  List<Widget> _lockSettings() {
+    final enabled = _lock.enabled;
+    return [
+      SwitchListTile(
+        title: const Text('App lock'),
+        subtitle: Text(
+          'Ask for a PIN to open $appName. While locked, notifications '
+          'show only that there is new mail.',
+        ),
+        value: enabled,
+        onChanged: _setLock,
+      ),
+      if (enabled) ...[
+        ListTile(
+          title: const Text('Lock'),
+          subtitle: const Text('After leaving the app'),
+          trailing: DropdownButton<LockTimeout>(
+            value: _lock.timeout,
+            underline: const SizedBox.shrink(),
+            items: [
+              for (final t in LockTimeout.values)
+                DropdownMenuItem(value: t, child: Text(t.label)),
+            ],
+            onChanged: (t) {
+              if (t != null) setState(() => _lock.timeout = t);
+            },
+          ),
+        ),
+        if (_biometricsAvailable)
+          SwitchListTile(
+            title: Text('Unlock with ${_lock.biometrics.name}'),
+            value: _lock.useBiometrics,
+            onChanged: _setBiometrics,
+          ),
+        ListTile(title: const Text('Change PIN'), onTap: _changePin),
+      ],
+    ];
+  }
 
   Future<void> _setInstant(bool on) async {
     setState(() => widget.services.settings.instantMail = on);
@@ -74,6 +171,8 @@ final class _SettingsPageState extends State<SettingsPage> {
               onChanged: _setInstant,
             ),
           ],
+          const Divider(),
+          ..._lockSettings(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.image_outlined),

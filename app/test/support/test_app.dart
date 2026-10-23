@@ -191,7 +191,15 @@ final class TestApp {
     return TestApp._(
       directory,
       store,
-      AppServices(store, _MemorySecrets(), worker, web: web ?? offlineWeb),
+      AppServices(
+        store,
+        _MemorySecrets(),
+        worker,
+        web: web ?? offlineWeb,
+        databasePath: path,
+        // Fast PIN hashing: the real strength is tested in pin_hasher_test.
+        pinRounds: 1000,
+      ),
     );
   }
 

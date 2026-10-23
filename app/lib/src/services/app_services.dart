@@ -13,6 +13,8 @@ import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_web/mail_web.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../security/app_lock.dart';
+import '../security/pin_hasher.dart';
 import 'app_settings.dart';
 import 'remote_images.dart';
 import 'secret_store.dart';
@@ -28,10 +30,26 @@ final class AppServices {
     SecretStore secrets,
     SyncWorker worker, {
     WebClient? web,
-  }) => AppServices._(store, secrets, worker, web ?? WebClient());
+    Biometrics? biometrics,
+    String? databasePath,
+    int pinRounds = PinHasher.iterations,
+  }) => AppServices._(
+    store,
+    secrets,
+    worker,
+    web ?? WebClient(),
+    AppLock(store, secrets, biometrics: biometrics, pinRounds: pinRounds),
+    databasePath,
+  );
 
-  AppServices._(this.store, this.secrets, this.worker, WebClient web)
-    : actions = MailActions(store, undoWindow: const Duration(seconds: 5)),
+  AppServices._(
+    this.store,
+    this.secrets,
+    this.worker,
+    WebClient web,
+    this.lock,
+    this._databasePath,
+  ) : actions = MailActions(store, undoWindow: const Duration(seconds: 5)),
       oneClick = OneClickUnsubscriber(web),
       images = RemoteImages(web),
       drafts = DraftStore(store),
@@ -42,6 +60,10 @@ final class AppServices {
   final MailStore store;
   final SecretStore secrets;
   final SyncWorker worker;
+  final String? _databasePath;
+
+  /// The app lock (PIN, biometrics, when to lock).
+  final AppLock lock;
 
   /// Local changes (read, pin, move, delete); the worker sends them on.
   final MailActions actions;
@@ -103,9 +125,36 @@ final class AppServices {
     await worker.accountsChanged();
   }
 
-  Future<void> dispose() async {
+  Future<void>? _disposing;
+
+  /// Stops the worker and closes the store. Safe to call more than once:
+  /// every caller waits for the same shutdown.
+  Future<void> dispose() => _disposing ??= _close();
+
+  Future<void> _close() async {
+    lock.dispose();
     await worker.close();
     store.close();
+    _closed = true;
+  }
+
+  bool _closed = false;
+
+  /// Whether [dispose] has finished.
+  bool get closed => _closed;
+
+  /// "Forgot PIN": removes everything on this device: every account and
+  /// its password, the local mail, the database key and the PIN. Mail on
+  /// the servers is untouched; the user adds their accounts again.
+  Future<void> resetEverything() async {
+    final accounts = store.accounts.all();
+    await dispose();
+    for (final account in accounts) {
+      await secrets.delete(account.keychainKey);
+    }
+    await secrets.delete(AppLock.pinKey);
+    final path = _databasePath;
+    if (path != null) await AppStartup.resetLocalData(path, secrets: secrets);
   }
 }
 
@@ -182,7 +231,8 @@ abstract final class AppStartup {
         store.close();
         rethrow;
       }
-      final services = AppServices(store, keychain, worker);
+      final services = AppServices(store, keychain, worker, databasePath: path);
+      await services.lock.start();
       return StartupReady(services);
     } on SecretStoreUnavailableException catch (e) {
       return StartupKeychainUnavailable(e.message);

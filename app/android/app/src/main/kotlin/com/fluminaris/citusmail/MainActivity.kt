@@ -5,13 +5,15 @@
 package com.fluminaris.citusmail
 
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+// A FragmentActivity, as the system's fingerprint dialog (local_auth) needs.
+class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         // The periodic check (kept if already scheduled; does nothing until
@@ -35,6 +37,15 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "setInstant" -> {
                         InstantMailService.setEnabled(this, call.arguments as? Boolean ?: false)
+                        result.success(null)
+                    }
+                    // App lock on: the app switcher shows no picture of the
+                    // mail (Android 13+; older versions show the app's own
+                    // cover).
+                    "setPrivate" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            setRecentsScreenshotEnabled(!(call.arguments as? Boolean ?: false))
+                        }
                         result.success(null)
                     }
                     else -> result.notImplemented()

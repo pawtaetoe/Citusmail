@@ -70,9 +70,23 @@ final class MailNotifier {
       true;
 
   /// Announces [mail] of [account]: one notification per message, or one
-  /// summary when many arrive at once.
-  Future<void> show(Account account, NewMail mail) async {
+  /// summary when many arrive at once. With [hideContent] (the app lock is
+  /// on), only that there is new mail: no sender, no subject.
+  Future<void> show(
+    Account account,
+    NewMail mail, {
+    bool hideContent = false,
+  }) async {
     if (mail.isEmpty) return;
+    if (hideContent) {
+      await _plugin.show(
+        id: _summaryId(account.id),
+        title: mail.total == 1 ? 'New mail' : '${mail.total} new messages',
+        body: 'Unlock $_appName to read it.',
+        notificationDetails: _details(account),
+      );
+      return;
+    }
     if (mail.total > 3) {
       await _plugin.show(
         id: _summaryId(account.id),

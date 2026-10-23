@@ -71,6 +71,18 @@ public issue. We aim to reply within 7 days.
    redirects, and enforces time and size limits. The certificate is
    checked for the name while connecting to the address that was checked.
 
+10. **App lock is a gate, not encryption.** Mail is already encrypted at
+    rest with a key in the system keychain; the lock keeps other people
+    holding the device out of the app. The PIN (4 to 16 digits) is stored
+    only as PBKDF2-HMAC-SHA256 (150,000 rounds, random salt) in the
+    keychain and checked in constant time. After 5 wrong PINs, waits grow
+    from 30 seconds to an hour, and survive restarts. While locked, the app
+    is kept alive but not drawn, focusable or read by screen readers, the
+    gate also covers every page and dialog, notifications hide sender and
+    subject, and Android 13+ shows no app-switcher preview. "Forgot PIN"
+    wipes the device's copy (accounts, passwords, mail, keys); nothing on
+    the servers changes.
+
 ## Releases
 
 Android releases are signed with a key kept outside the repository (CI
