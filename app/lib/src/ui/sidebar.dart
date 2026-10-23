@@ -233,7 +233,7 @@ final class Sidebar extends StatelessWidget {
     ];
     final all = store.mailboxes
         .forAccount(account.id)
-        .where((m) => !m.isInbox)
+        .where((m) => !m.isInbox && !m.isAppData)
         .toList();
     final special = [
       for (final use in order)

@@ -822,7 +822,7 @@ final class MailController {
   /// Folders a message can be moved to.
   List<StoredMailbox> moveTargets(StoredMessage m) => [
     for (final box in _store.mailboxes.forAccount(m.accountId))
-      if (box.selectable && box.id != m.mailboxId) box,
+      if (box.selectable && box.id != m.mailboxId && !box.isAppData) box,
   ];
 
   static String _folderName(StoredMailbox m) =>

@@ -67,6 +67,19 @@ final class KeychainSecretStore implements SecretStore {
 }
 
 /// Account passwords for the sync engine, read from the keychain.
+/// The app data sync code, from the keychain (null when sync is off).
+final class KeychainSyncCodes implements SyncCodeProvider {
+  const KeychainSyncCodes(this._secrets);
+
+  /// The keychain entry with the code.
+  static const key = 'sync-code';
+
+  final SecretStore _secrets;
+
+  @override
+  Future<String?> syncCode() => _secrets.read(key);
+}
+
 final class KeychainCredentials implements CredentialProvider {
   const KeychainCredentials(this._secrets);
 

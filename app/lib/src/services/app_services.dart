@@ -226,6 +226,7 @@ abstract final class AppStartup {
         worker = await SyncWorker.spawn(
           SyncWorkerConfig(databasePath: path, key: key),
           credentials: KeychainCredentials(keychain),
+          syncCodes: KeychainSyncCodes(keychain),
         );
       } on Object {
         store.close();

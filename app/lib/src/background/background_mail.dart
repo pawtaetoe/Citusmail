@@ -52,6 +52,7 @@ abstract final class BackgroundMail {
     final engine = SyncEngine(
       store,
       DefaultMailConnector(KeychainCredentials(secrets)),
+      syncCodes: KeychainSyncCodes(secrets),
     );
     try {
       final notifier = AppSettings(store).notifications
@@ -92,6 +93,7 @@ abstract final class BackgroundMail {
     final engine = SyncEngine(
       store,
       DefaultMailConnector(KeychainCredentials(secrets)),
+      syncCodes: KeychainSyncCodes(secrets),
     );
     final tracker = NewMailTracker(store);
     final notifier = await MailNotifier.create();

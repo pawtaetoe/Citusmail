@@ -11,6 +11,8 @@ environment:
   sdk: ^3.13.5
 
 dependencies:
+  crypto: ^3.0.6
+  mail_appsync: any
   mail_protocol: any
   mail_sort: any
   mail_store: any

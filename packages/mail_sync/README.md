@@ -46,6 +46,28 @@ flag and a plain `INBOX.Junk`). Without a Junk folder it goes to Trash;
 without either it stays. Same timing and "never twice" rules as folder
 rules. `NewMailTracker` never announces blocked senders either.
 
+## App data between devices (`AppDataSync`)
+
+When the user has turned sync on (a sync code is in the keychain), the
+sync account's normal sync ends with an exchange through its
+`Citusmail Sync` folder (under `INBOX.` on cPanel-style servers):
+
+1. read every device's snapshot message for this code (`X-Citusmail-Sync`
+   header = the code's public sync id), each sealed with the code's key;
+2. merge them with this device's data (`AppDataSnapshotter`: blocks,
+   unsubscribes, image senders, folder rules, and their removals), keeping
+   per item the later change;
+3. apply the result here, and keep it (also what this device can't use,
+   such as a rule for a folder it lacks, so it is never lost);
+4. if anything changed, store a new snapshot as this device's one message
+   and remove its old one (only its own: `UID EXPUNGE`).
+
+Accounts and folders are named by address and folder name, not local ids.
+The folder is never synced or shown as mail. A failure here is reported
+(`appDataFailure`) but never fails the mail sync. The worker asks the UI
+for the code each time it needs it (`SyncCodeProvider`); it is never
+kept in the worker.
+
 ## Undo (`MailActions`)
 
 Every action returns a receipt. Moves and deletes wait a few seconds

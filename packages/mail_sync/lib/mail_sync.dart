@@ -6,6 +6,8 @@
 library;
 
 export 'src/account_synchronizer.dart';
+export 'src/app_data/app_data_sync.dart';
+export 'src/app_data/snapshotter.dart';
 export 'src/connector.dart';
 export 'src/folder_rules.dart';
 export 'src/idle_watcher.dart';

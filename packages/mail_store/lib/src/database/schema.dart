@@ -292,4 +292,22 @@ const List<Migration> schemaMigrations = [
       since INTEGER NOT NULL
     ) STRICT''',
   ]),
+
+  // App data sync (Stage 18): removals other devices must learn about,
+  // and the last merged state of all devices (so data from a device that
+  // stopped syncing isn't lost).
+  Migration(10, [
+    '''
+    CREATE TABLE sync_tombstones (
+      key TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      deleted_at INTEGER NOT NULL,
+      device TEXT NOT NULL
+    ) STRICT''',
+    '''
+    CREATE TABLE sync_state (
+      key TEXT PRIMARY KEY,
+      record TEXT NOT NULL
+    ) STRICT''',
+  ]),
 ];

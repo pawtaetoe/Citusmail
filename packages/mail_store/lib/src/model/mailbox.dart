@@ -52,6 +52,15 @@ final class StoredMailbox {
 
   bool get isInbox => encodedName.toUpperCase() == 'INBOX';
 
+  /// The folder that carries the app's encrypted sync data. Never shown or
+  /// synced as mail.
+  static const appDataName = 'Citusmail Sync';
+
+  /// Whether this is the app's sync data folder (also when it lives under
+  /// `INBOX.` on cPanel-style servers).
+  bool get isAppData =>
+      name == appDataName || name.split(delimiter ?? '/').last == appDataName;
+
   @override
   String toString() => 'StoredMailbox($id, $name)';
 }

@@ -5,6 +5,7 @@
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'app_data/app_data_sync.dart';
 import 'connector.dart';
 import 'folder_rules.dart';
 import 'mailbox_synchronizer.dart';
@@ -65,9 +66,18 @@ final class AccountSyncReport {
     required this.replay,
     required Map<int, MailboxSyncResult> mailboxes,
     this.movedByRules = 0,
+    this.appData,
+    this.appDataFailure,
   }) : mailboxes = Map.unmodifiable(mailboxes);
 
   final ReplayResult replay;
+
+  /// The exchange of app data with the user's other devices, when this is
+  /// the sync account and sync is on.
+  final AppDataSyncReport? appData;
+
+  /// Why that exchange failed (mail sync itself still completed).
+  final SyncFailure? appDataFailure;
 
   /// Inbox messages moved by blocks (to Junk) and the user's folder rules.
   final int movedByRules;
@@ -90,6 +100,7 @@ final class AccountSynchronizer {
     this._replayer, {
     this._rules,
     this._blocker,
+    this._appData,
   });
 
   final MailStore _store;
@@ -98,6 +109,7 @@ final class AccountSynchronizer {
   final OutboxReplayer _replayer;
   final FolderRuleApplier? _rules;
   final SenderBlocker? _blocker;
+  final AppDataSync? _appData;
 
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled).
@@ -116,7 +128,8 @@ final class AccountSynchronizer {
 
       final results = <int, MailboxSyncResult>{};
       for (final mailbox in _store.mailboxes.forAccount(account.id)) {
-        if (!mailbox.selectable) continue;
+        // The sync data folder holds the app's own data, not mail.
+        if (!mailbox.selectable || mailbox.isAppData) continue;
         if (mailboxIds != null && !mailboxIds.contains(mailbox.id)) continue;
         results[mailbox.id] = await _mailboxSync.sync(
           imap,
@@ -139,10 +152,23 @@ final class AccountSynchronizer {
           );
         }
       }
+      // 5. App data with the user's other devices. Its problems never
+      // fail the mail sync.
+      AppDataSyncReport? appData;
+      SyncFailure? appDataFailure;
+      if (_appData case final sync?) {
+        try {
+          appData = await sync.run(imap, account);
+        } on Object catch (e) {
+          appDataFailure = SyncFailure.from(e);
+        }
+      }
       return AccountSyncReport(
         replay: replay,
         mailboxes: results,
         movedByRules: movedByRules,
+        appData: appData,
+        appDataFailure: appDataFailure,
       );
     } finally {
       await imap.logout();

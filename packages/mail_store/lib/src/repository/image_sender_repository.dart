@@ -5,6 +5,7 @@
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
+import 'app_data_sync_repository.dart';
 
 /// A sender whose images load without asking (when the user's server
 /// verified the message really comes from them).
@@ -50,8 +51,21 @@ final class ImageSenderRepository {
     );
   });
 
-  void remove(int id) =>
-      _db.execute('DELETE FROM image_senders WHERE id = ?', [id]);
+  /// Removes a sender, remembering the removal for the user's other
+  /// devices.
+  void remove(int id, {DateTime? at, String? device}) => _db.transaction(() {
+    final rows = _db.select('SELECT address FROM image_senders WHERE id = ?', [
+      id,
+    ]);
+    if (rows.isEmpty) return;
+    _db.execute('DELETE FROM image_senders WHERE id = ?', [id]);
+    AppDataSyncRepository(_db).recordRemoval(
+      AppDataKeys.imageSender(rows.first.columnAt(0) as String),
+      'imageSender',
+      at: at,
+      device: device,
+    );
+  });
 
   bool isAllowed(String? address) =>
       address != null &&

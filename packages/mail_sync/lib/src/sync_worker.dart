@@ -8,6 +8,7 @@ import 'dart:isolate';
 import 'package:mail_store/mail_store.dart';
 
 import 'account_synchronizer.dart';
+import 'app_data/app_data_sync.dart';
 import 'connector.dart';
 import 'message_loader.dart';
 import 'sync_engine.dart';
@@ -55,20 +56,24 @@ final class SyncWorkerException implements Exception {
 /// [CredentialProvider] each time it logs in, so the keychain is only
 /// used from the UI isolate.
 final class SyncWorker {
-  SyncWorker._(this._config, this._credentials);
+  SyncWorker._(this._config, this._credentials, this._syncCodes);
 
-  /// Starts the worker.
+  /// Starts the worker. [syncCodes] gives the app data sync code (null
+  /// when sync is off); it is asked each time it is needed and never kept
+  /// in the worker.
   static Future<SyncWorker> spawn(
     SyncWorkerConfig config, {
     required CredentialProvider credentials,
+    SyncCodeProvider? syncCodes,
   }) async {
-    final worker = SyncWorker._(config, credentials);
+    final worker = SyncWorker._(config, credentials, syncCodes);
     await worker._spawn();
     return worker;
   }
 
   final SyncWorkerConfig _config;
   final CredentialProvider _credentials;
+  final SyncCodeProvider? _syncCodes;
   // Delivered as they arrive, so an event always reaches listeners before
   // the reply to the request that caused it.
   final _events = StreamController<SyncEvent>.broadcast(sync: true);
@@ -128,6 +133,10 @@ final class SyncWorker {
   /// After accounts were added, removed or changed.
   Future<void> accountsChanged() => _request(const _AccountsChanged());
 
+  /// Removes this device's app data from the sync folder (sync turned off
+  /// here). Throws [SyncWorkerException] when offline.
+  Future<void> forgetAppData() => _request(const _ForgetAppData());
+
   /// Stops the worker for good.
   Future<void> close() async {
     if (_closed) return;
@@ -167,6 +176,8 @@ final class SyncWorker {
         _events.add(event);
       case _PasswordRequest(:final id, :final account):
         unawaited(_answerPassword(id, account));
+      case _SyncCodeRequest(:final id):
+        unawaited(_answerSyncCode(id));
       case null || List<Object?>():
         // Exit (null) or an uncaught error ([error, stack]) in the worker.
         if (!ready.isCompleted) {
@@ -190,6 +201,16 @@ final class SyncWorker {
     } on Object catch (e) {
       _commands?.send(_PasswordReply(id, null, SyncFailure.from(e)));
     }
+  }
+
+  Future<void> _answerSyncCode(int id) async {
+    String? code;
+    try {
+      code = await _syncCodes?.syncCode();
+    } on Object {
+      code = null; // unreadable keychain: no sync this time
+    }
+    _commands?.send(_SyncCodeReply(id, code));
   }
 
   /// The worker stopped unexpectedly: fail what was waiting and start a
@@ -263,11 +284,13 @@ Future<void> _workerMain(_Boot boot) async {
   final commands = ReceivePort();
   final reply = boot.replyTo;
   final credentials = _RemoteCredentials(reply);
+  final syncCodes = _RemoteSyncCodes(reply);
   final store = MailStore.open(boot.config.databasePath, boot.config.key);
   final engine = SyncEngine(
     store,
     boot.config.connector(credentials),
     fullSyncInterval: boot.config.fullSyncInterval,
+    syncCodes: syncCodes,
   );
   final events = engine.events.listen((e) => reply.send(_Event(e)));
   var running = false;
@@ -295,6 +318,8 @@ Future<void> _workerMain(_Boot boot) async {
         return engine.fetchOlder(mailboxId, count: count);
       case _CreateFolder(:final accountId, :final name):
         return engine.createFolder(accountId, name);
+      case _ForgetAppData():
+        await engine.forgetAppData();
       case _AccountsChanged():
         for (final account in store.accounts.all()) {
           await engine.accountChanged(account.id);
@@ -314,6 +339,8 @@ Future<void> _workerMain(_Boot boot) async {
     switch (message) {
       case _PasswordReply():
         credentials.answer(message);
+      case _SyncCodeReply():
+        syncCodes.answer(message);
       case _Request(:final id, command: _Shutdown()):
         await events.cancel();
         await engine.dispose();
@@ -370,6 +397,26 @@ final class _RemoteCredentials implements CredentialProvider {
   }
 }
 
+/// Asks the UI isolate for the sync code, each time it is needed.
+final class _RemoteSyncCodes implements SyncCodeProvider {
+  _RemoteSyncCodes(this._reply);
+
+  final SendPort _reply;
+  final _waiting = <int, Completer<String?>>{};
+  int _nextId = 0;
+
+  @override
+  Future<String?> syncCode() {
+    final id = _nextId++;
+    final completer = _waiting[id] = Completer<String?>();
+    _reply.send(_SyncCodeRequest(id));
+    return completer.future;
+  }
+
+  void answer(_SyncCodeReply reply) =>
+      _waiting.remove(reply.id)?.complete(reply.code);
+}
+
 // ---------------------------------------------------------------- messages
 
 final class _Boot {
@@ -419,6 +466,19 @@ final class _PasswordRequest {
   final Account account;
 }
 
+final class _SyncCodeRequest {
+  const _SyncCodeRequest(this.id);
+
+  final int id;
+}
+
+final class _SyncCodeReply {
+  const _SyncCodeReply(this.id, this.code);
+
+  final int id;
+  final String? code;
+}
+
 final class _PasswordReply {
   const _PasswordReply(this.id, this.password, this.failure);
 
@@ -429,6 +489,10 @@ final class _PasswordReply {
 
 sealed class _Command {
   const _Command();
+}
+
+final class _ForgetAppData extends _Command {
+  const _ForgetAppData();
 }
 
 final class _Start extends _Command {

@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
 import '../model/unsubscription.dart';
+import 'app_data_sync_repository.dart';
 
 /// Lists the user unsubscribed from, so the app can say so on later mail
 /// from them (and notice lists that keep sending).
@@ -53,8 +54,26 @@ final class UnsubscribeRepository {
       .map(_fromRow)
       .toList(growable: false);
 
-  void remove(int id) =>
-      _db.execute('DELETE FROM unsubscriptions WHERE id = ?', [id]);
+  /// Removes the record, remembering the removal for the user's other
+  /// devices.
+  void remove(int id, {DateTime? at, String? device}) => _db.transaction(() {
+    final rows = _db.select(
+      'SELECT a.email, u.list_key FROM unsubscriptions u '
+      'JOIN accounts a ON a.id = u.account_id WHERE u.id = ?',
+      [id],
+    );
+    if (rows.isEmpty) return;
+    _db.execute('DELETE FROM unsubscriptions WHERE id = ?', [id]);
+    AppDataSyncRepository(_db).recordRemoval(
+      AppDataKeys.unsubscribe(
+        rows.first.columnAt(0) as String,
+        rows.first.columnAt(1) as String,
+      ),
+      'unsubscribe',
+      at: at,
+      device: device,
+    );
+  });
 
   static Unsubscription _fromRow(Row row) => Unsubscription(
     id: row['id'] as int,

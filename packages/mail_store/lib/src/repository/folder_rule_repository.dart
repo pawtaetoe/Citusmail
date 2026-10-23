@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
 import '../model/folder_rule.dart';
+import 'app_data_sync_repository.dart';
 
 /// The user's custom-folder rules, and which messages they already moved.
 final class FolderRuleRepository {
@@ -26,6 +27,7 @@ final class FolderRuleRepository {
     required String value,
     bool includeExisting = false,
     DateTime? now,
+    DateTime? appliesFrom,
   }) => _db.transaction(() {
     final owner = _db.select('SELECT account_id FROM mailboxes WHERE id = ?', [
       mailboxId,
@@ -46,15 +48,38 @@ final class FolderRuleRepository {
         mailboxId,
         field.name,
         FolderRule.normalize(field, value),
-        includeExisting ? 0 : at,
+        appliesFrom?.toUtc().millisecondsSinceEpoch ??
+            (includeExisting ? 0 : at),
         at,
       ],
     );
     return _byId(_db.lastInsertRowId)!;
   });
 
-  void remove(int id) =>
-      _db.execute('DELETE FROM folder_rules WHERE id = ?', [id]);
+  /// Removes a rule the user deleted, remembering the removal for their
+  /// other devices.
+  void remove(int id, {DateTime? at, String? device}) => _db.transaction(() {
+    final rows = _db.select(
+      'SELECT a.email, m.encoded_name, r.field, r.value FROM folder_rules r '
+      'JOIN accounts a ON a.id = r.account_id '
+      'JOIN mailboxes m ON m.id = r.mailbox_id WHERE r.id = ?',
+      [id],
+    );
+    if (rows.isEmpty) return;
+    final row = rows.first;
+    _db.execute('DELETE FROM folder_rules WHERE id = ?', [id]);
+    AppDataSyncRepository(_db).recordRemoval(
+      AppDataKeys.folderRule(
+        row['email'] as String,
+        row['encoded_name'] as String,
+        RuleField.values.byName(row['field'] as String),
+        row['value'] as String,
+      ),
+      'folderRule',
+      at: at,
+      device: device,
+    );
+  });
 
   /// An account's rules, oldest first (the first match wins).
   List<FolderRule> forAccount(int accountId) => _db

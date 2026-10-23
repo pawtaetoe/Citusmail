@@ -10,6 +10,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'account_synchronizer.dart';
+import 'app_data/app_data_sync.dart';
 import 'connector.dart';
 import 'folder_rules.dart';
 import 'idle_watcher.dart';
@@ -53,7 +54,9 @@ final class SyncEngine {
     SyncSettings settings = const SyncSettings(),
     this.fullSyncInterval = const Duration(minutes: 15),
     this.changeDelay = const Duration(milliseconds: 500),
-  }) : _mailboxSync = MailboxSynchronizer(
+    SyncCodeProvider? syncCodes,
+  }) : appData = syncCodes == null ? null : AppDataSync(_store, syncCodes),
+       _mailboxSync = MailboxSynchronizer(
          _store,
          SummaryMapper(classifier),
          settings: settings,
@@ -67,11 +70,15 @@ final class SyncEngine {
       OutboxReplayer(_store),
       rules: FolderRuleApplier(_store),
       blocker: SenderBlocker(_store),
+      appData: appData,
     );
   }
 
   final MailStore _store;
   final MailConnector _connector;
+
+  /// App data sync between the user's devices; null without a code source.
+  final AppDataSync? appData;
   final MailboxSynchronizer _mailboxSync;
   final MessageLoader _loader;
   final OnDemandConnections _onDemand;
@@ -237,6 +244,15 @@ final class SyncEngine {
           )
           .id;
     });
+  }
+
+  /// Removes this device's sync data from the sync account's folder and
+  /// forgets the merged state (sync was turned off on this device).
+  Future<void> forgetAppData() async {
+    final sync = appData;
+    final account = sync?.account;
+    if (sync == null || account == null) return;
+    await _onDemand.run(account, (imap) => sync.forget(imap, account));
   }
 
   /// Forgets the on-demand connection of an account (after it was removed
