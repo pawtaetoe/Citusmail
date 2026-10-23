@@ -68,6 +68,10 @@ final class MessageBuilder {
     if (message.replyTo != null) {
       out.write(_headers.addressList('Reply-To', [message.replyTo!]));
     }
+    if (message.receiptTo case final receipt?) {
+      _headers.validateAddress(receipt);
+      out.write(_headers.addressList('Disposition-Notification-To', [receipt]));
+    }
     if (message.to.isNotEmpty) {
       out.write(_headers.addressList('To', message.to));
     }

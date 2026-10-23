@@ -10,6 +10,7 @@ import 'connector.dart';
 import 'folder_rules.dart';
 import 'mailbox_synchronizer.dart';
 import 'outbox_replayer.dart';
+import 'receipt_collector.dart';
 import 'sender_blocker.dart';
 import 'sync_worker.dart';
 
@@ -66,11 +67,15 @@ final class AccountSyncReport {
     required this.replay,
     required Map<int, MailboxSyncResult> mailboxes,
     this.movedByRules = 0,
+    this.receipts = 0,
     this.appData,
     this.appDataFailure,
   }) : mailboxes = Map.unmodifiable(mailboxes);
 
   final ReplayResult replay;
+
+  /// Read receipts recorded for the user's sent mail.
+  final int receipts;
 
   /// The exchange of app data with the user's other devices, when this is
   /// the sync account and sync is on.
@@ -152,7 +157,18 @@ final class AccountSynchronizer {
           );
         }
       }
-      // 5. App data with the user's other devices. Its problems never
+      // 5. Read receipts that arrived for the user's sent mail.
+      // Optional: a problem here is retried next time, never fatal.
+      var receipts = 0;
+      if (inbox != null && results.containsKey(inbox.id)) {
+        try {
+          receipts = await ReceiptCollector(_store).collect(imap, account);
+        } on MailException {
+          receipts = 0;
+        }
+      }
+
+      // 6. App data with the user's other devices. Its problems never
       // fail the mail sync.
       AppDataSyncReport? appData;
       SyncFailure? appDataFailure;
@@ -168,6 +184,7 @@ final class AccountSynchronizer {
         replay: replay,
         mailboxes: results,
         movedByRules: movedByRules,
+        receipts: receipts,
         appData: appData,
         appDataFailure: appDataFailure,
       );

@@ -89,6 +89,13 @@ is read.
 Read receipts are never sent. When a sender asks for one, the message
 says so, and that nothing was sent.
 
+You can ask for a read receipt yourself when writing (off by default). That
+adds only the standard request (`Disposition-Notification-To`); the
+recipient's mail app decides whether to answer, and many never do.
+Citusmail never uses tracking pixels or tracked links to find out whether
+someone read your mail. Receipts that come back are matched to your sent
+message on your device and filed under Notifications.
+
 Images stay hidden until you load them, so senders can't see when or
 where you open their mail. Tracking pixels (tiny or invisible images,
 known tracking services and addresses) are removed for good: they are not

@@ -190,10 +190,11 @@ void main() {
       expect(subjects(SmartSection.notifications), {
         'Re: [owner/repo] Fix crash on startup (PR #12)',
         'Reset your password',
+        'Read: Final report', // a read receipt
       });
       expect(subjects(SmartSection.pinned), {'Photos from the hike'});
       expect(count(SmartSection.important), 0, reason: 'Sent not synced yet');
-      expect(count(SmartSection.general), 16);
+      expect(count(SmartSection.general), 15);
       final list = alice
           .messages('INBOX')
           .firstWhere((m) => m.subject!.startsWith('[project-dev]'));
@@ -201,7 +202,8 @@ void main() {
 
       // Alice has written to Bob, which her Sent folder shows.
       await alice.sync(['Sent']);
-      expect(count(SmartSection.important), 5);
+      // Bob's mail, except his read receipt (a notification).
+      expect(count(SmartSection.important), 4);
       expect(
         alice.store.messages
             .list(const MessageQuery.smart(SmartSection.important))

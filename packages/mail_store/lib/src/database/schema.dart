@@ -310,4 +310,29 @@ const List<Migration> schemaMigrations = [
       record TEXT NOT NULL
     ) STRICT''',
   ]),
+
+  // Read receipts (Stage 20): messages that asked for one, the receipts
+  // that came back, and incoming reports already read.
+  Migration(11, [
+    '''
+    CREATE TABLE receipt_requests (
+      account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      message_id_header TEXT NOT NULL,
+      requested_at INTEGER NOT NULL,
+      PRIMARY KEY (account_id, message_id_header)
+    ) STRICT''',
+    '''
+    CREATE TABLE read_receipts (
+      account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      message_id_header TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      disposition TEXT NOT NULL CHECK (disposition IN ('displayed', 'deleted', 'dispatched', 'processed')),
+      at INTEGER NOT NULL,
+      PRIMARY KEY (account_id, message_id_header, recipient)
+    ) STRICT''',
+    '''
+    CREATE TABLE processed_reports (
+      message_id INTEGER PRIMARY KEY REFERENCES messages (id) ON DELETE CASCADE
+    ) STRICT''',
+  ]),
 ];

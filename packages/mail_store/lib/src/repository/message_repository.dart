@@ -503,6 +503,16 @@ final class MessageRepository {
         .toList(growable: false);
   }
 
+  /// Messages in [mailboxId] with Message-ID [messageId]
+  /// (without brackets).
+  List<StoredMessage> byMessageId(int mailboxId, String messageId) => _db
+      .select(
+        'SELECT $_columns $_from WHERE m.mailbox_id = ? AND m.message_id_header = ?',
+        [mailboxId, messageId],
+      )
+      .map(_fromRow)
+      .toList(growable: false);
+
   /// Stored headers of a message: lower-case name -> values.
   Map<String, List<String>> headers(int messageId) {
     final result = <String, List<String>>{};

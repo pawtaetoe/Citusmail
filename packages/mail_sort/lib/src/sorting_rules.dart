@@ -58,6 +58,24 @@ final class AutoReplyRule implements SortingRule {
       : null;
 }
 
+/// A read receipt (RFC 8098 report) is a notification about the user's
+/// own mail, not a message from a person.
+final class ReadReceiptRule implements SortingRule {
+  const ReadReceiptRule();
+
+  @override
+  Classification? apply(ClassificationInput input) {
+    final type = input.header('content-type')?.toLowerCase() ?? '';
+    return type.contains('multipart/report') &&
+            type.contains('disposition-notification')
+        ? const Classification(
+            MessageCategory.notifications,
+            SortingReason.readReceipt,
+          )
+        : null;
+  }
+}
+
 /// RFC 8058 one-click unsubscribe is used for marketing and bulk mail, so
 /// it outweighs a `noreply` sender.
 final class OneClickUnsubscribeRule implements SortingRule {

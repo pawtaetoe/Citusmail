@@ -13,6 +13,7 @@ import 'repository/image_sender_repository.dart';
 import 'repository/mailbox_repository.dart';
 import 'repository/message_repository.dart';
 import 'repository/outbox_repository.dart';
+import 'repository/receipt_repository.dart';
 import 'repository/settings_repository.dart';
 import 'repository/unsubscribe_repository.dart';
 
@@ -30,7 +31,8 @@ final class MailStore {
       unsubscriptions = UnsubscribeRepository(database),
       blocks = BlockRepository(database),
       imageSenders = ImageSenderRepository(database),
-      appDataSync = AppDataSyncRepository(database);
+      appDataSync = AppDataSyncRepository(database),
+      receipts = ReceiptRepository(database);
 
   /// Opens (or creates) the store at [path], encrypted with [key].
   /// See [MailDatabase.open] for the errors it can raise.
@@ -49,6 +51,7 @@ final class MailStore {
   final BlockRepository blocks;
   final ImageSenderRepository imageSenders;
   final AppDataSyncRepository appDataSync;
+  final ReceiptRepository receipts;
 
   /// Runs [action] atomically across repositories.
   T transaction<T>(T Function() action) => database.transaction(action);

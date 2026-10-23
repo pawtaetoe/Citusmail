@@ -125,6 +125,10 @@ final class ComposeController extends ChangeNotifier {
   void setAccount(int accountId) =>
       _update(_draft.copyWith(accountId: accountId));
   void setSubject(String subject) => _update(_draft.copyWith(subject: subject));
+
+  /// Ask the recipients' mail apps for a read receipt (their choice).
+  void setRequestReceipt(bool on) =>
+      _update(_draft.copyWith(requestReceipt: on));
   void setBody(String body) =>
       _update(_draft.copyWith(body: body), notify: false);
 

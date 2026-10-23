@@ -358,6 +358,53 @@ void main() {
       expect(store.drafts.all(), isEmpty);
     });
 
+    test('asking for a read receipt: the standard header, and remembered', () {
+      final draft = Draft(
+        accountId: alice.id,
+        to: [a('bob@x.example')],
+        subject: 'Report',
+        body: 'Here it is.',
+        requestReceipt: true,
+      );
+      // Kept when the draft is saved and opened again.
+      final saved = DraftStore(store).save(draft);
+      expect(store.drafts.byId(saved.id!), isNotNull);
+      final reopened = Draft.decodeContent(
+        saved.encodeContent(),
+        id: saved.id!,
+        accountId: alice.id,
+        attachments: const [],
+      );
+      expect(reopened.requestReceipt, isTrue);
+
+      final now = DateTime.now();
+      final pending = sender.send(reopened, now: now);
+      final queued = store.outbox.due(alice.id, now: pending.undoUntil).first;
+      final sent = const MimeParser().parse(queued.data!);
+      expect(
+        sent.headers.value('disposition-notification-to'),
+        contains('alice@fmail.test'),
+      );
+      expect(store.receipts.wasRequested(alice.id, sent.messageId!), isTrue);
+
+      // Without the option: no header, nothing remembered.
+      final plain = sender.send(
+        Draft(accountId: alice.id, to: [a('bob@x.example')], body: 'x'),
+        now: now,
+      );
+      final plainSent = const MimeParser().parse(
+        store.outbox
+            .due(alice.id, now: plain.undoUntil)
+            .firstWhere((e) => e.id == plain.entryIds.first)
+            .data!,
+      );
+      expect(plainSent.headers.value('disposition-notification-to'), isNull);
+      expect(
+        store.receipts.wasRequested(alice.id, plainSent.messageId!),
+        isFalse,
+      );
+    });
+
     test('undo takes everything back and restores the draft', () {
       final (message, view) = received();
       final now = DateTime.now();

@@ -28,10 +28,12 @@ final class HeaderRuleClassifier implements MessageClassifier {
 
   /// Bump whenever [rules] or the lists they use change, so stored mail is
   /// re-sorted (see `Resorter`).
-  static const currentVersion = 1;
+  /// 2: read receipts sort as notifications.
+  static const currentVersion = 2;
 
   static const List<SortingRule> rules = [
     OwnMailRule(),
+    ReadReceiptRule(),
     KnownServiceRule(),
     AutoReplyRule(),
     OneClickUnsubscribeRule(),

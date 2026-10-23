@@ -168,6 +168,16 @@ final class _ComposePageState extends State<ComposePage> {
                           ),
                         ),
                         IconButton(
+                          tooltip: draft.requestReceipt
+                              ? 'Read receipt requested (tap to cancel)'
+                              : 'Ask for a read receipt',
+                          isSelected: draft.requestReceipt,
+                          icon: const Icon(Icons.mark_email_read_outlined),
+                          selectedIcon: const Icon(Icons.mark_email_read),
+                          onPressed: () =>
+                              _c.setRequestReceipt(!draft.requestReceipt),
+                        ),
+                        IconButton(
                           tooltip: 'Attach files',
                           icon: const Icon(Icons.attach_file),
                           onPressed: _attach,

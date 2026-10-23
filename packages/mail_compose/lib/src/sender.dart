@@ -95,6 +95,9 @@ final class Sender {
           // Not an id we wrote: leave that copy alone.
         }
       }
+      if (draft.requestReceipt) {
+        _store.receipts.requested(account.id, built.messageId);
+      }
       final answered = _markAnswered(draft.answeredMessageId, undoUntil, ids);
       if (draft.id case final id?) _store.drafts.delete(id);
       return PendingSend._(

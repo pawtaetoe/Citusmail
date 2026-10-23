@@ -25,6 +25,8 @@ final class SummaryMapper {
     'Authentication-Results',
     'Disposition-Notification-To',
     'Feedback-ID',
+    // Read receipts (RFC 8098 reports) are recognised by their type.
+    'Content-Type',
   ];
 
   static const _maxSnippet = 200;

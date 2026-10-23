@@ -1354,6 +1354,83 @@ void main() {
     });
   });
 
+  group('read receipts', () {
+    late Account account;
+    late StoredMailbox inbox;
+    setUp(() {
+      account = temp.addAccount();
+      inbox = store.mailboxes.replaceAll(account.id, [folder('INBOX')]).single;
+    });
+
+    test('only messages that asked get receipts; a later one replaces', () {
+      expect(
+        store.receipts.record(
+          account.id,
+          'x@a',
+          recipient: 'bob@b.example',
+          disposition: 'displayed',
+        ),
+        isFalse,
+        reason: 'never asked',
+      );
+      store.receipts.requested(account.id, 'x@a');
+      expect(store.receipts.wasRequested(account.id, 'x@a'), isTrue);
+      store.receipts.record(
+        account.id,
+        'x@a',
+        recipient: 'Bob@B.example',
+        disposition: 'processed',
+        at: DateTime.utc(2026, 10, 1),
+      );
+      store.receipts.record(
+        account.id,
+        'x@a',
+        recipient: 'bob@b.example',
+        disposition: 'displayed',
+        at: DateTime.utc(2026, 10, 2),
+      );
+      store.receipts.record(
+        account.id,
+        'x@a',
+        recipient: 'carol@c.example',
+        disposition: 'displayed',
+        at: DateTime.utc(2026, 10, 3),
+      );
+      final got = store.receipts.forMessage(account.id, 'x@a');
+      expect(got.map((r) => (r.recipient, r.disposition)), [
+        ('bob@b.example', 'displayed'),
+        ('carol@c.example', 'displayed'),
+      ]);
+      expect(store.receipts.forMessage(account.id, 'other@a'), isEmpty);
+    });
+
+    test('incoming reports are found by Content-Type, once', () {
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026, 10, 1),
+          headers: const {
+            'content-type': [
+              'multipart/report; report-type=disposition-notification; boundary="b"',
+            ],
+          },
+        ),
+        MessageSummary(
+          uid: 2,
+          receivedAt: DateTime.utc(2026, 10, 2),
+          headers: const {
+            'content-type': ['multipart/report; report-type=delivery-status'],
+          },
+        ),
+        MessageSummary(uid: 3, receivedAt: DateTime.utc(2026, 10, 3)),
+      ]);
+      final reports = store.receipts.unreadReports(inbox.id);
+      expect(reports, [store.messages.byUid(inbox.id, 1)!.id]);
+      store.receipts.markReportRead(reports.single);
+      expect(store.receipts.unreadReports(inbox.id), isEmpty);
+    });
+  });
+
   group('settings', () {
     test('read, write, overwrite, delete, and persist', () {
       expect(store.settings.read('k'), isNull);

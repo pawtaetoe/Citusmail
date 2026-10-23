@@ -97,7 +97,10 @@ void main() {
         newsletters,
         SortingReason.bulkPrecedence,
       ),
-      'receipts/mdn-displayed.eml': (general, SortingReason.noSignal),
+      'receipts/mdn-displayed.eml': (
+        MessageCategory.notifications,
+        SortingReason.readReceipt,
+      ),
     };
     for (final dir in ['people', 'security', 'malformed']) {
       for (final file in Directory('${fixtureDir.path}/$dir').listSync()) {

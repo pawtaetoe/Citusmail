@@ -28,6 +28,7 @@ export 'src/repository/image_sender_repository.dart';
 export 'src/repository/mailbox_repository.dart';
 export 'src/repository/message_repository.dart';
 export 'src/repository/outbox_repository.dart';
+export 'src/repository/receipt_repository.dart';
 export 'src/repository/search_query.dart';
 export 'src/repository/settings_repository.dart';
 export 'src/repository/unsubscribe_repository.dart';

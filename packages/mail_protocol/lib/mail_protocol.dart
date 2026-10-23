@@ -28,6 +28,7 @@ export 'src/mime/builder/header_encoder.dart';
 export 'src/mime/builder/message_builder.dart';
 export 'src/mime/builder/outgoing_message.dart';
 export 'src/mime/content_type.dart';
+export 'src/mime/disposition_notification.dart';
 export 'src/mime/encoded_word.dart' show DecodedHeaderText, EncodedWordDecoder;
 export 'src/mime/header.dart';
 export 'src/mime/mail_date.dart';

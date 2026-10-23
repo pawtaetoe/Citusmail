@@ -35,6 +35,7 @@ final class Draft {
     this.references = const [],
     this.answeredMessageId,
     this.savedMessageId,
+    this.requestReceipt = false,
   });
 
   /// Local id once saved on the device.
@@ -60,6 +61,9 @@ final class Draft {
   /// when a newer copy is saved or the message is sent.
   final String? savedMessageId;
 
+  /// Ask the recipients' mail apps for a read receipt (their choice).
+  final bool requestReceipt;
+
   List<MailAddress> get recipients => [...to, ...cc, ...bcc];
 
   /// Nothing worth keeping has been written.
@@ -82,6 +86,7 @@ final class Draft {
     String? body,
     List<DraftAttachment>? attachments,
     String? savedMessageId,
+    bool? requestReceipt,
     bool clearId = false,
     bool clearSaved = false,
   }) => Draft(
@@ -97,6 +102,7 @@ final class Draft {
     references: references,
     answeredMessageId: answeredMessageId,
     savedMessageId: clearSaved ? null : savedMessageId ?? this.savedMessageId,
+    requestReceipt: requestReceipt ?? this.requestReceipt,
   );
 
   /// The fields stored as the draft's content (attachments are stored
@@ -111,6 +117,7 @@ final class Draft {
     'inReplyTo': inReplyTo,
     'references': references,
     'answeredMessageId': answeredMessageId,
+    if (requestReceipt) 'receipt': true,
   });
 
   /// Reads stored content; unreadable content gives an empty draft rather
@@ -153,6 +160,7 @@ final class Draft {
           : null,
       attachments: attachments,
       savedMessageId: savedMessageId,
+      requestReceipt: json['receipt'] == true,
     );
   }
 

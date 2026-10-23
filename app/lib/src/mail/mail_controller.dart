@@ -724,6 +724,27 @@ final class MailController {
     );
   }
 
+  // -------------------------------------------------------- read receipts
+
+  /// For the user's own mail that asked for read receipts: the receipts
+  /// so far (maybe none). Null when it didn't ask.
+  List<ReadReceipt>? receiptsFor(StoredMessage message) {
+    final id = message.messageId;
+    if (id == null) return null;
+    final account = _store.accounts.byId(message.accountId);
+    final own =
+        account != null &&
+        message.from?.address.toLowerCase() == account.email.toLowerCase();
+    if (!own) return null;
+    final asked =
+        _store.receipts.wasRequested(message.accountId, id) ||
+        _store.messages
+            .headers(message.id)
+            .containsKey('disposition-notification-to');
+    if (!asked) return null;
+    return _store.receipts.forMessage(message.accountId, id);
+  }
+
   // ------------------------------------------------------------ blocking
 
   /// The block that applies to [message]'s sender, if any.

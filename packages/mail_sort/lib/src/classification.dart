@@ -47,6 +47,7 @@ enum SortingReason {
   ownMail,
   knownService,
   autoReply,
+  readReceipt,
   oneClickUnsubscribe,
   automatedSender,
   mailingList,

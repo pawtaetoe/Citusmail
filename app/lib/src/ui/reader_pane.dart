@@ -219,6 +219,8 @@ final class _Header extends StatelessWidget {
               child: UnsubscribeStatus(controller: controller, reader: ready),
             ),
           _PrivacyNotice(controller: controller, reader: ready),
+          if (controller.receiptsFor(ready.message) case final receipts?)
+            _ReceiptNotice(receipts: receipts),
           if (ready.view.body.truncated)
             const _Notice(
               icon: Icons.content_cut,
@@ -555,6 +557,68 @@ final class _PrivacyNotice extends StatelessWidget {
     return list.length < hosts.length
         ? '${list.join(', ')} and others'
         : list.join(' and ');
+  }
+}
+
+/// On the user's own mail that asked for read receipts.
+final class _ReceiptNotice extends StatelessWidget {
+  const _ReceiptNotice({required this.receipts});
+
+  final List<ReadReceipt> receipts;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dates = MaterialLocalizations.of(context);
+    String when(DateTime at) {
+      final local = at.toLocal();
+      return '${dates.formatMediumDate(local)}, '
+          '${TimeOfDay.fromDateTime(local).format(context)}';
+    }
+
+    const waiting =
+        'Read receipt requested. No answer yet: the recipient\'s mail app '
+        'decides whether to send one.';
+    final lines = receipts.isEmpty
+        ? const [waiting]
+        : [
+            for (final r in receipts)
+              '${switch (r.disposition) {
+                'displayed' => 'Read by',
+                'deleted' => 'Deleted unread by',
+                _ => 'Received by',
+              }} ${r.recipient} · ${when(r.at)}',
+          ];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            receipts.isEmpty
+                ? Icons.mark_email_unread_outlined
+                : Icons.done_all,
+            size: 18,
+            color: colors.onSurfaceVariant,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final line in lines)
+                  Text(line, style: TextStyle(color: colors.onSurfaceVariant)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

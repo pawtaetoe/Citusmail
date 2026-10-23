@@ -44,6 +44,7 @@ final class OutgoingMessage {
     this.references = const [],
     this.messageId,
     this.date,
+    this.receiptTo,
   });
 
   final MailAddress from;
@@ -69,6 +70,11 @@ final class OutgoingMessage {
 
   /// When null, the time of building is used.
   final DateTime? date;
+
+  /// Asks the recipients' mail apps for a read receipt to this address
+  /// (`Disposition-Notification-To`, RFC 8098). Their app decides; nothing
+  /// else is added to find out whether the message was read.
+  final MailAddress? receiptTo;
 
   /// Everyone the SMTP envelope must deliver to: To, Cc and Bcc.
   List<MailAddress> get envelopeRecipients => [...to, ...cc, ...bcc];
