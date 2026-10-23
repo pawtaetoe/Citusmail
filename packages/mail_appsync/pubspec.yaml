@@ -1,0 +1,19 @@
+name: mail_appsync
+description: >-
+  Keeps app data (blocked senders, unsubscribes, folder rules, image
+  senders) the same on all of the user's devices, through a folder in their
+  own mail account. End-to-end encrypted with a random sync code
+  (ChaCha20-Poly1305, keys from HKDF-SHA256). Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  crypto: ^3.0.6
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

@@ -27,6 +27,8 @@ macOS and iOS for later.
 │   ├── lib/
 │   └── test/
 ├── packages/
+│   ├── mail_appsync/         App data shared between your devices, end-to-end
+│                             encrypted (ChaCha20-Poly1305, sync code)
 │   ├── mail_compose/         Writing mail: drafts, replies, sending with undo
 │   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
 │                             from scratch with no runtime dependencies
@@ -82,6 +84,7 @@ flutter analyze                               # static analysis
 (cd packages/mail_trust && dart test)         # phishing checks
 (cd packages/mail_web && dart test)           # hardened HTTPS for one-click unsubscribe
 (cd packages/mail_unsubscribe && dart test)   # unsubscribe methods
+(cd packages/mail_appsync && dart test)       # app data sync format and encryption
 (cd tool && dart test)                        # repository tool tests
 (cd app && flutter test)                      # app tests
 (cd app && flutter run -d linux)              # run on Linux

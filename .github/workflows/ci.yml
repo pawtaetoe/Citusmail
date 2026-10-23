@@ -61,6 +61,9 @@ jobs:
       - name: Test mail_web
         working-directory: packages/mail_web
         run: dart test
+      - name: Test mail_appsync
+        working-directory: packages/mail_appsync
+        run: dart test
       - name: Test mail_unsubscribe
         working-directory: packages/mail_unsubscribe
         run: dart test
