@@ -226,7 +226,9 @@ abstract final class FmailTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: light ? const Color(0xFF1E2B28) : const Color(0xFFDDE7E4),
+        backgroundColor: light
+            ? const Color(0xFF1E2B28)
+            : const Color(0xFFDDE7E4),
         contentTextStyle: text.bodyMedium?.copyWith(
           color: light ? Colors.white : CitusPalette.ink,
         ),

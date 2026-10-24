@@ -131,9 +131,7 @@ final class _TopBarState extends State<_TopBar> {
                         : null,
                     isDense: true,
                     fillColor: Theme.of(context).colorScheme.surface,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
                 ),
               );

@@ -320,10 +320,7 @@ final class _Toolbar extends StatelessWidget {
               const Spacer(),
               for (final (i, a) in shown.indexed) ...[
                 if (i > 0 && shown[i - 1].group != a.group)
-                  const SizedBox(
-                    height: 24,
-                    child: VerticalDivider(width: 17),
-                  ),
+                  const SizedBox(height: 24, child: VerticalDivider(width: 17)),
                 IconButton(
                   tooltip: a.label,
                   icon: Icon(a.icon, color: a.color),
