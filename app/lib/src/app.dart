@@ -11,6 +11,7 @@ import 'package:mail_web/mail_web.dart';
 
 import 'security/lock_screen.dart';
 import 'services/app_services.dart';
+import 'services/secret_store.dart';
 import 'setup/oauth_browser.dart';
 import 'setup/setup_controller.dart';
 import 'setup/setup_page.dart';
@@ -178,6 +179,8 @@ class _HomeState extends State<_Home> {
       verifyOAuth: (settings, token) =>
           verifier.verify(settings, token, oauth: true),
       saveOAuth: widget.services.addOAuthAccount,
+      ownClient: OwnOAuthClients(widget.services.secrets).read,
+      saveOwnClient: OwnOAuthClients(widget.services.secrets).save,
     );
   }
 

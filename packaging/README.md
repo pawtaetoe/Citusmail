@@ -54,6 +54,27 @@ Its *Application (client) ID* is public. Builds take it as
 `$CITUSMAIL_MS_CLIENT_ID` on. Without it, Outlook addresses are told that
 this build can't sign in to them.
 
+**Google sign-in** (Gmail) needs a Google Cloud project (free): in the
+[Google Cloud console](https://console.cloud.google.com/apis/credentials):
+
+- Turn on the Gmail API.
+- OAuth consent screen: *External*, with the scope
+  `https://mail.google.com/`. While the app is in *Testing*, only listed
+  test users can sign in, and Google ends their sign-in after 7 days.
+  Publishing for everyone needs Google's verification, including a
+  security assessment for this (restricted) scope.
+- Credentials > Create OAuth client ID > *Desktop app*. The redirect is
+  `http://127.0.0.1` on any port; Android uses the same loopback
+  receiver, because Google no longer allows custom app links for new
+  clients.
+
+Builds take `--dart-define=CITUSMAIL_GOOGLE_CLIENT_ID=<id>` and
+`--dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET=<secret>`; `build-aab.sh`
+passes both on. Google calls the secret of a desktop client "not treated
+as a secret": every copy of the app carries it. Without them, the app
+offers Gmail users to enter their own client ID instead (the same steps,
+in their own project).
+
 **Other local release builds**: either the same environment variables as
 CI below, or a git-ignored `app/android/key.properties`:
 

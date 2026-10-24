@@ -38,6 +38,15 @@ final class SigningIn extends SetupState {
   final OAuthProvider provider;
 }
 
+/// This build has no registration with [provider]: the user can enter
+/// their own ("bring your own client ID").
+final class EnteringOwnClient extends SetupState {
+  const EnteringOwnClient(this.provider, {this.error});
+
+  final OAuthProvider provider;
+  final String? error;
+}
+
 /// Settings found; the user confirms (always shown, so the user sees where
 /// the password will go).
 final class ReviewingSettings extends SetupState {
@@ -105,6 +114,15 @@ typedef VerifyOAuthFn = Future<VerificationResult> Function(
   String accessToken,
 );
 
+/// The user's own registration with a provider, if saved.
+typedef OwnClientFn = Future<OAuthRegistration?> Function(String providerId);
+
+/// Saves the user's own registration with a provider.
+typedef SaveOwnClientFn = Future<void> Function(
+  String providerId,
+  OAuthRegistration registration,
+);
+
 typedef SaveOAuthFn = Future<Account> Function(
   DiscoveredSettings settings,
   OAuthProvider provider,
@@ -124,7 +142,10 @@ final class SetupController extends ChangeNotifier {
     this._oauthSignIn,
     this._verifyOAuth,
     this._saveOAuth,
+    this._ownClient,
+    this._saveOwnClient,
     this.providerFor = defaultProviderFor,
+    this.optionalProviderFor = defaultOptionalProviderFor,
   });
 
   final DiscoverFn _discover;
@@ -133,6 +154,79 @@ final class SetupController extends ChangeNotifier {
   final OAuthSignInFn? _oauthSignIn;
   final VerifyOAuthFn? _verifyOAuth;
   final SaveOAuthFn? _saveOAuth;
+  final OwnClientFn? _ownClient;
+  final SaveOwnClientFn? _saveOwnClient;
+
+  /// A provider an address may sign in with instead of a password (Gmail:
+  /// Google), whether or not this build has a registration for it.
+  final OAuthProvider? Function(String email) optionalProviderFor;
+
+  static OAuthProvider? defaultOptionalProviderFor(String email) {
+    final at = email.trim().lastIndexOf('@');
+    return at < 0
+        ? null
+        : OAuthProvider.optionalForDomain(email.trim().substring(at + 1));
+  }
+
+  /// Whether to offer signing in with [provider] (built in, or the user's
+  /// own registration can be entered).
+  bool canOffer(OAuthProvider provider) =>
+      _oauthSignIn != null &&
+      _verifyOAuth != null &&
+      _saveOAuth != null &&
+      (provider.configured || (_ownClient != null && _saveOwnClient != null));
+
+  /// Signs in with [provider] using this build's registration, or the
+  /// user's own one; asks for that when there is none yet.
+  Future<void> signInWithAny(
+    OAuthProvider provider, {
+    required String email,
+    String? displayName,
+  }) async {
+    _remember(email, displayName);
+    if (provider.configured) {
+      return signInWith(provider, email: email, displayName: displayName);
+    }
+    final own = await _ownClient?.call(provider.id);
+    if (own == null) return _set(EnteringOwnClient(provider));
+    return signInWith(
+      provider.withRegistration(own),
+      email: email,
+      displayName: displayName,
+    );
+  }
+
+  /// Shows the form for the user's own registration with [provider].
+  void enterOwnClient(
+    OAuthProvider provider, {
+    required String email,
+    String? displayName,
+  }) {
+    _remember(email, displayName);
+    _set(EnteringOwnClient(provider));
+  }
+
+  /// Saves the user's own registration and signs in with it.
+  Future<void> useOwnClient(
+    OAuthProvider provider,
+    OAuthRegistration registration,
+  ) async {
+    if (registration.problemFor(provider) case final problem?) {
+      return _set(EnteringOwnClient(provider, error: problem));
+    }
+    await _saveOwnClient!(provider.id, registration);
+    return signInWith(
+      provider.withRegistration(registration),
+      email: _email,
+      displayName: _displayName,
+    );
+  }
+
+  void _remember(String email, String? displayName) {
+    _email = email.trim();
+    final name = displayName?.trim() ?? '';
+    _displayName = name.isEmpty ? null : name;
+  }
 
   /// The provider an address must sign in with, if any (whether or not
   /// this build can).
@@ -175,7 +269,11 @@ final class SetupController extends ChangeNotifier {
     _set(SigningIn(provider));
     final OAuthTokens tokens;
     try {
-      tokens = await _oauthSignIn!(provider, _email);
+      // Renewals must later use the same registration.
+      tokens = (await _oauthSignIn!(
+        provider,
+        _email,
+      )).issuedTo(provider.ownRegistration);
     } on OAuthException catch (e) {
       return _set(
         EnteringCredentials(
@@ -183,6 +281,9 @@ final class SetupController extends ChangeNotifier {
             OAuthProblem.cancelled => 'Sign-in was cancelled.',
             OAuthProblem.network =>
               'Couldn\'t reach ${provider.name}. Check your connection.',
+            _ when provider.ownRegistration != null =>
+              '${provider.name} didn\'t complete the sign-in: ${e.message}. '
+                  'Check your own client ID, or use an app password.',
             _ => '${provider.name} didn\'t complete the sign-in: ${e.message}',
           },
         ),

@@ -31,7 +31,7 @@ macOS and iOS for later.
 │   ├── mail_appsync/         App data shared between your devices, end-to-end
 │                             encrypted (ChaCha20-Poly1305, sync code)
 │   ├── mail_compose/         Writing mail: drafts, replies, sending with undo
-│   ├── mail_oauth/           OAuth 2.0 sign-in (Outlook): PKCE, browser, tokens
+│   ├── mail_oauth/           OAuth 2.0 sign-in (Outlook, Google): PKCE, browser, tokens
 │   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
 │                             from scratch with no runtime dependencies
 │   ├── mail_setup/           Account setup: discovery (Gmail built in) and
@@ -121,7 +121,10 @@ dart run repo_tools:live_check --send           # also sends one message to the 
 
 For an Outlook account, set `LIVE_SIGN_IN=microsoft` and
 `LIVE_OAUTH_CLIENT_ID` (the app registration from
-[packaging/README.md](packaging/README.md)) instead of a password. The first
+[packaging/README.md](packaging/README.md)) instead of a password. For
+Google sign-in, `LIVE_SIGN_IN=google` with a Google client ID, and its
+client secret in the keychain:
+`secret-tool store --label="Fmail test OAuth client" service fmail-test-oauth-client account <client id>`. The first
 run opens the browser to sign in; the tokens are then kept in the keychain
 (service `fmail-test-oauth`) and the check renews them as the app does.
 `--sign-in-again` forgets them and signs in afresh.

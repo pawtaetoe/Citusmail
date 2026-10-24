@@ -76,7 +76,7 @@ Future<void> main(List<String> args) async {
 /// Signs in (browser the first time, saved tokens after that) and checks
 /// that the refresh token gives new access tokens.
 Future<LiveTokens> _checkSignIn(LiveSettings s, {required bool fresh}) async {
-  final provider = s.oauth!;
+  final provider = await _withSecret(s.oauth!);
   stdout.writeln('${provider.name} sign-in for ${s.email}');
   final client = TokenClient(WebClient());
   final tokens = LiveTokens(
@@ -138,6 +138,28 @@ Future<LiveTokens> _checkSignIn(LiveSettings s, {required bool fresh}) async {
 String _asTheAppUsesIt(String email, String password) =>
     KnownProvider.forEmail(email)?.normalizePassword(password) ?? password;
 
+/// Google's token endpoint wants the registration's client secret. It
+/// protects nothing for installed apps, but live-test.env holds no
+/// secrets, so it comes from the keychain.
+Future<OAuthProvider> _withSecret(OAuthProvider provider) async {
+  if (provider.id != 'google' || provider.clientSecret.isNotEmpty) {
+    return provider;
+  }
+  final keychain = TestKeychain(
+    'fmail-test-oauth-client',
+    provider.clientId,
+    label: 'Fmail test OAuth client',
+  );
+  final secret =
+      await keychain.read() ??
+      (throw StateError(
+        'no client secret in the keychain for ${provider.clientId}. Store it with:\n'
+        '  secret-tool store --label="Fmail test OAuth client" '
+        'service fmail-test-oauth-client account ${provider.clientId}',
+      ));
+  return provider.withClientId(provider.clientId, clientSecret: secret);
+}
+
 int _minutesLeft(OAuthTokens t) =>
     t.expiresAt.difference(DateTime.now().toUtc()).inMinutes;
 
@@ -186,10 +208,14 @@ final class _Live {
     final DiscoveredSettings found;
     if (s.oauth case final provider?) {
       final domain = s.email.substring(s.email.lastIndexOf('@') + 1);
-      final recognised = OAuthProvider.forDomain(domain)?.id == provider.id;
+      final recognised =
+          (OAuthProvider.forDomain(domain) ??
+                  OAuthProvider.optionalForDomain(domain))
+              ?.id ==
+          provider.id;
       _ok(
         recognised
-            ? 'address recognised: setup offers "Continue with ${provider.name}"'
+            ? 'address recognised: setup offers ${provider.name} sign-in'
             : 'note: $domain is not on the ${provider.name} domain list, so setup asks '
                   'for a password (expected for work and school addresses)',
       );

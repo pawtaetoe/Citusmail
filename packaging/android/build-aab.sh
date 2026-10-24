@@ -17,11 +17,13 @@ password="$(secret-tool lookup service citusmail-release account upload-key)" ||
 [[ -n "$password" ]] || { echo "error: upload key password not in the keychain" >&2; exit 1; }
 
 version="$(sed -n 's/^version: *\([0-9.]*\)+\{0,1\}.*/\1/p' "$root/app/pubspec.yaml")"
-# The Microsoft registration (public; see packaging/README.md), if given.
+# The Microsoft and Google registrations (see packaging/README.md), if given.
 defines=()
-if [[ -n "${CITUSMAIL_MS_CLIENT_ID:-}" ]]; then
-  defines+=("--dart-define=CITUSMAIL_MS_CLIENT_ID=$CITUSMAIL_MS_CLIENT_ID")
-fi
+for name in CITUSMAIL_MS_CLIENT_ID CITUSMAIL_GOOGLE_CLIENT_ID CITUSMAIL_GOOGLE_CLIENT_SECRET; do
+  if [[ -n "${!name:-}" ]]; then
+    defines+=("--dart-define=$name=${!name}")
+  fi
+done
 
 cd "$root/app"
 FMAIL_KEYSTORE_PATH="$keystore" \

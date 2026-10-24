@@ -120,19 +120,24 @@ final class KeychainCredentials implements CredentialProvider {
     if (provider == null || stored == null) {
       throw ImapAuthenticationException('sign in to ${account.email} again');
     }
+    // Renewed with the registration that issued the tokens.
+    final issuer = provider.forTokens(stored);
     if (!stored.needsRefresh()) return stored.accessToken;
     final refresh = stored.refreshToken;
     if (refresh == null) {
       throw ImapAuthenticationException('sign in to ${account.email} again');
     }
     try {
-      final renewed = await _tokens.refresh(provider, refresh);
+      final renewed = (await _tokens.refresh(
+        issuer,
+        refresh,
+      )).issuedTo(stored.registration);
       await _secrets.write(account.keychainKey, renewed.toJson());
       return renewed.accessToken;
     } on OAuthException catch (e) {
       throw switch (e.problem) {
         OAuthProblem.network => MailConnectionException(
-          'can\'t reach ${provider.name} sign-in',
+          'can\'t reach ${issuer.name} sign-in',
         ),
         _ => ImapAuthenticationException(
           '${provider.name} asks to sign in to ${account.email} again',
@@ -140,4 +145,23 @@ final class KeychainCredentials implements CredentialProvider {
       };
     }
   }
+}
+
+/// The user's own app registrations with OAuth providers ("bring your
+/// own client ID"), used for new sign-ins when this build has none. One
+/// per provider, in the keychain.
+final class OwnOAuthClients {
+  const OwnOAuthClients(this._secrets);
+
+  final SecretStore _secrets;
+
+  static String keyFor(String providerId) => 'oauth-client-$providerId';
+
+  Future<OAuthRegistration?> read(String providerId) async =>
+      OAuthRegistration.fromJson(await _secrets.read(keyFor(providerId)));
+
+  Future<void> save(String providerId, OAuthRegistration registration) =>
+      _secrets.write(keyFor(providerId), registration.toJson());
+
+  Future<void> forget(String providerId) => _secrets.delete(keyFor(providerId));
 }

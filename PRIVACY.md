@@ -9,6 +9,8 @@ no analytics, no crash reporting and no advertising.
 | --- | --- | --- |
 | Your mail servers | Always, to read and send mail | Your login and mail, over TLS |
 | Microsoft's sign-in service | Only for Outlook / Hotmail accounts: when you add one (in your own browser), and to renew access about every hour | Your sign-in happens on Microsoft's page; the app sends only the one-time code it gets back, and later its refresh token, to get access to your mail. Your password never passes through the app |
+| Google's sign-in service | Only for Gmail accounts you add with "Sign in with Google": when you add one (in your own browser), and to renew access about every hour | As for Microsoft: the one-time code, then the refresh token, with the app's (or your own) client ID. Your password never passes through the app |
+| Google Cloud console | Only when you tap "Open Google Cloud" while entering your own client ID | Your browser opens the page |
 | Your mail provider's settings file | When adding an account (not for Gmail, whose settings are built in) | Your email domain (in the web address only; no app name, no cookies) |
 | Your system's DNS resolver | When adding an account | Lookups for your domain's mail records |
 | Common server names of your domain | When adding an account, if nothing else found them | A connection test without any login |

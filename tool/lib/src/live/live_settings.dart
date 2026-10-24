@@ -11,7 +11,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 /// executed, and refused if it contains anything that looks like a secret.
 ///
 /// A password account needs its servers; an OAuth account
-/// (`LIVE_SIGN_IN=microsoft`) uses the provider's servers unless they are
+/// (`LIVE_SIGN_IN=microsoft` or `google`) uses the provider's servers unless they are
 /// given.
 final class LiveSettings {
   LiveSettings({
@@ -24,14 +24,13 @@ final class LiveSettings {
 
   /// Parses the text of a live-test.env file; [source] names it in errors.
   ///
-  /// [buildClientId] is the client id compiled in with
-  /// `-DCITUSMAIL_MS_CLIENT_ID=...`, used when the file names none.
+  /// [buildClientId] stands in for the client id compiled in with
+  /// `-DCITUSMAIL_MS_CLIENT_ID=...` (or `CITUSMAIL_GOOGLE_CLIENT_ID`),
+  /// used when the file names none.
   factory LiveSettings.parse(
     String text, {
     String source = 'live-test.env',
-    String buildClientId = const String.fromEnvironment(
-      'CITUSMAIL_MS_CLIENT_ID',
-    ),
+    String? buildClientId,
   }) {
     final values = <String, String>{};
     for (final line in text.split('\n')) {
@@ -75,7 +74,10 @@ final class LiveSettings {
           '${OAuthProvider.all.map((p) => p.id).join(', ')}',
         );
       }
-      final clientId = optional('LIVE_OAUTH_CLIENT_ID') ?? buildClientId;
+      final clientId =
+          optional('LIVE_OAUTH_CLIENT_ID') ??
+          buildClientId ??
+          provider.clientId;
       if (clientId.isEmpty) {
         throw StateError(
           '${provider.name} sign-in needs the app\'s client id: set '
@@ -85,7 +87,9 @@ final class LiveSettings {
       if (!RegExp(r'^[A-Za-z0-9._-]{8,200}$').hasMatch(clientId)) {
         throw StateError('LIVE_OAUTH_CLIENT_ID in $source is not a client id');
       }
-      oauth = provider.withClientId(clientId);
+      oauth = clientId == provider.clientId
+          ? provider
+          : provider.withClientId(clientId);
     }
 
     ServerEndpoint endpoint(

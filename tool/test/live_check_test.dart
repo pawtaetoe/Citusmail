@@ -57,6 +57,20 @@ LIVE_OAUTH_CLIENT_ID=00000000-1111-2222-3333-444444444444
       expect(s.smtp.security, ConnectionSecurity.startTls);
     });
 
+    test('a Google account uses Gmail\'s servers with STARTTLS on 587', () {
+      final s = LiveSettings.parse('''
+LIVE_EMAIL=me@gmail.com
+LIVE_SIGN_IN=google
+LIVE_OAUTH_CLIENT_ID=123-abc.apps.googleusercontent.com
+''');
+      expect(s.oauth!.id, 'google');
+      expect(s.oauth!.clientId, '123-abc.apps.googleusercontent.com');
+      expect(s.imap.host, 'imap.gmail.com');
+      expect(s.smtp.host, 'smtp.gmail.com');
+      expect(s.smtp.port, 587);
+      expect(s.smtp.security, ConnectionSecurity.startTls);
+    });
+
     test('the client id can come from the build instead', () {
       final s = LiveSettings.parse(
         'LIVE_EMAIL=me@outlook.com\nLIVE_SIGN_IN=microsoft\n',

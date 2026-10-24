@@ -102,6 +102,111 @@ void main() {
     expect(custom.extraParameters, OAuthProvider.microsoft.extraParameters);
   });
 
+  test(
+    'Google: Gmail domains may use it; the sign-in asks for offline access',
+    () {
+      expect(OAuthProvider.byId('google'), same(OAuthProvider.google));
+      expect(
+        OAuthProvider.optionalForDomain('GMail.com'),
+        OAuthProvider.google,
+      );
+      expect(OAuthProvider.optionalForDomain('googlemail.com'), isNotNull);
+      expect(OAuthProvider.optionalForDomain('outlook.com'), isNull);
+      expect(OAuthProvider.forDomain('gmail.com'), isNull, reason: 'optional');
+      expect(OAuthProvider.google.appLinkRedirect, isFalse);
+      expect(OAuthProvider.microsoft.appLinkRedirect, isTrue);
+      final google = OAuthProvider.google.withRegistration(
+        OAuthRegistration(
+          '123-abc.apps.googleusercontent.com',
+          'GOCSPX-x1y2z3',
+        ),
+      );
+      expect(google.configured, isTrue);
+      expect(google.appLinkRedirect, isFalse);
+      final url = AuthorizationRequest.start(
+        google,
+        redirectUri: Uri.parse('http://127.0.0.1:5555/'),
+        loginHint: 'me@gmail.com',
+      ).url;
+      expect(url.host, 'accounts.google.com');
+      expect(url.queryParameters['access_type'], 'offline');
+      expect(url.queryParameters['prompt'], 'consent select_account');
+      expect(url.queryParameters['scope'], 'https://mail.google.com/');
+      expect(
+        url.queryParameters.containsKey('client_secret'),
+        isFalse,
+        reason: 'the secret goes only to the token endpoint',
+      );
+    },
+  );
+
+  test('tokens remember an own registration, so renewals use it', () {
+    final own = OAuthRegistration(
+      '123-abc.apps.googleusercontent.com',
+      'GOCSPX-x1y2z3',
+    );
+    final tokens = OAuthTokens(
+      accessToken: 'AT',
+      expiresAt: DateTime.utc(2030),
+      refreshToken: 'RT',
+    ).issuedTo(own);
+    final back = OAuthTokens.fromJson(tokens.toJson())!;
+    expect(back.registration!.clientId, own.clientId);
+    expect(back.registration!.clientSecret, own.clientSecret);
+    expect(back.refreshToken, 'RT');
+    final renewing = OAuthProvider.google.forTokens(back);
+    expect(renewing.clientId, own.clientId);
+    expect(renewing.clientSecret, own.clientSecret);
+    expect(renewing.ownRegistration!.clientId, own.clientId);
+
+    final builtIn = OAuthTokens.fromJson(
+      OAuthTokens(accessToken: 'AT', expiresAt: DateTime.utc(2030)).toJson(),
+    )!;
+    expect(builtIn.registration, isNull);
+    expect(OAuthProvider.google.forTokens(builtIn), same(OAuthProvider.google));
+    expect(OAuthProvider.microsoft.ownRegistration, isNull);
+    expect(
+      OAuthTokens.fromJson('{"access":"a","expires":1,"client":5}'),
+      isNull,
+    );
+  });
+
+  test('own registrations: checked, stored and read back', () {
+    final good = OAuthRegistration(
+      ' 123-abc.apps.googleusercontent.com ',
+      ' GOCSPX-x1y2z3 ',
+    );
+    expect(good.clientId, '123-abc.apps.googleusercontent.com');
+    expect(good.problemFor(OAuthProvider.google), isNull);
+    final back = OAuthRegistration.fromJson(good.toJson())!;
+    expect(back.clientId, good.clientId);
+    expect(back.clientSecret, 'GOCSPX-x1y2z3');
+
+    expect(
+      OAuthRegistration('my-app', 'x').problemFor(OAuthProvider.google),
+      contains('googleusercontent'),
+    );
+    expect(
+      OAuthRegistration('123-abc.apps.googleusercontent.com')
+          .problemFor(OAuthProvider.google),
+      contains('secret'),
+    );
+    expect(
+      OAuthRegistration('00000000-1111-2222-3333-444444444444')
+          .problemFor(OAuthProvider.microsoft),
+      isNull,
+    );
+    for (final junk in [
+      null,
+      'nope',
+      '[]',
+      '{"client": 3}',
+      '{"secret": "x"}',
+    ]) {
+      expect(OAuthRegistration.fromJson(junk), isNull, reason: junk);
+    }
+  });
+
   group('AuthorizationRequest', () {
     final redirect = Uri.parse('http://127.0.0.1:5555/');
 
@@ -230,6 +335,32 @@ void main() {
       expect(tokens.accessToken, 'AT-2');
       expect(tokens.refreshToken, 'RT-1');
       expect(server.bodies.single['grant_type'], 'refresh_token');
+    });
+
+    test('a client secret goes along when the provider has one', () async {
+      final google = OAuthProvider.google.withRegistration(
+        OAuthRegistration(
+          '123-abc.apps.googleusercontent.com',
+          'GOCSPX-not-really-secret',
+        ),
+      );
+      server.reply = jsonEncode({
+        'access_token': 'AT-1',
+        'refresh_token': 'RT-1',
+        'expires_in': 3599,
+      });
+      final request = AuthorizationRequest.start(
+        google,
+        redirectUri: Uri.parse('http://127.0.0.1:5555/'),
+      );
+      await TokenClient(server.web).exchange(request, 'CODE');
+      server.reply = jsonEncode({'access_token': 'AT-2', 'expires_in': 3599});
+      await TokenClient(server.web).refresh(google, 'RT-1');
+      for (final sent in server.bodies) {
+        expect(sent['client_id'], '123-abc.apps.googleusercontent.com');
+        expect(sent['client_secret'], 'GOCSPX-not-really-secret');
+        expect(sent['scope'], 'https://mail.google.com/');
+      }
     });
 
     test('a revoked sign-in asks to sign in again; junk is refused', () async {
