@@ -12,11 +12,15 @@ import 'dart:io';
 final class FakeServer {
   FakeServer._(this._server, this.received);
 
+  /// With [tls], the server speaks TLS from the start (implicit TLS).
   static Future<FakeServer> start({
     required String greeting,
     required String? Function(String line) onLine,
+    SecurityContext? tls,
   }) async {
-    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final Stream<Socket> server = tls == null
+        ? await ServerSocket.bind(InternetAddress.loopbackIPv4, 0)
+        : await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, tls);
     final received = <String>[];
     server.listen((socket) {
       socket.add(utf8.encode(greeting));
@@ -36,16 +40,24 @@ final class FakeServer {
         onError: (_) {},
         onDone: () => socket.destroy(),
       );
-    });
+    }, onError: (Object _) {}); // refused TLS handshakes
     return FakeServer._(server, received);
   }
 
-  final ServerSocket _server;
+  final Stream<Socket> _server;
 
   /// Every line the client sent, in order.
   final List<String> received;
 
-  int get port => _server.port;
+  int get port => switch (_server) {
+    final ServerSocket s => s.port,
+    final SecureServerSocket s => s.port,
+    _ => throw StateError('unknown server'),
+  };
 
-  Future<void> close() => _server.close();
+  Future<void> close() => switch (_server) {
+    final ServerSocket s => s.close(),
+    final SecureServerSocket s => s.close(),
+    _ => Future.value(),
+  };
 }

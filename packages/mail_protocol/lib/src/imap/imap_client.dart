@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import '../net/mail_exception.dart';
 import '../net/mail_socket.dart';
 import '../net/server_endpoint.dart';
+import '../net/xoauth2.dart';
 import 'imap_command.dart';
 import 'imap_requests.dart';
 import 'imap_response.dart';
@@ -272,6 +273,40 @@ final class ImapClient {
     }
     _authenticated = true;
     // Capabilities often change after login (RFC 9051 6.2.3).
+    await refreshCapabilities();
+  }
+
+  /// Logs in with an OAuth 2.0 access token (SASL XOAUTH2), as Outlook and
+  /// Gmail require. Like [login], refuses an unencrypted connection.
+  Future<void> loginOAuth(String username, String accessToken) async {
+    if (!_socket.isSecure) {
+      throw const MailSecurityException(
+        'refusing to send credentials over an unencrypted connection',
+      );
+    }
+    if (!_capabilities.supportsAuth('XOAUTH2')) {
+      throw ImapAuthenticationException(
+        'the server does not offer OAuth sign-in (XOAUTH2)',
+      );
+    }
+    final token = XOAuth2.initialResponse(username, accessToken);
+    final command = ImapCommand('AUTHENTICATE')..atom('XOAUTH2');
+    command.redacted = 'AUTHENTICATE XOAUTH2 [redacted]';
+    try {
+      if (_capabilities.has('SASL-IR')) {
+        command.atom(token);
+        // A refusal comes as a challenge first, answered with nothing.
+        await _run(command, saslResponse: '');
+      } else {
+        await _run(command, saslResponse: token, saslErrorAck: true);
+      }
+    } on ImapCommandException catch (e) {
+      throw ImapAuthenticationException(
+        'sign-in refused by the server: ${e.serverText}',
+        code: e.code,
+      );
+    }
+    _authenticated = true;
     await refreshCapabilities();
   }
 
@@ -730,12 +765,14 @@ final class ImapClient {
   /// [onData] gets untagged data first and returns true if it used it;
   /// unused data becomes events. [onStatusCode] gets codes from untagged
   /// OK responses (e.g. [UIDVALIDITY]). [saslResponse] answers a single
-  /// SASL continuation.
+  /// SASL continuation; with [saslErrorAck], one more continuation (a
+  /// server's error challenge, as XOAUTH2 sends) gets an empty answer.
   Future<ImapTaggedResponse> _run(
     ImapCommand command, {
     bool Function(ImapUntaggedData data)? onData,
     void Function(ImapResponseCode code)? onStatusCode,
     String? saslResponse,
+    bool saslErrorAck = false,
   }) {
     return _serialized(() async {
       final tag = _nextTag();
@@ -764,6 +801,7 @@ final class ImapClient {
       await _socket.write(ascii.encode(line.toString()));
 
       var saslSent = false;
+      var errorAcked = false;
       while (true) {
         final response = await _reader.next(timeout: timeouts.command);
         switch (response) {
@@ -779,13 +817,17 @@ final class ImapClient {
               'reply for an unknown command tag',
             );
           case ImapContinuation():
-            if (saslResponse == null || saslSent) {
+            if (saslResponse != null && !saslSent) {
+              saslSent = true;
+              await _socket.write(ascii.encode('$saslResponse\r\n'));
+            } else if (saslSent && saslErrorAck && !errorAcked) {
+              errorAcked = true;
+              await _socket.write(ascii.encode('\r\n'));
+            } else {
               throw const MailProtocolException(
                 'unexpected continuation request',
               );
             }
-            saslSent = true;
-            await _socket.write(ascii.encode('$saslResponse\r\n'));
           case ImapUntaggedData():
             if (onData == null || !onData(response)) {
               _handleUnsolicited(response);

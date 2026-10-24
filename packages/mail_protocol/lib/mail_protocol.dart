@@ -42,6 +42,7 @@ export 'src/net/line_source.dart';
 export 'src/net/mail_exception.dart';
 export 'src/net/mail_socket.dart';
 export 'src/net/server_endpoint.dart';
+export 'src/net/xoauth2.dart';
 export 'src/smtp/smtp_client.dart';
 export 'src/smtp/smtp_reply.dart';
 

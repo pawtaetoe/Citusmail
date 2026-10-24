@@ -1,0 +1,21 @@
+name: mail_oauth
+description: >-
+  Signing in to mail providers that require OAuth 2.0 (Outlook, later
+  Gmail): authorization code flow with PKCE in the system browser, token
+  exchange and refresh through mail_web. The app never sees the user's
+  password. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  crypto: ^3.0.6
+  mail_web: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  mail_protocol: any
+  test: ^1.25.6

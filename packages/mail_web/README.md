@@ -1,7 +1,8 @@
 # mail_web
 
 The only code that makes HTTPS requests to servers named inside mail
-(one-click unsubscribe, and images the user asks to load). Pure Dart,
+(one-click unsubscribe, and images the user asks to load), and to OAuth
+token endpoints (signing in to Outlook). Pure Dart,
 built on `mail_protocol`'s `MailSocket`, so it follows the same TLS rules
 as mail connections (TLS 1.2 or newer, full certificate and name checks).
 

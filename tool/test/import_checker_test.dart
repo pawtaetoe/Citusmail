@@ -59,6 +59,24 @@ void main() {
     },
   );
 
+  test('only the OAuth receiver may listen for connections', () {
+    expect(
+      checker.check('app/lib/a.dart', 'await HttpServer.bind(a, 0);'),
+      hasLength(1),
+    );
+    expect(
+      checker.check('packages/mail_sync/lib/a.dart', 'ServerSocket.bind(a, 1)'),
+      hasLength(1),
+    );
+    expect(
+      checker.check(
+        'packages/mail_oauth/lib/src/loopback.dart',
+        'HttpServer.bind(a, 0)',
+      ),
+      isEmpty,
+    );
+  });
+
   test('allowed where reviewed, and comments are ignored', () {
     expect(
       checker.check('packages/mail_setup/lib/a.dart', 'HttpClient()'),

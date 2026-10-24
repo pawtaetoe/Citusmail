@@ -66,6 +66,11 @@ final class ImportChecker {
       allowedIn: ['packages/mail_setup/lib/'],
     ),
     ImportRule(
+      RegExp(r'\b(HttpServer|ServerSocket|SecureServerSocket)\s*\.\s*bind'),
+      'the only listening socket is the one-time OAuth sign-in receiver',
+      allowedIn: ['packages/mail_oauth/lib/'],
+    ),
+    ImportRule(
       RegExp(r'\bMailSocket\s*\.\s*connect\s*\('),
       'servers named inside mail are contacted only through mail_web',
       allowedIn: ['packages/mail_protocol/lib/', 'packages/mail_web/lib/'],

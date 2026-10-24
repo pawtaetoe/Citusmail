@@ -183,11 +183,23 @@ final class WebClient {
 
   /// POSTs [body] to [url] and returns the answer's status and headers.
   /// Throws [WebException].
+  ///
+  /// With [maxAnswer], the answer's body is read too (up to that size,
+  /// for any status but redirects and empty answers), for services that
+  /// reply with data, such as an OAuth token endpoint.
   Future<WebResponse> post(
     Uri url, {
     required List<int> body,
     required String contentType,
-  }) => _request('POST', url, body: body, contentType: contentType);
+    int? maxAnswer,
+  }) => _request(
+    'POST',
+    url,
+    body: body,
+    contentType: contentType,
+    maxBody: maxAnswer,
+    bodyForAnyStatus: true,
+  );
 
   Future<WebResponse> _request(
     String method,
@@ -195,6 +207,7 @@ final class WebClient {
     List<int> body = const [],
     String? contentType,
     int? maxBody,
+    bool bodyForAnyStatus = false,
   }) async {
     final target = _check(url);
     try {
@@ -204,6 +217,7 @@ final class WebClient {
         body,
         contentType,
         maxBody,
+        bodyForAnyStatus,
       ).timeout(limits.timeout);
     } on TimeoutException {
       throw WebException(WebProblem.timeout, '${target.host} took too long');
@@ -224,6 +238,7 @@ final class WebClient {
     List<int> body,
     String? contentType,
     int? maxBody,
+    bool bodyForAnyStatus,
   ) async {
     final List<InternetAddress> addresses;
     try {
@@ -251,7 +266,16 @@ final class WebClient {
     try {
       await socket.write(_requestBytes(method, target, body, contentType));
       final response = await _readResponse(socket);
-      if (maxBody == null || response.statusCode != 200) return response;
+      final status = response.statusCode;
+      final wanted =
+          maxBody != null &&
+          (status == 200 ||
+              (bodyForAnyStatus &&
+                  status >= 200 &&
+                  status != 204 &&
+                  status != 304 &&
+                  !_redirects.contains(status)));
+      if (!wanted) return response;
       return WebResponse(
         response.statusCode,
         response.headers,

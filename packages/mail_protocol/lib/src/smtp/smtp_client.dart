@@ -11,6 +11,7 @@ import '../mime/builder/outgoing_message.dart';
 import '../net/mail_exception.dart';
 import '../net/mail_socket.dart';
 import '../net/server_endpoint.dart';
+import '../net/xoauth2.dart';
 import 'smtp_reply.dart';
 
 /// Timeouts for SMTP (RFC 5321 4.5.3.2 suggests these minimums).
@@ -154,6 +155,28 @@ final class SmtpClient {
     } on SmtpReplyException catch (e) {
       throw SmtpAuthenticationException(e.reply);
     }
+    _authenticated = true;
+  }
+
+  /// Logs in with an OAuth 2.0 access token (SASL XOAUTH2). Refuses an
+  /// unencrypted connection.
+  Future<void> authenticateOAuth(String username, String accessToken) async {
+    if (!_socket.isSecure) {
+      throw const MailSecurityException(
+        'refusing to send credentials over an unencrypted connection',
+      );
+    }
+    final mechanisms = (_extensions['AUTH'] ?? '').toUpperCase().split(' ');
+    if (!mechanisms.contains('XOAUTH2')) {
+      throw SmtpAuthenticationException(null);
+    }
+    final token = XOAuth2.initialResponse(username, accessToken);
+    final reply = await _exchange('AUTH XOAUTH2 $token');
+    if (reply.code == 334) {
+      // The refusal comes as a challenge; an empty line ends the exchange.
+      throw SmtpAuthenticationException(await _exchange(''));
+    }
+    if (reply.code != 235) throw SmtpAuthenticationException(reply);
     _authenticated = true;
   }
 

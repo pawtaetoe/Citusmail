@@ -149,6 +149,21 @@ void main() {
       );
     });
 
+    test('a POST can read the answer, also an error answer', () async {
+      server = await _Server.start(
+        'HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\n'
+        'Content-Length: 25\r\n\r\n{"error":"invalid_grant"}',
+      );
+      final response = await _client(server).post(
+        Uri.parse('https://login.example.com/token'),
+        body: utf8.encode('grant_type=refresh_token'),
+        contentType: 'application/x-www-form-urlencoded',
+        maxAnswer: 1000,
+      );
+      expect(response.statusCode, 400);
+      expect(utf8.decode(response.body!), '{"error":"invalid_grant"}');
+    });
+
     test('redirects are reported, not followed', () async {
       server = await _Server.start(
         'HTTP/1.1 302 Found\r\nLocation: https://elsewhere.example.com/\r\n\r\n',

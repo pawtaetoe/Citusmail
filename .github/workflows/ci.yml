@@ -64,6 +64,9 @@ jobs:
       - name: Test mail_appsync
         working-directory: packages/mail_appsync
         run: dart test
+      - name: Test mail_oauth
+        working-directory: packages/mail_oauth
+        run: dart test
       - name: Test mail_unsubscribe
         working-directory: packages/mail_unsubscribe
         run: dart test
