@@ -3,7 +3,8 @@
 A free, open source, cross-platform mail client inspired by Spark. No
 subscriptions, no pop-ups, no "Sent from" signatures, no telemetry.
 
-Status: early development (Milestone 1). Not ready for daily use.
+Status: early development (Milestone 4 of 6). Not ready for daily use.
+The roadmap and what each stage delivered are in [PLAN.md](PLAN.md).
 
 Targets: Linux, Windows and Android first. The code is kept compatible with
 macOS and iOS for later.

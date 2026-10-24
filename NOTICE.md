@@ -36,3 +36,12 @@ Bundled as a native library by `package:sqlite3` (see the root
   under their own permissive licences; see the upstream LICENSE file.
 - `package:sqlite3`: https://github.com/simolus3/sqlite3.dart,
   Copyright © Simon Binder, MIT License.
+
+## IBM Plex Sans
+
+The app's typeface, in `app/assets/fonts/IBMPlexSans/` (Regular, Italic,
+Medium, SemiBold and Bold), unmodified.
+
+- Source: https://github.com/IBM/plex
+- Copyright © 2017 IBM Corp., with Reserved Font Name "Plex"
+- Licence: [SIL Open Font License 1.1](app/assets/fonts/IBMPlexSans/OFL.txt)

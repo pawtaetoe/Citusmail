@@ -1,0 +1,127 @@
+# Plan
+
+How Citusmail is being built: the milestones, what each stage delivered,
+what comes next, and the rules every stage follows.
+
+Work goes milestone by milestone, in small stages. Each stage is planned
+first, ends with something that can be run or tested, and is committed as
+`Stage N <title>` once all checks pass.
+
+## Milestones
+
+| Milestone | Scope | Status |
+| --- | --- | --- |
+| M1 | Own IMAP, SMTP and MIME code, encrypted local storage, sync, Smart Inbox, writing mail, custom folders, notifications, packaging | Done |
+| M2 | Phishing checks, unsubscribe, blocking senders, tracker and image blocking, read-receipt blocking, app lock | Done |
+| M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
+| M4 | Outlook sign-in (OAuth 2.0) | Built; live check waiting (Stage 24) |
+| M5 | Gmail: app passwords first, then OAuth 2.0 | Not started |
+| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Not started |
+
+## Stages so far
+
+### M1: a working mail client
+
+| Stage | What it delivered |
+| --- | --- |
+| 1 | IMAP core and the unified inbox |
+| 2 | Reading and building emails (MIME, charsets) |
+| 3 | IMAP and SMTP clients over TLS |
+| 4 | Encrypted local database |
+| 5 | Offline sync into the encrypted store |
+| 6 | First app prototype |
+| 7 | Automatic sorting: Important, General, Notifications, Newsletters |
+| 8 | Crash fixes and the three-pane UI |
+| 9 | Writing mail: drafts, replies, sending with undo |
+| 10 | Custom folders and folder rules |
+| 11 | New mail notifications |
+| 11.5 | Usability pass |
+
+### M2: privacy and safety
+
+| Stage | What it delivered |
+| --- | --- |
+| 12 | Phishing checks on the device: sender verification, lookalike domains, deceptive links, risky files |
+| 13 | Unsubscribe: one-click (RFC 8058), by email, or the web page |
+| 14 | Blocking senders and domains |
+| 15 | Read-receipt blocking, tracker removal, images only on request |
+| 15.5 | Signed Android build for Google Play |
+| 16 | App lock with PIN or fingerprint |
+
+### M3: sync between devices
+
+| Stage | What it delivered |
+| --- | --- |
+| 17 | Sync format and encryption (ChaCha20-Poly1305, sync code) |
+| 18 | Sync engine, through a folder in your own mail account |
+| 19 | Sync between devices settings |
+| 20 | Asking others for read receipts, and seeing them |
+
+### M4: Outlook
+
+| Stage | What it delivered |
+| --- | --- |
+| 21 | OAuth sign-in plumbing: PKCE, browser sign-in, tokens, XOAUTH2 for IMAP and SMTP |
+| 22 | Outlook sign-in in the app |
+| 23 | Design refresh (see [Design](#design)) |
+
+## Next
+
+1. **Stage 24: live Outlook check.** Sign in, sync, send and refresh tokens
+   against a real Outlook account.
+   - Waiting on: a Microsoft Entra client ID (see
+     [packaging/README.md](packaging/README.md)) and an Outlook test account.
+   - The build takes the ID as `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`.
+2. **M5: Gmail.**
+   - App passwords first, so Gmail works without Google's approval.
+   - Then Google sign-in. A built-in client ID needs Google's app
+     verification before public release, so the app will also accept a
+     user's own client ID ("bring your own") for early testers.
+3. **M6.**
+   - Rules that run on the mail server where it supports them (Sieve).
+   - An on-device model to improve sorting, with nothing sent anywhere.
+   - Optional link and file checks with Google Safe Browsing (hash prefixes
+     downloaded, links checked on the device) and VirusTotal (your own API
+     key, only for items local checks flagged). Both off by default; each
+     asks before it is turned on.
+
+## Rules for every stage
+
+- **Privacy and security are part of every stage**, not a later pass. The
+  app talks only to your own mail servers and services you switch on.
+  Every outside connection is listed in [PRIVACY.md](PRIVACY.md), and the
+  protections in [SECURITY.md](SECURITY.md).
+- **Our own protocol code.** IMAP, SMTP and MIME are written in this
+  repository. No third-party mail libraries.
+- **Correctness and reliability over speed.** Readable code, object-oriented
+  where it fits, tested behaviour.
+- **Every dependency is reviewed** and listed in
+  [tool/dependency_policy.txt](tool/dependency_policy.txt). CI also checks
+  which packages may open network connections.
+- **Licence:** MPL 2.0 for our code. Bundled third-party files keep their own
+  licences, listed in [NOTICE.md](NOTICE.md).
+- **Live tests** use the real test account read-only, or send only to the
+  account itself. Passwords stay in the system keychain, never in files.
+
+## Design
+
+Set in [app/lib/src/ui/fmail_theme.dart](app/lib/src/ui/fmail_theme.dart).
+
+- **Colours:** a spruce sidebar (`#15332E`), lagoon green (`#0F7A69`) for
+  actions and selection, and one citrus accent (`#F4B740`) for what needs
+  attention first: unread counts and the New message button. All text meets
+  WCAG AA contrast in light and dark mode.
+- **Type:** IBM Plex Sans, bundled with the app, so nothing is downloaded.
+- **Shape:** corner radii of 8 (small controls), 10 (rows, fields, buttons)
+  and 20 (dialogs).
+- **Layout:** Spark-like three panes on wide screens (sidebar, list, reader);
+  list and reader on medium screens; one pane at a time on phones.
+- **Heuristics:** changes are checked against Nielsen's ten usability
+  heuristics. Examples:
+  - Status is always visible (sync line, a status dot per account).
+  - Buttons are labelled, and tooltips show keyboard shortcuts.
+  - Actions are not repeated in two places.
+  - Undo is offered after archive, delete and send.
+- **Screenshots:** `cd app && flutter test screenshots/screens_test.dart`
+  renders the main screens to `app/build/screens/` for before-and-after
+  reviews.
