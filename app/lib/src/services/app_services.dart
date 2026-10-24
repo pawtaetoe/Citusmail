@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:mail_compose/mail_compose.dart';
+import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
@@ -115,6 +116,43 @@ final class AppServices {
     );
     try {
       await secrets.write(account.keychainKey, password);
+    } on Object {
+      store.accounts.remove(account.id);
+      rethrow;
+    }
+    await worker.accountsChanged();
+    return account;
+  }
+
+  /// Saves an account that signs in with [provider]: settings in the
+  /// encrypted store, [tokens] in the keychain (removed again if that
+  /// fails, so no account exists without its sign-in).
+  Future<Account> addOAuthAccount(
+    DiscoveredSettings settings,
+    OAuthProvider provider,
+    OAuthTokens tokens, {
+    String? displayName,
+  }) async {
+    final account = store.accounts.add(
+      NewAccount(
+        email: settings.email,
+        displayName: displayName,
+        username: settings.username,
+        imap: ServerSettings(
+          host: settings.imap.host,
+          port: settings.imap.port,
+          security: settings.imap.security,
+        ),
+        smtp: ServerSettings(
+          host: settings.smtp.host,
+          port: settings.smtp.port,
+          security: settings.smtp.security,
+        ),
+        oauthProvider: provider.id,
+      ),
+    );
+    try {
+      await secrets.write(account.keychainKey, tokens.toJson());
     } on Object {
       store.accounts.remove(account.id);
       rethrow;

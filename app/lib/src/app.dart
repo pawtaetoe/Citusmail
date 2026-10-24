@@ -5,10 +5,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_setup/mail_setup.dart';
+import 'package:mail_web/mail_web.dart';
 
 import 'security/lock_screen.dart';
 import 'services/app_services.dart';
+import 'setup/oauth_browser.dart';
 import 'setup/setup_controller.dart';
 import 'setup/setup_page.dart';
 import 'ui/fmail_theme.dart';
@@ -166,10 +169,15 @@ class _HomeState extends State<_Home> {
   SetupController _newSetup() {
     final discovery = AccountDiscovery();
     const verifier = AccountVerifier();
+    final browser = OAuthBrowser(TokenClient(WebClient()));
     return SetupController(
       discover: discovery.discover,
       verify: verifier.verify,
       save: widget.services.addAccount,
+      oauthSignIn: browser.signIn,
+      verifyOAuth: (settings, token) =>
+          verifier.verify(settings, token, oauth: true),
+      saveOAuth: widget.services.addOAuthAccount,
     );
   }
 

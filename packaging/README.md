@@ -36,6 +36,24 @@ that takes days.
 Raise the build number (`version: x.y.z+N` in `app/pubspec.yaml`) before
 each upload: Play refuses a version code it has seen.
 
+**Outlook sign-in** needs the app's registration with Microsoft (free):
+in the [Microsoft Entra admin center](https://entra.microsoft.com), App
+registrations > New registration:
+
+- Supported accounts: *personal Microsoft accounts and accounts in any
+  organizational directory*.
+- Platform *Mobile and desktop applications*, redirect URIs
+  `http://127.0.0.1` (desktops; any port is allowed) and
+  `com.fluminaris.citusmail://oauth` (Android).
+- Authentication: *Allow public client flows* = Yes. No client secret.
+- API permissions (delegated): `IMAP.AccessAsUser.All`, `SMTP.Send` and
+  `offline_access`.
+
+Its *Application (client) ID* is public. Builds take it as
+`--dart-define=CITUSMAIL_MS_CLIENT_ID=<id>`; `build-aab.sh` passes
+`$CITUSMAIL_MS_CLIENT_ID` on. Without it, Outlook addresses are told that
+this build can't sign in to them.
+
 **Other local release builds**: either the same environment variables as
 CI below, or a git-ignored `app/android/key.properties`:
 

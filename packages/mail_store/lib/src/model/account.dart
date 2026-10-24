@@ -49,6 +49,7 @@ final class NewAccount {
     required this.imap,
     required this.smtp,
     this.displayName,
+    this.oauthProvider,
   }) {
     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
       throw ArgumentError.value(email, 'email', 'not an email address');
@@ -65,6 +66,10 @@ final class NewAccount {
   final String username;
   final ServerSettings imap;
   final ServerSettings smtp;
+
+  /// The OAuth provider it signs in with (`microsoft`), or null for a
+  /// password.
+  final String? oauthProvider;
 }
 
 /// A stored account.
@@ -78,6 +83,7 @@ final class Account {
     required this.sortOrder,
     required this.createdAt,
     this.displayName,
+    this.oauthProvider,
   });
 
   final int id;
@@ -89,7 +95,14 @@ final class Account {
   final int sortOrder;
   final DateTime createdAt;
 
-  /// Name of this account's password entry in the keychain.
+  /// The OAuth provider it signs in with (`microsoft`), or null when it
+  /// uses a password.
+  final String? oauthProvider;
+
+  bool get usesOAuth => oauthProvider != null;
+
+  /// Name of this account's keychain entry: its password, or its OAuth
+  /// tokens.
   String get keychainKey => 'account-$id';
 
   @override

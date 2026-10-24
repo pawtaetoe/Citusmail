@@ -17,12 +17,18 @@ password="$(secret-tool lookup service citusmail-release account upload-key)" ||
 [[ -n "$password" ]] || { echo "error: upload key password not in the keychain" >&2; exit 1; }
 
 version="$(sed -n 's/^version: *\([0-9.]*\)+\{0,1\}.*/\1/p' "$root/app/pubspec.yaml")"
+# The Microsoft registration (public; see packaging/README.md), if given.
+defines=()
+if [[ -n "${CITUSMAIL_MS_CLIENT_ID:-}" ]]; then
+  defines+=("--dart-define=CITUSMAIL_MS_CLIENT_ID=$CITUSMAIL_MS_CLIENT_ID")
+fi
+
 cd "$root/app"
 FMAIL_KEYSTORE_PATH="$keystore" \
 FMAIL_KEY_ALIAS=upload \
 FMAIL_KEYSTORE_PASSWORD="$password" \
 FMAIL_KEY_PASSWORD="$password" \
-  flutter build appbundle --release
+  flutter build appbundle --release "${defines[@]}"
 unset password
 
 mkdir -p "$root/build/packages"

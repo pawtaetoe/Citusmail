@@ -8,6 +8,7 @@ no analytics, no crash reporting and no advertising.
 | Destination | When | What is sent |
 | --- | --- | --- |
 | Your mail servers | Always, to read and send mail | Your login and mail, over TLS |
+| Microsoft's sign-in service | Only for Outlook / Hotmail accounts: when you add one (in your own browser), and to renew access about every hour | Your sign-in happens on Microsoft's page; the app sends only the one-time code it gets back, and later its refresh token, to get access to your mail. Your password never passes through the app |
 | Your mail provider's settings file | When adding an account | Your email domain (in the web address only; no app name, no cookies) |
 | Your system's DNS resolver | When adding an account | Lookups for your domain's mail records |
 | Common server names of your domain | When adding an account, if nothing else found them | A connection test without any login |

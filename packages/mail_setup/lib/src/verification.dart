@@ -136,14 +136,21 @@ final class AccountVerifier {
   final TlsSettings tls;
   final EndpointResolver resolve;
 
+  /// Logs in with [password], or with [password] as an OAuth access
+  /// token when [oauth] is set (SASL XOAUTH2).
   Future<VerificationResult> verify(
     DiscoveredSettings settings,
-    String password,
-  ) async {
+    String password, {
+    bool oauth = false,
+  }) async {
     final imapProblem = await _check(ServerRole.imap, () async {
       final imap = await ImapClient.connect(resolve(settings.imap), tls: tls);
       try {
-        await imap.login(settings.username, password);
+        if (oauth) {
+          await imap.loginOAuth(settings.username, password);
+        } else {
+          await imap.login(settings.username, password);
+        }
       } finally {
         await imap.logout();
       }
@@ -155,7 +162,11 @@ final class AccountVerifier {
             tls: tls,
           );
           try {
-            await smtp.authenticate(settings.username, password);
+            if (oauth) {
+              await smtp.authenticateOAuth(settings.username, password);
+            } else {
+              await smtp.authenticate(settings.username, password);
+            }
           } finally {
             await smtp.quit();
           }

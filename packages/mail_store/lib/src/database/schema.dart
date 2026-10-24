@@ -335,4 +335,12 @@ const List<Migration> schemaMigrations = [
       message_id INTEGER PRIMARY KEY REFERENCES messages (id) ON DELETE CASCADE
     ) STRICT''',
   ]),
+
+  // OAuth sign-in (Stage 22): how an account logs in. Its keychain entry
+  // holds a password or, for OAuth, its tokens.
+  Migration(12, [
+    '''
+    ALTER TABLE accounts ADD COLUMN sign_in TEXT NOT NULL DEFAULT 'password'
+      CHECK (sign_in = 'password' OR sign_in LIKE 'oauth:%')''',
+  ]),
 ];

@@ -93,6 +93,16 @@ public issue. We aim to reply within 7 days.
     neither a sync conflict nor a malicious copy can overwrite another
     device's data, and a removal can't be undone by an old copy.
 
+12. **OAuth sign-in never handles the password.** Outlook accounts sign in
+    on Microsoft's page in the user's own browser (authorization code flow
+    with PKCE and `state`; RFC 7636, RFC 8252). The answer comes back to a
+    one-time listener on 127.0.0.1 (desktops) or the app's link (Android),
+    and is accepted only for the sign-in the app started. The app is a
+    public client, so there is no client secret to leak. Access and
+    refresh tokens live only in the keychain; IMAP and SMTP use them with
+    SASL XOAUTH2 over TLS. Only the OAuth package may open a listening
+    socket (CI enforces this).
+
 ## Releases
 
 Android releases are signed with a key kept outside the repository (CI

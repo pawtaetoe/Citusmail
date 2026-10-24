@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
@@ -26,6 +29,13 @@ final class Discovering extends SetupState {
   const Discovering(this.step);
 
   final DiscoveryStep? step;
+}
+
+/// Signing in on the provider's own page, in the browser.
+final class SigningIn extends SetupState {
+  const SigningIn(this.provider);
+
+  final OAuthProvider provider;
 }
 
 /// Settings found; the user confirms (always shown, so the user sees where
@@ -83,6 +93,25 @@ typedef SaveFn = Future<Account> Function(
   String? displayName,
 });
 
+/// Signs in on a provider's page and returns the tokens.
+typedef OAuthSignInFn = Future<OAuthTokens> Function(
+  OAuthProvider provider,
+  String email,
+);
+
+/// Checks settings with an access token (XOAUTH2).
+typedef VerifyOAuthFn = Future<VerificationResult> Function(
+  DiscoveredSettings settings,
+  String accessToken,
+);
+
+typedef SaveOAuthFn = Future<Account> Function(
+  DiscoveredSettings settings,
+  OAuthProvider provider,
+  OAuthTokens tokens, {
+  String? displayName,
+});
+
 /// Drives account setup: discover, confirm, verify with a real login, save.
 ///
 /// The password stays in memory only until the account is saved (then it
@@ -92,11 +121,107 @@ final class SetupController extends ChangeNotifier {
     required this._discover,
     required this._verify,
     required this._save,
+    this._oauthSignIn,
+    this._verifyOAuth,
+    this._saveOAuth,
+    this.providerFor = defaultProviderFor,
   });
 
   final DiscoverFn _discover;
   final VerifyFn _verify;
   final SaveFn _save;
+  final OAuthSignInFn? _oauthSignIn;
+  final VerifyOAuthFn? _verifyOAuth;
+  final SaveOAuthFn? _saveOAuth;
+
+  /// The provider an address must sign in with, if any (whether or not
+  /// this build can).
+  final OAuthProvider? Function(String email) providerFor;
+
+  static OAuthProvider? defaultProviderFor(String email) {
+    final at = email.trim().lastIndexOf('@');
+    return at < 0
+        ? null
+        : OAuthProvider.forDomain(email.trim().substring(at + 1));
+  }
+
+  /// Whether this build can sign in with [provider].
+  bool canSignInWith(OAuthProvider provider) =>
+      provider.configured &&
+      _oauthSignIn != null &&
+      _verifyOAuth != null &&
+      _saveOAuth != null;
+
+  /// Signs in on [provider]'s own page (the browser opens), checks the
+  /// mail servers with the result, and saves the account. The app never
+  /// sees the password.
+  Future<void> signInWith(
+    OAuthProvider provider, {
+    required String email,
+    String? displayName,
+  }) async {
+    _email = email.trim();
+    final name = displayName?.trim() ?? '';
+    _displayName = name.isEmpty ? null : name;
+    if (!canSignInWith(provider)) {
+      return _set(
+        EnteringCredentials(
+          error:
+              '${provider.name} accounts need ${provider.name} sign-in, which this copy of '
+              '$appName can\'t do yet.',
+        ),
+      );
+    }
+    _set(SigningIn(provider));
+    final OAuthTokens tokens;
+    try {
+      tokens = await _oauthSignIn!(provider, _email);
+    } on OAuthException catch (e) {
+      return _set(
+        EnteringCredentials(
+          error: switch (e.problem) {
+            OAuthProblem.cancelled => 'Sign-in was cancelled.',
+            OAuthProblem.network =>
+              'Couldn\'t reach ${provider.name}. Check your connection.',
+            _ => '${provider.name} didn\'t complete the sign-in: ${e.message}',
+          },
+        ),
+      );
+    } on TimeoutException {
+      return _set(
+        const EnteringCredentials(error: 'Sign-in took too long. Try again.'),
+      );
+    }
+    final settings = DiscoveredSettings(
+      email: _email,
+      imap: ServerCandidate(
+        provider.imapHost,
+        993,
+        ConnectionSecurity.implicitTls,
+      ),
+      smtp: ServerCandidate(
+        provider.smtpHost,
+        provider.smtpPort,
+        ConnectionSecurity.startTls,
+      ),
+      username: _email,
+      source: DiscoverySource.manual,
+    );
+    _set(Verifying(settings));
+    final result = await _verifyOAuth!(settings, tokens.accessToken);
+    if (!result.succeeded) {
+      return _set(
+        EnteringCredentials(error: SetupText.problem(result, settings)),
+      );
+    }
+    final account = await _saveOAuth!(
+      settings,
+      provider,
+      tokens,
+      displayName: _displayName,
+    );
+    _set(SetupDone(account));
+  }
 
   SetupState _state = const EnteringCredentials();
   String _email = '';

@@ -49,6 +49,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- The answer to an OAuth sign-in (Outlook) comes back here from
+                 the browser. Only checked answers of a sign-in the app started
+                 are used (state and PKCE). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="com.fluminaris.citusmail" android:host="oauth"/>
+            </intent-filter>
+            <!-- Links never move the app to a screen by themselves. -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
         </activity>
         <!-- Instant mail: a live IMAP IDLE connection to the user's own server.
              "specialUse" because no other type fits a mail push connection

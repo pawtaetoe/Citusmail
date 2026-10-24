@@ -18,7 +18,7 @@ final class AccountRepository {
 
   static const _columns =
       'id, email, display_name, username, imap_host, imap_port, imap_security, '
-      'smtp_host, smtp_port, smtp_security, sort_order, created_at';
+      'smtp_host, smtp_port, smtp_security, sort_order, created_at, sign_in';
 
   Account add(NewAccount account) => _db.transaction(() {
     final next =
@@ -32,8 +32,8 @@ final class AccountRepository {
     try {
       _db.execute(
         'INSERT INTO accounts (email, display_name, username, imap_host, imap_port, imap_security, '
-        'smtp_host, smtp_port, smtp_security, sort_order, created_at) '
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'smtp_host, smtp_port, smtp_security, sort_order, created_at, sign_in) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           account.email,
           account.displayName,
@@ -46,6 +46,10 @@ final class AccountRepository {
           account.smtp.security.name,
           next,
           DateTime.now().toUtc().millisecondsSinceEpoch,
+          switch (account.oauthProvider) {
+            final provider? => 'oauth:$provider',
+            null => 'password',
+          },
         ],
       );
     } on SqliteException catch (e) {
@@ -117,5 +121,9 @@ final class AccountRepository {
       row['created_at'] as int,
       isUtc: true,
     ),
+    oauthProvider: switch (row['sign_in'] as String) {
+      final s when s.startsWith('oauth:') => s.substring('oauth:'.length),
+      _ => null,
+    },
   );
 }

@@ -4,9 +4,11 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
+import 'package:mail_web/mail_web.dart';
 
 /// The system keychain is missing or refused access. The app then stores
 /// nothing secret rather than falling back to an unprotected file.
@@ -80,13 +82,24 @@ final class KeychainSyncCodes implements SyncCodeProvider {
   Future<String?> syncCode() => _secrets.read(key);
 }
 
+/// Account secrets from the keychain: the password, or for an OAuth
+/// account a current access token, renewed with its refresh token when it
+/// is about to expire (one renewal at a time per account).
 final class KeychainCredentials implements CredentialProvider {
-  const KeychainCredentials(this._secrets);
+  KeychainCredentials(this._secrets, {TokenClient? tokens})
+    : _tokens = tokens ?? TokenClient(WebClient());
 
   final SecretStore _secrets;
+  final TokenClient _tokens;
+  final _renewing = <int, Future<String>>{};
 
   @override
   Future<String> passwordFor(Account account) async {
+    if (account.usesOAuth) {
+      return _renewing[account.id] ??= _accessToken(account).whenComplete(() {
+        _renewing.remove(account.id);
+      });
+    }
     final password = await _secrets.read(account.keychainKey);
     if (password == null || password.isEmpty) {
       throw ImapAuthenticationException(
@@ -94,5 +107,36 @@ final class KeychainCredentials implements CredentialProvider {
       );
     }
     return password;
+  }
+
+  Future<String> _accessToken(Account account) async {
+    final provider = OAuthProvider.all
+        .where((p) => p.id == account.oauthProvider)
+        .firstOrNull;
+    final stored = OAuthTokens.fromJson(
+      await _secrets.read(account.keychainKey),
+    );
+    if (provider == null || stored == null) {
+      throw ImapAuthenticationException('sign in to ${account.email} again');
+    }
+    if (!stored.needsRefresh()) return stored.accessToken;
+    final refresh = stored.refreshToken;
+    if (refresh == null) {
+      throw ImapAuthenticationException('sign in to ${account.email} again');
+    }
+    try {
+      final renewed = await _tokens.refresh(provider, refresh);
+      await _secrets.write(account.keychainKey, renewed.toJson());
+      return renewed.accessToken;
+    } on OAuthException catch (e) {
+      throw switch (e.problem) {
+        OAuthProblem.network => MailConnectionException(
+          'can\'t reach ${provider.name} sign-in',
+        ),
+        _ => ImapAuthenticationException(
+          '${provider.name} asks to sign in to ${account.email} again',
+        ),
+      };
+    }
   }
 }

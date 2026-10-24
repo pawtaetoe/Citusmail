@@ -150,6 +150,32 @@ void main() {
     });
   });
 
+  group('sign-in method', () {
+    test('password by default; OAuth when asked', () {
+      final plain = temp.addAccount();
+      expect(plain.usesOAuth, isFalse);
+      final outlook = store.accounts.add(
+        NewAccount(
+          email: 'me@outlook.example',
+          username: 'me@outlook.example',
+          imap: ServerSettings(
+            host: 'outlook.office365.com',
+            port: 993,
+            security: ConnectionSecurity.implicitTls,
+          ),
+          smtp: ServerSettings(
+            host: 'smtp-mail.outlook.com',
+            port: 587,
+            security: ConnectionSecurity.startTls,
+          ),
+          oauthProvider: 'microsoft',
+        ),
+      );
+      expect(outlook.oauthProvider, 'microsoft');
+      expect(store.accounts.byId(outlook.id)!.usesOAuth, isTrue);
+    });
+  });
+
   group('mailboxes', () {
     late Account account;
     setUp(() => account = temp.addAccount());

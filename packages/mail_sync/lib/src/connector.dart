@@ -8,6 +8,8 @@ import 'package:mail_store/mail_store.dart';
 /// Supplies an account's password. The app reads it from the platform
 /// keychain; it is never stored anywhere else.
 abstract interface class CredentialProvider {
+  /// The secret an account logs in with: its password, or for an OAuth
+  /// account a current access token (renewed by the provider as needed).
   Future<String> passwordFor(Account account);
 }
 
@@ -45,10 +47,12 @@ final class DefaultMailConnector implements MailConnector {
       tls: tls,
     );
     try {
-      await client.login(
-        account.username,
-        await _credentials.passwordFor(account),
-      );
+      final secret = await _credentials.passwordFor(account);
+      if (account.usesOAuth) {
+        await client.loginOAuth(account.username, secret);
+      } else {
+        await client.login(account.username, secret);
+      }
       if (useQresync) await client.enable(['QRESYNC']);
       return client;
     } on Object {
@@ -64,10 +68,12 @@ final class DefaultMailConnector implements MailConnector {
       tls: tls,
     );
     try {
-      await client.authenticate(
-        account.username,
-        await _credentials.passwordFor(account),
-      );
+      final secret = await _credentials.passwordFor(account);
+      if (account.usesOAuth) {
+        await client.authenticateOAuth(account.username, secret);
+      } else {
+        await client.authenticate(account.username, secret);
+      }
       return client;
     } on Object {
       await client.close();

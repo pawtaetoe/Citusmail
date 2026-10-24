@@ -17,6 +17,7 @@ dependencies:
   local_auth: ^3.0.2
   mail_appsync: any
   mail_compose: any
+  mail_oauth: any
   mail_protocol: any
   mail_setup: any
   mail_sort: any

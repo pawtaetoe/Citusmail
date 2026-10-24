@@ -4,6 +4,7 @@
 
 package com.fluminaris.citusmail
 
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
 import androidx.work.OneTimeWorkRequestBuilder
@@ -14,8 +15,11 @@ import io.flutter.plugin.common.MethodChannel
 
 // A FragmentActivity, as the system's fingerprint dialog (local_auth) needs.
 class MainActivity : FlutterFragmentActivity() {
+    private var oauth: MethodChannel? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        oauth = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fmail/oauth")
         // The periodic check (kept if already scheduled; does nothing until
         // an account exists).
         BackgroundSyncWorker.schedule(this)
@@ -51,5 +55,15 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // The browser hands back the answer to a sign-in (singleTop: this same
+    // activity). Dart checks it against the sign-in it started.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val data = intent.data ?: return
+        if (data.scheme == "com.fluminaris.citusmail" && data.host == "oauth") {
+            oauth?.invokeMethod("redirect", data.toString())
+        }
     }
 }

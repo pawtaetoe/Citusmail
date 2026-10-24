@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
+import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
@@ -101,12 +102,25 @@ class _SetupPageState extends State<SetupPage> {
                     key: const ValueKey('credentials'),
                     initialEmail: controller.email,
                     error: error,
+                    canSignInWith: controller.canSignInWith,
+                    providerFor: controller.providerFor,
                     onSubmit: (email, password, name) => controller.start(
                       email: email,
                       password: password,
                       displayName: name,
                       askMozillaConsent: _askMozilla,
                     ),
+                    onOAuth: (provider, email, name) => controller.signInWith(
+                      provider,
+                      email: email,
+                      displayName: name,
+                    ),
+                  ),
+                  SigningIn(:final provider) => _Busy(
+                    key: const ValueKey('signing-in'),
+                    text:
+                        'Sign in on ${provider.name}\'s page in your browser, then come back '
+                        'here.',
                   ),
                   Discovering(:final step) => _Busy(
                     key: const ValueKey('discovering'),
@@ -164,12 +178,19 @@ class _CredentialsForm extends StatefulWidget {
     super.key,
     required this.initialEmail,
     required this.onSubmit,
+    required this.onOAuth,
+    required this.canSignInWith,
+    required this.providerFor,
     this.error,
   });
 
   final String initialEmail;
   final String? error;
   final void Function(String email, String password, String name) onSubmit;
+  final void Function(OAuthProvider provider, String email, String name)
+  onOAuth;
+  final bool Function(OAuthProvider provider) canSignInWith;
+  final OAuthProvider? Function(String email) providerFor;
 
   @override
   State<_CredentialsForm> createState() => _CredentialsFormState();
@@ -182,6 +203,19 @@ class _CredentialsFormState extends State<_CredentialsForm> {
   final _name = TextEditingController();
   bool _showPassword = false;
 
+  /// The provider the typed address must sign in with, if any.
+  OAuthProvider? _provider;
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = widget.providerFor(_email.text);
+    _email.addListener(() {
+      final provider = widget.providerFor(_email.text);
+      if (provider != _provider) setState(() => _provider = provider);
+    });
+  }
+
   @override
   void dispose() {
     _email.dispose();
@@ -191,7 +225,10 @@ class _CredentialsFormState extends State<_CredentialsForm> {
   }
 
   void _submit() {
-    if (_form.currentState!.validate()) {
+    if (!_form.currentState!.validate()) return;
+    if (_provider case final provider?) {
+      widget.onOAuth(provider, _email.text, _name.text);
+    } else {
       widget.onSubmit(_email.text, _password.text, _name.text);
     }
   }
@@ -227,27 +264,40 @@ class _CredentialsFormState extends State<_CredentialsForm> {
                 ? null
                 : 'Enter an email address',
           ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _password,
-            obscureText: !_showPassword,
-            autofillHints: const [AutofillHints.password],
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                tooltip: _showPassword ? 'Hide password' : 'Show password',
-                icon: Icon(
-                  _showPassword ? Icons.visibility_off : Icons.visibility,
-                ),
-                onPressed: () => setState(() => _showPassword = !_showPassword),
-              ),
+          if (_provider case final provider?) ...[
+            const SizedBox(height: 12),
+            Text(
+              widget.canSignInWith(provider)
+                  ? '${provider.name} asks you to sign in on its own page. Your browser opens '
+                        'for that; $appName never sees your password.'
+                  : '${provider.name} accounts need ${provider.name} sign-in, which this copy '
+                        'of $appName can\'t do yet.',
             ),
-            validator: (v) => (v ?? '').isEmpty ? 'Enter your password' : null,
-            onFieldSubmitted: (_) => _submit(),
-          ),
+          ] else ...[
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _password,
+              obscureText: !_showPassword,
+              autofillHints: const [AutofillHints.password],
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  tooltip: _showPassword ? 'Hide password' : 'Show password',
+                  icon: Icon(
+                    _showPassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () =>
+                      setState(() => _showPassword = !_showPassword),
+                ),
+              ),
+              validator: (v) =>
+                  (v ?? '').isEmpty ? 'Enter your password' : null,
+              onFieldSubmitted: (_) => _submit(),
+            ),
+          ],
           const SizedBox(height: 16),
           TextFormField(
             controller: _name,
@@ -265,7 +315,16 @@ class _CredentialsFormState extends State<_CredentialsForm> {
             ),
           ],
           const SizedBox(height: 24),
-          FilledButton(onPressed: _submit, child: const Text('Continue')),
+          FilledButton(
+            onPressed: _provider == null || widget.canSignInWith(_provider!)
+                ? _submit
+                : null,
+            child: Text(
+              _provider == null
+                  ? 'Continue'
+                  : 'Continue with ${_provider!.name}',
+            ),
+          ),
         ],
       ),
     );
