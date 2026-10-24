@@ -89,6 +89,19 @@ void main() {
     expect(a.verifier, matches(RegExp(r'^[A-Za-z0-9\-._~]+$')));
   });
 
+  test('providers by id, and with a client id given at run time', () {
+    expect(OAuthProvider.byId('microsoft'), same(OAuthProvider.microsoft));
+    expect(OAuthProvider.byId('nobody'), isNull);
+    final custom = OAuthProvider.microsoft.withClientId('abc-123');
+    expect(custom.configured, isTrue);
+    expect(custom.clientId, 'abc-123');
+    expect(custom.id, 'microsoft');
+    expect(custom.scopes, OAuthProvider.microsoft.scopes);
+    expect(custom.imapHost, OAuthProvider.microsoft.imapHost);
+    expect(custom.smtpPort, OAuthProvider.microsoft.smtpPort);
+    expect(custom.extraParameters, OAuthProvider.microsoft.extraParameters);
+  });
+
   group('AuthorizationRequest', () {
     final redirect = Uri.parse('http://127.0.0.1:5555/');
 

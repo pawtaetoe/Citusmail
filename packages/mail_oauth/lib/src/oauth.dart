@@ -44,6 +44,25 @@ final class OAuthProvider {
 
   bool get configured => clientId.isNotEmpty;
 
+  /// The same provider with another registration (developer tools that
+  /// take the client id at run time instead of from the build).
+  OAuthProvider withClientId(String clientId) => OAuthProvider(
+    id: id,
+    name: name,
+    authorizationUrl: authorizationUrl,
+    tokenUrl: tokenUrl,
+    scopes: scopes,
+    clientId: clientId,
+    imapHost: imapHost,
+    smtpHost: smtpHost,
+    smtpPort: smtpPort,
+    extraParameters: extraParameters,
+  );
+
+  /// The provider with [id] (`microsoft`), or null.
+  static OAuthProvider? byId(String id) =>
+      all.where((p) => p.id == id).firstOrNull;
+
   /// Outlook.com, Hotmail and Microsoft 365. The client id comes from the
   /// build: `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`.
   static const microsoft = OAuthProvider(

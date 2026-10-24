@@ -14,7 +14,7 @@ first, ends with something that can be run or tested, and is committed as
 | M1 | Own IMAP, SMTP and MIME code, encrypted local storage, sync, Smart Inbox, writing mail, custom folders, notifications, packaging | Done |
 | M2 | Phishing checks, unsubscribe, blocking senders, tracker and image blocking, read-receipt blocking, app lock | Done |
 | M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
-| M4 | Outlook sign-in (OAuth 2.0) | Built; live check waiting (Stage 24) |
+| M4 | Outlook sign-in (OAuth 2.0) | Built; live check tool ready, run waiting on a client ID (Stage 24) |
 | M5 | Gmail: app passwords first, then OAuth 2.0 | Not started |
 | M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Not started |
 
@@ -64,14 +64,18 @@ first, ends with something that can be run or tested, and is committed as
 | 21 | OAuth sign-in plumbing: PKCE, browser sign-in, tokens, XOAUTH2 for IMAP and SMTP |
 | 22 | Outlook sign-in in the app |
 | 23 | Design refresh (see [Design](#design)) |
+| 24 | Live Outlook check tool: browser sign-in, token refresh (also mid-sync), XOAUTH2 IMAP and SMTP, sync, and with `--send` a message to the account itself |
 
 ## Next
 
-1. **Stage 24: live Outlook check.** Sign in, sync, send and refresh tokens
-   against a real Outlook account.
+1. **Run the Stage 24 live Outlook check.** The tool is ready
+   (`dart run repo_tools:live_check --send`, see the README).
    - Waiting on: a Microsoft Entra client ID (see
      [packaging/README.md](packaging/README.md)) and an Outlook test account.
-   - The build takes the ID as `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`.
+   - The app build takes the ID as `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`;
+     the live check reads it from `LIVE_OAUTH_CLIENT_ID` in `live-test.env`.
+   - Its send step reports whether Outlook keeps its own copy in Sent; if it
+     does, add Outlook's SMTP server to the servers that save sent mail.
 2. **M5: Gmail.**
    - App passwords first, so Gmail works without Google's approval.
    - Then Google sign-in. A built-in client ID needs Google's app

@@ -110,9 +110,10 @@ final class KeychainCredentials implements CredentialProvider {
   }
 
   Future<String> _accessToken(Account account) async {
-    final provider = OAuthProvider.all
-        .where((p) => p.id == account.oauthProvider)
-        .firstOrNull;
+    final provider = switch (account.oauthProvider) {
+      final id? => OAuthProvider.byId(id),
+      null => null,
+    };
     final stored = OAuthTokens.fromJson(
       await _secrets.read(account.keychainKey),
     );
