@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fmail/src/mail/mail_controller.dart';
 import 'package:fmail/src/services/app_services.dart';
 import 'package:fmail/src/ui/fmail_theme.dart';
 import 'package:fmail/src/ui/mail_shell.dart';
@@ -159,6 +160,27 @@ void main() {
           .where((e) => e.action is MoveAction),
       isEmpty,
     );
+  });
+
+  test('Gmail: archiving goes to All Mail when there is no Archive', () {
+    final accountId = store.accounts.all().single.id;
+    final inbox = store.mailboxes.inbox(accountId)!;
+    final message = store.messages
+        .list(MessageQuery(mailboxIds: [inbox.id]))
+        .first;
+    final controller = MailController(services);
+    addTearDown(controller.dispose);
+    expect(controller.archiveFor(message)?.name, 'Archive');
+
+    store.mailboxes.replaceAll(accountId, [
+      ImapMailboxInfo(encodedName: 'INBOX', delimiter: '/', attributes: {}),
+      ImapMailboxInfo(
+        encodedName: '[Gmail]/All Mail',
+        delimiter: '/',
+        attributes: {r'\All'},
+      ),
+    ]);
+    expect(controller.archiveFor(message)?.specialUse, SpecialUse.all);
   });
 
   testWidgets('keyboard: J/K move, U toggles read, E archives, ? helps', (

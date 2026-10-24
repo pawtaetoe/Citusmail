@@ -51,11 +51,14 @@ Future<void> main(List<String> args) async {
     final credentials = settings.usesOAuth
         ? await _checkSignIn(settings, fresh: args.contains('--sign-in-again'))
         : _FixedPassword(
-            await TestKeychain.password(settings.email).read() ??
-                (throw StateError(
-                  'no password in the keychain for ${settings.email} '
-                  '(see live-test.env.example)',
-                )),
+            _asTheAppUsesIt(
+              settings.email,
+              await TestKeychain.password(settings.email).read() ??
+                  (throw StateError(
+                    'no password in the keychain for ${settings.email} '
+                    '(see live-test.env.example)',
+                  )),
+            ),
           );
     final live = _Live(settings, credentials);
     await live.checkDiscovery();
@@ -130,6 +133,10 @@ Future<LiveTokens> _checkSignIn(LiveSettings s, {required bool fresh}) async {
   );
   return tokens;
 }
+
+/// As setup saves it: a Gmail app password without its spaces.
+String _asTheAppUsesIt(String email, String password) =>
+    KnownProvider.forEmail(email)?.normalizePassword(password) ?? password;
 
 int _minutesLeft(OAuthTokens t) =>
     t.expiresAt.difference(DateTime.now().toUtc()).inMinutes;
@@ -395,7 +402,7 @@ final class _Live {
 
   /// Sends one message to the account itself, waits for it in INBOX,
   /// reports whether the server kept its own copy in Sent (the app then
-  /// should not add another), and moves it to the test folder.
+  /// adds none), and moves it to the test folder.
   Future<void> checkSend() async {
     stdout.writeln('Sending to ${s.email} itself (--send)');
     final at = s.email.lastIndexOf('@');
@@ -455,7 +462,7 @@ final class _Live {
         _ok(
           copies > 0
               ? 'the server saved a copy in ${sent.name} by itself '
-                    '(the app should not add its own)'
+                    '(the app finds it by Message-ID and adds none)'
               : 'the server kept no copy in ${sent.name} (the app adds one)',
         );
       }

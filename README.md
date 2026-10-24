@@ -34,7 +34,8 @@ macOS and iOS for later.
 │   ├── mail_oauth/           OAuth 2.0 sign-in (Outlook): PKCE, browser, tokens
 │   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
 │                             from scratch with no runtime dependencies
-│   ├── mail_setup/           Account setup: discovery and login verification
+│   ├── mail_setup/           Account setup: discovery (Gmail built in) and
+│                             login verification
 │   ├── mail_sort/            Sorting into General, Newsletters, Notifications
 │   ├── mail_store/           Encrypted local storage (SQLite3MultipleCiphers)
 │   ├── mail_sync/            Sync engine and background worker: folders, messages,

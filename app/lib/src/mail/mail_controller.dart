@@ -206,6 +206,16 @@ final class MailController {
     clearSelection();
     location.value = target;
     list.show(target, smart: smartLayout.value);
+    // Views like Gmail's Starred are not synced in the background.
+    if (target case FolderLocation(:final mailboxId)
+        when _store.mailboxes.byId(mailboxId)?.isView ?? false) {
+      unawaited(
+        services.worker
+            .syncFolder(mailboxId)
+            .then((_) => refresh())
+            .catchError((Object _) {}),
+      );
+    }
   }
 
   void setSmartLayout(bool smart) {
@@ -615,9 +625,13 @@ final class MailController {
     }
   }
 
-  /// The account's Archive folder, if it has one.
-  StoredMailbox? archiveFor(StoredMessage m) =>
-      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.archive);
+  /// The account's Archive folder, if it has one. On Gmail, archiving
+  /// means moving to All Mail (the message leaves the inbox, nothing else).
+  StoredMailbox? archiveFor(StoredMessage m) => _archiveFolder(m.accountId);
+
+  StoredMailbox? _archiveFolder(int accountId) =>
+      _store.mailboxes.bySpecialUse(accountId, SpecialUse.archive) ??
+      _store.mailboxes.bySpecialUse(accountId, SpecialUse.all);
 
   bool isInTrash(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
@@ -639,10 +653,7 @@ final class MailController {
     final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
     _remove([
       for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-        () => services.actions.move(
-          group,
-          _store.mailboxes.bySpecialUse(accountId, SpecialUse.archive)!,
-        ),
+        () => services.actions.move(group, _archiveFolder(accountId)!),
     ], done ?? (count == 1 ? 'Archived' : 'Archived $count'));
   }
 

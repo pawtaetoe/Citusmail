@@ -21,6 +21,9 @@ enum DiscoverySource {
   /// Mozilla's database over HTTPS (trusted, third party).
   mozillaDatabase(authenticated: true),
 
+  /// Built into the app for a well-known provider (no lookup at all).
+  builtIn(authenticated: true),
+
   /// Typed by the user.
   manual(authenticated: true);
 
@@ -102,6 +105,7 @@ final class DiscoveredSettings {
     return [
       if (!source.authenticated) SetupWarning.unauthenticatedSource,
       if (source != DiscoverySource.manual &&
+          source != DiscoverySource.builtIn &&
           (!isWithinDomain(imap.host, domain) ||
               !isWithinDomain(smtp.host, domain)))
         SetupWarning.serverOutsideDomain,

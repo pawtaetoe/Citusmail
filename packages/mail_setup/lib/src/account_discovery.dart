@@ -7,6 +7,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'autoconfig_parser.dart';
 import 'discovered_settings.dart';
 import 'dns_srv.dart';
+import 'known_providers.dart';
 import 'settings_fetcher.dart';
 import 'verification.dart';
 
@@ -30,8 +31,10 @@ final class DiscoveryResult {
   final bool oauthOnly;
 }
 
-/// Finds server settings for an email address, trying sources from most to
-/// least trustworthy and stopping at the first that works:
+/// Finds server settings for an email address. Well-known providers
+/// ([KnownProvider]) are answered from the app itself, with no lookup.
+/// Otherwise it tries sources from most to least trustworthy and stops at
+/// the first that works:
 ///
 /// 1. the provider's settings file over HTTPS;
 /// 2. DNS SRV records (RFC 6186 / 8314);
@@ -78,6 +81,9 @@ final class AccountDiscovery {
     }
     final address = email.trim();
     final domain = match.group(1)!.toLowerCase();
+    if (KnownProvider.forEmail(address) case final known?) {
+      return DiscoveryResult(known.settingsFor(address));
+    }
     var oauthOnly = false;
 
     DiscoveredSettings? fromFile(String? xml, DiscoverySource source) {

@@ -157,6 +157,65 @@ void main() {
       },
     );
 
+    test('Gmail: an app password loses its spaces; others are kept', () async {
+      final s = Script()
+        ..discovery = DiscoveryResult(
+          KnownProvider.gmail.settingsFor('me@gmail.com'),
+        );
+      await s.controller.start(
+        email: 'me@gmail.com',
+        password: 'abcd efgh ijkl mnop',
+        askMozillaConsent: noMozilla,
+      );
+      await s.controller.useSettings(
+        KnownProvider.gmail.settingsFor('me@gmail.com'),
+      );
+      expect(s.verified.single.$2, 'abcdefghijklmnop');
+
+      final other = Script();
+      await other.controller.start(
+        email: 'me@tommykung.cc',
+        password: 'abcd efgh ijkl mnop',
+        askMozillaConsent: noMozilla,
+      );
+      await other.controller.useSettings(found());
+      expect(other.verified.single.$2, 'abcd efgh ijkl mnop');
+    });
+
+    test('Gmail: refusals explain app passwords', () {
+      final gmail = KnownProvider.gmail.settingsFor('me@gmail.com');
+      final needs = SetupText.problem(
+        const VerificationResult.failure(
+          ServerRole.imap,
+          VerificationProblem.appPasswordRequired,
+          'x',
+        ),
+        gmail,
+      );
+      expect(needs, contains('Gmail doesn\'t let mail apps use'));
+      expect(needs, contains('myaccount.google.com/apppasswords'));
+      final wrong = SetupText.problem(
+        const VerificationResult.failure(
+          ServerRole.imap,
+          VerificationProblem.credentials,
+          'x',
+        ),
+        gmail,
+      );
+      expect(wrong, contains('didn\'t accept the app password'));
+      expect(
+        SetupText.problem(
+          const VerificationResult.failure(
+            ServerRole.imap,
+            VerificationProblem.credentials,
+            'x',
+          ),
+          found(),
+        ),
+        contains('user name or password'),
+      );
+    });
+
     test('an empty password is caught before any network work', () async {
       final s = Script();
       await s.controller.start(
@@ -232,6 +291,48 @@ void main() {
         find.text('Use business905.web-hosting.com instead'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('a Gmail address asks for an app password and links to it', (
+      tester,
+    ) async {
+      await pump(tester);
+      expect(find.byKey(const Key('create-app-password')), findsNothing);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email address'),
+        'me@gmail.com',
+      );
+      await tester.pump();
+      expect(
+        find.widgetWithText(TextFormField, 'App password'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('needs an app password'), findsOneWidget);
+      expect(
+        find.text('Create an app password (myaccount.google.com)'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an app password refusal offers to enter one', (tester) async {
+      final s = await pump(tester);
+      s.verifications.add(
+        const VerificationResult.failure(
+          ServerRole.imap,
+          VerificationProblem.appPasswordRequired,
+          'x',
+        ),
+      );
+      await s.controller.start(
+        email: 'me@gmail.com',
+        password: 'my-google-password',
+        askMozillaConsent: noMozilla,
+      );
+      await s.controller.useSettings(
+        KnownProvider.gmail.settingsFor('me@gmail.com'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Enter an app password'), findsOneWidget);
     });
 
     testWidgets('the password field hides input by default', (tester) async {

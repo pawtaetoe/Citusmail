@@ -9,7 +9,7 @@ no analytics, no crash reporting and no advertising.
 | --- | --- | --- |
 | Your mail servers | Always, to read and send mail | Your login and mail, over TLS |
 | Microsoft's sign-in service | Only for Outlook / Hotmail accounts: when you add one (in your own browser), and to renew access about every hour | Your sign-in happens on Microsoft's page; the app sends only the one-time code it gets back, and later its refresh token, to get access to your mail. Your password never passes through the app |
-| Your mail provider's settings file | When adding an account | Your email domain (in the web address only; no app name, no cookies) |
+| Your mail provider's settings file | When adding an account (not for Gmail, whose settings are built in) | Your email domain (in the web address only; no app name, no cookies) |
 | Your system's DNS resolver | When adding an account | Lookups for your domain's mail records |
 | Common server names of your domain | When adding an account, if nothing else found them | A connection test without any login |
 | Mozilla's mail server database | Only if you allow it during setup | Your email domain, never the full address |
@@ -17,6 +17,7 @@ no analytics, no crash reporting and no advertising.
 | A newsletter's unsubscribe email address | Only when you tap Unsubscribe and confirm | An email from your account saying "unsubscribe" (a copy is kept in Sent) |
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
 | Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, unsubscribes, folder rules and image senders, end-to-end encrypted |
+| Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
 | A link in an email | Only when you tap it and confirm the address | Your browser opens the link, without tracking parameters such as `utm_source` |
 | Images in an email | Only when you tap "Load images", or for a sender you chose "Always from this sender" for (and only when your mail server verified the mail is from them) | A request for each image with a generic user agent: no cookies, no referrer, no language. Like any connection, it shows your IP address, and the sender can tell the message was opened. Tracking pixels are never requested |
 

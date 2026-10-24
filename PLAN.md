@@ -15,7 +15,7 @@ first, ends with something that can be run or tested, and is committed as
 | M2 | Phishing checks, unsubscribe, blocking senders, tracker and image blocking, read-receipt blocking, app lock | Done |
 | M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
 | M4 | Outlook sign-in (OAuth 2.0) | Built; live check tool ready, run waiting on a client ID (Stage 24) |
-| M5 | Gmail: app passwords first, then OAuth 2.0 | Not started |
+| M5 | Gmail: app passwords first, then OAuth 2.0 | App passwords done (Stage 25); OAuth not started |
 | M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Not started |
 
 ## Stages so far
@@ -66,6 +66,12 @@ first, ends with something that can be run or tested, and is committed as
 | 23 | Design refresh (see [Design](#design)) |
 | 24 | Live Outlook check tool: browser sign-in, token refresh (also mid-sync), XOAUTH2 IMAP and SMTP, sync, and with `--send` a message to the account itself |
 
+### M5: Gmail
+
+| Stage | What it delivered |
+| --- | --- |
+| 25 | Gmail with app passwords: built-in settings (no lookup), app password guidance and errors, Starred and Important synced only when opened, each message shown once across folders, archive to All Mail |
+
 ## Next
 
 1. **Run the Stage 24 live Outlook check.** The tool is ready
@@ -74,14 +80,17 @@ first, ends with something that can be run or tested, and is committed as
      [packaging/README.md](packaging/README.md)) and an Outlook test account.
    - The app build takes the ID as `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`;
      the live check reads it from `LIVE_OAUTH_CLIENT_ID` in `live-test.env`.
-   - Its send step reports whether Outlook keeps its own copy in Sent; if it
-     does, add Outlook's SMTP server to the servers that save sent mail.
-2. **M5: Gmail.**
-   - App passwords first, so Gmail works without Google's approval.
-   - Then Google sign-in. A built-in client ID needs Google's app
-     verification before public release, so the app will also accept a
-     user's own client ID ("bring your own") for early testers.
-3. **M6.**
+   - Its send step reports whether Outlook keeps its own copy in Sent (the
+     app already adds no second copy when one with the same Message-ID is
+     there).
+2. **Run the live check against a Gmail account** with an app password
+   (`LIVE_EMAIL=...@gmail.com`, imap.gmail.com:993, smtp.gmail.com:465).
+3. **M5: Google sign-in (OAuth 2.0).** A built-in client ID needs Google's
+   app verification before public release, so the app will also accept a
+   user's own client ID ("bring your own") for early testers.
+   - Google Workspace addresses on their own domains are not recognised
+     as Gmail yet; they can use the manual settings with an app password.
+4. **M6.**
    - Rules that run on the mail server where it supports them (Sieve).
    - An on-device model to improve sorting, with nothing sent anywhere.
    - Optional link and file checks with Google Safe Browsing (hash prefixes

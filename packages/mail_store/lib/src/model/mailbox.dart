@@ -52,6 +52,16 @@ final class StoredMailbox {
 
   bool get isInbox => encodedName.toUpperCase() == 'INBOX';
 
+  /// A folder that only shows mail kept in other folders: Gmail's Starred
+  /// and Important (\Flagged, \Important). Not synced in the background,
+  /// only when opened; its copies are left out of lists across folders.
+  bool get isView =>
+      specialUse == SpecialUse.flagged || specialUse == SpecialUse.important;
+
+  /// Special uses whose copies duplicate mail in other folders (Gmail's
+  /// All Mail, Starred, Important), as stored in the database.
+  static const copyUses = ['all', 'flagged', 'important'];
+
   /// The folder that carries the app's encrypted sync data. Never shown or
   /// synced as mail.
   static const appDataName = 'Citusmail Sync';

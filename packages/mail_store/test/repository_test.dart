@@ -894,6 +894,77 @@ void main() {
       );
     });
 
+    test('Gmail copies in All Mail, Starred and Important show once', () {
+      final gmail = temp.addAccount('me@gmail.com');
+      final folders = {
+        for (final f in store.mailboxes.replaceAll(gmail.id, [
+          folder('INBOX'),
+          folder('[Gmail].All Mail', use: 'All'),
+          folder('[Gmail].Starred', use: 'Flagged'),
+          folder('[Gmail].Important', use: 'Important'),
+        ]))
+          f.name: f,
+      };
+      final all = folders['[Gmail].All Mail']!;
+      final starred = folders['[Gmail].Starred']!;
+      expect(starred.isView, isTrue);
+      expect(folders['[Gmail].Important']!.isView, isTrue);
+      expect(all.isView, isFalse);
+      expect(folders['INBOX']!.isView, isFalse);
+
+      final pin = MessageFlags.fromImap([r'\Flagged']);
+      MessageSummary copy(int uid, String id, {bool pinned = true}) =>
+          MessageSummary(
+            uid: uid,
+            subject: 'gmail $id',
+            messageId: '$id@gmail.example',
+            receivedAt: DateTime.utc(2026, 10, 2).add(Duration(minutes: uid)),
+            flags: pinned ? pin : MessageFlags.none,
+          );
+      // In the inbox, also in All Mail and Starred.
+      store.messages.upsertSummaries(folders['INBOX']!.id, [copy(1, 'inbox')]);
+      // Archived: only in All Mail and Starred.
+      store.messages.upsertSummaries(all.id, [
+        copy(11, 'inbox'),
+        copy(12, 'archived'),
+        copy(13, 'only-in-all'),
+      ]);
+      store.messages.upsertSummaries(starred.id, [
+        copy(21, 'inbox'),
+        copy(22, 'archived'),
+        // Starred only (All Mail not synced that far back yet).
+        copy(23, 'old'),
+      ]);
+      store.messages.upsertSummaries(folders['[Gmail].Important']!.id, [
+        copy(31, 'inbox'),
+      ]);
+
+      List<(String, int)> pins() => [
+        for (final m in store.messages.list(
+          MessageQuery(flaggedOnly: true, accountIds: [gmail.id]),
+        ))
+          (m.subject!, m.mailboxId),
+      ];
+      expect(
+        pins(),
+        unorderedEquals([
+          ('gmail inbox', folders['INBOX']!.id),
+          ('gmail archived', all.id),
+          ('gmail only-in-all', all.id),
+          ('gmail old', starred.id),
+        ]),
+      );
+      expect(
+        store.messages.search('gmail').map((m) => m.mailboxId).toList(),
+        hasLength(4),
+      );
+      // Inside one folder every message is listed.
+      expect(
+        store.messages.list(MessageQuery(mailboxIds: [starred.id])),
+        hasLength(3),
+      );
+    });
+
     test('re-sorting reads stored mail and writes new decisions', () {
       store.messages.upsertSummaries(inbox.id, [
         MessageSummary(

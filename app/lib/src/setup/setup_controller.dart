@@ -239,7 +239,8 @@ final class SetupController extends ChangeNotifier {
     required Future<bool> Function(String domain) askMozillaConsent,
   }) async {
     _email = email.trim();
-    _password = password;
+    _password =
+        KnownProvider.forEmail(_email)?.normalizePassword(password) ?? password;
     final name = displayName?.trim() ?? '';
     _displayName = name.isEmpty ? null : name;
     if (_password.isEmpty) {
@@ -339,6 +340,7 @@ abstract final class SetupText {
     DiscoverySource.httpAutoconfig => 'from your provider\'s settings file',
     DiscoverySource.probed => 'by trying common server names',
     DiscoverySource.mozillaDatabase => 'from Mozilla\'s database',
+    DiscoverySource.builtIn => 'built into $appName',
     DiscoverySource.manual => 'entered by you',
   };
 
@@ -359,14 +361,33 @@ abstract final class SetupText {
     ConnectionSecurity.startTls => 'Encrypted (STARTTLS)',
   };
 
+  /// An address as people read it: no scheme.
+  static String _shortUrl(String url) => url.replaceFirst('https://', '');
+
+  /// The hint under the password field for a provider that wants an app
+  /// password.
+  static String appPasswordHint(KnownProvider provider) =>
+      '${provider.name} needs an app password, not your account password. '
+      'Creating one needs 2-Step Verification on your account.';
+
   static String problem(VerificationResult r, DiscoveredSettings s) {
     final server = r.role == ServerRole.smtp ? s.smtp : s.imap;
     final kind = r.role == ServerRole.smtp
         ? 'outgoing (SMTP)'
         : 'incoming (IMAP)';
+    final known =
+        KnownProvider.forImapHost(s.imap.host) ??
+        KnownProvider.forEmail(s.email);
     return switch (r.problem) {
+      VerificationProblem.credentials when known?.needsAppPassword ?? false =>
+        '${known!.name} didn\'t accept the app password. Check that you copied all of it, or '
+            'create a new one at ${_shortUrl(known.appPasswordUrl!)}.',
       VerificationProblem.credentials =>
         'The $kind server didn\'t accept the user name or password.',
+      VerificationProblem.appPasswordRequired =>
+        '${known?.name ?? 'Your provider'} doesn\'t let mail apps use your account password. '
+            'Create an app password${known?.appPasswordUrl == null ? '' : ' at ${_shortUrl(known!.appPasswordUrl!)}'} '
+            'and enter it instead.',
       VerificationProblem.certificate => switch (r.tlsFailure) {
         TlsFailure.hostnameMismatch =>
           'The certificate of ${server.host} is for ${r.certificate?.commonName ?? 'a different name'}, '

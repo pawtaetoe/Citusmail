@@ -117,7 +117,9 @@ final class AccountSynchronizer {
   final AppDataSync? _appData;
 
   /// Syncs [account]. With [mailboxIds], only those folders are synced
-  /// (the folder list and the queue are always handled).
+  /// (the folder list and the queue are always handled). Without, every
+  /// folder except views like Gmail's Starred and Important
+  /// ([StoredMailbox.isView]), which are synced when opened.
   Future<AccountSyncReport> sync(
     Account account, {
     Set<int>? mailboxIds,
@@ -132,10 +134,10 @@ final class AccountSynchronizer {
       );
 
       final results = <int, MailboxSyncResult>{};
-      for (final mailbox in _store.mailboxes.forAccount(account.id)) {
-        // The sync data folder holds the app's own data, not mail.
-        if (!mailbox.selectable || mailbox.isAppData) continue;
-        if (mailboxIds != null && !mailboxIds.contains(mailbox.id)) continue;
+      for (final mailbox in foldersToSync(
+        _store.mailboxes.forAccount(account.id),
+        mailboxIds,
+      )) {
         results[mailbox.id] = await _mailboxSync.sync(
           imap,
           mailbox,
@@ -192,6 +194,20 @@ final class AccountSynchronizer {
       await imap.logout();
     }
   }
+
+  /// Which of [mailboxes] a sync covers: with [mailboxIds], those;
+  /// without, all but views like Gmail's Starred and Important
+  /// ([StoredMailbox.isView]). Never folders that can't be opened, nor the
+  /// app's own sync data folder.
+  static Iterable<StoredMailbox> foldersToSync(
+    Iterable<StoredMailbox> mailboxes,
+    Set<int>? mailboxIds,
+  ) => mailboxes.where(
+    (m) =>
+        m.selectable &&
+        !m.isAppData &&
+        (mailboxIds == null ? !m.isView : mailboxIds.contains(m.id)),
+  );
 
   /// UIDs in [mailboxId] with local changes still queued.
   Set<int> pendingUids(int accountId, int mailboxId) {

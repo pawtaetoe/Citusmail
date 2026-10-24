@@ -10,6 +10,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../app.dart' show appName;
 import '../ui/fmail_theme.dart';
+import '../ui/link_opener.dart';
 import 'setup_controller.dart';
 
 /// The add-account flow. Calls [onDone] with the saved account.
@@ -207,13 +208,23 @@ class _CredentialsFormState extends State<_CredentialsForm> {
   /// The provider the typed address must sign in with, if any.
   OAuthProvider? _provider;
 
+  /// A built-in provider for the typed address (Gmail: app passwords).
+  KnownProvider? _known;
+
   @override
   void initState() {
     super.initState();
     _provider = widget.providerFor(_email.text);
+    _known = KnownProvider.forEmail(_email.text);
     _email.addListener(() {
       final provider = widget.providerFor(_email.text);
-      if (provider != _provider) setState(() => _provider = provider);
+      final known = KnownProvider.forEmail(_email.text);
+      if (provider != _provider || known != _known) {
+        setState(() {
+          _provider = provider;
+          _known = known;
+        });
+      }
     });
   }
 
@@ -224,6 +235,9 @@ class _CredentialsFormState extends State<_CredentialsForm> {
     _name.dispose();
     super.dispose();
   }
+
+  /// Where to create an app password, when the address needs one.
+  String? get _appPassword => _known?.appPasswordUrl;
 
   void _submit() {
     if (!_form.currentState!.validate()) return;
@@ -288,7 +302,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
               autocorrect: false,
               enableSuggestions: false,
               decoration: InputDecoration(
-                labelText: 'Password',
+                labelText: _appPassword == null ? 'Password' : 'App password',
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   tooltip: _showPassword ? 'Hide password' : 'Show password',
@@ -299,10 +313,32 @@ class _CredentialsFormState extends State<_CredentialsForm> {
                       setState(() => _showPassword = !_showPassword),
                 ),
               ),
-              validator: (v) =>
-                  (v ?? '').isEmpty ? 'Enter your password' : null,
+              validator: (v) => (v ?? '').isEmpty
+                  ? (_appPassword == null
+                        ? 'Enter your password'
+                        : 'Enter an app password')
+                  : null,
               onFieldSubmitted: (_) => _submit(),
             ),
+            if (_known case final known? when known.needsAppPassword) ...[
+              const SizedBox(height: 8),
+              Text(SetupText.appPasswordHint(known)),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const Key('create-app-password'),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: Text(
+                    'Create an app password '
+                    '(${Uri.parse(known.appPasswordUrl!).host})',
+                  ),
+                  onPressed: () => LinkOpener.launch(
+                    context,
+                    Uri.parse(known.appPasswordUrl!),
+                  ),
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 16),
           TextFormField(
@@ -487,7 +523,12 @@ class _Failed extends StatelessWidget {
         ),
         const SizedBox(height: 8),
       ],
-      if (result.problem == VerificationProblem.credentials)
+      if (result.problem == VerificationProblem.appPasswordRequired)
+        FilledButton(
+          onPressed: onRestart,
+          child: const Text('Enter an app password'),
+        )
+      else if (result.problem == VerificationProblem.credentials)
         FilledButton(
           onPressed: onRestart,
           child: const Text('Enter the password again'),
