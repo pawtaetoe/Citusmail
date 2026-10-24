@@ -4,7 +4,9 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'src/app.dart';
 import 'src/background/background_mail.dart';
@@ -15,7 +17,15 @@ export 'src/app.dart' show FmailApp, appName;
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isAndroid) OAuthBrowser.listenForAndroidAnswers();
+  LicenseRegistry.addLicense(_fontLicense);
   runApp(const FmailApp());
+}
+
+/// The bundled typeface's licence, shown on the licences page.
+Stream<LicenseEntry> _fontLicense() async* {
+  yield LicenseEntryWithLineBreaks(const [
+    'IBM Plex Sans',
+  ], await rootBundle.loadString('assets/fonts/IBMPlexSans/OFL.txt'));
 }
 
 /// Android: the periodic background check (started by BackgroundSyncWorker).

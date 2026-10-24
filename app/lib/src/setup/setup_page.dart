@@ -9,6 +9,7 @@ import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../app.dart' show appName;
+import '../ui/fmail_theme.dart';
 import 'setup_controller.dart';
 
 /// The add-account flow. Calls [onDone] with the saved account.
@@ -240,6 +241,11 @@ class _CredentialsFormState extends State<_CredentialsForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: CitusMark(size: 36),
+          ),
+          const SizedBox(height: 20),
           Text(
             'Sign in to your email',
             style: Theme.of(context).textTheme.headlineSmall,

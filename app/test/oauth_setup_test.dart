@@ -129,6 +129,7 @@ void main() {
       await tester.pump();
       expect(find.widgetWithText(TextFormField, 'Password'), findsNothing);
       expect(find.textContaining('never sees your password'), findsOneWidget);
+      await tester.ensureVisible(find.text('Continue with Microsoft'));
       await tester.tap(find.text('Continue with Microsoft'));
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 100));
@@ -178,6 +179,7 @@ void main() {
         'me@outlook.com',
       );
       await tester.pump();
+      await tester.ensureVisible(find.text('Continue with Microsoft'));
       await tester.tap(find.text('Continue with Microsoft'));
       await tester.pumpAndSettle();
       expect(find.text('Sign-in was cancelled.'), findsOneWidget);

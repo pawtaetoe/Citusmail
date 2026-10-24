@@ -6,6 +6,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:mail_compose/mail_compose.dart';
 
+import '../ui/fmail_theme.dart';
 import '../ui/mail_text.dart';
 import 'compose_controller.dart';
 import 'recipient_field.dart';
@@ -260,10 +261,7 @@ final class _ComposePageState extends State<ComposePage> {
                       onChanged: _c.setSubject,
                       textInputAction: TextInputAction.next,
                       onSubmitted: (_) => _bodyFocus.requestFocus(),
-                      decoration: const InputDecoration(
-                        hintText: 'Subject',
-                        border: InputBorder.none,
-                      ),
+                      decoration: FmailTheme.bareField(hintText: 'Subject'),
                       style: theme.textTheme.titleSmall,
                     ),
                   ),
@@ -315,9 +313,8 @@ final class _ComposePageState extends State<ComposePage> {
                         style: theme.textTheme.bodyLarge?.copyWith(
                           height: 1.45,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: FmailTheme.bareField(
                           hintText: 'Write your message',
-                          border: InputBorder.none,
                         ),
                       ),
                     ),

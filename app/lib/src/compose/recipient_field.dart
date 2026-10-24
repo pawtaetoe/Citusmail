@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 
+import '../ui/fmail_theme.dart';
 import 'compose_controller.dart';
 
 /// "To", "Cc" or "Bcc": addresses as chips, typed text turned into
@@ -126,9 +127,8 @@ final class _RecipientFieldState extends State<RecipientField> {
                             enableSuggestions: false,
                             onChanged: _onChanged,
                             onSubmitted: (_) => _commit(),
-                            decoration: InputDecoration(
+                            decoration: FmailTheme.bareField(
                               isDense: true,
-                              border: InputBorder.none,
                               errorText: widget.list.invalid == null
                                   ? null
                                   : 'Not an email address',

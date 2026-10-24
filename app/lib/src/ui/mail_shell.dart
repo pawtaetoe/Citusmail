@@ -165,10 +165,12 @@ final class _MailShellState extends State<MailShell> {
           onNavigated: inDrawer
               ? () => _scaffold.currentState?.closeDrawer()
               : null,
+          // Wide: a labelled button where the eye starts; else the list's.
+          onCompose: inDrawer ? null : _controller.compose,
         );
         final list = MessageListPane(
           controller: _controller,
-          onCompose: _controller.compose,
+          onCompose: wide ? null : _controller.compose,
           searchFocus: _searchFocus,
           leading: wide
               ? null

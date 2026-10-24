@@ -15,6 +15,7 @@ import '../mail/mail_controller.dart';
 import 'attachment_saver.dart';
 import 'avatar.dart';
 import 'block_dialog.dart';
+import 'fmail_theme.dart';
 import 'link_opener.dart';
 import 'mail_text.dart';
 import 'move_dialog.dart';
@@ -24,7 +25,7 @@ import 'unsubscribe_dialog.dart';
 
 /// The right pane: actions, the message header, its body (built lazily,
 /// block by block) and attachments, in a column of comfortable reading
-/// width.
+/// width, with Reply, Reply all and Forward always in reach at the bottom.
 final class ReaderPane extends StatelessWidget {
   const ReaderPane({
     super.key,
@@ -117,13 +118,6 @@ final class ReaderPane extends StatelessWidget {
                                   trust: trust ?? TrustReport.empty,
                                 ),
                               ],
-                              if (reader is ReaderReady) ...[
-                                const SizedBox(height: 24),
-                                _ReplyBar(
-                                  controller: controller,
-                                  reader: reader,
-                                ),
-                              ],
                             ],
                           ),
                         ),
@@ -134,6 +128,8 @@ final class ReaderPane extends StatelessWidget {
               },
             ),
           ),
+          if (reader is ReaderReady)
+            _ReplyBar(controller: controller, reader: reader),
         ],
       );
     },
@@ -150,17 +146,17 @@ final class _NothingOpen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.mail_outline, size: 48, color: colors.outlineVariant),
-          const SizedBox(height: 12),
+          const CitusMark(size: 40),
+          const SizedBox(height: 16),
           Text(
             'Select a message to read it',
-            style: TextStyle(color: colors.onSurfaceVariant),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             'Press ? for keyboard shortcuts',
             style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: colors.outline),
+                ?.copyWith(color: colors.onSurfaceVariant),
           ),
         ],
       ),
@@ -186,10 +182,9 @@ final class _Header extends StatelessWidget {
     children: [
       Text(
         MailText.subject(message),
-        style: Theme.of(context).textTheme.headlineSmall
-            ?.copyWith(fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.headlineSmall,
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 18),
       _Sender(message: message, reader: reader),
       const SizedBox(height: 20),
       if (controller.blockFor(message) case final block?)
@@ -252,7 +247,8 @@ final class _Toolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final archive = controller.archiveFor(message);
     final inTrash = controller.isInTrash(message);
-    final ready = reader is ReaderReady ? reader as ReaderReady : null;
+    // Grouped by what they do: where it goes, how it's marked, the sender.
+    // Replying is in the bar under the message.
     final actions = <_Action>[
       if (archive != null && archive.id != message.mailboxId)
         _Action(
@@ -275,6 +271,7 @@ final class _Toolbar extends StatelessWidget {
         message.flags.flagged ? Icons.push_pin : Icons.push_pin_outlined,
         () => controller.togglePin([message]),
         color: message.flags.flagged ? MailText.pinColor : null,
+        group: 1,
       ),
       _Action(
         message.flags.seen ? 'Mark as unread (U)' : 'Mark as read (U)',
@@ -282,33 +279,28 @@ final class _Toolbar extends StatelessWidget {
             ? Icons.mark_email_unread_outlined
             : Icons.mark_email_read_outlined,
         () => controller.toggleRead([message]),
+        group: 1,
       ),
-      if (ready != null) ...[
-        _Action('Reply (R)', Icons.reply, () => controller.reply(ready)),
-        _Action(
-          'Reply all (A)',
-          Icons.reply_all,
-          () => controller.replyAll(ready),
-        ),
-        _Action('Forward (F)', Icons.forward, () => controller.forward(ready)),
-      ],
       if (controller.blockFor(message) case final block?)
         _Action(
           'Unblock sender',
           Icons.how_to_reg_outlined,
           () => controller.unblock(block),
+          group: 2,
         )
       else if (controller.canBlock(message))
         _Action(
           'Block sender',
           Icons.block,
           () => BlockDialog.show(context, controller, message),
+          group: 2,
         ),
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Back button + as many 48dp buttons as fit; the rest in "More".
-        final room = ((constraints.maxWidth - 64) / 48).floor().clamp(
+        // Back button + as many 48dp buttons (and group rules) as fit; the
+        // rest in "More".
+        final room = ((constraints.maxWidth - 64 - 2 * 17) / 48).floor().clamp(
           2,
           actions.length,
         );
@@ -326,12 +318,18 @@ final class _Toolbar extends StatelessWidget {
                 onPressed: controller.closeMessage,
               ),
               const Spacer(),
-              for (final a in shown)
+              for (final (i, a) in shown.indexed) ...[
+                if (i > 0 && shown[i - 1].group != a.group)
+                  const SizedBox(
+                    height: 24,
+                    child: VerticalDivider(width: 17),
+                  ),
                 IconButton(
                   tooltip: a.label,
                   icon: Icon(a.icon, color: a.color),
                   onPressed: a.onPressed,
                 ),
+              ],
               if (more.isNotEmpty)
                 PopupMenuButton<VoidCallback>(
                   tooltip: 'More',
@@ -386,12 +384,21 @@ final class _Toolbar extends StatelessWidget {
 }
 
 final class _Action {
-  const _Action(this.label, this.icon, this.onPressed, {this.color});
+  const _Action(
+    this.label,
+    this.icon,
+    this.onPressed, {
+    this.color,
+    this.group = 0,
+  });
 
   final String label;
   final IconData icon;
   final VoidCallback onPressed;
   final Color? color;
+
+  /// Neighbouring actions with different groups get a rule between them.
+  final int group;
 }
 
 final class _Sender extends StatelessWidget {
@@ -409,6 +416,12 @@ final class _Sender extends StatelessWidget {
       ReaderReady(:final to, :final cc) => (to, cc),
       _ => (const <MailAddress>[], const <MailAddress>[]),
     };
+    final date = Text(
+      MailText.fullDate(context, message.sentAt ?? message.receivedAt),
+      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+    );
+    // Phones: the date gets its own line instead of wrapping beside the name.
+    final narrow = MediaQuery.sizeOf(context).width < 520;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -425,25 +438,19 @@ final class _Sender extends StatelessWidget {
                     flex: 3,
                     child: Text(
                       MailText.sender(message),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: theme.textTheme.titleSmall,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  // Shares the row with the name, so long dates never push
-                  // the name out on narrow screens.
-                  Flexible(
-                    flex: 2,
-                    child: Text(
-                      MailText.fullDate(
-                        context,
-                        message.sentAt ?? message.receivedAt,
+                  if (!narrow) ...[
+                    const SizedBox(width: 8),
+                    Flexible(
+                      flex: 2,
+                      child: DefaultTextStyle.merge(
+                        textAlign: TextAlign.end,
+                        child: date,
                       ),
-                      textAlign: TextAlign.end,
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
                     ),
-                  ),
+                  ],
                 ],
               ),
               if (from != null)
@@ -451,12 +458,11 @@ final class _Sender extends StatelessWidget {
                   from.address,
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
+              if (narrow) date,
               if (to.isNotEmpty)
                 Text(
                   'To: ${to.map(MailText.address).join(', ')}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
               if (cc.isNotEmpty)
                 Text(
@@ -503,18 +509,20 @@ final class _PrivacyNotice extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final canLoad =
         body.remoteImages > 0 && !reader.imagesShown && reader.imagesAllowed;
+    // The app's promise at work, so it gets the brand's colour.
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      padding: EdgeInsets.fromLTRB(14, 12, 14, canLoad ? 4 : 8),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        color: colors.primaryContainer.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(FmailTheme.radius),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.18)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.shield_outlined, size: 18, color: colors.onSurfaceVariant),
-          const SizedBox(width: 10),
+          Icon(Icons.shield_outlined, size: 20, color: colors.primary),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -524,7 +532,7 @@ final class _PrivacyNotice extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       line,
-                      style: TextStyle(color: colors.onSurfaceVariant),
+                      style: TextStyle(color: colors.onPrimaryContainer),
                     ),
                   ),
                 if (canLoad)
@@ -593,8 +601,8 @@ final class _ReceiptNotice extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(FmailTheme.radius),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -636,8 +644,8 @@ final class _BlockedNotice extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(FmailTheme.radius),
       ),
       child: Row(
         children: [
@@ -674,8 +682,8 @@ final class _Notice extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(FmailTheme.radius),
       ),
       child: Row(
         children: [
@@ -789,7 +797,8 @@ final class _Attachments extends StatelessWidget {
       false;
 }
 
-/// Reply, Reply all and Forward under the message, as in Spark.
+/// Reply, Reply all and Forward, pinned under the message so they are
+/// always in reach, lined up with the reading column.
 final class _ReplyBar extends StatelessWidget {
   const _ReplyBar({required this.controller, required this.reader});
 
@@ -797,25 +806,95 @@ final class _ReplyBar extends StatelessWidget {
   final ReaderReady reader;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: [
-      OutlinedButton.icon(
-        onPressed: () => controller.reply(reader),
-        icon: const Icon(Icons.reply, size: 18),
-        label: const Text('Reply'),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.outlineVariant)),
       ),
-      OutlinedButton.icon(
-        onPressed: () => controller.replyAll(reader),
-        icon: const Icon(Icons.reply_all, size: 18),
-        label: const Text('Reply all'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final side = max(
+            16.0,
+            (constraints.maxWidth - ReaderPane.readingWidth) / 2,
+          );
+          final narrow = constraints.maxWidth < 420;
+          Widget button(
+            String label,
+            String tooltip,
+            IconData icon,
+            VoidCallback onPressed, {
+            bool main = false,
+          }) {
+            // Phones: the three share the width, without icons to fit.
+            final style = narrow
+                ? const ButtonStyle(
+                    padding: WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  )
+                : null;
+            final Widget child = switch ((main, narrow)) {
+              (true, true) => FilledButton.tonal(
+                style: style,
+                onPressed: onPressed,
+                child: Text(label),
+              ),
+              (true, false) => FilledButton.tonalIcon(
+                onPressed: onPressed,
+                icon: Icon(icon, size: 18),
+                label: Text(label),
+              ),
+              (false, true) => OutlinedButton(
+                style: style,
+                onPressed: onPressed,
+                child: Text(label),
+              ),
+              (false, false) => OutlinedButton.icon(
+                onPressed: onPressed,
+                icon: Icon(icon, size: 18),
+                label: Text(label),
+              ),
+            };
+            final tip = Tooltip(message: tooltip, child: child);
+            return narrow ? Expanded(child: tip) : tip;
+          }
+
+          final buttons = [
+            button(
+              'Reply',
+              'Reply (R)',
+              Icons.reply,
+              () => controller.reply(reader),
+              main: true,
+            ),
+            button(
+              'Reply all',
+              'Reply all (A)',
+              Icons.reply_all,
+              () => controller.replyAll(reader),
+            ),
+            button(
+              'Forward',
+              'Forward (F)',
+              Icons.forward,
+              () => controller.forward(reader),
+            ),
+          ];
+          return Padding(
+            padding: EdgeInsets.fromLTRB(side, 10, side, 10),
+            child: Row(
+              children: [
+                for (final (i, b) in buttons.indexed) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  b,
+                ],
+              ],
+            ),
+          );
+        },
       ),
-      OutlinedButton.icon(
-        onPressed: () => controller.forward(reader),
-        icon: const Icon(Icons.forward, size: 18),
-        label: const Text('Forward'),
-      ),
-    ],
-  );
+    );
+  }
 }

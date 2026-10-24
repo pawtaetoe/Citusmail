@@ -149,7 +149,9 @@ final class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
         children: [
+          const _Group('Notifications'),
           SwitchListTile(
             title: const Text('New mail notifications'),
             subtitle: const Text(
@@ -160,7 +162,6 @@ final class _SettingsPageState extends State<SettingsPage> {
             onChanged: (on) => setState(() => settings.notifications = on),
           ),
           if (_android) ...[
-            const Divider(),
             SwitchListTile(
               title: const Text('Instant mail'),
               subtitle: const Text(
@@ -172,9 +173,9 @@ final class _SettingsPageState extends State<SettingsPage> {
               onChanged: _setInstant,
             ),
           ],
-          const Divider(),
+          const _Group('Security'),
           ..._lockSettings(),
-          const Divider(),
+          const _Group('Senders and devices'),
           DeviceSyncTile(services: widget.services),
           ListTile(
             leading: const Icon(Icons.image_outlined),
@@ -197,8 +198,9 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-          const Divider(),
+          const _Group('About'),
           ListTile(
+            leading: const Icon(Icons.shield_outlined),
             title: const Text('Privacy'),
             subtitle: Text(
               '$appName has no servers and collects nothing. Mail is stored encrypted on this '
@@ -208,15 +210,41 @@ final class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           ListTile(
-            title: const Text('About'),
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Licences'),
             subtitle: Text(
               '$appName is free software under the Mozilla Public License 2.0.',
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () =>
                 showLicensePage(context: context, applicationName: appName),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A heading that names a group of settings.
+final class _Group extends StatelessWidget {
+  const _Group(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      header: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 6),
+        child: Text(
+          text,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
       ),
     );
   }

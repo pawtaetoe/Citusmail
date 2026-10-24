@@ -7,11 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'avatar.dart';
 import 'fmail_theme.dart';
 import 'mail_text.dart';
 
-/// One message in a list: sender, time, subject and preview, with an unread
-/// dot. Every row has the same height, so long lists scroll smoothly.
+/// One message in a list: the sender's initials, sender, time, subject and
+/// preview, with an unread dot. Every row has the same height, so long lists
+/// scroll smoothly.
 ///
 /// - Click opens; Ctrl/Cmd-click or the checkbox selects; Shift-click
 ///   selects a range.
@@ -90,12 +92,11 @@ final class _MessageTileState extends State<MessageTile> {
     final colors = theme.colorScheme;
     final listColors = ListColors.of(context);
     final unread = !_m.flags.seen;
-    final muted = colors.onSurfaceVariant;
     final showCheckbox =
         widget.selecting || widget.checked || (_hovered && !_touch);
     final showActions = _hovered && !_touch && !widget.selecting;
     final background = widget.checked
-        ? colors.primaryContainer.withValues(alpha: 0.55)
+        ? listColors.checked
         : widget.open
         ? listColors.selected
         : _hovered
@@ -115,114 +116,55 @@ final class _MessageTileState extends State<MessageTile> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: Material(
-          color: background,
-          child: InkWell(
-            onTap: _tap,
-            onLongPress: () => _c.toggleSelected(_m),
-            onSecondaryTapUp: (d) => _menu(d.globalPosition),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 10, 12, 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: showCheckbox
-                        ? Checkbox(
-                            value: widget.checked,
-                            onChanged: (_) => _c.toggleSelected(_m),
-                            visualDensity: VisualDensity.compact,
-                            semanticLabel: 'Select',
-                          )
-                        : unread
-                        ? Center(
-                            child: Container(
-                              width: 9,
-                              height: 9,
-                              decoration: BoxDecoration(
-                                color: listColors.unreadDot,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          )
-                        : null,
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          height: 24,
-                          child: Row(
-                            children: [
-                              if (_m.flags.flagged) ...[
-                                Icon(
-                                  Icons.push_pin,
-                                  size: 14,
-                                  color: MailText.pinColor,
-                                ),
-                                const SizedBox(width: 4),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  MailText.sender(_m),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: unread
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                  ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          child: Material(
+            color: background,
+            borderRadius: BorderRadius.circular(FmailTheme.radius),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: _tap,
+              onLongPress: () => _c.toggleSelected(_m),
+              onSecondaryTapUp: (d) => _menu(d.globalPosition),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Unread: a dot beside the avatar, and bold text.
+                    SizedBox(
+                      width: 16,
+                      height: 36,
+                      child: unread
+                          ? Center(
+                              child: Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: listColors.unreadDot,
+                                  shape: BoxShape.circle,
                                 ),
                               ),
-                              if (showActions)
-                                _QuickActions(message: _m, controller: _c)
-                              else ...[
-                                if (_m.hasAttachments)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 4),
-                                    child: Icon(
-                                      Icons.attach_file,
-                                      size: 14,
-                                      color: muted,
-                                    ),
-                                  ),
-                                Text(
-                                  MailText.listDate(context, _m.receivedAt),
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: unread ? colors.primary : muted,
-                                    fontWeight: unread ? FontWeight.w600 : null,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Text(
-                          MailText.subject(_m),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: unread
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _m.snippet ?? ' ',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      ],
+                            )
+                          : null,
                     ),
-                  ),
-                ],
+                    SizedBox.square(
+                      dimension: 36,
+                      child: showCheckbox
+                          ? Checkbox(
+                              value: widget.checked,
+                              onChanged: (_) => _c.toggleSelected(_m),
+                              semanticLabel: 'Select',
+                            )
+                          : Avatar(
+                              name: MailText.sender(_m),
+                              address: _m.from?.address ?? '',
+                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: _text(context, unread, showActions)),
+                  ],
+                ),
               ),
             ),
           ),
@@ -263,6 +205,73 @@ final class _MessageTileState extends State<MessageTile> {
         return false;
       },
       child: row,
+    );
+  }
+
+  /// Sender and date (or hover actions), subject, preview.
+  Widget _text(BuildContext context, bool unread, bool showActions) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final muted = colors.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 22,
+          child: Row(
+            children: [
+              if (_m.flags.flagged) ...[
+                const Icon(Icons.push_pin, size: 14, color: MailText.pinColor),
+                const SizedBox(width: 4),
+              ],
+              Expanded(
+                child: Text(
+                  MailText.sender(_m),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: unread ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
+              ),
+              if (showActions)
+                _QuickActions(message: _m, controller: _c)
+              else ...[
+                if (_m.hasAttachments)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(Icons.attach_file, size: 14, color: muted),
+                  ),
+                Text(
+                  MailText.listDate(context, _m.receivedAt),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: unread ? colors.primary : muted,
+                    fontWeight: unread ? FontWeight.w600 : null,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        Text(
+          MailText.subject(_m),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
+            height: 1.35,
+          ),
+        ),
+        Text(
+          _m.snippet ?? ' ',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: muted,
+            height: 1.35,
+          ),
+        ),
+      ],
     );
   }
 

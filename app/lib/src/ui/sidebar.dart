@@ -24,6 +24,7 @@ final class Sidebar extends StatelessWidget {
     required this.onAddAccount,
     required this.onRemoveAccount,
     this.onNavigated,
+    this.onCompose,
   });
 
   final MailController controller;
@@ -32,6 +33,10 @@ final class Sidebar extends StatelessWidget {
 
   /// Called after the user picked a place (closes the drawer on phones).
   final VoidCallback? onNavigated;
+
+  /// Shows a "New message" button at the top (wide layouts, where the
+  /// sidebar is always visible).
+  final VoidCallback? onCompose;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -69,9 +74,11 @@ final class Sidebar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 8, 8),
+                    padding: const EdgeInsets.fromLTRB(18, 14, 8, 6),
                     child: Row(
                       children: [
+                        const CitusMark(size: 22),
+                        const SizedBox(width: 10),
                         // Takes what the buttons leave, so any name fits.
                         Expanded(
                           child: Text(
@@ -80,8 +87,9 @@ final class Sidebar extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: colors.text,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.2,
                             ),
                           ),
                         ),
@@ -130,6 +138,24 @@ final class Sidebar extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (onCompose case final compose?)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+                      child: Tooltip(
+                        message: 'New message (C)',
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: colors.badge,
+                            foregroundColor: colors.onBadge,
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          onPressed: compose,
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          label: const Text('New message'),
+                        ),
+                      ),
+                    ),
                   Expanded(
                     child: ListView(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -199,7 +225,8 @@ final class Sidebar extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Divider(color: colors.selected),
+                  Divider(color: colors.selected, height: 1),
+                  const SizedBox(height: 6),
                   for (final account in accounts)
                     _AccountRow(
                       account: account,
@@ -276,7 +303,7 @@ final class _Heading extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(
         20,
-        onAdd == null ? 18 : 6,
+        onAdd == null ? 18 : 12,
         8,
         onAdd == null ? 6 : 0,
       ),
@@ -287,7 +314,11 @@ final class _Heading extends StatelessWidget {
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: muted, fontSize: 12),
+              style: TextStyle(
+                color: muted,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
           if (onAdd != null)
@@ -333,54 +364,83 @@ final class _Entry extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       child: Material(
         color: selected ? colors.selected : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(FmailTheme.radiusSmall),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          hoverColor: colors.hover,
           onTap: onTap,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(12.0 + indent * 16, 9, 12, 9),
-            child: Row(
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, color: selected ? colors.text : colors.muted),
-                  const SizedBox(width: 12),
-                ] else
-                  Container(
+          child: Stack(
+            children: [
+              // Where you are, without relying on colour alone.
+              if (selected)
+                Positioned(
+                  left: 0,
+                  top: 8,
+                  bottom: 8,
+                  child: Container(
                     width: 3,
-                    height: 16,
-                    margin: const EdgeInsets.only(right: 12),
-                    color: FmailTheme.accent,
-                  ),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.text,
-                      fontWeight: bold || selected
-                          ? FontWeight.w600
-                          : FontWeight.normal,
+                    decoration: BoxDecoration(
+                      color: colors.indicator,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
-                if (badge > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 1,
+              Padding(
+                padding: EdgeInsets.fromLTRB(12.0 + indent * 16, 9, 10, 9),
+                child: Row(
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, color: selected ? colors.text : colors.muted),
+                      const SizedBox(width: 12),
+                    ] else
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.only(left: 2, right: 12),
+                        decoration: BoxDecoration(
+                          color: colors.muted,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.text,
+                          fontSize: 14,
+                          fontWeight: bold || selected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: colors.badge,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      badge > 999 ? '999+' : '$badge',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ),
-              ],
-            ),
+                    if (badge > 0)
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 22),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.badge,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          badge > 999 ? '999+' : '$badge',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.onBadge,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -417,21 +477,34 @@ final class _AccountRow extends StatelessWidget {
       AccountSynced() => ('Up to date', false),
       null => ('', false),
     };
+    final dot = switch (event) {
+      AccountSyncFailed() => colors.problem,
+      AccountSyncStarted() => colors.badge,
+      AccountSynced() => const Color(0xFF6FD6A8),
+      null => colors.muted,
+    };
     return ListTile(
       dense: true,
       contentPadding: const EdgeInsets.only(left: 20, right: 4),
+      horizontalTitleGap: 10,
+      minLeadingWidth: 8,
+      leading: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+      ),
       title: Text(
         account.email,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: colors.text),
+        style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
       ),
       subtitle: status.isEmpty
           ? null
           : Text(
               status,
               style: TextStyle(
-                color: problem ? const Color(0xFFFF8A80) : colors.muted,
+                color: problem ? colors.problem : colors.muted,
                 fontSize: 12,
               ),
             ),

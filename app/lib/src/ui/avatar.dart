@@ -18,15 +18,16 @@ final class Avatar extends StatelessWidget {
   final String address;
   final double size;
 
+  /// Muted, distinct hues; white initials stay above 4.5:1 on each.
   static const _palette = [
-    Color(0xFF3B82F6),
-    Color(0xFF10B981),
-    Color(0xFFF59E0B),
-    Color(0xFFEF4444),
-    Color(0xFF8B5CF6),
-    Color(0xFF14B8A6),
-    Color(0xFFEC4899),
-    Color(0xFF64748B),
+    Color(0xFF2F6F8F),
+    Color(0xFF3D7A4A),
+    Color(0xFF9A5B13),
+    Color(0xFFB03A48),
+    Color(0xFF6B4FA0),
+    Color(0xFF0F7A69),
+    Color(0xFFA23E7C),
+    Color(0xFF55636E),
   ];
 
   String get _initials {

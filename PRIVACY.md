@@ -20,6 +20,10 @@ no analytics, no crash reporting and no advertising.
 | A link in an email | Only when you tap it and confirm the address | Your browser opens the link, without tracking parameters such as `utm_source` |
 | Images in an email | Only when you tap "Load images", or for a sender you chose "Always from this sender" for (and only when your mail server verified the mail is from them) | A request for each image with a generic user agent: no cookies, no referrer, no language. Like any connection, it shows your IP address, and the sender can tell the message was opened. Tracking pixels are never requested |
 
+Nothing else: the app's typeface (IBM Plex Sans) and icons are part of the
+app, and sender pictures are initials drawn on the device, so no fonts,
+avatars or other assets are ever downloaded.
+
 Planned optional features (off by default, each asks first):
 
 | Destination | What is sent |

@@ -28,7 +28,9 @@ final class MessageListPane extends StatelessWidget {
   });
 
   final MailController controller;
-  final VoidCallback onCompose;
+
+  /// Null when the sidebar has the "New message" button.
+  final VoidCallback? onCompose;
 
   /// Focused by the "/" shortcut.
   final FocusNode searchFocus;
@@ -37,24 +39,29 @@ final class MessageListPane extends StatelessWidget {
   final Widget? leading;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _TopBar(
-        controller: controller,
-        onCompose: onCompose,
-        searchFocus: searchFocus,
-        leading: leading,
-      ),
-      ValueListenableBuilder(
-        valueListenable: controller.selection,
-        builder: (context, selected, _) => selected.isEmpty
-            ? _ViewHeader(controller: controller)
-            : _SelectionBar(controller: controller, count: selected.length),
-      ),
-      const Divider(),
-      Expanded(child: _Messages(controller: controller)),
-    ],
+  Widget build(BuildContext context) => ColoredBox(
+    color: ListColors.of(context).background,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _TopBar(
+          controller: controller,
+          onCompose: onCompose,
+          searchFocus: searchFocus,
+          leading: leading,
+        ),
+        SizedBox(
+          height: 48,
+          child: ValueListenableBuilder(
+            valueListenable: controller.selection,
+            builder: (context, selected, _) => selected.isEmpty
+                ? _ViewHeader(controller: controller)
+                : _SelectionBar(controller: controller, count: selected.length),
+          ),
+        ),
+        Expanded(child: _Messages(controller: controller)),
+      ],
+    ),
   );
 }
 
@@ -69,7 +76,7 @@ final class _TopBar extends StatefulWidget {
   });
 
   final MailController controller;
-  final VoidCallback onCompose;
+  final VoidCallback? onCompose;
   final FocusNode searchFocus;
   final Widget? leading;
 
@@ -88,7 +95,7 @@ final class _TopBarState extends State<_TopBar> {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+    padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
     child: Row(
       children: [
         ?widget.leading,
@@ -100,7 +107,7 @@ final class _TopBarState extends State<_TopBar> {
                 _search.clear();
               }
               return SizedBox(
-                height: 40,
+                height: 44,
                 child: TextField(
                   controller: _search,
                   focusNode: widget.searchFocus,
@@ -109,6 +116,12 @@ final class _TopBarState extends State<_TopBar> {
                   decoration: InputDecoration(
                     hintText: 'Search mail',
                     prefixIcon: const Icon(Icons.search, size: 20),
+                    // Teaches the shortcut where it is used.
+                    suffixText: location is SearchLocation ? null : '/',
+                    suffixStyle: Theme.of(context).textTheme.labelMedium
+                        ?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                     suffixIcon: location is SearchLocation
                         ? IconButton(
                             tooltip: 'Clear search',
@@ -117,14 +130,9 @@ final class _TopBarState extends State<_TopBar> {
                           )
                         : null,
                     isDense: true,
-                    filled: true,
-                    fillColor: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest
-                        .withValues(alpha: 0.6),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
+                    fillColor: Theme.of(context).colorScheme.surface,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
                     ),
                   ),
                 ),
@@ -132,12 +140,22 @@ final class _TopBarState extends State<_TopBar> {
             },
           ),
         ),
-        const SizedBox(width: 8),
-        IconButton.filled(
-          tooltip: 'New message (C)',
-          onPressed: widget.onCompose,
-          icon: const Icon(Icons.edit_outlined),
-        ),
+        if (widget.onCompose case final compose?) ...[
+          const SizedBox(width: 8),
+          IconButton.filled(
+            tooltip: 'New message (C)',
+            style: IconButton.styleFrom(
+              backgroundColor: CitusPalette.citrus,
+              foregroundColor: CitusPalette.onCitrus,
+              fixedSize: const Size(44, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(FmailTheme.radius),
+              ),
+            ),
+            onPressed: compose,
+            icon: const Icon(Icons.edit_outlined),
+          ),
+        ],
       ],
     ),
   );
@@ -156,7 +174,7 @@ final class _ViewHeader extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder(
     valueListenable: controller.location,
     builder: (context, location, _) => Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 12, 4),
+      padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
       child: Row(
         children: [
           Expanded(child: _title(context, location)),
@@ -276,10 +294,10 @@ final class _StatusLine extends StatelessWidget {
       return Tooltip(
         message: 'Check for new mail',
         child: InkWell(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(FmailTheme.radiusSmall),
           onTap: controller.syncNow,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -297,7 +315,7 @@ final class _StatusLine extends StatelessWidget {
                     text,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall
+                    style: Theme.of(context).textTheme.labelMedium
                         ?.copyWith(color: color),
                   ),
                 ),
@@ -324,8 +342,7 @@ final class _SelectionBar extends StatelessWidget {
     final allPinned = targets.every((m) => m.flags.flagged);
     final oneAccount = targets.map((m) => m.accountId).toSet().length == 1;
     return Container(
-      color: Theme.of(context).colorScheme.primaryContainer
-          .withValues(alpha: 0.5),
+      color: ListColors.of(context).checked,
       padding: const EdgeInsets.fromLTRB(4, 0, 8, 0),
       child: Row(
         children: [
@@ -470,7 +487,7 @@ final class _MessagesState extends State<_Messages> {
                       if (section.hasMore)
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(40, 4, 16, 12),
+                            padding: const EdgeInsets.fromLTRB(58, 0, 16, 8),
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: TextButton(
@@ -555,14 +572,14 @@ final class _MessagesState extends State<_Messages> {
 }
 
 /// An accordion header that stays at the top while its section scrolls:
-/// name, counts, the senders of a collapsed section, "mark all read".
+/// name, unread count, the senders of a collapsed section, "mark all read".
 final class _SectionHeader extends SliverPersistentHeaderDelegate {
   _SectionHeader(this.state, this.controller);
 
   final SectionState state;
   final MailController controller;
 
-  static const height = 56.0;
+  static const height = 52.0;
 
   @override
   double get minExtent => height;
@@ -587,11 +604,10 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
         MailText.sender(m),
     }.join(', ');
     final total = count.total == 1 ? '1 message' : '${count.total} messages';
-    // Unread is on the badge; collapsed sections say who wrote.
+    // Collapsed sections say who wrote, so they can stay collapsed.
     final summary = state.expanded || senders.isEmpty ? total : senders;
     return Material(
-      color: ListColors.of(context).sectionBackground,
-      elevation: overlapsContent ? 1 : 0,
+      color: ListColors.of(context).background,
       child: Semantics(
         button: true,
         expanded: state.expanded,
@@ -599,92 +615,96 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
             '${MailText.section(section)}, ${count.total} messages, ${count.unread} unread',
         child: InkWell(
           onTap: () => controller.list.toggleSection(section),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-            child: Row(
-              children: [
-                AnimatedRotation(
-                  turns: state.expanded ? 0.25 : 0,
-                  duration: const Duration(milliseconds: 150),
-                  child: Icon(
-                    Icons.chevron_right,
-                    color: colors.onSurfaceVariant,
+          child: DecoratedBox(
+            // A rule only while the header floats over its messages.
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: overlapsContent
+                      ? colors.outlineVariant
+                      : Colors.transparent,
+                ),
+              ),
+            ),
+            child: Padding(
+              // The icon sits over the avatars, the name over the senders.
+              padding: const EdgeInsets.fromLTRB(22, 6, 6, 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 36,
+                    child: Icon(
+                      MailText.sectionIcon(section),
+                      size: 18,
+                      color: MailText.sectionColor(section, colors),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  MailText.sectionIcon(section),
-                  size: 18,
-                  color: MailText.sectionColor(section, colors),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            MailText.section(section),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                MailText.section(section),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleSmall,
+                              ),
                             ),
-                          ),
-                          if (count.unread > 0) ...[
-                            const SizedBox(width: 8),
-                            _Badge(count.unread),
+                            if (count.unread > 0) ...[
+                              const SizedBox(width: 10),
+                              Text(
+                                '${count.unread} new',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: colors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                      Text(
-                        summary,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
                         ),
+                        Text(
+                          summary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (count.unread > 0)
+                    IconButton(
+                      tooltip: 'Mark all ${MailText.section(section)} as read',
+                      icon: const Icon(Icons.done_all, size: 20),
+                      color: colors.onSurfaceVariant,
+                      onPressed: () => controller.markSectionRead(section),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: AnimatedRotation(
+                      turns: state.expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 150),
+                      child: Icon(
+                        Icons.expand_more,
+                        color: colors.onSurfaceVariant,
                       ),
-                    ],
+                    ),
                   ),
-                ),
-                if (count.unread > 0)
-                  IconButton(
-                    tooltip: 'Mark all ${MailText.section(section)} as read',
-                    icon: const Icon(Icons.done_all, size: 20),
-                    color: colors.onSurfaceVariant,
-                    onPressed: () => controller.markSectionRead(section),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
-}
-
-final class _Badge extends StatelessWidget {
-  const _Badge(this.count);
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.primary,
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Text(
-      count > 999 ? '999+' : '$count',
-      style: TextStyle(
-        color: Theme.of(context).colorScheme.onPrimary,
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  );
 }
 
 final class _Empty extends StatelessWidget {

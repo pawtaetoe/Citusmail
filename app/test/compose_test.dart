@@ -60,7 +60,12 @@ void main() {
     await show(tester);
     await tester.tap(find.byTooltip('New message (C)'));
     await tester.pumpAndSettle();
-    expect(find.text('New message'), findsOneWidget);
+    // The window's title (the sidebar also has a "New message" button).
+    final window = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.text('New message'),
+    );
+    expect(window, findsOneWidget);
 
     // Typing an address and a comma makes a chip.
     await tester.enterText(toField(), 'Bob <bob@x.example>,');
@@ -71,7 +76,7 @@ void main() {
     await tester.tap(find.text('Send'));
     await tester.pump();
 
-    expect(find.text('New message'), findsNothing, reason: 'window closed');
+    expect(window, findsNothing, reason: 'window closed');
     expect(find.text('Sending…'), findsOneWidget);
     final queued = app.store.outbox.sends().single;
     expect(
@@ -144,7 +149,7 @@ void main() {
     await show(tester);
     await tester.tap(find.text('Hello there'));
     await settle(tester);
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Reply'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Reply'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(InputChip, 'Stranger Danger'), findsOneWidget);
     expect(find.text('Re: Hello there'), findsWidgets);
