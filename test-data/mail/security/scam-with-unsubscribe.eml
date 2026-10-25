@@ -1,0 +1,13 @@
+Authentication-Results: mail.fmail.test;
+ spf=pass smtp.mailfrom=paypal-security.example;
+ dmarc=pass header.from=paypal-security.example
+From: PayPal <service@paypal-security.example>
+To: alice@fmail.test
+Subject: Your account is on hold
+Date: Sun, 25 Oct 2026 09:00:00 +0000
+Message-ID: <hold-1@paypal-security.example>
+List-Unsubscribe: <mailto:u@paypal-security.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Confirm your details within 24 hours.

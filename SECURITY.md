@@ -52,7 +52,10 @@ public issue. We aim to reply within 7 days.
    added.
    Unsubscribing uses one-click (RFC 8058) only when the user's own server
    verified a DKIM signature that covers both unsubscribe headers;
-   otherwise it falls back to an email or the sender's page.
+   otherwise it falls back to an email or the sender's page. Each
+   unsubscribe address gets the same checks as links in a message, and is
+   never used when they find danger. Mail with signs of a scam other than
+   an unverified sender offers no unsubscribing at all.
 5. **Logs contain no personal data.** No message content, addresses or
    tokens. Debug logging is off in release builds.
 6. **Untrusted input is parsed defensively.** Everything from the network

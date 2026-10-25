@@ -90,8 +90,12 @@ mail, and the app switcher shows no picture of your mail.
 
 Citusmail remembers on your device which lists you unsubscribed from, so it
 can tell you when one keeps sending. It never offers to unsubscribe from
-mail that looks like a scam, because that would only confirm your address
-is read.
+mail that looks like a scam (a lookalike or imitating sender, deceptive
+links, dangerous files), because that would only confirm your address is
+read, and it says so instead. The unsubscribe address itself gets the same
+checks as links in a message; an unsafe one is never used. When only the
+sender couldn't be verified (forwarded mail often can't be), you can still
+unsubscribe, after a warning.
 
 ## Read receipts and trackers
 

@@ -18,8 +18,15 @@ methods, best first:
 3. **Web page** (`WebPageMethod`): the https (or http) link, opened in the
    browser by the user.
 
-Nothing is offered for mail the checks rate as dangerous: unsubscribing
-there would only confirm the address is read. Header parsing is bounded
+Nothing is offered for mail with signs of a scam (lookalike or imitating
+sender, deceptive links, dangerous files): unsubscribing there would only
+confirm the address is read. The plan says why (`reason`). Each unsubscribe
+address gets the same checks as links in a message
+(`TrustChecker.checkLink`): a dangerous one is left out, an unusual one
+comes with a warning. When the only problem is an unverified sender
+(forwarding and some lists cause this), the methods are offered with a
+warning (`warnings`), as is an unsubscribe address outside an unverified
+sender's domain. Header parsing is bounded
 (10 links, 4096 characters each).
 
 ```bash

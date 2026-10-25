@@ -113,6 +113,7 @@ void main() {
         'Email verification',
         'Your sign-in link for Linear',
         'Your magic link',
+        'Kung, please verify your new device',
         'Sign in to Slack',
         'Log in to Example',
         '[GitHub] Please verify your device',

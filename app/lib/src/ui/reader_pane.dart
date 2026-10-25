@@ -218,7 +218,9 @@ final class _Header extends StatelessWidget {
         ],
         final ReaderReady ready => [
           TrustBanner(report: ready.trust),
-          if (ready.unsubscribe.available || ready.unsubscribed != null)
+          if (ready.unsubscribe.available ||
+              ready.unsubscribe.reason != null ||
+              ready.unsubscribed != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: UnsubscribeStatus(controller: controller, reader: ready),

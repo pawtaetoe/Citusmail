@@ -13,7 +13,7 @@ abstract final class VerificationCodes {
     r'one-time|one time|confirmation|authentication|access|2fa|mfa)\s+(?:code|pin|passcode)s?'
     r'|one-time password|one time password|otp|passcode|two-factor|two factor|2-step|2fa'
     r'|password reset|reset (?:your |my )?password|forgot (?:your )?password|new password request'
-    r'|(?:verify|confirm|activate) (?:your |this )?(?:email|e-mail|email address|e-mail address|account|identity|device|sign-in|login)'
+    r'|(?:verify|confirm|activate) (?:your |this )?(?:new )?(?:email|e-mail|email address|e-mail address|account|identity|device|sign-in|login)'
     r'|(?:email|e-mail|account) (?:verification|confirmation)'
     r'|(?:sign-in|sign in|login|log-in|log in|magic) link'
     r')\b',
