@@ -20,7 +20,7 @@ RUN apt-get update \
  && rm -f /etc/dovecot/conf.d/*.conf
 
 COPY dovecot/ /etc/dovecot/
-COPY postfix/ /etc/fmail-postfix/
+COPY postfix/ /etc/citusmail-postfix/
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # Test users. Passwords are public test values, see test-server/README.md.
@@ -33,9 +33,9 @@ RUN set -eu; \
     bob="$(openssl passwd -6 bob-test-password)"; \
     carol="$(openssl passwd -6 carol-test-password)"; \
     { \
-      echo "alice@fmail.test:${alice}::::::"; \
-      echo "bob@fmail.test:${bob}::::::"; \
-      echo "carol@fmail.test:${carol}::::::userdb_mail=maildir:~/Maildir userdb_namespace/inbox/prefix=INBOX. userdb_namespace/inbox/separator=. userdb_namespace/inbox/mailbox/Junk/name=spam"; \
+      echo "alice@citusmail.test:${alice}::::::"; \
+      echo "bob@citusmail.test:${bob}::::::"; \
+      echo "carol@citusmail.test:${carol}::::::userdb_mail=maildir:~/Maildir userdb_namespace/inbox/prefix=INBOX. userdb_namespace/inbox/separator=. userdb_namespace/inbox/mailbox/Junk/name=spam"; \
     } > /etc/dovecot/users; \
     grep -c '\$6\$' /etc/dovecot/users | grep -qx 3; \
     chown root:dovecot /etc/dovecot/users; chmod 0640 /etc/dovecot/users; \
@@ -46,6 +46,6 @@ RUN set -eu; \
 #   limited  TLS required, old-style IMAP without CONDSTORE/QRESYNC/MOVE, to
 #            test the app's fallbacks
 #   plain    no TLS at all, only to prove the app refuses such servers
-ENV FMAIL_TEST_MODE=secure
+ENV CITUSMAIL_TEST_MODE=secure
 EXPOSE 143 993 587 465 4190
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

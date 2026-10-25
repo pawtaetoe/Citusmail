@@ -1,9 +1,9 @@
-Return-Path: <bob@fmail.test>
-From: Bob Example <bob@fmail.test>
-To: Alice Example <alice@fmail.test>
+Return-Path: <bob@citusmail.test>
+From: Bob Example <bob@citusmail.test>
+To: Alice Example <alice@citusmail.test>
 Subject: Lunch on Friday?
 Date: Mon, 12 Oct 2026 09:15:00 +0800
-Message-ID: <lunch-1@fmail.test>
+Message-ID: <lunch-1@citusmail.test>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 7bit

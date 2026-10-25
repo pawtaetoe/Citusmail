@@ -98,12 +98,15 @@ Actions):
 
 | Secret | Value |
 | --- | --- |
-| `FMAIL_KEYSTORE_BASE64` | output of `base64 -w0 ~/citusmail-release.jks` |
-| `FMAIL_KEYSTORE_PASSWORD` | the store password |
-| `FMAIL_KEY_ALIAS` | `upload` |
-| `FMAIL_KEY_PASSWORD` | the key password |
+| `CITUSMAIL_KEYSTORE_BASE64` | output of `base64 -w0 ~/citusmail-release.jks` |
+| `CITUSMAIL_KEYSTORE_PASSWORD` | the store password |
+| `CITUSMAIL_KEY_ALIAS` | `upload` |
+| `CITUSMAIL_KEY_PASSWORD` | the key password |
 | `CITUSMAIL_GOOGLE_CLIENT_SECRET` | Google desktop client secret (optional) |
 | `CITUSMAIL_SAFE_BROWSING_KEY` | Safe Browsing API key (optional) |
+
+Signing secrets saved under the app's former names (`FMAIL_KEYSTORE_BASE64`,
+`FMAIL_KEYSTORE_PASSWORD`, `FMAIL_KEY_ALIAS`, `FMAIL_KEY_PASSWORD`) still work.
 
 And these repository **variables** (same page, *Variables* tab): the client
 IDs are public, so they need not be secrets. Every CI build (APK, Linux,
@@ -132,8 +135,8 @@ for testing, never for distribution.
 Debug builds accept two test switches (release builds ignore them):
 
 ```bash
-adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez fmail.checkNow true
-adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez fmail.instant true
+adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez citusmail.checkNow true
+adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez citusmail.instant true
 ```
 
 ## Linux

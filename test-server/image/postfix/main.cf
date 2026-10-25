@@ -1,8 +1,8 @@
 # Postfix settings for the test server, applied with `postconf -e` by
 # entrypoint.sh on top of Ubuntu's defaults. NOT for real mail.
 
-myhostname = mail.fmail.test
-mydomain = fmail.test
+myhostname = mail.citusmail.test
+mydomain = citusmail.test
 myorigin = $mydomain
 mydestination = localhost
 inet_interfaces = all
@@ -13,20 +13,20 @@ alias_maps =
 alias_database =
 message_size_limit = 26214400
 
-# All @fmail.test mail is delivered to Dovecot over LMTP.
-virtual_mailbox_domains = fmail.test
+# All @citusmail.test mail is delivered to Dovecot over LMTP.
+virtual_mailbox_domains = citusmail.test
 virtual_transport = lmtp:unix:private/dovecot-lmtp
 recipient_delimiter = +
 
 # Nothing ever leaves the test server: outside recipients are rejected at
 # RCPT time, and anything that slips through hits an error transport.
-default_transport = error:5.7.1 test server does not deliver outside fmail.test
-relay_transport = error:5.7.1 test server does not deliver outside fmail.test
+default_transport = error:5.7.1 test server does not deliver outside citusmail.test
+relay_transport = error:5.7.1 test server does not deliver outside citusmail.test
 smtp_dns_support_level = disabled
 
 # Logins are checked by Dovecot. A user may only send as their own address.
 smtpd_sasl_type = dovecot
 smtpd_sasl_path = private/auth
-smtpd_sender_login_maps = texthash:/etc/fmail-postfix/sender_logins
+smtpd_sender_login_maps = texthash:/etc/citusmail-postfix/sender_logins
 smtpd_sender_restrictions = reject_sender_login_mismatch
-smtpd_recipient_restrictions = check_recipient_access regexp:/etc/fmail-postfix/local_recipients_only, permit_sasl_authenticated, reject
+smtpd_recipient_restrictions = check_recipient_access regexp:/etc/citusmail-postfix/local_recipients_only, permit_sasl_authenticated, reject

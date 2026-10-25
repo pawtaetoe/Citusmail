@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // Verification and probing against the local test servers:
-//   test-server/fmailtest up
-//   FMAIL_INTEGRATION=1 dart test test/integration
+//   test-server/citusmailtest up
+//   CITUSMAIL_INTEGRATION=1 dart test test/integration
 
 import 'dart:io';
 
@@ -13,11 +13,12 @@ import 'package:mail_setup/mail_setup.dart';
 import 'package:test/test.dart';
 
 void main() {
-  if (Platform.environment['FMAIL_INTEGRATION'] != '1') {
+  if (Platform.environment['CITUSMAIL_INTEGRATION'] != '1') {
     test(
       'needs the local test servers',
       () {},
-      skip: 'run test-server/fmailtest up, then set FMAIL_INTEGRATION=1',
+      skip:
+          'run test-server/citusmailtest up, then set CITUSMAIL_INTEGRATION=1',
     );
     return;
   }
@@ -41,13 +42,13 @@ void main() {
   );
 
   DiscoveredSettings settings({
-    String host = 'mail.fmail.test',
+    String host = 'mail.citusmail.test',
     String imapPort = 'SECURE_IMAPS_PORT',
     ConnectionSecurity imapSecurity = ConnectionSecurity.implicitTls,
     String smtpPort = 'SECURE_SUBMISSIONS_PORT',
   }) => DiscoveredSettings(
-    email: 'alice@fmail.test',
-    username: 'alice@fmail.test',
+    email: 'alice@citusmail.test',
+    username: 'alice@citusmail.test',
     imap: ServerCandidate(host, ports[imapPort]!, imapSecurity),
     smtp: ServerCandidate(
       host,
@@ -94,22 +95,22 @@ void main() {
 
   test('certificate problems carry what the server presented', () async {
     final mismatch = await verifier.verify(
-      settings(host: 'other.fmail.test'),
+      settings(host: 'other.citusmail.test'),
       'alice-test-password',
     );
     expect(mismatch.problem, VerificationProblem.certificate);
     expect(mismatch.tlsFailure, TlsFailure.hostnameMismatch);
-    expect(mismatch.suggestedHost, 'mail.fmail.test');
+    expect(mismatch.suggestedHost, 'mail.citusmail.test');
 
     final expired = await verifier.verify(
-      settings(host: 'expired.fmail.test'),
+      settings(host: 'expired.citusmail.test'),
       'alice-test-password',
     );
     expect(expired.tlsFailure, TlsFailure.expired);
     expect(expired.certificate!.validUntil.year, 2021);
 
     final untrusted = await verifier.verify(
-      settings(host: 'untrusted.fmail.test'),
+      settings(host: 'untrusted.citusmail.test'),
       'alice-test-password',
     );
     expect(untrusted.tlsFailure, TlsFailure.untrusted);
@@ -119,7 +120,7 @@ void main() {
     expect(
       await prober.imapAvailable(
         ServerCandidate(
-          'mail.fmail.test',
+          'mail.citusmail.test',
           ports['SECURE_IMAPS_PORT']!,
           ConnectionSecurity.implicitTls,
         ),
@@ -129,7 +130,7 @@ void main() {
     expect(
       await prober.smtpAvailable(
         ServerCandidate(
-          'mail.fmail.test',
+          'mail.citusmail.test',
           ports['SECURE_SUBMISSION_PORT']!,
           ConnectionSecurity.startTls,
         ),
@@ -139,7 +140,7 @@ void main() {
     expect(
       await prober.imapAvailable(
         ServerCandidate(
-          'expired.fmail.test',
+          'expired.citusmail.test',
           ports['SECURE_IMAPS_PORT']!,
           ConnectionSecurity.implicitTls,
         ),
@@ -149,7 +150,7 @@ void main() {
     expect(
       await prober.imapAvailable(
         ServerCandidate(
-          'mail.fmail.test',
+          'mail.citusmail.test',
           ports['PLAIN_IMAP_PORT']!,
           ConnectionSecurity.startTls,
         ),

@@ -26,7 +26,7 @@ LIVE_SMTP_PORT=587
       expect(s.imap.security, ConnectionSecurity.implicitTls);
       expect(s.smtp.port, 587);
       expect(s.smtp.security, ConnectionSecurity.startTls);
-      expect(s.testFolder, 'FmailTest');
+      expect(s.testFolder, 'CitusmailTest');
 
       expect(
         () => LiveSettings.parse('LIVE_EMAIL=me@example.org\n'),

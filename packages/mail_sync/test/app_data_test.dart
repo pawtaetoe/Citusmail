@@ -17,7 +17,7 @@ final class _Device {
     store = MailStore.open('${directory.path}/mail.db', DatabaseKey.generate());
     account = store.accounts.add(
       NewAccount(
-        email: 'Carol@fmail.test',
+        email: 'Carol@citusmail.test',
         username: 'carol',
         imap: ServerSettings(
           host: 'h.example',

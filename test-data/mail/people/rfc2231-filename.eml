@@ -1,8 +1,8 @@
-From: Bob Example <bob@fmail.test>
-To: alice@fmail.test
+From: Bob Example <bob@citusmail.test>
+To: alice@citusmail.test
 Subject: Quarterly report
 Date: Fri, 16 Oct 2026 09:00:00 +0800
-Message-ID: <q-report@fmail.test>
+Message-ID: <q-report@citusmail.test>
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary=simple
 

@@ -106,10 +106,10 @@ void main() {
 
     Future<_FakeServer> smtp(String authReply) async {
       final server = await _FakeServer.start(
-        greeting: '220 smtp.fmail.test ready\r\n',
+        greeting: '220 smtp.citusmail.test ready\r\n',
         onLine: (line) {
           if (line.startsWith('EHLO')) {
-            return '250-smtp.fmail.test\r\n250 AUTH PLAIN LOGIN\r\n';
+            return '250-smtp.citusmail.test\r\n250 AUTH PLAIN LOGIN\r\n';
           }
           if (line.startsWith('AUTH')) return authReply;
           if (line.startsWith('QUIT')) return '221 bye\r\n';
@@ -125,12 +125,12 @@ void main() {
           email: 'me@gmail.com',
           username: 'me@gmail.com',
           imap: ServerCandidate(
-            'mail.fmail.test',
+            'mail.citusmail.test',
             imapPort,
             ConnectionSecurity.implicitTls,
           ),
           smtp: ServerCandidate(
-            'mail.fmail.test',
+            'mail.citusmail.test',
             smtpPort,
             ConnectionSecurity.implicitTls,
           ),

@@ -1,4 +1,4 @@
-Authentication-Results: mail.fmail.test;
+Authentication-Results: mail.citusmail.test;
  dkim=pass header.d=shop.example header.s=mail;
  spf=pass smtp.mailfrom=bounce.shop.example;
  dmarc=pass header.from=shop.example
@@ -7,7 +7,7 @@ DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=shop.example; s=mail;
  bh=FAKEBODYHASHFORTESTSONLYxxxxxxxxxxxxxxxxxxx=;
  b=FAKESIGNATUREFORTESTSONLYxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 From: Shop Weekly <news@shop.example>
-To: alice@fmail.test
+To: alice@citusmail.test
 Subject: 50% off everything this week
 Date: Thu, 15 Oct 2026 07:00:00 +0000
 Message-ID: <weekly-42@shop.example>

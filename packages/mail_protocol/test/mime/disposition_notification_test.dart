@@ -18,8 +18,8 @@ void main() {
     final n = DispositionNotification.fromMessage(
       _fixture('receipts/mdn-displayed.eml'),
     )!;
-    expect(n.originalMessageId, 'alice-report-1@fmail.test');
-    expect(n.finalRecipient, 'bob@fmail.test');
+    expect(n.originalMessageId, 'alice-report-1@citusmail.test');
+    expect(n.finalRecipient, 'bob@citusmail.test');
     expect(n.disposition, 'displayed');
     expect(n.displayed, isTrue);
   });
@@ -70,28 +70,36 @@ void main() {
       OutgoingMessage(
         from: const MailAddress(
           localPart: 'alice',
-          domain: 'fmail.test',
+          domain: 'citusmail.test',
           displayName: 'Alice',
         ),
-        to: const [MailAddress(localPart: 'bob', domain: 'fmail.test')],
+        to: const [MailAddress(localPart: 'bob', domain: 'citusmail.test')],
         subject: 'Report',
         textBody: 'Hi',
-        receiptTo: const MailAddress(localPart: 'alice', domain: 'fmail.test'),
+        receiptTo: const MailAddress(
+          localPart: 'alice',
+          domain: 'citusmail.test',
+        ),
       ),
     );
     final text = ascii.decode(built.bytes);
     expect(
       text,
       matches(
-        RegExp(r'Disposition-Notification-To: <?alice@fmail\.test>?\r\n'),
+        RegExp(r'Disposition-Notification-To: <?alice@citusmail\.test>?\r\n'),
       ),
     );
     final plain = ascii.decode(
       MessageBuilder()
           .build(
             OutgoingMessage(
-              from: const MailAddress(localPart: 'alice', domain: 'fmail.test'),
-              to: const [MailAddress(localPart: 'bob', domain: 'fmail.test')],
+              from: const MailAddress(
+                localPart: 'alice',
+                domain: 'citusmail.test',
+              ),
+              to: const [
+                MailAddress(localPart: 'bob', domain: 'citusmail.test'),
+              ],
               textBody: 'Hi',
             ),
           )

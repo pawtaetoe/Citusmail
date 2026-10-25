@@ -35,7 +35,7 @@ void main() {
     store = MailStore.open('${directory.path}/mail.db', DatabaseKey.generate());
     account = store.accounts.add(
       NewAccount(
-        email: 'alice@fmail.test',
+        email: 'alice@citusmail.test',
         username: 'alice',
         imap: ServerSettings(
           host: 'h.example',
@@ -74,7 +74,7 @@ void main() {
     int uid,
     String from, {
     String subject = 'Hello',
-    List<String> to = const ['alice@fmail.test'],
+    List<String> to = const ['alice@citusmail.test'],
     DateTime? at,
     String? messageId = '',
   }) => store.messages.upsertSummaries(inbox.id, [
@@ -106,12 +106,12 @@ void main() {
 
   test('matching new inbox mail is moved and queued for the server', () {
     rule(receipts, RuleField.fromDomain, 'shop.example');
-    rule(lists, RuleField.toAddress, 'alice+lists@fmail.test');
+    rule(lists, RuleField.toAddress, 'alice+lists@citusmail.test');
     rule(receipts, RuleField.subject, 'RECEIPT');
     receive(1, 'orders@shop.example');
     receive(2, 'news@mail.shop.example'); // subdomain
     receive(3, 'bob@evilshop.example'); // look-alike: no
-    receive(4, 'bob@x.example', to: ['alice+lists@fmail.test']);
+    receive(4, 'bob@x.example', to: ['alice+lists@citusmail.test']);
     receive(5, 'bob@x.example', subject: 'Your receipt #12');
     receive(6, 'carol@x.example');
 
@@ -184,7 +184,7 @@ void main() {
     List<StoredMailbox> layout(List<ImapMailboxInfo> folders) {
       final other = store.accounts.add(
         NewAccount(
-          email: 'x${folders.length}${folders.first.delimiter}@fmail.test',
+          email: 'x${folders.length}${folders.first.delimiter}@citusmail.test',
           username: 'x',
           imap: ServerSettings(
             host: 'h.example',

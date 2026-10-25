@@ -12,13 +12,13 @@ import 'src/app.dart';
 import 'src/background/background_mail.dart';
 import 'src/setup/oauth_browser.dart';
 
-export 'src/app.dart' show FmailApp, appName;
+export 'src/app.dart' show CitusmailApp, appName;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isAndroid) OAuthBrowser.listenForAndroidAnswers();
   LicenseRegistry.addLicense(_fontLicense);
-  runApp(const FmailApp());
+  runApp(const CitusmailApp());
 }
 
 /// The bundled typeface's licence, shown on the licences page.

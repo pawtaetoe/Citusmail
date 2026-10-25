@@ -8,8 +8,8 @@ import 'package:mail_protocol/mail_protocol.dart';
 
 /// The local test mail servers from test-server/ (see its README).
 ///
-/// Integration tests run only when FMAIL_INTEGRATION=1, after
-/// `test-server/fmailtest up`.
+/// Integration tests run only when CITUSMAIL_INTEGRATION=1, after
+/// `test-server/citusmailtest up`.
 final class TestServers {
   TestServers._(this._ports, this.tls);
 
@@ -26,9 +26,9 @@ final class TestServers {
 
   /// Why integration tests are skipped, or null when they should run.
   static String? get skipReason =>
-      Platform.environment['FMAIL_INTEGRATION'] == '1'
+      Platform.environment['CITUSMAIL_INTEGRATION'] == '1'
       ? null
-      : 'integration tests: run test-server/fmailtest up, then set FMAIL_INTEGRATION=1';
+      : 'integration tests: run test-server/citusmailtest up, then set CITUSMAIL_INTEGRATION=1';
 
   final Map<String, int> _ports;
 
@@ -43,7 +43,7 @@ final class TestServers {
   ServerEndpoint endpoint(
     String portName,
     ConnectionSecurity security, {
-    String tlsName = 'mail.fmail.test',
+    String tlsName = 'mail.citusmail.test',
   }) => ServerEndpoint(
     tlsName,
     port(portName),
@@ -66,7 +66,7 @@ final class TestServers {
   ServerEndpoint get plainSubmission =>
       endpoint('PLAIN_SUBMISSION_PORT', ConnectionSecurity.startTls);
 
-  static String address(String user) => '$user@fmail.test';
+  static String address(String user) => '$user@citusmail.test';
   static String password(String user) => '$user-test-password';
 
   /// A logged-in IMAP client for a test user.

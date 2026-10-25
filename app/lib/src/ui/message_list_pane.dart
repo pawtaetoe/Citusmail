@@ -10,7 +10,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../mail/message_list_model.dart';
-import 'fmail_theme.dart';
+import 'citusmail_theme.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
@@ -147,7 +147,7 @@ final class _TopBarState extends State<_TopBar> {
               foregroundColor: CitusPalette.onCitrus,
               fixedSize: const Size(44, 44),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(FmailTheme.radius),
+                borderRadius: BorderRadius.circular(CitusmailTheme.radius),
               ),
             ),
             onPressed: compose,
@@ -307,7 +307,7 @@ final class _StatusLine extends StatelessWidget {
             ? 'Check for new mail'
             : (fix.oauth ? 'Sign in again' : 'Update the password'),
         child: InkWell(
-          borderRadius: BorderRadius.circular(FmailTheme.radiusSmall),
+          borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
           onTap: fix == null
               ? controller.syncNow
               : () => controller.reconnect(fix),

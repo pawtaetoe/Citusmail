@@ -5,11 +5,11 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:citusmail/src/compose/compose_page.dart';
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/compose/compose_page.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -28,7 +28,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: FmailTheme.light(),
+        theme: CitusmailTheme.light(),
         home: MailShell(
           notifications: false,
           services: app.services,
@@ -62,7 +62,7 @@ void main() {
         receivedAt: DateTime.utc(2026, 10, 19, 8),
         subject: parsed.subject,
         messageId: parsed.messageId,
-        from: const MailAddress(localPart: 'alice', domain: 'fmail.test'),
+        from: const MailAddress(localPart: 'alice', domain: 'citusmail.test'),
         flags: MessageFlags.fromImap([r'\Seen']),
         headers: {
           'disposition-notification-to': [
@@ -121,11 +121,11 @@ void main() {
     await settle(tester);
     expect(find.textContaining('No answer yet'), findsOneWidget);
 
-    app.store.receipts.requested(accountId(), 'alice-report-1@fmail.test');
+    app.store.receipts.requested(accountId(), 'alice-report-1@citusmail.test');
     app.store.receipts.record(
       accountId(),
-      'alice-report-1@fmail.test',
-      recipient: 'bob@fmail.test',
+      'alice-report-1@citusmail.test',
+      recipient: 'bob@citusmail.test',
       disposition: 'displayed',
       at: DateTime.utc(2026, 10, 19, 8, 45),
     );
@@ -133,7 +133,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Final report'));
     await settle(tester);
-    expect(find.textContaining('Read by bob@fmail.test'), findsOneWidget);
+    expect(find.textContaining('Read by bob@citusmail.test'), findsOneWidget);
     expect(find.textContaining('No answer yet'), findsNothing);
   });
 

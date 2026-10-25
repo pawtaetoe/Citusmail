@@ -494,7 +494,7 @@ void main() {
         );
 
         final ok = await client().post(
-          Uri.parse('https://mail.fmail.test/x'),
+          Uri.parse('https://mail.citusmail.test/x'),
           body: [],
           contentType: 'x/y',
         );
@@ -502,7 +502,7 @@ void main() {
 
         await expectLater(
           client().post(
-            Uri.parse('https://other.fmail.test/x'),
+            Uri.parse('https://other.citusmail.test/x'),
             body: [],
             contentType: 'x/y',
           ),
@@ -515,9 +515,7 @@ void main() {
           ),
         );
       },
-      skip: available
-          ? null
-          : 'needs test-server certificates: run test-server/fmailtest up once',
+      skip: available ? null : 'needs test-server certificates: run test-server/citusmailtest up once',
     );
   });
 }

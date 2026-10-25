@@ -8,7 +8,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import 'avatar.dart';
-import 'fmail_theme.dart';
+import 'citusmail_theme.dart';
 import 'mail_text.dart';
 
 /// One message in a list: the sender's initials, sender, time, subject and
@@ -121,7 +121,7 @@ final class _MessageTileState extends State<MessageTile> {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
           child: Material(
             color: background,
-            borderRadius: BorderRadius.circular(FmailTheme.radius),
+            borderRadius: BorderRadius.circular(CitusmailTheme.radius),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: _tap,

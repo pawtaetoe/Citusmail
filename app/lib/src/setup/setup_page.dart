@@ -9,7 +9,7 @@ import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../app.dart' show appName;
-import '../ui/fmail_theme.dart';
+import '../ui/citusmail_theme.dart';
 import '../ui/link_opener.dart';
 import 'setup_controller.dart';
 

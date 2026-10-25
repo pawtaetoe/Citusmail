@@ -1,8 +1,8 @@
-From: Bob Example <bob@fmail.test>
-To: Alice Example <alice@fmail.test>
+From: Bob Example <bob@citusmail.test>
+To: Alice Example <alice@citusmail.test>
 Subject: Invoice and logo for the project
 Date: Wed, 14 Oct 2026 14:00:00 +0800
-Message-ID: <project-files@fmail.test>
+Message-ID: <project-files@citusmail.test>
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary="mixed-1"
 
@@ -21,12 +21,12 @@ Content-Type: multipart/related; boundary="rel-1"; type="text/html"
 Content-Type: text/html; charset=utf-8
 
 <html><body><p>The invoice is attached. Our new logo:</p>
-<p><img src="cid:logo-1@fmail.test" alt="logo"></p></body></html>
+<p><img src="cid:logo-1@citusmail.test" alt="logo"></p></body></html>
 
 --rel-1
 Content-Type: image/png
 Content-Transfer-Encoding: base64
-Content-ID: <logo-1@fmail.test>
+Content-ID: <logo-1@citusmail.test>
 Content-Disposition: inline; filename="logo.png"
 
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9

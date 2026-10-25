@@ -25,7 +25,7 @@ void main() {
 
   String mail(String subject, String body) =>
       'From: Example <no-reply@example.test>\r\n'
-      'To: carol@fmail.test\r\n'
+      'To: carol@citusmail.test\r\n'
       'Subject: $subject\r\n'
       'Date: Sun, 25 Oct 2026 10:00:00 +0000\r\n'
       'MIME-Version: 1.0\r\n'

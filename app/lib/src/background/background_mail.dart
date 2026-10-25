@@ -24,8 +24,8 @@ import '../services/secret_store.dart';
 /// Both use the same sync code and the same exactly-once new-mail marks as
 /// the app, so nothing is announced twice.
 abstract final class BackgroundMail {
-  static const _task = MethodChannel('fmail/background-task');
-  static const _app = MethodChannel('fmail/background');
+  static const _task = MethodChannel('citusmail/background-task');
+  static const _app = MethodChannel('citusmail/background');
 
   /// Turns the instant-mail service on or off.
   static Future<void> setInstant(bool on) async {

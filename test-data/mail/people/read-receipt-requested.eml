@@ -1,9 +1,9 @@
-From: Bob Example <bob@fmail.test>
-To: Alice Example <alice@fmail.test>
+From: Bob Example <bob@citusmail.test>
+To: Alice Example <alice@citusmail.test>
 Subject: Please confirm you got the contract
 Date: Sat, 17 Oct 2026 10:00:00 +0800
-Message-ID: <contract@fmail.test>
-Disposition-Notification-To: Bob Example <bob@fmail.test>
+Message-ID: <contract@citusmail.test>
+Disposition-Notification-To: Bob Example <bob@citusmail.test>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 

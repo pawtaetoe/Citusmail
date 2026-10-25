@@ -129,7 +129,7 @@ first, ends with something that can be run or tested, and is committed as
 
 ## Design
 
-Set in [app/lib/src/ui/fmail_theme.dart](app/lib/src/ui/fmail_theme.dart).
+Set in [app/lib/src/ui/citusmail_theme.dart](app/lib/src/ui/citusmail_theme.dart).
 
 - **Colours:** a spruce sidebar (`#15332E`), lagoon green (`#0F7A69`) for
   actions and selection, and one citrus accent (`#F4B740`) for what needs

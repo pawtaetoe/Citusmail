@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // Sends real mail through the local test servers and reads it back over
-// IMAP. Mail goes to alice+<random>@fmail.test, which the test server
+// IMAP. Mail goes to alice+<random>@citusmail.test, which the test server
 // delivers to a new folder of that name, so seeded folders stay unchanged.
 
 import 'dart:math';
@@ -16,14 +16,14 @@ import '../support/test_servers.dart';
 const alice = MailAddress(
   displayName: 'Alice Example',
   localPart: 'alice',
-  domain: 'fmail.test',
+  domain: 'citusmail.test',
 );
-const bob = MailAddress(localPart: 'bob', domain: 'fmail.test');
+const bob = MailAddress(localPart: 'bob', domain: 'citusmail.test');
 
 String scratch() => 'smtp${Random.secure().nextInt(1 << 32).toRadixString(16)}';
 
 MailAddress plusAddress(String folder) =>
-    MailAddress(localPart: 'alice+$folder', domain: 'fmail.test');
+    MailAddress(localPart: 'alice+$folder', domain: 'citusmail.test');
 
 void main() {
   final skip = TestServers.skipReason;

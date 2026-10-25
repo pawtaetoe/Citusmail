@@ -2,11 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/compose/compose_page.dart';
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/compose/compose_page.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
@@ -26,7 +26,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: FmailTheme.light(),
+        theme: CitusmailTheme.light(),
         home: MailShell(
           notifications: false,
           services: app.services,
@@ -199,11 +199,14 @@ void main() {
   ) async {
     final entry = app.store.outbox.enqueue(
       accountIdOf(),
-      SendAction(from: 'alice@fmail.test', recipients: ['bob@x.example']),
+      SendAction(from: 'alice@citusmail.test', recipients: ['bob@x.example']),
       data: MessageBuilder()
           .build(
             OutgoingMessage(
-              from: const MailAddress(localPart: 'alice', domain: 'fmail.test'),
+              from: const MailAddress(
+                localPart: 'alice',
+                domain: 'citusmail.test',
+              ),
               to: const [MailAddress(localPart: 'bob', domain: 'x.example')],
               subject: 'Refused one',
               textBody: 'x',

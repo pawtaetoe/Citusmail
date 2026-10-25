@@ -24,7 +24,7 @@ final class OAuthBrowser {
   /// The redirect address on Android (registered with the provider).
   static final androidRedirect = Uri.parse('com.fluminaris.citusmail://oauth');
 
-  static const _channel = MethodChannel('fmail/oauth');
+  static const _channel = MethodChannel('citusmail/oauth');
   static Completer<Uri>? _waiting;
 
   /// Called once at start-up on Android: answers arrive as app links.

@@ -42,5 +42,5 @@ address's domain are flagged too (`serverOutsideDomain`).
 
 ```bash
 dart test                                        # unit tests
-FMAIL_INTEGRATION=1 dart test test/integration   # needs test-server/fmailtest up
+CITUSMAIL_INTEGRATION=1 dart test test/integration   # needs test-server/citusmailtest up
 ```

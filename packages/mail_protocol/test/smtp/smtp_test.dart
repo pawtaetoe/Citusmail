@@ -11,8 +11,8 @@ import 'package:test/test.dart';
 import '../imap/imap_parsing_test.dart' show MemorySource;
 import '../support/fake_server.dart';
 
-const alice = MailAddress(localPart: 'alice', domain: 'fmail.test');
-const bob = MailAddress(localPart: 'bob', domain: 'fmail.test');
+const alice = MailAddress(localPart: 'alice', domain: 'citusmail.test');
+const bob = MailAddress(localPart: 'bob', domain: 'citusmail.test');
 
 BuiltMessage message({List<MailAddress> to = const [bob]}) =>
     MessageBuilder().build(

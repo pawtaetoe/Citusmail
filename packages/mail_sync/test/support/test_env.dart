@@ -13,9 +13,9 @@ import 'package:mail_sync/mail_sync.dart';
 
 /// Why integration tests are skipped, or null when they should run.
 String? get integrationSkipReason =>
-    Platform.environment['FMAIL_INTEGRATION'] == '1'
+    Platform.environment['CITUSMAIL_INTEGRATION'] == '1'
     ? null
-    : 'integration tests: run test-server/fmailtest up, then set FMAIL_INTEGRATION=1';
+    : 'integration tests: run test-server/citusmailtest up, then set CITUSMAIL_INTEGRATION=1';
 
 /// Ports and CA of the local test servers (test-server/).
 final class TestServers {
@@ -49,14 +49,14 @@ final class TestServers {
   }) async {
     final client = await ImapClient.connect(
       ServerEndpoint(
-        'mail.fmail.test',
+        'mail.citusmail.test',
         ports[imapPort]!,
         ConnectionSecurity.implicitTls,
         connectAddress: '127.0.0.1',
       ),
       tls: tls,
     );
-    await client.login('$user@fmail.test', '$user-test-password');
+    await client.login('$user@citusmail.test', '$user-test-password');
     return client;
   }
 }
@@ -93,15 +93,15 @@ final class TestDevice {
     final store = MailStore.open('${directory.path}/mail.db', key);
     final account = store.accounts.add(
       NewAccount(
-        email: '$user@fmail.test',
-        username: '$user@fmail.test',
+        email: '$user@citusmail.test',
+        username: '$user@citusmail.test',
         imap: ServerSettings(
-          host: 'mail.fmail.test',
+          host: 'mail.citusmail.test',
           port: servers.ports[imapPort]!,
           security: ConnectionSecurity.implicitTls,
         ),
         smtp: ServerSettings(
-          host: 'mail.fmail.test',
+          host: 'mail.citusmail.test',
           port: servers.ports['SECURE_SUBMISSIONS_PORT']!,
           security: ConnectionSecurity.implicitTls,
         ),
@@ -197,7 +197,7 @@ String scratchFolder([String prefix = 'Sync']) =>
     '$prefix${Random.secure().nextInt(1 << 32).toRadixString(16)}';
 
 /// A small message with a unique Message-ID.
-Uint8List testMessage(String subject, {String to = 'alice@fmail.test'}) {
+Uint8List testMessage(String subject, {String to = 'alice@citusmail.test'}) {
   final at = to.split('@').last;
   return MessageBuilder()
       .build(

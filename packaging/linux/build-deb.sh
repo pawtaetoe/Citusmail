@@ -2,7 +2,7 @@
 # Builds a .deb from the Linux release bundle.
 #
 #   (cd app && flutter build linux --release)
-#   packaging/linux/build-deb.sh            # writes build/packages/fmail_<version>_amd64.deb
+#   packaging/linux/build-deb.sh            # writes build/packages/citusmail_<version>_amd64.deb
 #
 # The app goes to /opt/citusmail (it is a self-contained Flutter bundle), with a
 # /usr/bin/citusmail link, a desktop entry, icons and AppStream metadata.
@@ -57,5 +57,5 @@ CONTROL
 # Files owned by root, readable by all; nothing setuid.
 find "$stage" -type d -exec chmod 755 {} +
 mkdir -p "$out"
-dpkg-deb --root-owner-group --build "$stage" "$out/fmail_${version}_amd64.deb"
-echo "wrote $out/fmail_${version}_amd64.deb"
+dpkg-deb --root-owner-group --build "$stage" "$out/citusmail_${version}_amd64.deb"
+echo "wrote $out/citusmail_${version}_amd64.deb"
