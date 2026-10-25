@@ -9,6 +9,7 @@ export 'src/account_discovery.dart';
 export 'src/autoconfig_parser.dart';
 export 'src/discovered_settings.dart';
 export 'src/dns_srv.dart';
+export 'src/known_providers.dart';
 export 'src/mini_xml.dart';
 export 'src/settings_fetcher.dart';
 export 'src/verification.dart';

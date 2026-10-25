@@ -19,6 +19,7 @@ import 'message_loader.dart';
 import 'on_demand_connections.dart';
 import 'outbox_replayer.dart';
 import 'sender_blocker.dart';
+import 'server_rules.dart';
 import 'summary_mapper.dart';
 
 /// Something the UI may want to show.
@@ -50,7 +51,7 @@ final class SyncEngine {
   SyncEngine(
     this._store,
     this._connector, {
-    MessageClassifier classifier = const HeaderRuleClassifier(),
+    MessageClassifier? classifier,
     SyncSettings settings = const SyncSettings(),
     this.fullSyncInterval = const Duration(minutes: 15),
     this.changeDelay = const Duration(milliseconds: 500),
@@ -58,7 +59,15 @@ final class SyncEngine {
   }) : appData = syncCodes == null ? null : AppDataSync(_store, syncCodes),
        _mailboxSync = MailboxSynchronizer(
          _store,
-         SummaryMapper(classifier),
+         // By default the header rules, plus what each sender's other
+         // mail shows (on the device; see LearnedClassifier).
+         SummaryMapper(
+           classifier ??
+               LearnedClassifier(
+                 const HeaderRuleClassifier(),
+                 StoreSenderHistory(_store),
+               ),
+         ),
          settings: settings,
        ),
        _loader = MessageLoader(_store),
@@ -71,6 +80,7 @@ final class SyncEngine {
       rules: FolderRuleApplier(_store),
       blocker: SenderBlocker(_store),
       appData: appData,
+      serverRules: ServerRules(_store, _connector.sieve),
     );
   }
 

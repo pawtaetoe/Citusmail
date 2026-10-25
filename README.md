@@ -31,11 +31,17 @@ macOS and iOS for later.
 │   ├── mail_appsync/         App data shared between your devices, end-to-end
 │                             encrypted (ChaCha20-Poly1305, sync code)
 │   ├── mail_compose/         Writing mail: drafts, replies, sending with undo
-│   ├── mail_oauth/           OAuth 2.0 sign-in (Outlook): PKCE, browser, tokens
-│   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
-│                             from scratch with no runtime dependencies
-│   ├── mail_setup/           Account setup: discovery and login verification
+│   ├── mail_lookup/          Optional outside checks, off until turned on: Google
+│                             Safe Browsing (lists on the device, prefixes only)
+│                             and VirusTotal (your key; file hashes, no uploads)
+│   ├── mail_oauth/           OAuth 2.0 sign-in (Outlook, Google): PKCE, browser, tokens
+│   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP, SMTP and
+│                             ManageSieve, written from scratch with no
+│                             runtime dependencies
+│   ├── mail_setup/           Account setup: discovery (Gmail built in) and
+│                             login verification
 │   ├── mail_sort/            Sorting into General, Newsletters, Notifications
+│                             (header rules, plus what each sender's mail shows)
 │   ├── mail_store/           Encrypted local storage (SQLite3MultipleCiphers)
 │   ├── mail_sync/            Sync engine and background worker: folders, messages,
 │                             offline queue, IDLE, opening messages, older mail
@@ -113,9 +119,20 @@ system keychain:
 ```bash
 cp live-test.env.example live-test.env          # then edit it
 secret-tool store --label="Fmail test account" service fmail-test account you@example.com
-scripts/live-account-check.sh                   # read-only: TLS, capabilities, folders (curl)
+scripts/live-account-check.sh                   # read-only: TLS, capabilities, folders (curl; password accounts)
 dart run repo_tools:live_check                  # read-only: same, using the app's own IMAP/SMTP code
+dart run repo_tools:live_check --send           # also sends one message to the account itself
 ```
+
+For an Outlook account, set `LIVE_SIGN_IN=microsoft` and
+`LIVE_OAUTH_CLIENT_ID` (the app registration from
+[packaging/README.md](packaging/README.md)) instead of a password. For
+Google sign-in, `LIVE_SIGN_IN=google` with a Google client ID, and its
+client secret in the keychain:
+`secret-tool store --label="Fmail test OAuth client" service fmail-test-oauth-client account <client id>`. The first
+run opens the browser to sign in; the tokens are then kept in the keychain
+(service `fmail-test-oauth`) and the check renews them as the app does.
+`--sign-in-again` forgets them and signs in afresh.
 
 ## Adding a dependency
 

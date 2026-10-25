@@ -154,10 +154,20 @@ final class SyncRunning extends SyncStatus {
 }
 
 final class SyncProblem extends SyncStatus {
-  const SyncProblem(this.kind, this.account);
+  const SyncProblem(
+    this.kind,
+    this.account, {
+    this.accountId,
+    this.oauth = false,
+  });
 
   final SyncFailureKind kind;
   final String account;
+  final int? accountId;
+
+  /// The account signs in with OAuth: a refused login means its sign-in
+  /// ended, not a wrong password.
+  final bool oauth;
 }
 
 /// The mail screen's state, in separate pieces so each part of the screen
@@ -200,12 +210,34 @@ final class MailController {
   /// Tells the user something; with [undo], offers to take it back.
   void Function(String message, {VoidCallback? undo})? onNotice;
 
+  /// Asks for an account's new password or sign-in (set by the screen
+  /// that can show it).
+  void Function(Account account)? onReconnect;
+
+  /// Fixes the login of the account in [status], if that is the problem.
+  void reconnect(SyncProblem problem) {
+    final account = problem.accountId == null
+        ? null
+        : _store.accounts.byId(problem.accountId!);
+    if (account != null) onReconnect?.call(account);
+  }
+
   // ------------------------------------------------------------ location
 
   void goTo(MailLocation target) {
     clearSelection();
     location.value = target;
     list.show(target, smart: smartLayout.value);
+    // Views like Gmail's Starred are not synced in the background.
+    if (target case FolderLocation(:final mailboxId)
+        when _store.mailboxes.byId(mailboxId)?.isView ?? false) {
+      unawaited(
+        services.worker
+            .syncFolder(mailboxId)
+            .then((_) => refresh())
+            .catchError((Object _) {}),
+      );
+    }
   }
 
   void setSmartLayout(bool smart) {
@@ -332,7 +364,9 @@ final class MailController {
         SyncFailureKind.network =>
           'Can\'t reach the server. The message opens once you\'re online.',
         SyncFailureKind.authentication =>
-          'The server didn\'t accept your password.',
+          _store.accounts.byId(message.accountId)?.usesOAuth ?? false
+              ? 'The sign-in has ended. Sign in again from the account menu.'
+              : 'The server didn\'t accept your password.',
         SyncFailureKind.security =>
           'The connection was refused for security reasons.',
         SyncFailureKind.server =>
@@ -615,9 +649,13 @@ final class MailController {
     }
   }
 
-  /// The account's Archive folder, if it has one.
-  StoredMailbox? archiveFor(StoredMessage m) =>
-      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.archive);
+  /// The account's Archive folder, if it has one. On Gmail, archiving
+  /// means moving to All Mail (the message leaves the inbox, nothing else).
+  StoredMailbox? archiveFor(StoredMessage m) => _archiveFolder(m.accountId);
+
+  StoredMailbox? _archiveFolder(int accountId) =>
+      _store.mailboxes.bySpecialUse(accountId, SpecialUse.archive) ??
+      _store.mailboxes.bySpecialUse(accountId, SpecialUse.all);
 
   bool isInTrash(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
@@ -639,10 +677,7 @@ final class MailController {
     final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
     _remove([
       for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-        () => services.actions.move(
-          group,
-          _store.mailboxes.bySpecialUse(accountId, SpecialUse.archive)!,
-        ),
+        () => services.actions.move(group, _archiveFolder(accountId)!),
     ], done ?? (count == 1 ? 'Archived' : 'Archived $count'));
   }
 
@@ -1013,9 +1048,12 @@ final class MailController {
     }
     for (final MapEntry(key: accountId, value: event) in _lastEvent.entries) {
       if (event is AccountSyncFailed) {
+        final account = _store.accounts.byId(accountId);
         return SyncProblem(
           event.failure.kind,
-          _store.accounts.byId(accountId)?.email ?? '',
+          account?.email ?? '',
+          accountId: accountId,
+          oauth: account?.usesOAuth ?? false,
         );
       }
     }

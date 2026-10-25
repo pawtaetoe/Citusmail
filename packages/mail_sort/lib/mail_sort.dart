@@ -7,6 +7,7 @@ library;
 
 export 'src/classification.dart';
 export 'src/header_rule_classifier.dart';
+export 'src/learned_classifier.dart';
 export 'src/list_id.dart';
 export 'src/resorter.dart';
 export 'src/sender_patterns.dart';

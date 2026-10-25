@@ -61,6 +61,9 @@ jobs:
       - name: Test mail_web
         working-directory: packages/mail_web
         run: dart test
+      - name: Test mail_lookup
+        working-directory: packages/mail_lookup
+        run: dart test
       - name: Test mail_appsync
         working-directory: packages/mail_appsync
         run: dart test
@@ -139,11 +142,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # librsvg2-common: the SVG loader flatpak needs to accept the app's
+      # SVG icon ("is not a valid icon: Format not recognized" without it).
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y clang ninja-build libgtk-3-dev \
-            libsecret-1-dev liblzma-dev libsqlcipher-dev flatpak shellcheck
+            libsecret-1-dev liblzma-dev libsqlcipher-dev flatpak shellcheck \
+            librsvg2-common
       - name: Shellcheck packaging scripts
         run: shellcheck packaging/linux/build-deb.sh packaging/flatpak/build-flatpak.sh packaging/android/build-aab.sh
       - uses: ./.github/actions/setup-flutter

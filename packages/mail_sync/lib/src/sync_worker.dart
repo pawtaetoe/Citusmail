@@ -106,6 +106,10 @@ final class SyncWorker {
   /// Syncs one account now, or all.
   Future<void> syncNow([int? accountId]) => _request(_SyncNow(accountId));
 
+  /// Syncs one folder now (one not synced in the background, such as
+  /// Gmail's Starred, when the user opens it).
+  Future<void> syncFolder(int mailboxId) => _request(_SyncFolder(mailboxId));
+
   /// Asks for a sync soon (after a local change).
   void requestSync(int accountId) => unawaited(
     _request(_RequestSync(accountId)).catchError((Object _) => null),
@@ -308,6 +312,11 @@ Future<void> _workerMain(_Boot boot) async {
             ? [for (final a in store.accounts.all()) a.id]
             : [accountId];
         await Future.wait([for (final id in ids) engine.syncAccount(id)]);
+      case _SyncFolder(:final mailboxId):
+        final mailbox = store.mailboxes.byId(mailboxId);
+        if (mailbox != null) {
+          await engine.syncAccount(mailbox.accountId, mailboxIds: {mailboxId});
+        }
       case _RequestSync(:final accountId):
         engine.requestSync(accountId);
       case _SyncAt(:final accountId, :final at):
@@ -507,6 +516,12 @@ final class _SyncNow extends _Command {
   const _SyncNow(this.accountId);
 
   final int? accountId;
+}
+
+final class _SyncFolder extends _Command {
+  const _SyncFolder(this.mailboxId);
+
+  final int mailboxId;
 }
 
 final class _RequestSync extends _Command {

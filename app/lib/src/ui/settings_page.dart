@@ -5,15 +5,34 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
 import '../background/background_mail.dart';
 import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
+import '../services/link_safety.dart';
+import '../services/virus_total_checks.dart';
 import 'block_dialog.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
+
+/// One account's server rules, in words.
+String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
+  null => 'Set up with the next check for mail.',
+  ServerRulesState.active => 'Running on the server.',
+  ServerRulesState.nothingToRun =>
+    'Nothing to run yet: no blocked senders or folder rules.',
+  ServerRulesState.otherScriptActive =>
+    'The server already runs another filter ("${status!.detail}"), so the rules '
+        'run in $appName only.',
+  ServerRulesState.notSupported =>
+    'This server doesn\'t support rules on the server.',
+  ServerRulesState.failed =>
+    'Couldn\'t update the server: ${status!.detail ?? 'unknown problem'}. '
+        'Tried again later.',
+};
 
 /// App settings: notifications, instant mail on Android, and what the app
 /// does with your data.
@@ -142,6 +161,41 @@ final class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _setSafeBrowsing(bool on) async {
+    final safety = widget.services.linkSafety;
+    if (!on) {
+      await safety.disable();
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => SafeBrowsingDialog(safety: safety),
+      );
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _setVirusTotal(bool on) async {
+    if (!on) {
+      await widget.services.virusTotal.disable();
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => VirusTotalDialog(checks: widget.services.virusTotal),
+      );
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _setServerRules(bool on) async {
+    setState(() => widget.services.settings.serverRules = on);
+    try {
+      await widget.services.worker.syncNow();
+    } on SyncWorkerException {
+      // Tried again with the next sync.
+    }
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = widget.services.settings;
@@ -175,6 +229,30 @@ final class _SettingsPageState extends State<SettingsPage> {
           ],
           const _Group('Security'),
           ..._lockSettings(),
+          SwitchListTile(
+            secondary: const Icon(Icons.travel_explore),
+            title: const Text('Check links with Google Safe Browsing'),
+            subtitle: Text(
+              widget.services.linkSafety.enabled
+                  ? (widget.services.linkSafety.status ??
+                        'Downloading Google\'s lists…')
+                  : 'Off. Links are checked on this device only.',
+            ),
+            value: widget.services.linkSafety.enabled,
+            onChanged: _setSafeBrowsing,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.policy_outlined),
+            title: const Text('Ask VirusTotal about flagged files and links'),
+            subtitle: Text(
+              widget.services.virusTotal.enabled
+                  ? 'On, with your API key. Offered for risky attachments and suspicious '
+                        'links, only when you tap "Check with VirusTotal".'
+                  : 'Off.',
+            ),
+            value: widget.services.virusTotal.enabled,
+            onChanged: _setVirusTotal,
+          ),
           const _Group('Senders and devices'),
           DeviceSyncTile(services: widget.services),
           ListTile(
@@ -198,6 +276,29 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.dns_outlined),
+            title: const Text('Rules on the mail server'),
+            subtitle: const Text(
+              'Blocked senders and folder rules also run on your mail server, so mail is sorted '
+              'even when $appName isn\'t open. Only where the server supports it (Sieve); a '
+              'filter you already use there is never replaced.',
+            ),
+            value: settings.serverRules,
+            onChanged: _setServerRules,
+          ),
+          if (settings.serverRules)
+            for (final account in widget.services.store.accounts.all())
+              ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.only(left: 72, right: 16),
+                title: Text(account.email),
+                subtitle: Text(
+                  serverRulesText(
+                    ServerRules.statusOf(widget.services.store, account.id),
+                  ),
+                ),
+              ),
           const _Group('About'),
           ListTile(
             leading: const Icon(Icons.shield_outlined),
@@ -248,4 +349,205 @@ final class _Group extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Asks before Google Safe Browsing is turned on: what it does, what is
+/// sent, and (for builds without one) the user's own API key.
+final class SafeBrowsingDialog extends StatefulWidget {
+  const SafeBrowsingDialog({super.key, required this.safety});
+
+  final LinkSafety safety;
+
+  @override
+  State<SafeBrowsingDialog> createState() => _SafeBrowsingDialogState();
+}
+
+final class _SafeBrowsingDialogState extends State<SafeBrowsingDialog> {
+  final _key = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  Future<void> _turnOn() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final problem = await widget.safety.enable(ownKey: _key.text);
+    if (!mounted) return;
+    if (problem == null) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        _busy = false;
+        _error = problem;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Check links with Google Safe Browsing?'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '$appName downloads Google\'s lists of dangerous sites and checks links you open '
+            'against them on this device. Only when a link looks like one on the lists is a '
+            'short piece of its fingerprint sent to Google to confirm; the link itself never is. '
+            'Google sees your IP address when the lists are downloaded.',
+          ),
+          if (!widget.safety.hasBuiltInKey) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'This copy of $appName needs your own Google API key with the Safe Browsing API '
+              'turned on (free, from Google Cloud). It stays in this device\'s keychain.',
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _key,
+              enabled: !_busy,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'API key',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+          if (_busy) ...[
+            const SizedBox(height: 16),
+            const LinearProgressIndicator(),
+            const SizedBox(height: 8),
+            const Text('Downloading the lists…'),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _busy ? null : () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _busy ? null : _turnOn,
+        child: const Text('Turn on'),
+      ),
+    ],
+  );
+}
+
+/// Asks before VirusTotal is turned on: what is sent, and the user's key.
+final class VirusTotalDialog extends StatefulWidget {
+  const VirusTotalDialog({super.key, required this.checks});
+
+  final VirusTotalChecks checks;
+
+  @override
+  State<VirusTotalDialog> createState() => _VirusTotalDialogState();
+}
+
+final class _VirusTotalDialogState extends State<VirusTotalDialog> {
+  final _key = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  Future<void> _turnOn() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final problem = await widget.checks.enable(_key.text);
+    if (!mounted) return;
+    if (problem == null) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        _busy = false;
+        _error = problem;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Ask VirusTotal?'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'When $appName flags an attachment or a link as risky, it can ask VirusTotal what '
+            'dozens of security vendors think of it, only when you tap "Check with VirusTotal".',
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'For a file, only its fingerprint (SHA-256) is sent; the file never is. For a link, '
+            'the address itself is sent. VirusTotal (Google) keeps what it is asked and sees your '
+            'IP address.',
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Use your own free API key from virustotal.com (your profile, "API key"). It stays in '
+            'this device\'s keychain.',
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _key,
+            enabled: !_busy,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: const InputDecoration(
+              labelText: 'API key',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (_busy) ...[
+            const SizedBox(height: 16),
+            const LinearProgressIndicator(),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _busy ? null : () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _busy ? null : _turnOn,
+        child: const Text('Turn on'),
+      ),
+    ],
+  );
 }

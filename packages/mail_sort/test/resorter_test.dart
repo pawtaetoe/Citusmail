@@ -120,10 +120,16 @@ void main() {
   });
 
   test('an empty store just records the version', () async {
-    expect(await Resorter(store).resortIfNeeded(), 0);
+    final resorter = Resorter(store);
+    expect(await resorter.resortIfNeeded(), 0);
     expect(
       store.settings.read(Resorter.versionKey),
-      '${HeaderRuleClassifier.currentVersion}',
+      '${resorter.classifier.version}',
+    );
+    expect(
+      resorter.classifier,
+      isA<LearnedClassifier>(),
+      reason: 'the same sorting as sync',
     );
   });
 }

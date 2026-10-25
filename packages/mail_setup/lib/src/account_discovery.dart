@@ -7,6 +7,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'autoconfig_parser.dart';
 import 'discovered_settings.dart';
 import 'dns_srv.dart';
+import 'known_providers.dart';
 import 'settings_fetcher.dart';
 import 'verification.dart';
 
@@ -21,20 +22,28 @@ enum DiscoveryStep {
 
 /// The outcome of discovery.
 final class DiscoveryResult {
-  const DiscoveryResult(this.settings, {this.oauthOnly = false});
+  const DiscoveryResult(this.settings, {this.oauthOnly = false, this.host});
 
   /// Null when nothing usable was found (use the manual form).
   final DiscoveredSettings? settings;
 
   /// The provider requires OAuth2 login, which is not supported yet.
   final bool oauthOnly;
+
+  /// The big mail service the domain is hosted with, when its MX records
+  /// show one. For [MailHost.microsoft365] there are no settings: the
+  /// account signs in on Microsoft's page.
+  final MailHost? host;
 }
 
-/// Finds server settings for an email address, trying sources from most to
-/// least trustworthy and stopping at the first that works:
+/// Finds server settings for an email address. Well-known providers
+/// ([KnownProvider]) are answered from the app itself, with no lookup.
+/// Otherwise it tries sources from most to least trustworthy and stops at
+/// the first that works:
 ///
 /// 1. the provider's settings file over HTTPS;
-/// 2. DNS SRV records (RFC 6186 / 8314);
+/// 2. DNS: MX records pointing to Google Workspace or Microsoft 365, then
+///    SRV records (RFC 6186 / 8314);
 /// 3. the provider's settings file over HTTP (cPanel often serves only this);
 /// 4. common host names, each required to have a valid certificate;
 /// 5. Mozilla's database, only if [askMozillaConsent] allows it.
@@ -47,14 +56,21 @@ final class AccountDiscovery {
   AccountDiscovery({
     SettingsFetcher? fetcher,
     SrvResolver? srv,
+    MxResolver? mx,
     ServerAvailability? prober,
     this.mozillaBase = 'https://autoconfig.thunderbird.net/v1.1/',
   }) : _fetcher = fetcher ?? HttpSettingsFetcher(),
        _srv = srv ?? UdpSrvResolver.system(),
+       _mx = mx ?? _mxOf(srv ?? UdpSrvResolver.system()),
        _prober = prober ?? const ServerProber();
 
   final SettingsFetcher _fetcher;
   final SrvResolver _srv;
+  final MxResolver _mx;
+
+  /// The SRV resolver also answers MX queries (the system's, or none).
+  static MxResolver _mxOf(SrvResolver srv) =>
+      srv is MxResolver ? srv as MxResolver : const NoSrvResolver();
   final ServerAvailability _prober;
   final String mozillaBase;
 
@@ -78,6 +94,9 @@ final class AccountDiscovery {
     }
     final address = email.trim();
     final domain = match.group(1)!.toLowerCase();
+    if (KnownProvider.forEmail(address) case final known?) {
+      return DiscoveryResult(known.settingsFor(address));
+    }
     var oauthOnly = false;
 
     DiscoveredSettings? fromFile(String? xml, DiscoverySource source) {
@@ -100,6 +119,20 @@ final class AccountDiscovery {
     }
 
     onStep?.call(DiscoveryStep.dnsRecords);
+    switch (MailHost.fromMx(await _mx.lookupMx(domain))) {
+      case MailHost.google:
+        return DiscoveryResult(
+          KnownProvider.gmail.settingsFor(
+            address,
+            source: DiscoverySource.mailHost,
+          ),
+          host: MailHost.google,
+        );
+      case MailHost.microsoft365:
+        return const DiscoveryResult(null, host: MailHost.microsoft365);
+      case null:
+        break;
+    }
     final fromDns = await _fromSrv(address, domain);
     if (fromDns != null) return DiscoveryResult(fromDns);
 

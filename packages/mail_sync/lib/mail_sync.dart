@@ -19,6 +19,7 @@ export 'src/on_demand_connections.dart';
 export 'src/outbox_replayer.dart';
 export 'src/receipt_collector.dart';
 export 'src/sender_blocker.dart';
+export 'src/server_rules.dart';
 export 'src/summary_mapper.dart';
 export 'src/sync_engine.dart';
 export 'src/sync_worker.dart';

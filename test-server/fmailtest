@@ -20,7 +20,7 @@ readonly CONTAINER_PREFIX="fmail-test"
 readonly MODES=(secure limited plain)
 readonly READY_TIMEOUT_SECONDS=60
 
-# shellcheck source=servers.env
+# shellcheck source-path=SCRIPTDIR source=servers.env
 source "$HERE/servers.env"
 
 log() { echo "[fmailtest] $*" >&2; }
@@ -66,7 +66,7 @@ ensure_image() {
   image="$IMAGE_NAME:$tag"
   if ! "$RUNTIME" image exists "$image" 2>/dev/null && ! "$RUNTIME" image inspect "$image" >/dev/null 2>&1; then
     log "building $image"
-    "$RUNTIME" build --quiet --tag "$image" "$HERE/image" >/dev/null
+    "$RUNTIME" build --quiet --file "$HERE/image/Containerfile" --tag "$image" "$HERE/image" >/dev/null
   fi
   echo "$image"
 }
@@ -88,6 +88,10 @@ port_args() {
   if [[ "$mode" != plain ]]; then
     echo "-p 127.0.0.1:$(port_of "$mode" IMAPS):993"
     echo "-p 127.0.0.1:$(port_of "$mode" SUBMISSIONS):465"
+  fi
+  # ManageSieve on the secure server only (server rules tests).
+  if [[ "$mode" == secure ]]; then
+    echo "-p 127.0.0.1:$(port_of "$mode" SIEVE):4190"
   fi
 }
 

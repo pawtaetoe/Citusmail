@@ -10,6 +10,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../app.dart' show appName;
 import '../ui/fmail_theme.dart';
+import '../ui/link_opener.dart';
 import 'setup_controller.dart';
 
 /// The add-account flow. Calls [onDone] with the saved account.
@@ -105,6 +106,23 @@ class _SetupPageState extends State<SetupPage> {
                     error: error,
                     canSignInWith: controller.canSignInWith,
                     providerFor: controller.providerFor,
+                    optionalProviderFor: (email) =>
+                        switch (controller.optionalProviderFor(email)) {
+                          final p? when controller.canOffer(p) => p,
+                          _ => null,
+                        },
+                    onOptionalOAuth: (provider, email, name) =>
+                        controller.signInWithAny(
+                          provider,
+                          email: email,
+                          displayName: name,
+                        ),
+                    onOwnClient: (provider, email, name) =>
+                        controller.enterOwnClient(
+                          provider,
+                          email: email,
+                          displayName: name,
+                        ),
                     onSubmit: (email, password, name) => controller.start(
                       email: email,
                       password: password,
@@ -117,6 +135,15 @@ class _SetupPageState extends State<SetupPage> {
                       displayName: name,
                     ),
                   ),
+                  EnteringOwnClient(:final provider, :final error) =>
+                    _OwnClientForm(
+                      key: const ValueKey('own-client'),
+                      provider: provider,
+                      error: error,
+                      onSubmit: (registration) =>
+                          controller.useOwnClient(provider, registration),
+                      onBack: controller.restart,
+                    ),
                   SigningIn(:final provider) => _Busy(
                     key: const ValueKey('signing-in'),
                     text:
@@ -182,6 +209,9 @@ class _CredentialsForm extends StatefulWidget {
     required this.onOAuth,
     required this.canSignInWith,
     required this.providerFor,
+    required this.optionalProviderFor,
+    required this.onOptionalOAuth,
+    required this.onOwnClient,
     this.error,
   });
 
@@ -192,6 +222,13 @@ class _CredentialsForm extends StatefulWidget {
   onOAuth;
   final bool Function(OAuthProvider provider) canSignInWith;
   final OAuthProvider? Function(String email) providerFor;
+
+  /// A provider the address may sign in with instead of a password.
+  final OAuthProvider? Function(String email) optionalProviderFor;
+  final void Function(OAuthProvider provider, String email, String name)
+  onOptionalOAuth;
+  final void Function(OAuthProvider provider, String email, String name)
+  onOwnClient;
 
   @override
   State<_CredentialsForm> createState() => _CredentialsFormState();
@@ -207,15 +244,44 @@ class _CredentialsFormState extends State<_CredentialsForm> {
   /// The provider the typed address must sign in with, if any.
   OAuthProvider? _provider;
 
+  /// A built-in provider for the typed address (Gmail: app passwords).
+  KnownProvider? _known;
+
+  /// A sign-in the address may use instead of a password (Gmail: Google).
+  OAuthProvider? _optional;
+
   @override
   void initState() {
     super.initState();
     _provider = widget.providerFor(_email.text);
+    _known = KnownProvider.forEmail(_email.text);
+    _optional = widget.optionalProviderFor(_email.text);
     _email.addListener(() {
       final provider = widget.providerFor(_email.text);
-      if (provider != _provider) setState(() => _provider = provider);
+      final known = KnownProvider.forEmail(_email.text);
+      final optional = widget.optionalProviderFor(_email.text);
+      if (provider != _provider || known != _known || optional != _optional) {
+        setState(() {
+          _provider = provider;
+          _known = known;
+          _optional = optional;
+        });
+      }
     });
   }
+
+  /// Signing in on the provider's page needs only a valid address.
+  void _withProvider(
+    void Function(OAuthProvider provider, String email, String name) action,
+  ) {
+    if (!_emailPattern.hasMatch(_email.text.trim())) {
+      _form.currentState!.validate();
+      return;
+    }
+    action(_optional!, _email.text, _name.text);
+  }
+
+  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   @override
   void dispose() {
@@ -224,6 +290,9 @@ class _CredentialsFormState extends State<_CredentialsForm> {
     _name.dispose();
     super.dispose();
   }
+
+  /// Where to create an app password, when the address needs one.
+  String? get _appPassword => _known?.appPasswordUrl;
 
   void _submit() {
     if (!_form.currentState!.validate()) return;
@@ -265,8 +334,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
             keyboardType: TextInputType.emailAddress,
             autofillHints: const [AutofillHints.email],
             autocorrect: false,
-            validator: (v) =>
-                RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v?.trim() ?? '')
+            validator: (v) => _emailPattern.hasMatch(v?.trim() ?? '')
                 ? null
                 : 'Enter an email address',
           ),
@@ -288,7 +356,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
               autocorrect: false,
               enableSuggestions: false,
               decoration: InputDecoration(
-                labelText: 'Password',
+                labelText: _appPassword == null ? 'Password' : 'App password',
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   tooltip: _showPassword ? 'Hide password' : 'Show password',
@@ -299,10 +367,32 @@ class _CredentialsFormState extends State<_CredentialsForm> {
                       setState(() => _showPassword = !_showPassword),
                 ),
               ),
-              validator: (v) =>
-                  (v ?? '').isEmpty ? 'Enter your password' : null,
+              validator: (v) => (v ?? '').isEmpty
+                  ? (_appPassword == null
+                        ? 'Enter your password'
+                        : 'Enter an app password')
+                  : null,
               onFieldSubmitted: (_) => _submit(),
             ),
+            if (_known case final known? when known.needsAppPassword) ...[
+              const SizedBox(height: 8),
+              Text(SetupText.appPasswordHint(known)),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const Key('create-app-password'),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: Text(
+                    'Create an app password '
+                    '(${Uri.parse(known.appPasswordUrl!).host})',
+                  ),
+                  onPressed: () => LinkOpener.launch(
+                    context,
+                    Uri.parse(known.appPasswordUrl!),
+                  ),
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 16),
           TextFormField(
@@ -331,8 +421,148 @@ class _CredentialsFormState extends State<_CredentialsForm> {
                   : 'Continue with ${_provider!.name}',
             ),
           ),
+          if (_provider == null && _optional != null) ...[
+            const SizedBox(height: 12),
+            const Text('or', textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const Key('optional-sign-in'),
+              icon: const Icon(Icons.open_in_browser),
+              label: Text('Sign in with ${_optional!.name} instead'),
+              onPressed: () => _withProvider(widget.onOptionalOAuth),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'No app password needed: you sign in on ${_optional!.name}\'s page in your '
+              'browser, and $appName never sees your password.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (!_optional!.configured)
+              TextButton(
+                key: const Key('own-client'),
+                onPressed: () => _withProvider(widget.onOwnClient),
+                child: Text('Use your own ${_optional!.name} client ID'),
+              ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// The user's own registration with a provider ("bring your own client
+/// ID"), for builds without one. Steps are written for Google.
+class _OwnClientForm extends StatefulWidget {
+  const _OwnClientForm({
+    super.key,
+    required this.provider,
+    required this.onSubmit,
+    required this.onBack,
+    this.error,
+  });
+
+  final OAuthProvider provider;
+  final String? error;
+  final void Function(OAuthRegistration registration) onSubmit;
+  final VoidCallback onBack;
+
+  @override
+  State<_OwnClientForm> createState() => _OwnClientFormState();
+}
+
+class _OwnClientFormState extends State<_OwnClientForm> {
+  final _clientId = TextEditingController();
+  final _secret = TextEditingController();
+
+  static final _console = Uri.parse(
+    'https://console.cloud.google.com/apis/credentials',
+  );
+
+  @override
+  void dispose() {
+    _clientId.dispose();
+    _secret.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.provider.name;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Your own $name client ID',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'This copy of $appName has no $name sign-in of its own yet. You can sign in through '
+          'your own free Google Cloud project instead:',
+        ),
+        const SizedBox(height: 8),
+        for (final (i, step) in const [
+          'Create a project, and turn on the Gmail API for it.',
+          'Set up the OAuth consent screen ("External"), and add your own address as a test user.',
+          'Create an OAuth client ID of type "Desktop app".',
+          'Copy its client ID and client secret here.',
+        ].indexed)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('${i + 1}. $step'),
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: Text('Open Google Cloud (${_console.host})'),
+            onPressed: () => LinkOpener.launch(context, _console),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _clientId,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: const InputDecoration(
+            labelText: 'Client ID',
+            border: OutlineInputBorder(),
+            hintText: '…apps.googleusercontent.com',
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _secret,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: const InputDecoration(
+            labelText: 'Client secret',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Both stay in this device\'s keychain. While the project is in testing, Google ends '
+          'the sign-in after 7 days, and you sign in again.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        if (widget.error != null) ...[
+          const SizedBox(height: 16),
+          Text(
+            widget.error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: () =>
+              widget.onSubmit(OAuthRegistration(_clientId.text, _secret.text)),
+          child: Text('Continue with $name'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton(onPressed: widget.onBack, child: const Text('Back')),
+      ],
     );
   }
 }
@@ -487,7 +717,12 @@ class _Failed extends StatelessWidget {
         ),
         const SizedBox(height: 8),
       ],
-      if (result.problem == VerificationProblem.credentials)
+      if (result.problem == VerificationProblem.appPasswordRequired)
+        FilledButton(
+          onPressed: onRestart,
+          child: const Text('Enter an app password'),
+        )
+      else if (result.problem == VerificationProblem.credentials)
         FilledButton(
           onPressed: onRestart,
           child: const Text('Enter the password again'),

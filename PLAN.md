@@ -14,9 +14,9 @@ first, ends with something that can be run or tested, and is committed as
 | M1 | Own IMAP, SMTP and MIME code, encrypted local storage, sync, Smart Inbox, writing mail, custom folders, notifications, packaging | Done |
 | M2 | Phishing checks, unsubscribe, blocking senders, tracker and image blocking, read-receipt blocking, app lock | Done |
 | M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
-| M4 | Outlook sign-in (OAuth 2.0) | Built; live check waiting (Stage 24) |
-| M5 | Gmail: app passwords first, then OAuth 2.0 | Not started |
-| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Not started |
+| M4 | Outlook sign-in (OAuth 2.0) | Built; live check tool ready, run waiting on a client ID (Stage 24) |
+| M5 | Gmail: app passwords first, then OAuth 2.0; signing in again | Built (Stages 25-27); live checks waiting |
+| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Done (Stages 28-33) |
 
 ## Stages so far
 
@@ -64,26 +64,45 @@ first, ends with something that can be run or tested, and is committed as
 | 21 | OAuth sign-in plumbing: PKCE, browser sign-in, tokens, XOAUTH2 for IMAP and SMTP |
 | 22 | Outlook sign-in in the app |
 | 23 | Design refresh (see [Design](#design)) |
+| 24 | Live Outlook check tool: browser sign-in, token refresh (also mid-sync), XOAUTH2 IMAP and SMTP, sync, and with `--send` a message to the account itself |
+
+### M5: Gmail
+
+| Stage | What it delivered |
+| --- | --- |
+| 25 | Gmail with app passwords: built-in settings (no lookup), app password guidance and errors, Starred and Important synced only when opened, each message shown once across folders, archive to All Mail |
+| 26 | Google sign-in for Gmail, offered next to app passwords: built-in client ID from the build, or the user's own ("bring your own"); accounts remember the client that signed them in; live check supports Google |
+| 27 | Fixing a login without removing the account: "Sign in again" (OAuth, with the client that signed it in) and "Update password", from the account menu or the red status line; checked with a real login before it replaces the old one |
+
+### M6: smarter and safer
+
+| Stage | What it delivered |
+| --- | --- |
+| 28 | Rules on the mail server (opt-in): our own ManageSieve client (RFC 5804); blocked senders and folder rules written as one Sieve script, uploaded only when changed, never replacing another active script, removed when turned off; status per account in Settings |
+| 29 | Test server with Pigeonhole (Sieve, ManageSieve on 14190); integration test that the server files ruled and blocked mail by itself; test servers start with Docker and OpenSSL 3.0 again (Containerfile named, expired certificate made with `openssl ca`) |
+| 30 | Company domains at Google Workspace or Microsoft 365, recognised from their MX records (our DNS client now also asks MX): Workspace gets Gmail's servers and app password help; Microsoft 365 goes straight to Microsoft sign-in |
+| 31 | Sorting learns from each sender's mail, on the device: when the rules find no signal, a sender whose other mail clearly sorts one way (3+ messages, 90%) is followed; never for people the user writes to; stored mail re-sorted once |
+| 32 | Google Safe Browsing (opt-in): our own Update API v4 client in the new mail_lookup package (canonical URLs and expressions per Google's spec, hash-prefix lists with checksums, kept in a file); links the user opens are checked on the device, and only a 4-byte prefix is sent to confirm; built-in or the user's own API key |
+| 33 | VirusTotal (opt-in, the user's own key): "Check with VirusTotal" on risky attachments (by SHA-256, never uploaded) and flagged links (looked up, never submitted), one tap at a time; mail_web gains one validated API-key header |
 
 ## Next
 
-1. **Stage 24: live Outlook check.** Sign in, sync, send and refresh tokens
-   against a real Outlook account.
+1. **Run the Stage 24 live Outlook check.** The tool is ready
+   (`dart run repo_tools:live_check --send`, see the README).
    - Waiting on: a Microsoft Entra client ID (see
      [packaging/README.md](packaging/README.md)) and an Outlook test account.
-   - The build takes the ID as `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`.
-2. **M5: Gmail.**
-   - App passwords first, so Gmail works without Google's approval.
-   - Then Google sign-in. A built-in client ID needs Google's app
-     verification before public release, so the app will also accept a
-     user's own client ID ("bring your own") for early testers.
-3. **M6.**
-   - Rules that run on the mail server where it supports them (Sieve).
-   - An on-device model to improve sorting, with nothing sent anywhere.
-   - Optional link and file checks with Google Safe Browsing (hash prefixes
-     downloaded, links checked on the device) and VirusTotal (your own API
-     key, only for items local checks flagged). Both off by default; each
-     asks before it is turned on.
+   - The app build takes the ID as `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`;
+     the live check reads it from `LIVE_OAUTH_CLIENT_ID` in `live-test.env`.
+   - Its send step reports whether Outlook keeps its own copy in Sent (the
+     app already adds no second copy when one with the same Message-ID is
+     there).
+2. **Run the live check against Gmail**, both ways:
+   - with an app password (`LIVE_EMAIL=...@gmail.com`,
+     imap.gmail.com:993, smtp.gmail.com:465);
+   - with `LIVE_SIGN_IN=google` and a Google Cloud client (see
+     [packaging/README.md](packaging/README.md)).
+3. **Before a public Gmail release:** Google's verification of the
+   built-in client ID (restricted scope: security assessment).
 
 ## Rules for every stage
 

@@ -69,6 +69,10 @@ enum VerificationProblem {
   /// Wrong user name or password.
   credentials,
 
+  /// The provider refuses the account's own password from mail apps and
+  /// wants an app password (Gmail with 2-Step Verification).
+  appPasswordRequired,
+
   /// The certificate is not valid for this host (see the certificate's
   /// name for a hint), expired, or not trusted.
   certificate,
@@ -174,6 +178,12 @@ final class AccountVerifier {
         const VerificationResult.success();
   }
 
+  /// Google's refusal of an account password: "Application-specific
+  /// password required" (IMAP, and SMTP with 534 5.7.9). The text decides,
+  /// not the code: other servers use 5.7.9 for "mechanism too weak".
+  static bool _asksForAppPassword(String text) =>
+      text.toLowerCase().contains('application-specific password');
+
   static Future<VerificationResult?> _check(
     ServerRole role,
     Future<void> Function() action,
@@ -184,13 +194,18 @@ final class AccountVerifier {
     } on ImapAuthenticationException catch (e) {
       return VerificationResult.failure(
         role,
-        VerificationProblem.credentials,
+        _asksForAppPassword(e.message)
+            ? VerificationProblem.appPasswordRequired
+            : VerificationProblem.credentials,
         e.message,
       );
     } on SmtpAuthenticationException catch (e) {
+      final reply = e.reply;
       return VerificationResult.failure(
         role,
-        VerificationProblem.credentials,
+        reply != null && _asksForAppPassword(reply.text)
+            ? VerificationProblem.appPasswordRequired
+            : VerificationProblem.credentials,
         e.message,
       );
     } on MailTlsException catch (e) {

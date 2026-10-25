@@ -131,9 +131,7 @@ final class _TopBarState extends State<_TopBar> {
                         : null,
                     isDense: true,
                     fillColor: Theme.of(context).colorScheme.surface,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
                 ),
               );
@@ -277,11 +275,18 @@ final class _StatusLine extends StatelessWidget {
           Icons.cloud_off,
           colors.onSurfaceVariant,
         ),
-        SyncProblem(kind: SyncFailureKind.authentication, :final account) => (
-          'Password not accepted ($account)',
-          Icons.error_outline,
-          colors.error,
-        ),
+        SyncProblem(
+          kind: SyncFailureKind.authentication,
+          :final account,
+          :final oauth,
+        ) =>
+          (
+            oauth
+                ? 'Sign-in ended ($account): sign in again'
+                : 'Password not accepted ($account)',
+            Icons.error_outline,
+            colors.error,
+          ),
         SyncProblem() => ('Can\'t update', Icons.error_outline, colors.error),
         SyncIdle(lastSynced: final at?) => (
           'Updated ${MailText.listDate(context, at)}',
@@ -291,11 +296,21 @@ final class _StatusLine extends StatelessWidget {
         SyncIdle() => ('', null, colors.onSurfaceVariant),
       };
       if (text.isEmpty) return const SizedBox.shrink();
+      // A refused login is fixed, not retried.
+      final fix = switch (status) {
+        SyncProblem(kind: SyncFailureKind.authentication) && final problem =>
+          problem,
+        _ => null,
+      };
       return Tooltip(
-        message: 'Check for new mail',
+        message: fix == null
+            ? 'Check for new mail'
+            : (fix.oauth ? 'Sign in again' : 'Update the password'),
         child: InkWell(
           borderRadius: BorderRadius.circular(FmailTheme.radiusSmall),
-          onTap: controller.syncNow,
+          onTap: fix == null
+              ? controller.syncNow
+              : () => controller.reconnect(fix),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(

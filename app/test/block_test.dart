@@ -146,6 +146,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
     );
+    await tester.scrollUntilVisible(find.text('Blocked senders'), 100);
     await tester.tap(find.text('Blocked senders'));
     await tester.pumpAndSettle();
     expect(find.text('Everyone at spam.example'), findsOneWidget);

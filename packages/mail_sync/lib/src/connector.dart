@@ -20,6 +20,10 @@ abstract interface class MailConnector {
 
   /// A logged-in SMTP connection.
   Future<SmtpClient> smtp(Account account);
+
+  /// A logged-in ManageSieve connection (server rules), on the IMAP
+  /// server's standard ManageSieve port.
+  Future<ManageSieveClient> sieve(Account account);
 }
 
 /// Connects with the account's server settings and the system trust store.
@@ -54,6 +58,32 @@ final class DefaultMailConnector implements MailConnector {
         await client.login(account.username, secret);
       }
       if (useQresync) await client.enable(['QRESYNC']);
+      return client;
+    } on Object {
+      await client.close();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ManageSieveClient> sieve(Account account) async {
+    final client = await ManageSieveClient.connect(
+      _endpointFor(
+        ServerSettings(
+          host: account.imap.host,
+          port: ManageSieveClient.port,
+          security: ConnectionSecurity.startTls,
+        ),
+      ),
+      tls: tls,
+    );
+    try {
+      final secret = await _credentials.passwordFor(account);
+      if (account.usesOAuth) {
+        await client.authenticateOAuth(account.username, secret);
+      } else {
+        await client.authenticate(account.username, secret);
+      }
       return client;
     } on Object {
       await client.close();

@@ -14,6 +14,43 @@ import 'package:mail_sync/mail_sync.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test(
+    'background syncs skip views like Gmail Starred; opening syncs them',
+    () {
+      var id = 0;
+      StoredMailbox box(
+        String name, {
+        SpecialUse? use,
+        bool selectable = true,
+      }) => StoredMailbox(
+        id: ++id,
+        accountId: 1,
+        encodedName: name,
+        name: name,
+        selectable: selectable,
+        syncState: MailboxSyncState.empty,
+        delimiter: '/',
+        specialUse: use,
+      );
+      final inbox = box('INBOX');
+      final all = box('[Gmail]/All Mail', use: SpecialUse.all);
+      final starred = box('[Gmail]/Starred', use: SpecialUse.flagged);
+      final important = box('[Gmail]/Important', use: SpecialUse.important);
+      final parent = box('[Gmail]', selectable: false);
+      final appData = box(StoredMailbox.appDataName);
+      final folders = [inbox, all, starred, important, parent, appData];
+
+      expect(AccountSynchronizer.foldersToSync(folders, null), [inbox, all]);
+      expect(AccountSynchronizer.foldersToSync(folders, {starred.id}), [
+        starred,
+      ]);
+      expect(
+        AccountSynchronizer.foldersToSync(folders, {parent.id, appData.id}),
+        isEmpty,
+      );
+    },
+  );
+
   group('Backoff', () {
     test('doubles from 30 s, capped at 1 h, with at most 10% jitter', () {
       final backoff = Backoff(random: Random(1));

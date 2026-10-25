@@ -17,7 +17,8 @@ Needs Podman (rootless is fine) or Docker, plus `python3`, `openssl` and
 
 ## Servers
 
-One image (Dovecot 2.3 + Postfix on Ubuntu 24.04) runs in three modes.
+One image (Dovecot 2.3 with Pigeonhole Sieve + Postfix on Ubuntu 24.04)
+runs in three modes.
 Ports are in [servers.env](servers.env).
 
 | Mode | IMAP | IMAPS | Submission | Submissions | Purpose |
@@ -25,6 +26,11 @@ Ports are in [servers.env](servers.env).
 | secure | 10143 (STARTTLS required) | 10993 | 10587 (STARTTLS required) | 10465 | Normal testing. Full modern IMAP: IDLE, CONDSTORE, QRESYNC, MOVE, UIDPLUS, SPECIAL-USE |
 | limited | 12143 | 12993 | 12587 | 12465 | TLS, but no CONDSTORE, QRESYNC or MOVE, to test fallbacks |
 | plain | 11143 | none | 11587 | none | No encryption at all. Only for proving the app refuses it |
+
+The secure server also offers ManageSieve on 14190 (STARTTLS required), for
+the app's rules on the mail server: the active script runs on delivery.
+Tests that store a script remove it again, and send nothing that would stay
+in INBOX, since other tests count its messages.
 
 ## Users
 

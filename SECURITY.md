@@ -93,15 +93,48 @@ public issue. We aim to reply within 7 days.
     neither a sync conflict nor a malicious copy can overwrite another
     device's data, and a removal can't be undone by an old copy.
 
-12. **OAuth sign-in never handles the password.** Outlook accounts sign in
-    on Microsoft's page in the user's own browser (authorization code flow
-    with PKCE and `state`; RFC 7636, RFC 8252). The answer comes back to a
-    one-time listener on 127.0.0.1 (desktops) or the app's link (Android),
-    and is accepted only for the sign-in the app started. The app is a
-    public client, so there is no client secret to leak. Access and
-    refresh tokens live only in the keychain; IMAP and SMTP use them with
-    SASL XOAUTH2 over TLS. Only the OAuth package may open a listening
+12. **OAuth sign-in never handles the password.** Outlook accounts, and
+    Gmail accounts that choose it, sign in on Microsoft's or Google's page
+    in the user's own browser (authorization code flow with PKCE and
+    `state`; RFC 7636, RFC 8252). The answer comes back to a one-time
+    listener on 127.0.0.1 (desktops, and Android for Google) or the app's
+    link (Android, Microsoft), and is accepted only for the sign-in the
+    app started. Microsoft has no client secret; Google's desktop "client
+    secret" is in every copy of the app and protects nothing, so security
+    rests on PKCE, as for Microsoft. A user's own Google client ID and
+    secret are kept in the keychain, and each account remembers which
+    client signed it in, because its refresh token only works with that
+    one. Access and refresh tokens live only in the keychain; IMAP and SMTP use them with
+    SASL XOAUTH2 over TLS. A new password or sign-in for a saved account
+    is checked with a real login before it replaces the old one, and an
+    account signs in again only with the client that signed it in (or,
+    with no earlier tokens, the build's or the user's own). Only the
+    OAuth package may open a listening
     socket (CI enforces this).
+
+13. **Rules on the mail server change only the app's own script.** When
+    the user turns them on, ManageSieve (RFC 5804) is used over TLS only
+    (STARTTLS required, credentials refused without it), with the same
+    login as IMAP. The app stores one script, `citusmail`, and activates it
+    only when the server runs no other script: a filter the user set up
+    elsewhere is never replaced or edited. Every value in the script is
+    escaped (quotes, backslashes, line breaks, `:matches` wildcards), so a
+    rule can only file mail into a folder, never run other Sieve actions.
+    The server checks the script before storing it. Turning the setting
+    off removes the script.
+
+14. **Outside checks are opt-in and minimal.** Google Safe Browsing runs
+    only after the user turns it on and confirms. Its lists are checked
+    on the device; a link is never sent, only the first 4 bytes of a
+    matching SHA-256 fingerprint, to confirm. Lists are verified against
+    Google's checksum and downloaded afresh when they don't match. All
+    requests go through the hardened `mail_web` client. If a check can't
+    be made in time, the link opens with the usual on-device warnings.
+    VirusTotal, also opt-in, uses the user's own key and is only offered
+    for what the on-device checks flagged, one tap at a time: files are
+    looked up by SHA-256 and never uploaded, links are looked up and never
+    submitted. Its API key is the only extra header `mail_web` can send,
+    and only as a validated `X-` header.
 
 ## Releases
 

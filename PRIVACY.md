@@ -8,15 +8,21 @@ no analytics, no crash reporting and no advertising.
 | Destination | When | What is sent |
 | --- | --- | --- |
 | Your mail servers | Always, to read and send mail | Your login and mail, over TLS |
+| Your mail server's rules service (ManageSieve, port 4190) | Only with "Rules on the mail server" turned on, when your rules change (and once a day to check) | Your login over TLS, and a script with your blocked senders and folder rules, so the server sorts mail as it arrives |
 | Microsoft's sign-in service | Only for Outlook / Hotmail accounts: when you add one (in your own browser), and to renew access about every hour | Your sign-in happens on Microsoft's page; the app sends only the one-time code it gets back, and later its refresh token, to get access to your mail. Your password never passes through the app |
-| Your mail provider's settings file | When adding an account | Your email domain (in the web address only; no app name, no cookies) |
-| Your system's DNS resolver | When adding an account | Lookups for your domain's mail records |
+| Google's sign-in service | Only for Gmail accounts you add with "Sign in with Google": when you add one (in your own browser), and to renew access about every hour | As for Microsoft: the one-time code, then the refresh token, with the app's (or your own) client ID. Your password never passes through the app |
+| Google Cloud console | Only when you tap "Open Google Cloud" while entering your own client ID | Your browser opens the page |
+| Your mail provider's settings file | When adding an account (not for Gmail, whose settings are built in) | Your email domain (in the web address only; no app name, no cookies) |
+| Your system's DNS resolver | When adding an account | Lookups for your domain's mail records (MX, to recognise Google Workspace and Microsoft 365, and SRV) |
 | Common server names of your domain | When adding an account, if nothing else found them | A connection test without any login |
 | Mozilla's mail server database | Only if you allow it during setup | Your email domain, never the full address |
 | A newsletter's one-click unsubscribe address | Only when you tap Unsubscribe and confirm | One request with the fixed text `List-Unsubscribe=One-Click` and a generic user agent. No cookies, no referrer, no language. Like any connection, it shows your IP address |
 | A newsletter's unsubscribe email address | Only when you tap Unsubscribe and confirm | An email from your account saying "unsubscribe" (a copy is kept in Sent) |
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
 | Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, unsubscribes, folder rules and image senders, end-to-end encrypted |
+| Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
+| Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
+| VirusTotal (your own API key) | Only with "Ask VirusTotal" turned on, and only when you tap "Check with VirusTotal" on an attachment or link the on-device checks flagged | For a file, its SHA-256 fingerprint only (the file is never uploaded); for a link, the address. Your key goes with it. VirusTotal keeps what it is asked and sees your IP address |
 | A link in an email | Only when you tap it and confirm the address | Your browser opens the link, without tracking parameters such as `utm_source` |
 | Images in an email | Only when you tap "Load images", or for a sender you chose "Always from this sender" for (and only when your mail server verified the mail is from them) | A request for each image with a generic user agent: no cookies, no referrer, no language. Like any connection, it shows your IP address, and the sender can tell the message was opened. Tracking pixels are never requested |
 
@@ -24,12 +30,6 @@ Nothing else: the app's typeface (IBM Plex Sans) and icons are part of the
 app, and sender pictures are initials drawn on the device, so no fonts,
 avatars or other assets are ever downloaded.
 
-Planned optional features (off by default, each asks first):
-
-| Destination | What is sent |
-| --- | --- |
-| Google Safe Browsing | Hash prefixes downloaded to the device; links are checked locally |
-| VirusTotal (your own API key) | Only links or file hashes that local checks flagged |
 
 ## What stays on your device
 
@@ -39,7 +39,8 @@ device from a few message headers and your Sent folder. Phishing checks
 (sender verification, lookalike addresses, deceptive links, risky
 attachments) also run on the device only, using the results your own mail
 server already wrote into the message and a built-in list of domain
-endings. No link, address or file is looked up anywhere.
+endings. No link, address or file is looked up anywhere, unless you turn on Google
+Safe Browsing (see above), which still checks links on the device first.
 
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail

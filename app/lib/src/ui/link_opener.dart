@@ -3,10 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
+import 'package:mail_lookup/mail_lookup.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'trust_banner.dart';
+import 'virus_total_check.dart';
 
 /// Opens links from mail only after showing where they really go: the
 /// text of a link can say one thing and point somewhere else.
@@ -22,10 +24,29 @@ abstract final class LinkOpener {
     Uri link, {
     required void Function(Uri mailto) onMailto,
     TrustReport? trust,
+    Future<SafeBrowsingVerdict?> Function(Uri link)? safety,
+    Future<VirusTotalReport> Function(Uri link)? virusTotal,
   }) async {
     if (link.scheme == 'mailto') return onMailto(link);
     final reasons = <String>[...?trust?.link(link)?.reasons];
     var level = trust?.link(link)?.level ?? TrustLevel.ok;
+    // Google Safe Browsing, when the user turned it on: checked on the
+    // device, so this is quick unless a match must be confirmed.
+    if (safety != null) {
+      final verdict = await safety(link);
+      if (!context.mounted) return;
+      if (verdict?.threat case final threat?) {
+        level = TrustLevel.danger;
+        reasons.add(switch (threat) {
+          ThreatType.socialEngineering =>
+            'Google Safe Browsing lists this site as deceptive (phishing).',
+          ThreatType.malware =>
+            'Google Safe Browsing lists this site as spreading malware.',
+          ThreatType.unwantedSoftware =>
+            'Google Safe Browsing lists this site for unwanted software.',
+        });
+      }
+    }
     if (trust?.level == TrustLevel.danger) {
       level = TrustLevel.danger;
       reasons.add('This message may be a scam.');
@@ -76,6 +97,11 @@ abstract final class LinkOpener {
                 TrustReasons(level: level, reasons: reasons)
               else
                 for (final reason in reasons) Text(reason),
+            ],
+            // Only for a link the checks flagged, and only when asked.
+            if (risky && virusTotal != null) ...[
+              const SizedBox(height: 8),
+              VirusTotalCheck(what: 'link', lookup: () => virusTotal(cleaned)),
             ],
           ],
         ),

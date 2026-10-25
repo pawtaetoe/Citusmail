@@ -17,6 +17,21 @@ final class SrvRecord {
   final String target;
 }
 
+/// One DNS MX record (RFC 1035): where a domain's mail is delivered.
+final class MxRecord {
+  const MxRecord(this.preference, this.exchange);
+
+  final int preference;
+  final String exchange;
+}
+
+/// Looks up MX records. Like SRV answers, they are not authenticated.
+abstract interface class MxResolver {
+  /// Records for [domain], most preferred first. Empty when there are
+  /// none or the lookup failed.
+  Future<List<MxRecord>> lookupMx(String domain);
+}
+
 /// Looks up SRV records. Answers are not authenticated: treat them as
 /// suggestions to verify, never as trusted settings.
 abstract interface class SrvResolver {
@@ -28,16 +43,19 @@ abstract interface class SrvResolver {
 /// Used where the system's DNS servers cannot be found (Android, Windows):
 /// SRV discovery is skipped there rather than sending the domain to a
 /// public DNS provider.
-final class NoSrvResolver implements SrvResolver {
+final class NoSrvResolver implements SrvResolver, MxResolver {
   const NoSrvResolver();
 
   @override
   Future<List<SrvRecord>> lookup(String name) async => const [];
+
+  @override
+  Future<List<MxRecord>> lookupMx(String domain) async => const [];
 }
 
-/// A minimal DNS client (RFC 1035) for SRV queries over UDP to the
+/// A minimal DNS client (RFC 1035) for SRV and MX queries over UDP to the
 /// system's own resolvers, so the domain is not sent to anyone else.
-final class UdpSrvResolver implements SrvResolver {
+final class UdpSrvResolver implements SrvResolver, MxResolver {
   UdpSrvResolver(
     this.nameservers, {
     this.timeout = const Duration(seconds: 3),
@@ -66,12 +84,32 @@ final class UdpSrvResolver implements SrvResolver {
   final Random _random;
 
   static const _typeSrv = 33;
+  static const _typeMx = 15;
+
+  @override
+  Future<List<MxRecord>> lookupMx(String domain) async {
+    for (final server in nameservers) {
+      try {
+        final data = await _query(server, domain, _typeMx);
+        if (data != null) {
+          return DnsMessage.parseMxAnswer(data.$1, data.$2, domain)
+            ..sort((a, b) => a.preference.compareTo(b.preference));
+        }
+      } on Object {
+        // try the next server
+      }
+    }
+    return const [];
+  }
 
   @override
   Future<List<SrvRecord>> lookup(String name) async {
     for (final server in nameservers) {
       try {
-        final records = await _query(server, name);
+        final data = await _query(server, name, _typeSrv);
+        final records = data == null
+            ? null
+            : DnsMessage.parseSrvAnswer(data.$1, data.$2, name);
         if (records != null) {
           records.sort(
             (a, b) => a.priority != b.priority
@@ -87,8 +125,13 @@ final class UdpSrvResolver implements SrvResolver {
     return const [];
   }
 
-  /// One query; null when this server gave no usable answer.
-  Future<List<SrvRecord>?> _query(InternetAddress server, String name) async {
+  /// One query: the reply and the query id, or null when this server gave
+  /// no answer.
+  Future<(Uint8List, int)?> _query(
+    InternetAddress server,
+    String name,
+    int type,
+  ) async {
     final id = _random.nextInt(0x10000);
     final socket = await RawDatagramSocket.bind(
       server.type == InternetAddressType.IPv6
@@ -97,7 +140,7 @@ final class UdpSrvResolver implements SrvResolver {
       0,
     );
     try {
-      socket.send(DnsMessage.query(id, name, _typeSrv), server, 53);
+      socket.send(DnsMessage.query(id, name, type), server, 53);
       final completer = Completer<Uint8List?>();
       final subscription = socket.listen((event) {
         if (event != RawSocketEvent.read) return;
@@ -115,7 +158,7 @@ final class UdpSrvResolver implements SrvResolver {
           timeout,
           onTimeout: () => null,
         );
-        return data == null ? null : DnsMessage.parseSrvAnswer(data, id, name);
+        return data == null ? null : (data, id);
       } finally {
         await subscription.cancel();
       }
@@ -125,7 +168,7 @@ final class UdpSrvResolver implements SrvResolver {
   }
 }
 
-/// DNS message encoding and decoding for SRV queries.
+/// DNS message encoding and decoding for SRV and MX queries.
 abstract final class DnsMessage {
   static Uint8List query(int id, String name, int type) {
     final out = BytesBuilder();
@@ -152,6 +195,46 @@ abstract final class DnsMessage {
   /// [name]. Returns an empty list for "no such name"; throws
   /// [FormatException] for anything malformed or unexpected.
   static List<SrvRecord> parseSrvAnswer(Uint8List data, int id, String name) {
+    final records = <SrvRecord>[];
+    _answers(data, id, name, (type, length, reader) {
+      if (type == 33 && length >= 7) {
+        final priority = reader.u16(),
+            weight = reader.u16(),
+            port = reader.u16();
+        final target = reader.name();
+        // "." means the service is explicitly not offered (RFC 2782).
+        if (target.isNotEmpty && port > 0) {
+          records.add(SrvRecord(priority, weight, port, target.toLowerCase()));
+        }
+      }
+    });
+    return records;
+  }
+
+  /// The MX records in [data], checked like [parseSrvAnswer]. A null MX
+  /// ("." , RFC 7505: no mail accepted) is left out.
+  static List<MxRecord> parseMxAnswer(Uint8List data, int id, String name) {
+    final records = <MxRecord>[];
+    _answers(data, id, name, (type, length, reader) {
+      if (type == 15 && length >= 3) {
+        final preference = reader.u16();
+        final exchange = reader.name();
+        if (exchange.isNotEmpty) {
+          records.add(MxRecord(preference, exchange.toLowerCase()));
+        }
+      }
+    });
+    return records;
+  }
+
+  /// Checks the header and question, then hands each answer's type,
+  /// data length and a reader at its data to [onAnswer].
+  static void _answers(
+    Uint8List data,
+    int id,
+    String name,
+    void Function(int type, int length, _Reader reader) onAnswer,
+  ) {
     if (data.length < 12) throw const FormatException('DNS reply too short');
     final reader = _Reader(data);
     if (reader.u16() != id) {
@@ -160,7 +243,7 @@ abstract final class DnsMessage {
     final flags = reader.u16();
     if (flags & 0x8000 == 0) throw const FormatException('not a DNS reply');
     final rcode = flags & 0x000F;
-    if (rcode == 3) return const []; // NXDOMAIN
+    if (rcode == 3) return; // NXDOMAIN
     if (rcode != 0) throw FormatException('DNS error $rcode');
     final questions = reader.u16(), answers = reader.u16();
     reader.u16(); // authority
@@ -174,26 +257,16 @@ abstract final class DnsMessage {
       throw const FormatException('DNS reply for another name');
     }
     reader.skip(4);
-    final records = <SrvRecord>[];
     for (var i = 0; i < answers && i < 50; i++) {
       reader.name();
       final type = reader.u16();
       reader.skip(6); // class, TTL
       final length = reader.u16();
       final end = reader.position + length;
-      if (type == 33 && length >= 7) {
-        final priority = reader.u16(),
-            weight = reader.u16(),
-            port = reader.u16();
-        final target = reader.name();
-        // "." means the service is explicitly not offered (RFC 2782).
-        if (target.isNotEmpty && port > 0) {
-          records.add(SrvRecord(priority, weight, port, target.toLowerCase()));
-        }
-      }
+      if (end > data.length) throw const FormatException('DNS reply truncated');
+      onAnswer(type, length, reader);
       reader.position = end;
     }
-    return records;
   }
 
   static Uint8List _encodeName(String name) {

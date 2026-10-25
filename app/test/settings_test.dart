@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fmail/src/ui/settings_page.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import 'support/test_app.dart';
 
@@ -48,5 +49,54 @@ void main() {
     await tester.tap(find.text('Instant mail'));
     await tester.pump();
     expect(app.services.settings.instantMail, isTrue);
+  });
+
+  testWidgets('rules on the mail server: off by default; status per account', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    expect(app.services.settings.serverRules, isFalse);
+    expect(find.text('alice@fmail.test'), findsNothing);
+    await tester.tap(find.text('Rules on the mail server'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pump();
+    expect(app.services.settings.serverRules, isTrue);
+    expect(find.text('alice@fmail.test'), findsOneWidget);
+  });
+
+  test('server rules status in words', () {
+    final at = DateTime.utc(2026);
+    expect(serverRulesText(null), contains('next check'));
+    expect(
+      serverRulesText(ServerRulesStatus(ServerRulesState.active, at)),
+      'Running on the server.',
+    );
+    expect(
+      serverRulesText(
+        ServerRulesStatus(
+          ServerRulesState.otherScriptActive,
+          at,
+          detail: 'roundcube',
+        ),
+      ),
+      contains('"roundcube"'),
+    );
+    expect(
+      serverRulesText(ServerRulesStatus(ServerRulesState.notSupported, at)),
+      contains('doesn\'t support'),
+    );
+    expect(
+      serverRulesText(
+        ServerRulesStatus(ServerRulesState.failed, at, detail: 'quota'),
+      ),
+      contains('quota'),
+    );
   });
 }

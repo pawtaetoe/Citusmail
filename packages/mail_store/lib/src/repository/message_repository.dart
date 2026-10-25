@@ -8,6 +8,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
+import '../model/mailbox.dart';
 import '../model/message.dart';
 import 'search_query.dart';
 import 'section_sql.dart';
@@ -102,6 +103,22 @@ final class MessageRepository {
       'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id';
 
   static String _placeholders(int count) => List.filled(count, '?').join(', ');
+
+  /// Leaves out the extra copies Gmail-style servers show in All Mail,
+  /// Starred and Important, so lists across folders (pins, search) show
+  /// each message once: a copy there is hidden when the same message is in
+  /// an ordinary folder of the account, and a Starred or Important copy
+  /// also when it is in All Mail.
+  static final _notACopy = () {
+    final uses = StoredMailbox.copyUses.map((u) => "'$u'").join(', ');
+    return '(b.special_use IS NULL OR b.special_use NOT IN ($uses) '
+        'OR m.message_id_header IS NULL OR NOT EXISTS ('
+        'SELECT 1 FROM messages d JOIN mailboxes db ON db.id = d.mailbox_id '
+        'WHERE d.message_id_header = m.message_id_header '
+        'AND db.account_id = b.account_id AND d.id != m.id '
+        'AND (db.special_use IS NULL OR db.special_use NOT IN ($uses) '
+        "OR (db.special_use = 'all' AND b.special_use != 'all'))))";
+  }();
 
   /// Inserts or updates summaries by UID, in one transaction.
   void upsertSummaries(int mailboxId, List<MessageSummary> summaries) =>
@@ -322,6 +339,7 @@ final class MessageRepository {
       where.add('b.account_id IN (${_placeholders(ids.length)})');
       args.addAll(ids);
     }
+    if (mailboxId == null) where.add(_notACopy);
     if (query.section case final section?) {
       where.add('m.section = ?');
       args.add(section.name);
@@ -381,7 +399,8 @@ final class MessageRepository {
       return _db
           .select(
             'SELECT $_columns $_from JOIN message_search s ON s.rowid = m.id '
-            'WHERE message_search MATCH ? ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+            'WHERE message_search MATCH ? AND $_notACopy '
+            'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
             [query.toFtsMatch(), capped],
           )
           .map(_fromRow)
@@ -396,7 +415,8 @@ final class MessageRepository {
         .join(' AND ');
     return _db
         .select(
-          'SELECT $_columns $_from WHERE $conditions ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+          'SELECT $_columns $_from WHERE $conditions AND $_notACopy '
+          'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
           [
             for (final p in patterns) ...[p, p, p],
             capped,
@@ -593,12 +613,57 @@ final class MessageRepository {
     );
     if (rows.isEmpty) return const [];
     final ids = [for (final r in rows) r['id'] as int];
+    return _sortable(
+      rows,
+      _db.select(
+        'SELECT message_id, name, value FROM message_headers '
+        'WHERE message_id BETWEEN ? AND ? ORDER BY message_id, name, position',
+        [ids.first, ids.last],
+      ),
+    );
+  }
+
+  /// The newest [limit] messages from [address] (any case) that others
+  /// sent the user (not in Sent or Drafts), with what sorting needs.
+  List<SortableMessage> sortableFrom(String address, {int limit = 50}) {
+    final rows = _db.select(
+      'SELECT m.id, m.from_name, m.from_address, b.special_use '
+      'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id '
+      'WHERE m.from_address = ? COLLATE NOCASE '
+      "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts')) "
+      'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+      [address, limit.clamp(1, 500)],
+    );
+    if (rows.isEmpty) return const [];
+    final ids = [for (final r in rows) r['id'] as int];
+    return _sortable(
+      rows,
+      _db.select(
+        'SELECT message_id, name, value FROM message_headers '
+        'WHERE message_id IN (${_placeholders(ids.length)}) '
+        'ORDER BY message_id, name, position',
+        ids,
+      ),
+    );
+  }
+
+  /// Whether the user has written to [address] (any case, To/Cc/Bcc of a
+  /// message in a Sent folder).
+  bool hasWrittenTo(String address) => _db.select(
+    'SELECT 1 FROM message_addresses a '
+    'JOIN messages m ON m.id = a.message_id '
+    'JOIN mailboxes b ON b.id = m.mailbox_id '
+    "WHERE a.address = ? COLLATE NOCASE AND a.kind IN ('to', 'cc', 'bcc') "
+    "AND b.special_use = 'sent' LIMIT 1",
+    [address],
+  ).isNotEmpty;
+
+  List<SortableMessage> _sortable(
+    Iterable<Row> rows,
+    Iterable<Row> headerRows,
+  ) {
     final headers = <int, Map<String, List<String>>>{};
-    for (final row in _db.select(
-      'SELECT message_id, name, value FROM message_headers '
-      'WHERE message_id BETWEEN ? AND ? ORDER BY message_id, name, position',
-      [ids.first, ids.last],
-    )) {
+    for (final row in headerRows) {
       headers
           .putIfAbsent(row['message_id'] as int, () => {})
           .putIfAbsent(row['name'] as String, () => [])

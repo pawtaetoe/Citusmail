@@ -164,6 +164,47 @@ void main() {
       expect(utf8.decode(response.body!), '{"error":"invalid_grant"}');
     });
 
+    test('an API GET sends one key header and reads any answer', () async {
+      server = await _Server.start(
+        'HTTP/1.1 404 Not Found\r\nContent-Length: 18\r\n\r\n{"error":"absent"}',
+      );
+      final response = await _client(server).getApi(
+        Uri.parse('https://www.virustotal.example/api/v3/files/abc'),
+        apiKeyHeader: 'x-apikey',
+        apiKey: 'k3y-123',
+        maxAnswer: 1000,
+      );
+      expect(response.statusCode, 404);
+      expect(utf8.decode(response.body!), '{"error":"absent"}');
+      expect(
+        server.requests.single,
+        'GET /api/v3/files/abc HTTP/1.1\r\n'
+        'Host: www.virustotal.example\r\n'
+        'User-Agent: Mozilla/5.0\r\n'
+        'Accept: */*\r\n'
+        'x-apikey: k3y-123\r\n'
+        'Connection: close\r\n'
+        '\r\n',
+      );
+      for (final (header, key) in [
+        ('Cookie', 'k'),
+        ('x-apikey', 'two\r\nCookie: a=b'),
+        ('x-apikey', ''),
+        ('Authorization', 'k'),
+      ]) {
+        expect(
+          () => _client(server).getApi(
+            Uri.parse('https://a.example.com/'),
+            apiKeyHeader: header,
+            apiKey: key,
+            maxAnswer: 10,
+          ),
+          throwsArgumentError,
+          reason: '$header: $key',
+        );
+      }
+    });
+
     test('redirects are reported, not followed', () async {
       server = await _Server.start(
         'HTTP/1.1 302 Found\r\nLocation: https://elsewhere.example.com/\r\n\r\n',

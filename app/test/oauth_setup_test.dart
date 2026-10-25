@@ -202,12 +202,211 @@ void main() {
       expect(flow.saved, isEmpty);
     });
 
+    test(
+      'a Microsoft 365 domain (by its MX records) signs in, no password',
+      () async {
+        final signedIn = <(OAuthProvider, String)>[];
+        final saved = <DiscoveredSettings>[];
+        final controller = SetupController(
+          discover: (email, {askMozillaConsent, onStep}) async =>
+              const DiscoveryResult(null, host: MailHost.microsoft365),
+          verify: (settings, password) async =>
+              throw StateError('no password check'),
+          save: (settings, password, {displayName}) async =>
+              throw StateError('no password save'),
+          hostedProvider: (host) =>
+              host == MailHost.microsoft365 ? _microsoft : null,
+          oauthSignIn: (provider, email) async {
+            signedIn.add((provider, email));
+            return OAuthTokens(
+              accessToken: 'AT',
+              refreshToken: 'RT',
+              expiresAt: DateTime.utc(2030),
+            );
+          },
+          verifyOAuth: (settings, token) async =>
+              const VerificationResult.success(),
+          saveOAuth: (settings, provider, tokens, {displayName}) async {
+            saved.add(settings);
+            return _account;
+          },
+        );
+        await controller.start(
+          email: 'ana@contoso.example',
+          password: 'typed anyway',
+          askMozillaConsent: (_) async => false,
+        );
+        expect(signedIn.single.$2, 'ana@contoso.example');
+        expect(saved.single.imap.host, 'outlook.office365.com');
+        expect(saved.single.username, 'ana@contoso.example');
+        expect(controller.state, isA<SetupDone>());
+      },
+    );
+
     test('other addresses keep the password flow', () {
       expect(SetupController.defaultProviderFor('me@tommykung.cc'), isNull);
       expect(
         SetupController.defaultProviderFor('Me@Hotmail.com'),
         same(OAuthProvider.microsoft),
       );
+    });
+  });
+
+  group('setup with Google', () {
+    late _Secrets secrets;
+    late List<(OAuthProvider, String)> signedIn;
+    late List<(DiscoveredSettings, OAuthProvider, OAuthTokens)> saved;
+    setUp(() {
+      secrets = _Secrets();
+      signedIn = [];
+      saved = [];
+    });
+
+    SetupController controller({OAuthProvider google = OAuthProvider.google}) {
+      final own = OwnOAuthClients(secrets);
+      return SetupController(
+        discover: (email, {askMozillaConsent, onStep}) async =>
+            DiscoveryResult(KnownProvider.gmail.settingsFor(email)),
+        verify: (settings, password) async =>
+            const VerificationResult.success(),
+        save: (settings, password, {displayName}) async =>
+            throw StateError('no password save'),
+        optionalProviderFor: (email) =>
+            email.endsWith('@gmail.com') ? google : null,
+        oauthSignIn: (provider, email) async {
+          signedIn.add((provider, email));
+          return OAuthTokens(
+            accessToken: 'AT',
+            refreshToken: 'RT',
+            expiresAt: DateTime.utc(2030),
+          );
+        },
+        verifyOAuth: (settings, token) async =>
+            const VerificationResult.success(),
+        saveOAuth: (settings, provider, tokens, {displayName}) async {
+          saved.add((settings, provider, tokens));
+          return _account;
+        },
+        ownClient: own.read,
+        saveOwnClient: own.save,
+      );
+    }
+
+    Future<void> show(WidgetTester tester, SetupController c) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SetupPage(controller: c, onDone: (_) {}),
+        ),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email address'),
+        'me@gmail.com',
+      );
+      await tester.pump();
+    }
+
+    Future<void> tapText(WidgetTester tester, String text) async {
+      await tester.ensureVisible(find.text(text));
+      await tester.tap(find.text(text));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    testWidgets('without a built-in client: the user\'s own, then sign-in', (
+      tester,
+    ) async {
+      final c = controller();
+      await show(tester, c);
+      // The app password stays the main way; Google is offered too.
+      expect(
+        find.widgetWithText(TextFormField, 'App password'),
+        findsOneWidget,
+      );
+      expect(find.text('Use your own Google client ID'), findsOneWidget);
+      await tapText(tester, 'Sign in with Google instead');
+      expect(c.state, isA<EnteringOwnClient>());
+      expect(find.text('Your own Google client ID'), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Client ID'),
+        'not-a-google-id',
+      );
+      await tapText(tester, 'Continue with Google');
+      expect(find.textContaining('googleusercontent.com'), findsWidgets);
+      expect(signedIn, isEmpty);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Client ID'),
+        '123-abc.apps.googleusercontent.com',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Client secret'),
+        'GOCSPX-x1y2z3',
+      );
+      await tapText(tester, 'Continue with Google');
+      expect(signedIn.single.$1.clientId, '123-abc.apps.googleusercontent.com');
+      expect(signedIn.single.$1.clientSecret, 'GOCSPX-x1y2z3');
+      expect(signedIn.single.$2, 'me@gmail.com');
+      expect(
+        (await OwnOAuthClients(secrets).read('google'))!.clientId,
+        '123-abc.apps.googleusercontent.com',
+      );
+      final (settings, provider, tokens) = saved.single;
+      expect(provider.id, 'google');
+      expect(settings.imap.host, 'imap.gmail.com');
+      expect(settings.smtp.host, 'smtp.gmail.com');
+      expect(settings.smtp.port, 587);
+      expect(settings.smtp.security, ConnectionSecurity.startTls);
+      expect(
+        tokens.registration!.clientId,
+        '123-abc.apps.googleusercontent.com',
+        reason: 'renewals need the same client',
+      );
+      expect(c.state, isA<SetupDone>());
+    });
+
+    test('a saved own client is used straight away', () async {
+      await OwnOAuthClients(secrets).save(
+        'google',
+        OAuthRegistration('123-abc.apps.googleusercontent.com', 'GOCSPX-x'),
+      );
+      final c = controller();
+      await c.signInWithAny(OAuthProvider.google, email: 'me@gmail.com');
+      expect(signedIn.single.$1.clientId, '123-abc.apps.googleusercontent.com');
+      expect(c.state, isA<SetupDone>());
+    });
+
+    testWidgets('with a built-in client: signs in, no client ID asked', (
+      tester,
+    ) async {
+      final builtIn = OAuthProvider.google.withClientId(
+        '999-built.apps.googleusercontent.com',
+        clientSecret: 'GOCSPX-built',
+      );
+      final c = controller(google: builtIn);
+      await show(tester, c);
+      expect(find.text('Use your own Google client ID'), findsNothing);
+      await tapText(tester, 'Sign in with Google instead');
+      expect(
+        signedIn.single.$1.clientId,
+        '999-built.apps.googleusercontent.com',
+      );
+      expect(c.state, isA<SetupDone>());
+    });
+
+    testWidgets('other addresses are not offered Google', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SetupPage(controller: controller(), onDone: (_) {}),
+        ),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email address'),
+        'me@tommykung.cc',
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('optional-sign-in')), findsNothing);
     });
   });
 
@@ -297,6 +496,43 @@ void main() {
       final kept = OAuthTokens.fromJson(secrets.values[_account.keychainKey])!;
       expect((kept.accessToken, kept.refreshToken), ('AT-2', 'RT-2'));
     });
+
+    test(
+      'Google tokens from an own client are renewed with that client',
+      () async {
+        reply = jsonEncode({'access_token': 'AT-2', 'expires_in': 3600});
+        final own = OAuthRegistration(
+          '123-abc.apps.googleusercontent.com',
+          'GOCSPX-x1y2z3',
+        );
+        final google = Account(
+          id: 8,
+          email: 'me@gmail.com',
+          username: 'me@gmail.com',
+          imap: _account.imap,
+          smtp: _account.smtp,
+          sortOrder: 1,
+          createdAt: DateTime.utc(2026),
+          oauthProvider: 'google',
+        );
+        final secrets = _Secrets()
+          ..values[google.keychainKey] = OAuthTokens(
+            accessToken: 'AT-1',
+            refreshToken: 'RT-1',
+            expiresAt: DateTime.utc(2020),
+          ).issuedTo(own).toJson();
+        expect(await credentials(secrets).passwordFor(google), 'AT-2');
+        expect(requests.single['client_id'], own.clientId);
+        expect(requests.single['client_secret'], own.clientSecret);
+        final kept = OAuthTokens.fromJson(secrets.values[google.keychainKey])!;
+        expect(kept.refreshToken, 'RT-1', reason: 'Google sends no new one');
+        expect(
+          kept.registration!.clientId,
+          own.clientId,
+          reason: 'still known',
+        );
+      },
+    );
 
     test('a revoked sign-in asks to sign in again', () async {
       status = 400;

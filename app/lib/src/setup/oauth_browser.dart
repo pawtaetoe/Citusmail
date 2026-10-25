@@ -10,8 +10,9 @@ import 'package:mail_oauth/mail_oauth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Runs a provider's sign-in in the user's own browser and brings the
-/// answer back: on desktops through a one-time loopback listener, on
-/// Android through the app's link (`com.fluminaris.citusmail://oauth`).
+/// answer back: through a one-time loopback listener, or on Android for
+/// providers that allow it ([OAuthProvider.appLinkRedirect]: Microsoft)
+/// through the app's link (`com.fluminaris.citusmail://oauth`).
 final class OAuthBrowser {
   OAuthBrowser(this._tokens);
 
@@ -43,7 +44,7 @@ final class OAuthBrowser {
   Future<OAuthTokens> signIn(OAuthProvider provider, String email) async {
     final AuthorizationRequest request;
     final Uri answer;
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid && provider.appLinkRedirect) {
       request = AuthorizationRequest.start(
         provider,
         redirectUri: androidRedirect,

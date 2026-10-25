@@ -1,0 +1,22 @@
+name: mail_lookup
+description: >-
+  Optional checks with outside services, each off until the user turns it
+  on: Google Safe Browsing (hash lists downloaded, links checked on the
+  device; only a hash prefix is sent to confirm a match) and VirusTotal
+  with the user's own key (lookups by file hash, never uploads). All
+  requests go through mail_web. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  crypto: ^3.0.6
+  mail_web: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  mail_protocol: any
+  test: ^1.25.6

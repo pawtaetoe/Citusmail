@@ -207,6 +207,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
     );
+    await tester.scrollUntilVisible(find.text('Images'), 100);
     await tester.tap(find.text('Images'));
     await tester.pumpAndSettle();
     expect(find.text('news@shop.example'), findsOneWidget);
