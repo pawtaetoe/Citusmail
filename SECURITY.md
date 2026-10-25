@@ -130,6 +130,11 @@ public issue. We aim to reply within 7 days.
     Google's checksum and downloaded afresh when they don't match. All
     requests go through the hardened `mail_web` client. If a check can't
     be made in time, the link opens with the usual on-device warnings.
+    VirusTotal, also opt-in, uses the user's own key and is only offered
+    for what the on-device checks flagged, one tap at a time: files are
+    looked up by SHA-256 and never uploaded, links are looked up and never
+    submitted. Its API key is the only extra header `mail_web` can send,
+    and only as a validated `X-` header.
 
 ## Releases
 

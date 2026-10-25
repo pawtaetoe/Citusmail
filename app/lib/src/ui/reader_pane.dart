@@ -5,6 +5,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:mail_lookup/mail_lookup.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
@@ -22,6 +23,7 @@ import 'move_dialog.dart';
 import 'rich_document_view.dart';
 import 'trust_banner.dart';
 import 'unsubscribe_dialog.dart';
+import 'virus_total_check.dart';
 
 /// The right pane: actions, the message header, its body (built lazily,
 /// block by block) and attachments, in a column of comfortable reading
@@ -73,6 +75,9 @@ final class ReaderPane extends StatelessWidget {
                   onMailto: controller.composeTo,
                   trust: trust,
                   safety: controller.services.linkSafety.check,
+                  virusTotal: controller.services.virusTotal.enabled
+                      ? controller.services.virusTotal.link
+                      : null,
                 );
                 return SelectionArea(
                   child: CustomScrollView(
@@ -117,6 +122,10 @@ final class ReaderPane extends StatelessWidget {
                                 _Attachments(
                                   attachments: view.attachments,
                                   trust: trust ?? TrustReport.empty,
+                                  virusTotal:
+                                      controller.services.virusTotal.enabled
+                                      ? controller.services.virusTotal.file
+                                      : null,
                                 ),
                               ],
                             ],
@@ -697,10 +706,17 @@ final class _Notice extends StatelessWidget {
 }
 
 final class _Attachments extends StatelessWidget {
-  const _Attachments({required this.attachments, required this.trust});
+  const _Attachments({
+    required this.attachments,
+    required this.trust,
+    this.virusTotal,
+  });
 
   final List<AttachmentView> attachments;
   final TrustReport trust;
+
+  /// VirusTotal by file hash, when the user turned it on.
+  final Future<VirusTotalReport> Function(List<int> bytes)? virusTotal;
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -742,7 +758,10 @@ final class _Attachments extends StatelessWidget {
     AttachmentVerdict? verdict,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
-    if (verdict != null && !await _confirm(context, verdict)) return;
+    if (verdict != null &&
+        !await _confirm(context, verdict, attachment, virusTotal)) {
+      return;
+    }
     try {
       final file = await AttachmentSaver.save(attachment);
       messenger.showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
@@ -757,6 +776,8 @@ final class _Attachments extends StatelessWidget {
   static Future<bool> _confirm(
     BuildContext context,
     AttachmentVerdict verdict,
+    AttachmentView attachment,
+    Future<VirusTotalReport> Function(List<int> bytes)? virusTotal,
   ) async =>
       await showDialog<bool>(
         context: context,
@@ -777,6 +798,13 @@ final class _Attachments extends StatelessWidget {
               const Text(
                 'Only open it if you were expecting it from someone you know.',
               ),
+              if (virusTotal != null) ...[
+                const SizedBox(height: 8),
+                VirusTotalCheck(
+                  what: 'file',
+                  lookup: () => virusTotal(attachment.bytes()),
+                ),
+              ],
             ],
           ),
           actions: [

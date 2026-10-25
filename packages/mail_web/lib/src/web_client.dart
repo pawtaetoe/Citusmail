@@ -201,6 +201,38 @@ final class WebClient {
     bodyForAnyStatus: true,
   );
 
+  /// GETs [url] from a service the user set up with their own key
+  /// (VirusTotal), sending [apiKeyHeader] with [apiKey]; no redirects are
+  /// followed. The answer's body is read for any status (up to
+  /// [maxAnswer]), as such services explain refusals in it. Throws
+  /// [WebException], or [ArgumentError] for a header that is not a plain
+  /// API key header.
+  Future<WebResponse> getApi(
+    Uri url, {
+    required String apiKeyHeader,
+    required String apiKey,
+    required int maxAnswer,
+  }) {
+    final name = apiKeyHeader.toLowerCase();
+    if (!RegExp(r'^x-[a-z0-9-]{1,60}$').hasMatch(name)) {
+      throw ArgumentError.value(
+        apiKeyHeader,
+        'apiKeyHeader',
+        'not an X- header',
+      );
+    }
+    if (!RegExp(r'^[\x21-\x7E]{1,512}$').hasMatch(apiKey)) {
+      throw ArgumentError('the API key is not usable');
+    }
+    return _request(
+      'GET',
+      url,
+      maxBody: maxAnswer,
+      bodyForAnyStatus: true,
+      extraHeader: '$apiKeyHeader: $apiKey',
+    );
+  }
+
   Future<WebResponse> _request(
     String method,
     Uri url, {
@@ -208,6 +240,7 @@ final class WebClient {
     String? contentType,
     int? maxBody,
     bool bodyForAnyStatus = false,
+    String? extraHeader,
   }) async {
     final target = _check(url);
     try {
@@ -218,6 +251,7 @@ final class WebClient {
         contentType,
         maxBody,
         bodyForAnyStatus,
+        extraHeader,
       ).timeout(limits.timeout);
     } on TimeoutException {
       throw WebException(WebProblem.timeout, '${target.host} took too long');
@@ -239,6 +273,7 @@ final class WebClient {
     String? contentType,
     int? maxBody,
     bool bodyForAnyStatus,
+    String? extraHeader,
   ) async {
     final List<InternetAddress> addresses;
     try {
@@ -264,7 +299,9 @@ final class WebClient {
       limits.timeout,
     );
     try {
-      await socket.write(_requestBytes(method, target, body, contentType));
+      await socket.write(
+        _requestBytes(method, target, body, contentType, extraHeader),
+      );
       final response = await _readResponse(socket);
       final status = response.statusCode;
       final wanted =
@@ -291,6 +328,7 @@ final class WebClient {
     Uri target,
     List<int> body,
     String? contentType,
+    String? extraHeader,
   ) {
     final path = target.path.isEmpty ? '/' : target.path;
     final requestTarget = target.hasQuery ? '$path?${target.query}' : path;
@@ -299,6 +337,7 @@ final class WebClient {
       ..write('Host: ${target.host}\r\n')
       ..write('User-Agent: $userAgent\r\n')
       ..write('Accept: */*\r\n');
+    if (extraHeader != null) head.write('$extraHeader\r\n');
     if (contentType != null) head.write('Content-Type: $contentType\r\n');
     if (method == 'POST' || body.isNotEmpty) {
       head.write('Content-Length: ${body.length}\r\n');

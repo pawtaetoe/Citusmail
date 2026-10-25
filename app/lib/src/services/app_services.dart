@@ -21,6 +21,7 @@ import 'device_sync.dart';
 import 'link_safety.dart';
 import 'remote_images.dart';
 import 'secret_store.dart';
+import 'virus_total_checks.dart';
 
 /// Everything the running app uses.
 ///
@@ -53,6 +54,7 @@ final class AppServices {
     this.lock,
     this._databasePath,
   ) : deviceSync = DeviceSync(store, secrets, worker),
+      virusTotal = VirusTotalChecks(store, secrets, web),
       linkSafety = LinkSafety(
         store,
         secrets,
@@ -82,6 +84,9 @@ final class AppServices {
 
   /// Optional Google Safe Browsing link checks (off by default).
   final LinkSafety linkSafety;
+
+  /// Optional VirusTotal lookups with the user's key (off by default).
+  final VirusTotalChecks virusTotal;
 
   /// Local changes (read, pin, move, delete); the worker sends them on.
   final MailActions actions;

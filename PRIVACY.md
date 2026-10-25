@@ -22,6 +22,7 @@ no analytics, no crash reporting and no advertising.
 | Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, unsubscribes, folder rules and image senders, end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
 | Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
+| VirusTotal (your own API key) | Only with "Ask VirusTotal" turned on, and only when you tap "Check with VirusTotal" on an attachment or link the on-device checks flagged | For a file, its SHA-256 fingerprint only (the file is never uploaded); for a link, the address. Your key goes with it. VirusTotal keeps what it is asked and sees your IP address |
 | A link in an email | Only when you tap it and confirm the address | Your browser opens the link, without tracking parameters such as `utm_source` |
 | Images in an email | Only when you tap "Load images", or for a sender you chose "Always from this sender" for (and only when your mail server verified the mail is from them) | A request for each image with a generic user agent: no cookies, no referrer, no language. Like any connection, it shows your IP address, and the sender can tell the message was opened. Tracking pixels are never requested |
 
@@ -29,11 +30,6 @@ Nothing else: the app's typeface (IBM Plex Sans) and icons are part of the
 app, and sender pictures are initials drawn on the device, so no fonts,
 avatars or other assets are ever downloaded.
 
-Planned optional features (off by default, each asks first):
-
-| Destination | What is sent |
-| --- | --- |
-| VirusTotal (your own API key) | Only links or file hashes that local checks flagged |
 
 ## What stays on your device
 

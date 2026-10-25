@@ -8,3 +8,4 @@ library;
 
 export 'src/safe_browsing.dart';
 export 'src/safe_browsing_url.dart';
+export 'src/virus_total.dart';

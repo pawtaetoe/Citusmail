@@ -33,6 +33,7 @@ macOS and iOS for later.
 │   ├── mail_compose/         Writing mail: drafts, replies, sending with undo
 │   ├── mail_lookup/          Optional outside checks, off until turned on: Google
 │                             Safe Browsing (lists on the device, prefixes only)
+│                             and VirusTotal (your key; file hashes, no uploads)
 │   ├── mail_oauth/           OAuth 2.0 sign-in (Outlook, Google): PKCE, browser, tokens
 │   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP, SMTP and
 │                             ManageSieve, written from scratch with no

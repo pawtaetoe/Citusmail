@@ -13,6 +13,7 @@ import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
 import '../services/link_safety.dart';
+import '../services/virus_total_checks.dart';
 import 'block_dialog.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
@@ -173,6 +174,18 @@ final class _SettingsPageState extends State<SettingsPage> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _setVirusTotal(bool on) async {
+    if (!on) {
+      await widget.services.virusTotal.disable();
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => VirusTotalDialog(checks: widget.services.virusTotal),
+      );
+    }
+    if (mounted) setState(() {});
+  }
+
   Future<void> _setServerRules(bool on) async {
     setState(() => widget.services.settings.serverRules = on);
     try {
@@ -227,6 +240,18 @@ final class _SettingsPageState extends State<SettingsPage> {
             ),
             value: widget.services.linkSafety.enabled,
             onChanged: _setSafeBrowsing,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.policy_outlined),
+            title: const Text('Ask VirusTotal about flagged files and links'),
+            subtitle: Text(
+              widget.services.virusTotal.enabled
+                  ? 'On, with your API key. Offered for risky attachments and suspicious '
+                        'links, only when you tap "Check with VirusTotal".'
+                  : 'Off.',
+            ),
+            value: widget.services.virusTotal.enabled,
+            onChanged: _setVirusTotal,
           ),
           const _Group('Senders and devices'),
           DeviceSyncTile(services: widget.services),
@@ -403,6 +428,106 @@ final class _SafeBrowsingDialogState extends State<SafeBrowsingDialog> {
             const LinearProgressIndicator(),
             const SizedBox(height: 8),
             const Text('Downloading the lists…'),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _busy ? null : () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _busy ? null : _turnOn,
+        child: const Text('Turn on'),
+      ),
+    ],
+  );
+}
+
+/// Asks before VirusTotal is turned on: what is sent, and the user's key.
+final class VirusTotalDialog extends StatefulWidget {
+  const VirusTotalDialog({super.key, required this.checks});
+
+  final VirusTotalChecks checks;
+
+  @override
+  State<VirusTotalDialog> createState() => _VirusTotalDialogState();
+}
+
+final class _VirusTotalDialogState extends State<VirusTotalDialog> {
+  final _key = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  Future<void> _turnOn() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final problem = await widget.checks.enable(_key.text);
+    if (!mounted) return;
+    if (problem == null) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        _busy = false;
+        _error = problem;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Ask VirusTotal?'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'When $appName flags an attachment or a link as risky, it can ask VirusTotal what '
+            'dozens of security vendors think of it, only when you tap "Check with VirusTotal".',
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'For a file, only its fingerprint (SHA-256) is sent; the file never is. For a link, '
+            'the address itself is sent. VirusTotal (Google) keeps what it is asked and sees your '
+            'IP address.',
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Use your own free API key from virustotal.com (your profile, "API key"). It stays in '
+            'this device\'s keychain.',
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _key,
+            enabled: !_busy,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: const InputDecoration(
+              labelText: 'API key',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (_busy) ...[
+            const SizedBox(height: 16),
+            const LinearProgressIndicator(),
           ],
           if (_error != null) ...[
             const SizedBox(height: 16),
