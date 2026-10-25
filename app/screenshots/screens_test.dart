@@ -21,14 +21,18 @@ import 'package:fmail/src/setup/setup_page.dart';
 import 'package:fmail/src/ui/fmail_theme.dart';
 import 'package:fmail/src/ui/mail_shell.dart';
 import 'package:fmail/src/ui/settings_page.dart';
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
+import 'package:mail_store/mail_store.dart';
 
 import '../test/support/test_app.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
 Future<void> _loadFonts() async {
-  final home = Platform.environment['HOME']!;
-  final cache = '$home/development/flutter/bin/cache/artifacts/material_fonts';
+  final flutter =
+      Platform.environment['FLUTTER_ROOT'] ??
+      '${Platform.environment['HOME']}/development/flutter';
+  final cache = '$flutter/bin/cache/artifacts/material_fonts';
   Future<void> load(String family, List<String> files) async {
     final loader = FontLoader(family);
     for (final f in files) {
@@ -135,6 +139,19 @@ void main() {
     });
   }
 
+  // The README's demo screens: a fuller inbox with made-up senders.
+  // SCREEN_OUT=../docs/screenshots flutter test screenshots/screens_test.dart --plain-name readme
+  for (final (name, size) in [
+    ('readme_desktop', const Size(1440, 860)),
+    ('readme_phone', const Size(390, 844)),
+  ]) {
+    testWidgets('readme $name', (tester) async {
+      _seedDemo(app.store);
+      await show(tester, shell(), size: size, dark: true);
+      await shoot(tester, name);
+    });
+  }
+
   testWidgets('settings', (tester) async {
     await show(
       tester,
@@ -166,6 +183,101 @@ void main() {
     await tester.tap(find.byTooltip('New message (C)'));
     await shoot(tester, 'desktop_compose');
   });
+}
+
+/// Made-up mail for the demo screens.
+void _seedDemo(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  MailAddress who(String address, String name) {
+    final at = address.indexOf('@');
+    return MailAddress(
+      localPart: address.substring(0, at),
+      domain: address.substring(at + 1),
+      displayName: name,
+    );
+  }
+
+  var uid = 200;
+  MessageSummary mail(
+    int minutesAgo,
+    String from,
+    String name,
+    String subject, {
+    String? snippet,
+    MessageCategory category = MessageCategory.general,
+    String? code,
+    bool seen = false,
+  }) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.subtract(Duration(minutes: minutesAgo)),
+    subject: subject,
+    from: who(from, name),
+    snippet: snippet,
+    category: category,
+    code: code,
+    flags: MessageFlags.fromImap([if (seen) r'\Seen']),
+  );
+
+  // The test inbox's "Stranger Danger", under a friendlier name.
+  final hello = store.messages.byUid(inbox.id, 1)!;
+  store.messages.upsertSummaries(inbox.id, [
+    MessageSummary(
+      uid: 1,
+      receivedAt: hello.receivedAt,
+      subject: 'Photos from the trip',
+      from: who('sam@contoso.example', 'Sam Rivera'),
+      snippet: 'Here are the best ones. The lake at sunrise is my favourite.',
+    ),
+  ]);
+  store.messages.upsertSummaries(inbox.id, [
+    mail(
+      2,
+      'no-reply@northwind.example',
+      'Northwind Bank',
+      'Your sign-in code',
+      category: MessageCategory.codes,
+      code: '482913',
+    ),
+    mail(
+      9,
+      'accounts@tailspin.example',
+      'Tailspin',
+      'Reset your password',
+      snippet: 'Someone asked to reset the password for your account.',
+      category: MessageCategory.codes,
+      code: '',
+      seen: true,
+    ),
+    mail(
+      14,
+      'maya@fabrikam.example',
+      'Maya Chen',
+      'Design review moved to Thursday',
+      snippet: 'Same room, 3pm. I have attached the latest mockups.',
+    ),
+    mail(
+      40,
+      'jon@contoso.example',
+      'Jon Park',
+      'Weekend hike?',
+      snippet: 'Weather looks good for Saturday. Leaving at 8 from the lake.',
+    ),
+    mail(
+      95,
+      'news@adventure.example',
+      'Adventure Works',
+      'Autumn trail guide',
+      category: MessageCategory.newsletters,
+    ),
+    mail(
+      130,
+      'noreply@parcel.example',
+      'Parcel Co',
+      'Your parcel is out for delivery',
+      category: MessageCategory.notifications,
+    ),
+  ]);
 }
 
 /// Lets isolates (message parsing) finish and animations end.
