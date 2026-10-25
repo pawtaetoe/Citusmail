@@ -17,6 +17,11 @@ import 'package:test/test.dart';
 import '../support/test_env.dart';
 
 void main() {
+  final skip = integrationSkipReason;
+  if (skip != null) {
+    test('needs the local test servers', () {}, skip: skip);
+    return;
+  }
   late TestServers servers;
   late TestDevice device;
   late DefaultMailConnector connector;
