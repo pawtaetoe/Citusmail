@@ -613,12 +613,57 @@ final class MessageRepository {
     );
     if (rows.isEmpty) return const [];
     final ids = [for (final r in rows) r['id'] as int];
+    return _sortable(
+      rows,
+      _db.select(
+        'SELECT message_id, name, value FROM message_headers '
+        'WHERE message_id BETWEEN ? AND ? ORDER BY message_id, name, position',
+        [ids.first, ids.last],
+      ),
+    );
+  }
+
+  /// The newest [limit] messages from [address] (any case) that others
+  /// sent the user (not in Sent or Drafts), with what sorting needs.
+  List<SortableMessage> sortableFrom(String address, {int limit = 50}) {
+    final rows = _db.select(
+      'SELECT m.id, m.from_name, m.from_address, b.special_use '
+      'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id '
+      'WHERE m.from_address = ? COLLATE NOCASE '
+      "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts')) "
+      'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+      [address, limit.clamp(1, 500)],
+    );
+    if (rows.isEmpty) return const [];
+    final ids = [for (final r in rows) r['id'] as int];
+    return _sortable(
+      rows,
+      _db.select(
+        'SELECT message_id, name, value FROM message_headers '
+        'WHERE message_id IN (${_placeholders(ids.length)}) '
+        'ORDER BY message_id, name, position',
+        ids,
+      ),
+    );
+  }
+
+  /// Whether the user has written to [address] (any case, To/Cc/Bcc of a
+  /// message in a Sent folder).
+  bool hasWrittenTo(String address) => _db.select(
+    'SELECT 1 FROM message_addresses a '
+    'JOIN messages m ON m.id = a.message_id '
+    'JOIN mailboxes b ON b.id = m.mailbox_id '
+    "WHERE a.address = ? COLLATE NOCASE AND a.kind IN ('to', 'cc', 'bcc') "
+    "AND b.special_use = 'sent' LIMIT 1",
+    [address],
+  ).isNotEmpty;
+
+  List<SortableMessage> _sortable(
+    Iterable<Row> rows,
+    Iterable<Row> headerRows,
+  ) {
     final headers = <int, Map<String, List<String>>>{};
-    for (final row in _db.select(
-      'SELECT message_id, name, value FROM message_headers '
-      'WHERE message_id BETWEEN ? AND ? ORDER BY message_id, name, position',
-      [ids.first, ids.last],
-    )) {
+    for (final row in headerRows) {
       headers
           .putIfAbsent(row['message_id'] as int, () => {})
           .putIfAbsent(row['name'] as String, () => [])

@@ -38,6 +38,7 @@ macOS and iOS for later.
 │   ├── mail_setup/           Account setup: discovery (Gmail built in) and
 │                             login verification
 │   ├── mail_sort/            Sorting into General, Newsletters, Notifications
+│                             (header rules, plus what each sender's mail shows)
 │   ├── mail_store/           Encrypted local storage (SQLite3MultipleCiphers)
 │   ├── mail_sync/            Sync engine and background worker: folders, messages,
 │                             offline queue, IDLE, opening messages, older mail

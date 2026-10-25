@@ -6,17 +6,22 @@ import 'package:mail_store/mail_store.dart';
 
 import 'classification.dart';
 import 'header_rule_classifier.dart';
+import 'learned_classifier.dart';
 import 'list_id.dart';
 
 /// Re-sorts stored mail from its stored headers when the rules change
 /// (and once after upgrading from a version without sorting). Nothing is
 /// downloaded.
 final class Resorter {
-  Resorter(
-    this._store, {
-    this.classifier = const HeaderRuleClassifier(),
-    this.batchSize = 500,
-  });
+  /// By default the same sorting as sync: the header rules plus what each
+  /// sender's other mail shows.
+  Resorter(this._store, {MessageClassifier? classifier, this.batchSize = 500})
+    : classifier =
+          classifier ??
+          LearnedClassifier(
+            const HeaderRuleClassifier(),
+            StoreSenderHistory(_store),
+          );
 
   static const versionKey = 'sorting.rulesVersion';
 

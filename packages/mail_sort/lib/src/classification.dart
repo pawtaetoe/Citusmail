@@ -52,6 +52,10 @@ enum SortingReason {
   automatedSender,
   mailingList,
   bulkPrecedence,
+
+  /// The sender's other mail is clearly sorted this way (learned on the
+  /// device, see `LearnedClassifier`).
+  sameSender,
   noSignal,
 }
 
