@@ -98,7 +98,7 @@ final class MessageRepository {
   static const _columns =
       'm.id, m.mailbox_id, b.account_id, m.uid, m.message_id_header, m.in_reply_to, '
       'm.thread_references, m.subject, m.from_name, m.from_address, m.sent_at, m.received_at, m.size, '
-      'm.flags, m.keywords, m.mod_seq, m.has_attachments, m.category, m.category_source, m.snippet, m.list_id, m.section';
+      'm.flags, m.keywords, m.mod_seq, m.has_attachments, m.category, m.category_source, m.snippet, m.list_id, m.section, m.code';
   static const _from =
       'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id';
 
@@ -130,8 +130,8 @@ final class MessageRepository {
                       .select(
                         'INSERT INTO messages (mailbox_id, uid, message_id_header, in_reply_to, thread_references, '
                         'subject, from_name, from_address, sent_at, received_at, size, flags, keywords, mod_seq, '
-                        'has_attachments, category, category_source, list_id, snippet) '
-                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                        'has_attachments, category, category_source, list_id, snippet, code) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                         'ON CONFLICT (mailbox_id, uid) DO UPDATE SET '
                         'message_id_header = excluded.message_id_header, in_reply_to = excluded.in_reply_to, '
                         'thread_references = excluded.thread_references, subject = excluded.subject, '
@@ -140,7 +140,9 @@ final class MessageRepository {
                         'flags = excluded.flags, keywords = excluded.keywords, mod_seq = excluded.mod_seq, '
                         'has_attachments = excluded.has_attachments, snippet = excluded.snippet, '
                         'category = excluded.category, category_source = excluded.category_source, '
-                        'list_id = excluded.list_id '
+                        'list_id = excluded.list_id, '
+                        // A code read from the body is kept.
+                        'code = coalesce(excluded.code, messages.code) '
                         'RETURNING id',
                         [
                           mailboxId,
@@ -162,6 +164,7 @@ final class MessageRepository {
                           s.categorySource.name,
                           s.listId,
                           s.snippet,
+                          s.code,
                         ],
                       )
                       .first
@@ -606,7 +609,7 @@ final class MessageRepository {
   /// what sorting needs. For re-sorting stored mail without downloading.
   List<SortableMessage> sortable({int afterId = 0, int limit = 500}) {
     final rows = _db.select(
-      'SELECT m.id, m.from_name, m.from_address, b.special_use '
+      'SELECT m.id, m.from_name, m.from_address, m.subject, m.snippet, m.code, b.special_use '
       'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id '
       'WHERE m.id > ? ORDER BY m.id LIMIT ?',
       [afterId, limit.clamp(1, 5000)],
@@ -627,7 +630,7 @@ final class MessageRepository {
   /// sent the user (not in Sent or Drafts), with what sorting needs.
   List<SortableMessage> sortableFrom(String address, {int limit = 50}) {
     final rows = _db.select(
-      'SELECT m.id, m.from_name, m.from_address, b.special_use '
+      'SELECT m.id, m.from_name, m.from_address, m.subject, m.snippet, m.code, b.special_use '
       'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id '
       'WHERE m.from_address = ? COLLATE NOCASE '
       "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts')) "
@@ -678,6 +681,9 @@ final class MessageRepository {
             row['from_address'] as String?,
           ),
           headers: headers[row['id'] as int] ?? const {},
+          subject: row['subject'] as String?,
+          snippet: row['snippet'] as String?,
+          code: row['code'] as String?,
           mailboxUse: switch (row['special_use'] as String?) {
             final use? => SpecialUse.values.asNameMap()[use],
             null => null,
@@ -770,13 +776,47 @@ final class MessageRepository {
   });
 
   /// Stores new sorting decisions (e.g. after the rules changed).
+  /// Code mail in [mailboxId] received since [since] whose body was not
+  /// looked at for a code yet, at most [maxSize] bytes, newest first.
+  List<StoredMessage> codesToRead(
+    int mailboxId, {
+    required DateTime since,
+    required int maxSize,
+    int limit = 20,
+  }) => [
+    for (final row in _db.select(
+      'SELECT $_columns $_from WHERE m.mailbox_id = ? AND m.category = ? '
+      'AND m.code IS NULL AND m.received_at >= ? AND m.size <= ? '
+      'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+      [
+        mailboxId,
+        MessageCategory.codes.storageName,
+        since.toUtc().millisecondsSinceEpoch,
+        maxSize,
+        limit.clamp(1, 200),
+      ],
+    ))
+      _fromRow(row),
+  ];
+
+  /// Records the code found in message [id] ('' for none).
+  void setCode(int id, String code) =>
+      _db.execute('UPDATE messages SET code = ? WHERE id = ?', [code, id]);
+
   void updateCategories(List<CategoryDecision> decisions) =>
       _db.transaction(() {
         _db.executeMany(
-          'UPDATE messages SET category = ?, category_source = ?, list_id = ? WHERE id = ?',
+          'UPDATE messages SET category = ?, category_source = ?, list_id = ?, '
+          'code = coalesce(code, ?) WHERE id = ?',
           [
             for (final d in decisions)
-              [d.category.storageName, d.source.name, d.listId, d.messageId],
+              [
+                d.category.storageName,
+                d.source.name,
+                d.listId,
+                d.code,
+                d.messageId,
+              ],
           ],
         );
         SectionSql.refreshIds(_db, [for (final d in decisions) d.messageId]);
@@ -948,6 +988,7 @@ final class MessageRepository {
       snippet: row['snippet'] as String?,
       listId: row['list_id'] as String?,
       section: SmartSection.values.byName(row['section'] as String),
+      code: row['code'] as String?,
     );
   }
 }

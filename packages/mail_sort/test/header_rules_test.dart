@@ -24,6 +24,7 @@ ClassificationInput fixture(String name, {SpecialUse? mailboxUse}) {
     from: message.from.firstOrNull,
     headers: headers,
     mailboxUse: mailboxUse,
+    subject: message.subject,
   );
 }
 
@@ -68,8 +69,12 @@ void main() {
         SortingReason.automatedSender,
       ),
       'notifications/password-reset.eml': (
-        notifications,
-        SortingReason.automatedSender,
+        MessageCategory.codes,
+        SortingReason.verification,
+      ),
+      'newsletters/forwarded-unverified.eml': (
+        newsletters,
+        SortingReason.mailingList,
       ),
       'newsletters/one-click-unsubscribe.eml': (
         newsletters,
@@ -110,6 +115,11 @@ void main() {
         );
       }
     }
+    // A scam can carry list headers too; sorting is not a trust decision.
+    expected['security/scam-with-unsubscribe.eml'] = (
+      newsletters,
+      SortingReason.mailingList,
+    );
 
     test('all fixtures are covered', () {
       final all = fixtureDir

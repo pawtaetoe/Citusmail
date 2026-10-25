@@ -55,8 +55,15 @@ final class SummaryMapper {
 
     final headers = _headers(message.headerFields);
     final from = envelope?.from.firstOrNull;
+    final snippet = _snippet(message.preview);
     final decision = classifier.classify(
-      ClassificationInput(from: from, headers: headers, mailboxUse: mailboxUse),
+      ClassificationInput(
+        from: from,
+        headers: headers,
+        mailboxUse: mailboxUse,
+        subject: envelope?.subject,
+        snippet: snippet,
+      ),
     );
     return MessageSummary(
       uid: uid,
@@ -79,8 +86,11 @@ final class SummaryMapper {
       category: decision.category,
       categorySource: decision.source,
       listId: ListId.fromHeaders(headers),
-      snippet: _snippet(message.preview),
+      snippet: snippet,
       headers: headers,
+      code: decision.category == MessageCategory.codes
+          ? VerificationCodes.inMessage(envelope?.subject, snippet)
+          : null,
     );
   }
 

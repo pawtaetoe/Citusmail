@@ -9,7 +9,7 @@ no analytics, no crash reporting and no advertising.
 | --- | --- | --- |
 | Your mail servers | Always, to read and send mail | Your login and mail, over TLS |
 | Your mail server's rules service (ManageSieve, port 4190) | Only with "Rules on the mail server" turned on, when your rules change (and once a day to check) | Your login over TLS, and a script with your blocked senders and folder rules, so the server sorts mail as it arrives |
-| Microsoft's sign-in service | Only for Outlook / Hotmail accounts: when you add one (in your own browser), and to renew access about every hour | Your sign-in happens on Microsoft's page; the app sends only the one-time code it gets back, and later its refresh token, to get access to your mail. Your password never passes through the app |
+| Microsoft's sign-in service | Only for Outlook / Hotmail and Microsoft 365 accounts: when you add one (in your own browser), and to renew access about every hour | Your sign-in happens on Microsoft's page; the app sends only the one-time code it gets back, and later its refresh token, with the app's (or your own) client ID, to get access to your mail. Your password never passes through the app |
 | Google's sign-in service | Only for Gmail accounts you add with "Sign in with Google": when you add one (in your own browser), and to renew access about every hour | As for Microsoft: the one-time code, then the refresh token, with the app's (or your own) client ID. Your password never passes through the app |
 | Google Cloud console | Only when you tap "Open Google Cloud" while entering your own client ID | Your browser opens the page |
 | Your mail provider's settings file | When adding an account (not for Gmail, whose settings are built in) | Your email domain (in the web address only; no app name, no cookies) |
@@ -34,8 +34,11 @@ avatars or other assets are ever downloaded.
 ## What stays on your device
 
 Mail, contacts, settings and caches are stored encrypted on the device.
-Sorting into Important, General, Newsletters and Notifications runs on the
-device from a few message headers and your Sent folder. Phishing checks
+Sorting into Important, General, Verification, Newsletters and
+Notifications runs on the device from a few message headers, the subject
+and your Sent folder. Codes in verification mail are found on the device
+too; for this, new verification mail (from the last day) is downloaded
+from your own mail server, as if you had opened it, but it stays unread. Phishing checks
 (sender verification, lookalike addresses, deceptive links, risky
 attachments) also run on the device only, using the results your own mail
 server already wrote into the message and a built-in list of domain
@@ -61,8 +64,8 @@ settings, the app lock and your PIN never sync.
 ## Notifications
 
 New-mail notifications show the sender and subject, never the message
-text, and only for Important and General mail. On Android the lock screen
-shows only that there is new mail. They are created on your device; no
+text, and only for Verification, Important and General mail (and pins).
+On Android the lock screen shows only that there is new mail. They are created on your device; no
 push service is involved. On Android, Citusmail checks for mail about every 15
 minutes in the background, or keeps a live connection if you turn on
 "Instant mail" (which shows a permanent notification, as Android requires).
@@ -87,8 +90,12 @@ mail, and the app switcher shows no picture of your mail.
 
 Citusmail remembers on your device which lists you unsubscribed from, so it
 can tell you when one keeps sending. It never offers to unsubscribe from
-mail that looks like a scam, because that would only confirm your address
-is read.
+mail that looks like a scam (a lookalike or imitating sender, deceptive
+links, dangerous files), because that would only confirm your address is
+read, and it says so instead. The unsubscribe address itself gets the same
+checks as links in a message; an unsafe one is never used. When only the
+sender couldn't be verified (forwarded mail often can't be), you can still
+unsubscribe, after a warning.
 
 ## Read receipts and trackers
 

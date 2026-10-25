@@ -283,6 +283,66 @@ void main() {
     expect(find.text('Lunch?'), findsNothing);
   });
 
+  testWidgets('codes: own section, code in the row, five per section', (
+    tester,
+  ) async {
+    final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+    store.messages.upsertSummaries(inbox.id, [
+      MessageSummary(
+        uid: 20,
+        receivedAt: DateTime.utc(2026, 10, 20, 8),
+        subject: 'Your verification code',
+        from: MailAddress(localPart: 'no-reply', domain: 'bank.example'),
+        category: MessageCategory.codes,
+        code: '482913',
+      ),
+      for (var i = 0; i < 8; i++)
+        MessageSummary(
+          uid: 30 + i,
+          receivedAt: DateTime.utc(2026, 10, 1, i),
+          subject: 'Older general $i',
+          from: MailAddress(localPart: 'p$i', domain: 'x.example'),
+        ),
+    ]);
+    await show(tester, const Size(1400, 1400));
+
+    expect(find.text('Verification'), findsOneWidget);
+    expect(top(tester, 'Pinned') < top(tester, 'Verification'), isTrue);
+    expect(top(tester, 'Verification') < top(tester, 'Important'), isTrue);
+
+    // The code instead of the preview; a tap copies it.
+    expect(find.text('482913'), findsOneWidget);
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    await tester.tap(find.byKey(const ValueKey('copy-code-482913')));
+    await tester.pump();
+    expect(copied, '482913');
+    expect(find.text('Copied 482913'), findsOneWidget);
+    expect(
+      store.messages
+          .list(const MessageQuery.inbox())
+          .firstWhere((m) => m.subject == 'Your verification code')
+          .flags
+          .seen,
+      isFalse,
+      reason: 'copying does not open the message',
+    );
+
+    // An open section shows five messages first. General has 9: Hello
+    // there, then the older ones, newest first.
+    expect(find.text('Older general 4'), findsOneWidget);
+    expect(find.text('Older general 3'), findsNothing);
+    expect(find.text('Show more (4 more)'), findsOneWidget);
+  });
+
   testWidgets('thousands of messages: only what is on screen is built', (
     tester,
   ) async {

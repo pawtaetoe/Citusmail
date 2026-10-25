@@ -155,7 +155,20 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       - working-directory: app
-        run: flutter build linux --release
+        env:
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
+        run: >-
+          flutter build linux --release
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
       - name: Debian package
         run: packaging/linux/build-deb.sh
       - name: Flatpak bundle
@@ -199,10 +212,22 @@ jobs:
           echo "FMAIL_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
       - working-directory: app
         env:
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
           FMAIL_KEYSTORE_PASSWORD: ${{ secrets.FMAIL_KEYSTORE_PASSWORD }}
           FMAIL_KEY_ALIAS: ${{ secrets.FMAIL_KEY_ALIAS }}
           FMAIL_KEY_PASSWORD: ${{ secrets.FMAIL_KEY_PASSWORD }}
-        run: flutter build apk --release
+        run: >-
+          flutter build apk --release
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
@@ -228,7 +253,21 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       - working-directory: app
-        run: flutter build windows --release
+        env:
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
+        shell: pwsh
+        run: >-
+          flutter build windows --release
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$env:CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$env:CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$env:CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$env:CITUSMAIL_SAFE_BROWSING_KEY"
       - name: Installer (Inno Setup, unsigned)
         shell: pwsh
         run: |

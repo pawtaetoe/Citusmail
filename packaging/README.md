@@ -51,8 +51,10 @@ registrations > New registration:
 
 Its *Application (client) ID* is public. Builds take it as
 `--dart-define=CITUSMAIL_MS_CLIENT_ID=<id>`; `build-aab.sh` passes
-`$CITUSMAIL_MS_CLIENT_ID` on. Without it, Outlook addresses are told that
-this build can't sign in to them.
+`$CITUSMAIL_MS_CLIENT_ID` on, and CI takes it from the repository variable
+of that name (below). Without it, Outlook users can enter their own client
+ID during setup: the same registration in their own Entra directory (the
+app shows the steps).
 
 **Google sign-in** (Gmail) needs a Google Cloud project (free): in the
 [Google Cloud console](https://console.cloud.google.com/apis/credentials):
@@ -100,6 +102,18 @@ Actions):
 | `FMAIL_KEYSTORE_PASSWORD` | the store password |
 | `FMAIL_KEY_ALIAS` | `upload` |
 | `FMAIL_KEY_PASSWORD` | the key password |
+| `CITUSMAIL_GOOGLE_CLIENT_SECRET` | Google desktop client secret (optional) |
+| `CITUSMAIL_SAFE_BROWSING_KEY` | Safe Browsing API key (optional) |
+
+And these repository **variables** (same page, *Variables* tab): the client
+IDs are public, so they need not be secrets. Every CI build (APK, Linux,
+Windows) passes all four to `flutter build` as `--dart-define`; any left
+empty means users bring their own.
+
+| Variable | Value |
+| --- | --- |
+| `CITUSMAIL_MS_CLIENT_ID` | Microsoft Entra Application (client) ID |
+| `CITUSMAIL_GOOGLE_CLIENT_ID` | Google desktop client ID |
 
 A tagged release fails rather than publishing a debug-signed APK. Builds
 without a key (local, pull requests) are signed with the debug key: fine

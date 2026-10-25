@@ -33,7 +33,7 @@ final class MessageListModel extends ChangeNotifier {
   final MailStore _store;
 
   /// First page of an expanded section, and each "Show more".
-  static const sectionPage = 15;
+  static const sectionPage = 5;
   static const sectionMore = 30;
 
   /// Messages read to name the senders of a collapsed section.

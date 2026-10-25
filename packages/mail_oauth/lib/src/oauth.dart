@@ -209,6 +209,14 @@ final class OAuthRegistration {
       }
       return null;
     }
+    if (provider.id == 'microsoft') {
+      final guid = RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+      );
+      return guid.hasMatch(clientId)
+          ? null
+          : 'A Microsoft client ID looks like 00000000-0000-0000-0000-000000000000';
+    }
     if (!plain.hasMatch(clientId)) return 'That is not a client ID';
     if (clientSecret.isNotEmpty && !plain.hasMatch(clientSecret)) {
       return 'That is not a client secret';

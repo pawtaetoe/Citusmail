@@ -42,6 +42,12 @@ final class TrustChecker {
       ..attachments();
     return check.report();
   }
+
+  /// The same checks as for links in a message, for an address the
+  /// message gives elsewhere (such as its `List-Unsubscribe` header):
+  /// hidden destinations, numeric addresses, other alphabets and
+  /// imitated brands. Null when nothing is wrong (or it isn't a web link).
+  static LinkVerdict? checkLink(Uri link) => _Check._checkLink(link, null);
 }
 
 /// One run of the checks over one message.
@@ -123,10 +129,11 @@ final class _Check {
     if (results.isEmpty) return;
 
     final registrable = fromRegistrable;
-    AuthResult? dmarc, spf;
+    AuthResult? dmarc, spf, arc;
     for (final r in results) {
       dmarc ??= r.dmarc;
       spf ??= r.spf;
+      arc ??= r.arc;
       for (final dkim in r.dkim) {
         if (dkim.passed) _dkimPasses.add(dkim);
         final d = dkim.domain;
@@ -142,14 +149,21 @@ final class _Check {
 
     final shown = fromDomain ?? 'the address it shows';
     if (dmarc != null && dmarc.failed) {
-      // Mailing lists that keep the author's address break DMARC honestly;
-      // still worth a warning, but not an alarm.
+      // Mailing lists that keep the author's address, and forwarding
+      // (another mailbox passing mail on), break DMARC honestly; still
+      // worth a warning, but not an alarm. Forwarding counts only when the
+      // user's own server checked the forwarders' ARC chain (RFC 8617).
       final list = view.message.headers.contains('list-id');
+      final forwarded = arc?.passed ?? false;
       _add(
         FindingKind.failedVerification,
-        list ? TrustLevel.caution : TrustLevel.danger,
+        list || forwarded ? TrustLevel.caution : TrustLevel.danger,
         'Your mail server couldn\'t confirm this came from $shown. '
-        '${list ? 'Mailing lists sometimes cause this.' : 'The sender may be forged.'}',
+        '${list
+            ? 'Mailing lists sometimes cause this.'
+            : forwarded
+            ? 'It was forwarded, which often causes this, and the forwarding servers\' checks passed.'
+            : 'The sender may be forged.'}',
       );
     } else if (dmarc == null &&
         !_verified &&
@@ -210,7 +224,7 @@ final class _Check {
 
   void links() {
     for (final shown in DocumentLinks.collect(view.body)) {
-      final verdict = _checkLink(shown);
+      final verdict = _checkLink(shown.link, shown.text);
       if (verdict == null) continue;
       final key = shown.link.toString();
       final previous = _links[key];
@@ -232,8 +246,7 @@ final class _Check {
     }
   }
 
-  LinkVerdict? _checkLink(ShownLink shown) {
-    final link = shown.link;
+  static LinkVerdict? _checkLink(Uri link, String? shownText) {
     if (link.scheme != 'http' && link.scheme != 'https') return null;
     final host = _decoded(link.host);
     if (host.isEmpty) return null;
@@ -278,7 +291,7 @@ final class _Check {
       );
     }
 
-    final text = DocumentLinks.shownHost(shown.text);
+    final text = shownText == null ? null : DocumentLinks.shownHost(shownText);
     final textRegistrable = text == null ? null : Domains.registrable(text);
     if (textRegistrable != null && textRegistrable != registrable) {
       final brand = Brands.owner(textRegistrable);

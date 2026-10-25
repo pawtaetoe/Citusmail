@@ -271,6 +271,40 @@ void main() {
       expect(r.level, TrustLevel.caution);
     });
 
+    test('forwarded mail whose ARC chain checked out: caution only', () {
+      final r = checker.check(
+        mail(
+          'Authentication-Results: mail.fmail.test; arc=pass; '
+          'dmarc=fail header.from=openrouter.ai\n'
+          'From: OpenRouter Team <welcome@openrouter.ai>',
+        ),
+        trusted,
+      );
+      expect(r.level, TrustLevel.caution);
+      expect(r.findings.single.message, contains('forwarded'));
+    });
+
+    test('ARC counts only from the user\'s own server', () {
+      final r = checker.check(
+        mail(
+          'Authentication-Results: mail.fmail.test; dmarc=fail header.from=openrouter.ai\n'
+          'Authentication-Results: mx.attacker.example; arc=pass\n'
+          'From: OpenRouter Team <welcome@openrouter.ai>',
+        ),
+        trusted,
+      );
+      expect(r.level, TrustLevel.danger);
+      final failed = checker.check(
+        mail(
+          'Authentication-Results: mail.fmail.test; arc=fail; '
+          'dmarc=fail header.from=openrouter.ai\n'
+          'From: OpenRouter Team <welcome@openrouter.ai>',
+        ),
+        trusted,
+      );
+      expect(failed.level, TrustLevel.danger);
+    });
+
     test('a forged pass below the real result changes nothing', () {
       final r = checker.check(
         mail(
@@ -295,6 +329,28 @@ void main() {
       );
       expect(r.verified, isFalse);
       expect(r.findings, isEmpty, reason: 'the trusted result is not on top');
+    });
+  });
+
+  group('a link on its own', () {
+    test('the message link checks, without shown text', () {
+      expect(
+        TrustChecker.checkLink(Uri.parse('https://openrouter.ai/unsub?x=1')),
+        isNull,
+      );
+      expect(
+        TrustChecker.checkLink(Uri.parse('https://paypa1.com/u'))!.level,
+        TrustLevel.danger,
+      );
+      expect(
+        TrustChecker.checkLink(Uri.parse('https://user@evil.example/u'))!.level,
+        TrustLevel.danger,
+      );
+      expect(
+        TrustChecker.checkLink(Uri.parse('http://203.0.113.9/u'))!.level,
+        TrustLevel.caution,
+      );
+      expect(TrustChecker.checkLink(Uri.parse('mailto:u@x.example')), isNull);
     });
   });
 
