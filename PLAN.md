@@ -80,6 +80,7 @@ first, ends with something that can be run or tested, and is committed as
 | --- | --- |
 | 28 | Rules on the mail server (opt-in): our own ManageSieve client (RFC 5804); blocked senders and folder rules written as one Sieve script, uploaded only when changed, never replacing another active script, removed when turned off; status per account in Settings |
 | 29 | Test server with Pigeonhole (Sieve, ManageSieve on 14190); integration test that the server files ruled and blocked mail by itself; test servers start with Docker and OpenSSL 3.0 again (Containerfile named, expired certificate made with `openssl ca`) |
+| 30 | Company domains at Google Workspace or Microsoft 365, recognised from their MX records (our DNS client now also asks MX): Workspace gets Gmail's servers and app password help; Microsoft 365 goes straight to Microsoft sign-in |
 
 ## Next
 
@@ -98,9 +99,7 @@ first, ends with something that can be run or tested, and is committed as
    - with `LIVE_SIGN_IN=google` and a Google Cloud client (see
      [packaging/README.md](packaging/README.md)).
 3. **Before a public Gmail release:** Google's verification of the
-   built-in client ID (restricted scope: security assessment). Later,
-   recognise Google Workspace addresses on their own domains (today they
-   use the manual settings with an app password).
+   built-in client ID (restricted scope: security assessment).
 4. **M6, the rest.**
    - An on-device model to improve sorting, with nothing sent anywhere.
    - Optional link and file checks with Google Safe Browsing (hash prefixes

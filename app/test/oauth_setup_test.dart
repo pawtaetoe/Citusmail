@@ -202,6 +202,47 @@ void main() {
       expect(flow.saved, isEmpty);
     });
 
+    test(
+      'a Microsoft 365 domain (by its MX records) signs in, no password',
+      () async {
+        final signedIn = <(OAuthProvider, String)>[];
+        final saved = <DiscoveredSettings>[];
+        final controller = SetupController(
+          discover: (email, {askMozillaConsent, onStep}) async =>
+              const DiscoveryResult(null, host: MailHost.microsoft365),
+          verify: (settings, password) async =>
+              throw StateError('no password check'),
+          save: (settings, password, {displayName}) async =>
+              throw StateError('no password save'),
+          hostedProvider: (host) =>
+              host == MailHost.microsoft365 ? _microsoft : null,
+          oauthSignIn: (provider, email) async {
+            signedIn.add((provider, email));
+            return OAuthTokens(
+              accessToken: 'AT',
+              refreshToken: 'RT',
+              expiresAt: DateTime.utc(2030),
+            );
+          },
+          verifyOAuth: (settings, token) async =>
+              const VerificationResult.success(),
+          saveOAuth: (settings, provider, tokens, {displayName}) async {
+            saved.add(settings);
+            return _account;
+          },
+        );
+        await controller.start(
+          email: 'ana@contoso.example',
+          password: 'typed anyway',
+          askMozillaConsent: (_) async => false,
+        );
+        expect(signedIn.single.$2, 'ana@contoso.example');
+        expect(saved.single.imap.host, 'outlook.office365.com');
+        expect(saved.single.username, 'ana@contoso.example');
+        expect(controller.state, isA<SetupDone>());
+      },
+    );
+
     test('other addresses keep the password flow', () {
       expect(SetupController.defaultProviderFor('me@tommykung.cc'), isNull);
       expect(

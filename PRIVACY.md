@@ -13,7 +13,7 @@ no analytics, no crash reporting and no advertising.
 | Google's sign-in service | Only for Gmail accounts you add with "Sign in with Google": when you add one (in your own browser), and to renew access about every hour | As for Microsoft: the one-time code, then the refresh token, with the app's (or your own) client ID. Your password never passes through the app |
 | Google Cloud console | Only when you tap "Open Google Cloud" while entering your own client ID | Your browser opens the page |
 | Your mail provider's settings file | When adding an account (not for Gmail, whose settings are built in) | Your email domain (in the web address only; no app name, no cookies) |
-| Your system's DNS resolver | When adding an account | Lookups for your domain's mail records |
+| Your system's DNS resolver | When adding an account | Lookups for your domain's mail records (MX, to recognise Google Workspace and Microsoft 365, and SRV) |
 | Common server names of your domain | When adding an account, if nothing else found them | A connection test without any login |
 | Mozilla's mail server database | Only if you allow it during setup | Your email domain, never the full address |
 | A newsletter's one-click unsubscribe address | Only when you tap Unsubscribe and confirm | One request with the fixed text `List-Unsubscribe=One-Click` and a generic user agent. No cookies, no referrer, no language. Like any connection, it shows your IP address |

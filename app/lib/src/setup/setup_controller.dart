@@ -145,6 +145,7 @@ final class SetupController extends ChangeNotifier {
     this._ownClient,
     this._saveOwnClient,
     this.providerFor = defaultProviderFor,
+    this.hostedProvider = defaultHostedProvider,
     this.optionalProviderFor = defaultOptionalProviderFor,
   });
 
@@ -231,6 +232,14 @@ final class SetupController extends ChangeNotifier {
   /// The provider an address must sign in with, if any (whether or not
   /// this build can).
   final OAuthProvider? Function(String email) providerFor;
+
+  /// The sign-in a domain hosted with [MailHost] needs, if any.
+  final OAuthProvider? Function(MailHost host) hostedProvider;
+
+  static OAuthProvider? defaultHostedProvider(MailHost host) => switch (host) {
+    MailHost.microsoft365 => OAuthProvider.microsoft,
+    MailHost.google => null,
+  };
 
   static OAuthProvider? defaultProviderFor(String email) {
     final at = email.trim().lastIndexOf('@');
@@ -363,6 +372,13 @@ final class SetupController extends ChangeNotifier {
         ),
       );
     }
+    // Microsoft 365 refuses passwords from mail apps: sign in instead.
+    if (result.host case final host?) {
+      if (hostedProvider(host) case final provider?) {
+        _password = '';
+        return signInWith(provider, email: _email, displayName: _displayName);
+      }
+    }
     final found = result.settings;
     if (found != null) return _set(ReviewingSettings(found));
     _set(
@@ -442,6 +458,8 @@ abstract final class SetupText {
     DiscoverySource.probed => 'by trying common server names',
     DiscoverySource.mozillaDatabase => 'from Mozilla\'s database',
     DiscoverySource.builtIn => 'built into $appName',
+    DiscoverySource.mailHost =>
+      'from your domain\'s mail records (hosted by Google)',
     DiscoverySource.manual => 'entered by you',
   };
 

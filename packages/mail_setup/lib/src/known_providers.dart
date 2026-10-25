@@ -5,6 +5,41 @@
 import 'package:mail_protocol/mail_protocol.dart';
 
 import 'discovered_settings.dart';
+import 'dns_srv.dart';
+
+/// A big mail service a domain's mail is hosted with, as its MX records
+/// show (a company's own domain at Google Workspace or Microsoft 365).
+enum MailHost {
+  /// Google Workspace: Gmail's servers, with an app password.
+  google(['google.com', 'googlemail.com']),
+
+  /// Microsoft 365 (Exchange Online): Outlook's servers; mail apps must
+  /// sign in on Microsoft's page, passwords are refused.
+  microsoft365(['mail.protection.outlook.com', 'mx.microsoft']);
+
+  const MailHost(this._suffixes);
+
+  final List<String> _suffixes;
+
+  bool _hosts(String exchange) {
+    final host = exchange.toLowerCase().replaceAll(RegExp(r'\.$'), '');
+    return _suffixes.any((s) => host == s || host.endsWith('.$s'));
+  }
+
+  /// The service every most-preferred MX record points to, or null (no
+  /// records, another host, or a mix). Backup MX records don't count.
+  static MailHost? fromMx(List<MxRecord> records) {
+    if (records.isEmpty) return null;
+    final best = records
+        .map((r) => r.preference)
+        .reduce((a, b) => a < b ? a : b);
+    final primary = records.where((r) => r.preference == best);
+    for (final host in values) {
+      if (primary.every((r) => host._hosts(r.exchange))) return host;
+    }
+    return null;
+  }
+}
 
 /// A mail service whose settings are built into the app, so its addresses
 /// need no lookup at all (nothing is asked of DNS, the provider or
@@ -69,12 +104,15 @@ final class KnownProvider {
       all.where((p) => p.imap.host == host.toLowerCase()).firstOrNull;
 
   /// The settings for [email] on this provider.
-  DiscoveredSettings settingsFor(String email) => DiscoveredSettings(
+  DiscoveredSettings settingsFor(
+    String email, {
+    DiscoverySource source = DiscoverySource.builtIn,
+  }) => DiscoveredSettings(
     email: email.trim(),
     imap: imap,
     smtp: smtp,
     username: email.trim(),
-    source: DiscoverySource.builtIn,
+    source: source,
   );
 
   /// App passwords are shown in groups (`abcd efgh ijkl mnop`); the
