@@ -84,7 +84,7 @@ check_ports_are_local_only() {
   local listening
   listening="$(ss -Hltn 2>/dev/null)"
   local port
-  for port in $SECURE_IMAP_PORT $SECURE_IMAPS_PORT $SECURE_SUBMISSION_PORT $SECURE_SUBMISSIONS_PORT \
+  for port in $SECURE_IMAP_PORT $SECURE_IMAPS_PORT $SECURE_SUBMISSION_PORT $SECURE_SUBMISSIONS_PORT $SECURE_SIEVE_PORT \
               $LIMITED_IMAPS_PORT $PLAIN_IMAP_PORT $PLAIN_SUBMISSION_PORT; do
     expect_no_match "port $port is not exposed beyond 127.0.0.1" "$listening" "(0\.0\.0\.0|\*|\[::\]):$port\b"
   done
@@ -197,6 +197,17 @@ check_limited() {
   expect_match "limited server still advertises IDLE" "$reply" "^\* CAPABILITY .*\bIDLE\b"
 }
 
+check_sieve() {
+  echo "ManageSieve (secure)"
+  local reply
+  reply="$( { sleep 0.5; printf 'LOGOUT\r\n'; sleep 1; } \
+    | timeout 10 bash -c "exec 3<>/dev/tcp/127.0.0.1/$SECURE_SIEVE_PORT; cat <&3 & cat >&3; wait" 2>/dev/null)"
+  expect_match "ManageSieve answers" "$reply" '"IMPLEMENTATION"'
+  expect_match "ManageSieve offers STARTTLS" "$reply" '"STARTTLS"'
+  expect_match "ManageSieve offers fileinto" "$reply" '"SIEVE" "[^"]*fileinto'
+  expect_no_match "ManageSieve allows no login before TLS" "$reply" '"SASL" "[^"]*PLAIN'
+}
+
 check_plain() {
   echo "Plain (insecure) server"
   local reply
@@ -216,6 +227,7 @@ main() {
   check_sample_mail
   check_smtp
   check_limited
+  check_sieve
   check_plain
   echo
   echo "$PASSED passed, $FAILED failed"

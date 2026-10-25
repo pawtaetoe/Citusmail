@@ -1,6 +1,7 @@
 # Test mail server for development and integration tests. NOT for real mail.
 #
-# Dovecot 2.3 (IMAP, LMTP) + Postfix (SMTP submission) on Ubuntu 24.04.
+# Dovecot 2.3 (IMAP, LMTP, Pigeonhole Sieve and ManageSieve) + Postfix
+# (SMTP submission) on Ubuntu 24.04.
 # cPanel hosts such as Namecheap also run Dovecot 2.3, so behaviour matches
 # the real servers the app talks to.
 #
@@ -10,7 +11,8 @@ FROM docker.io/library/ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      dovecot-imapd dovecot-lmtpd postfix ca-certificates \
+      dovecot-imapd dovecot-lmtpd dovecot-sieve dovecot-managesieved \
+      postfix ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --gid 5000 vmail \
  && useradd --uid 5000 --gid vmail --no-create-home --home-dir /var/mail --shell /usr/sbin/nologin vmail \
@@ -45,5 +47,5 @@ RUN set -eu; \
 #            test the app's fallbacks
 #   plain    no TLS at all, only to prove the app refuses such servers
 ENV FMAIL_TEST_MODE=secure
-EXPOSE 143 993 587 465
+EXPOSE 143 993 587 465 4190
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

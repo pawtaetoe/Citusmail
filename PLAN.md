@@ -79,6 +79,7 @@ first, ends with something that can be run or tested, and is committed as
 | Stage | What it delivered |
 | --- | --- |
 | 28 | Rules on the mail server (opt-in): our own ManageSieve client (RFC 5804); blocked senders and folder rules written as one Sieve script, uploaded only when changed, never replacing another active script, removed when turned off; status per account in Settings |
+| 29 | Test server with Pigeonhole (Sieve, ManageSieve on 14190); integration test that the server files ruled and blocked mail by itself; test servers start with Docker and OpenSSL 3.0 again (Containerfile named, expired certificate made with `openssl ca`) |
 
 ## Next
 
@@ -100,11 +101,7 @@ first, ends with something that can be run or tested, and is committed as
    built-in client ID (restricted scope: security assessment). Later,
    recognise Google Workspace addresses on their own domains (today they
    use the manual settings with an app password).
-4. **Check server rules against a real Dovecot/Pigeonhole server** (the
-   test server has no ManageSieve yet): add Pigeonhole to
-   `test-server/`, and an integration test that a blocked sender's mail
-   lands in Junk without the app.
-5. **M6, the rest.**
+4. **M6, the rest.**
    - An on-device model to improve sorting, with nothing sent anywhere.
    - Optional link and file checks with Google Safe Browsing (hash prefixes
      downloaded, links checked on the device) and VirusTotal (your own API

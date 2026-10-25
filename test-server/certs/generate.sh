@@ -65,6 +65,41 @@ sign_cert() {
   rm -f "$ext"
 }
 
+# A certificate from the test CA that expired in 2021. Made with
+# "openssl ca", whose -startdate/-enddate work on OpenSSL 3.0 (Ubuntu
+# 24.04); "openssl x509 -not_before" needs 3.4.
+sign_expired() {
+  local work; work="$(mktemp -d)"
+  touch "$work/index.txt"
+  echo 1000 > "$work/serial"
+  cat > "$work/ca.cnf" <<CONF
+[ca]
+default_ca = test
+[test]
+database = $work/index.txt
+serial = $work/serial
+new_certs_dir = $work
+default_md = sha256
+policy = any
+unique_subject = no
+[any]
+commonName = supplied
+CONF
+  printf '%s\n' \
+    "basicConstraints=critical,CA:false" \
+    "keyUsage=critical,digitalSignature" \
+    "extendedKeyUsage=serverAuth" \
+    "subjectAltName=DNS:expired.fmail.test" > "$work/ext"
+  new_key "$OUT_DIR/expired.key"
+  openssl req -new -key "$OUT_DIR/expired.key" -subj "/CN=expired.fmail.test" \
+    -out "$work/expired.csr"
+  openssl ca -batch -notext -config "$work/ca.cnf" \
+    -cert "$OUT_DIR/ca.crt" -keyfile "$OUT_DIR/ca.key" \
+    -startdate 20200101000000Z -enddate 20210101000000Z \
+    -extfile "$work/ext" -in "$work/expired.csr" -out "$OUT_DIR/expired.crt" 2>/dev/null
+  rm -rf "$work"
+}
+
 make_server_certs() {
   if $FORCE || ! still_valid "$OUT_DIR/mail.crt"; then
     log "creating mail.fmail.test certificate"
@@ -72,8 +107,7 @@ make_server_certs() {
   fi
   if $FORCE || [[ ! -f "$OUT_DIR/expired.crt" ]]; then
     log "creating expired certificate"
-    sign_cert expired "DNS:expired.fmail.test" \
-      -not_before 20200101000000Z -not_after 20210101000000Z
+    sign_expired
   fi
   if $FORCE || ! still_valid "$OUT_DIR/untrusted.crt"; then
     log "creating self-signed (untrusted) certificate"
