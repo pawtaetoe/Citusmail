@@ -5,7 +5,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:mail_oauth/mail_oauth.dart';
+import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_web/mail_web.dart';
 
 import '../background/background_mail.dart';
 import '../compose/compose_launcher.dart';
@@ -14,9 +17,13 @@ import '../mail/mail_location.dart';
 import '../services/app_services.dart';
 import '../services/mail_notifier.dart';
 import '../services/new_mail_announcer.dart';
+import '../services/secret_store.dart';
+import '../setup/oauth_browser.dart';
+import '../setup/reconnect.dart';
 import 'keyboard_shortcuts.dart';
 import 'message_list_pane.dart';
 import 'reader_pane.dart';
+import 'reconnect_dialog.dart';
 import 'sidebar.dart';
 
 /// The main screen, laid out for the space available:
@@ -34,6 +41,7 @@ final class MailShell extends StatefulWidget {
     required this.onAddAccount,
     required this.onAccountsChanged,
     this.notifications = true,
+    this.reconnector,
   });
 
   final AppServices services;
@@ -42,6 +50,9 @@ final class MailShell extends StatefulWidget {
 
   /// Off in tests, which must not reach the desktop's notification service.
   final bool notifications;
+
+  /// Checks and saves new passwords and sign-ins (tests use a stand-in).
+  final Reconnector? reconnector;
 
   static const wideWidth = 1100.0;
   static const mediumWidth = 720.0;
@@ -63,6 +74,7 @@ final class _MailShellState extends State<MailShell> {
     _controller.onCompose = (draft) =>
         unawaited(ComposeLauncher.open(context, widget.services, draft));
     _controller.onNotice = _notice;
+    _controller.onReconnect = (account) => unawaited(_reconnect(account));
     unawaited(widget.services.worker.start().catchError((Object _) {}));
     if (widget.notifications) {
       unawaited(_startNotifications());
@@ -122,6 +134,34 @@ final class _MailShellState extends State<MailShell> {
     }
   }
 
+  late final Reconnector _reconnector =
+      widget.reconnector ?? _defaultReconnector(widget.services);
+
+  static Reconnector _defaultReconnector(AppServices services) {
+    const verifier = AccountVerifier();
+    return Reconnector(
+      verify: verifier.verify,
+      verifyOAuth: (settings, token) =>
+          verifier.verify(settings, token, oauth: true),
+      oauthSignIn: OAuthBrowser(TokenClient(WebClient())).signIn,
+      readSecret: services.secrets.read,
+      save: services.replaceSecret,
+      ownClient: OwnOAuthClients(services.secrets).read,
+    );
+  }
+
+  /// A new password, or a new sign-in, for [account].
+  Future<void> _reconnect(Account account) async {
+    final fixed = await ReconnectDialog.show(context, account, _reconnector);
+    if (fixed) {
+      _notice(
+        account.usesOAuth
+            ? 'Signed in again to ${account.email}'
+            : 'Password updated for ${account.email}',
+      );
+    }
+  }
+
   Future<void> _removeAccount(Account account) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -162,6 +202,7 @@ final class _MailShellState extends State<MailShell> {
           controller: _controller,
           onAddAccount: widget.onAddAccount,
           onRemoveAccount: _removeAccount,
+          onReconnectAccount: _reconnect,
           onNavigated: inDrawer
               ? () => _scaffold.currentState?.closeDrawer()
               : null,

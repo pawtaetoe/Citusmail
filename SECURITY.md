@@ -105,7 +105,11 @@ public issue. We aim to reply within 7 days.
     secret are kept in the keychain, and each account remembers which
     client signed it in, because its refresh token only works with that
     one. Access and refresh tokens live only in the keychain; IMAP and SMTP use them with
-    SASL XOAUTH2 over TLS. Only the OAuth package may open a listening
+    SASL XOAUTH2 over TLS. A new password or sign-in for a saved account
+    is checked with a real login before it replaces the old one, and an
+    account signs in again only with the client that signed it in (or,
+    with no earlier tokens, the build's or the user's own). Only the
+    OAuth package may open a listening
     socket (CI enforces this).
 
 ## Releases

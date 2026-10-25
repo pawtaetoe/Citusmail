@@ -161,6 +161,17 @@ final class AppServices {
     return account;
   }
 
+  /// Replaces an account's password or OAuth tokens (already checked with
+  /// a real login) and checks for mail with them right away.
+  Future<void> replaceSecret(Account account, String secret) async {
+    await secrets.write(account.keychainKey, secret);
+    try {
+      await worker.syncNow(account.id);
+    } on SyncWorkerException {
+      // Shown through the account's sync status.
+    }
+  }
+
   /// Removes an account, everything stored for it, and its password.
   Future<void> removeAccount(Account account) async {
     store.accounts.remove(account.id);

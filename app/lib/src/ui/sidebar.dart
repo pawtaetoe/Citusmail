@@ -23,6 +23,7 @@ final class Sidebar extends StatelessWidget {
     required this.controller,
     required this.onAddAccount,
     required this.onRemoveAccount,
+    required this.onReconnectAccount,
     this.onNavigated,
     this.onCompose,
   });
@@ -30,6 +31,9 @@ final class Sidebar extends StatelessWidget {
   final MailController controller;
   final VoidCallback onAddAccount;
   final void Function(Account account) onRemoveAccount;
+
+  /// A new password, or a new sign-in for an OAuth account.
+  final void Function(Account account) onReconnectAccount;
 
   /// Called after the user picked a place (closes the drawer on phones).
   final VoidCallback? onNavigated;
@@ -232,6 +236,7 @@ final class Sidebar extends StatelessWidget {
                       account: account,
                       event: controller.lastEvent(account.id),
                       onRemove: () => onRemoveAccount(account),
+                      onReconnect: () => onReconnectAccount(account),
                     ),
                   _Entry(
                     icon: Icons.person_add_alt,
@@ -454,11 +459,13 @@ final class _AccountRow extends StatelessWidget {
     required this.account,
     required this.event,
     required this.onRemove,
+    required this.onReconnect,
   });
 
   final Account account;
   final SyncEvent? event;
   final VoidCallback onRemove;
+  final VoidCallback onReconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -467,7 +474,8 @@ final class _AccountRow extends StatelessWidget {
       AccountSyncStarted() => ('Checking for mail…', false),
       AccountSyncFailed(:final failure) => (
         switch (failure.kind) {
-          SyncFailureKind.authentication => 'Password not accepted',
+          SyncFailureKind.authentication =>
+            account.usesOAuth ? 'Sign-in ended' : 'Password not accepted',
           SyncFailureKind.security => 'Connection refused for security',
           SyncFailureKind.network => 'Offline, retrying',
           SyncFailureKind.server => 'Server problem',
@@ -512,6 +520,12 @@ final class _AccountRow extends StatelessWidget {
         tooltip: 'Account',
         icon: Icon(Icons.more_horiz, color: colors.muted),
         itemBuilder: (_) => [
+          PopupMenuItem(
+            onTap: onReconnect,
+            child: Text(
+              account.usesOAuth ? 'Sign in again' : 'Update password',
+            ),
+          ),
           PopupMenuItem(onTap: onRemove, child: const Text('Remove account')),
         ],
       ),

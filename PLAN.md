@@ -15,7 +15,7 @@ first, ends with something that can be run or tested, and is committed as
 | M2 | Phishing checks, unsubscribe, blocking senders, tracker and image blocking, read-receipt blocking, app lock | Done |
 | M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
 | M4 | Outlook sign-in (OAuth 2.0) | Built; live check tool ready, run waiting on a client ID (Stage 24) |
-| M5 | Gmail: app passwords first, then OAuth 2.0 | Built (Stages 25-26); live checks waiting |
+| M5 | Gmail: app passwords first, then OAuth 2.0; signing in again | Built (Stages 25-27); live checks waiting |
 | M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Not started |
 
 ## Stages so far
@@ -72,6 +72,7 @@ first, ends with something that can be run or tested, and is committed as
 | --- | --- |
 | 25 | Gmail with app passwords: built-in settings (no lookup), app password guidance and errors, Starred and Important synced only when opened, each message shown once across folders, archive to All Mail |
 | 26 | Google sign-in for Gmail, offered next to app passwords: built-in client ID from the build, or the user's own ("bring your own"); accounts remember the client that signed them in; live check supports Google |
+| 27 | Fixing a login without removing the account: "Sign in again" (OAuth, with the client that signed it in) and "Update password", from the account menu or the red status line; checked with a real login before it replaces the old one |
 
 ## Next
 
@@ -89,15 +90,11 @@ first, ends with something that can be run or tested, and is committed as
      imap.gmail.com:993, smtp.gmail.com:465);
    - with `LIVE_SIGN_IN=google` and a Google Cloud client (see
      [packaging/README.md](packaging/README.md)).
-3. **Sign in again.** When an OAuth sign-in ends (revoked, or after 7 days
-   for a Google project in testing), the account only reports "sign in
-   again"; it needs a button that runs the browser sign-in for that
-   account and replaces its tokens, without removing the account.
-4. **Before a public Gmail release:** Google's verification of the
+3. **Before a public Gmail release:** Google's verification of the
    built-in client ID (restricted scope: security assessment). Later,
    recognise Google Workspace addresses on their own domains (today they
    use the manual settings with an app password).
-5. **M6.**
+4. **M6.**
    - Rules that run on the mail server where it supports them (Sieve).
    - An on-device model to improve sorting, with nothing sent anywhere.
    - Optional link and file checks with Google Safe Browsing (hash prefixes
