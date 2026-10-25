@@ -72,6 +72,7 @@ final class ReaderPane extends StatelessWidget {
                   link,
                   onMailto: controller.composeTo,
                   trust: trust,
+                  safety: controller.services.linkSafety.check,
                 );
                 return SelectionArea(
                   child: CustomScrollView(

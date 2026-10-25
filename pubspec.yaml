@@ -10,6 +10,7 @@ workspace:
   - app
   - packages/mail_appsync
   - packages/mail_compose
+  - packages/mail_lookup
   - packages/mail_oauth
   - packages/mail_protocol
   - packages/mail_setup

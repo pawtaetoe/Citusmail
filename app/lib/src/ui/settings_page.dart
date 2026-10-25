@@ -12,6 +12,7 @@ import '../background/background_mail.dart';
 import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
+import '../services/link_safety.dart';
 import 'block_dialog.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
@@ -159,6 +160,19 @@ final class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _setSafeBrowsing(bool on) async {
+    final safety = widget.services.linkSafety;
+    if (!on) {
+      await safety.disable();
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => SafeBrowsingDialog(safety: safety),
+      );
+    }
+    if (mounted) setState(() {});
+  }
+
   Future<void> _setServerRules(bool on) async {
     setState(() => widget.services.settings.serverRules = on);
     try {
@@ -202,6 +216,18 @@ final class _SettingsPageState extends State<SettingsPage> {
           ],
           const _Group('Security'),
           ..._lockSettings(),
+          SwitchListTile(
+            secondary: const Icon(Icons.travel_explore),
+            title: const Text('Check links with Google Safe Browsing'),
+            subtitle: Text(
+              widget.services.linkSafety.enabled
+                  ? (widget.services.linkSafety.status ??
+                        'Downloading Google\'s lists…')
+                  : 'Off. Links are checked on this device only.',
+            ),
+            value: widget.services.linkSafety.enabled,
+            onChanged: _setSafeBrowsing,
+          ),
           const _Group('Senders and devices'),
           DeviceSyncTile(services: widget.services),
           ListTile(
@@ -298,4 +324,105 @@ final class _Group extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Asks before Google Safe Browsing is turned on: what it does, what is
+/// sent, and (for builds without one) the user's own API key.
+final class SafeBrowsingDialog extends StatefulWidget {
+  const SafeBrowsingDialog({super.key, required this.safety});
+
+  final LinkSafety safety;
+
+  @override
+  State<SafeBrowsingDialog> createState() => _SafeBrowsingDialogState();
+}
+
+final class _SafeBrowsingDialogState extends State<SafeBrowsingDialog> {
+  final _key = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  Future<void> _turnOn() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final problem = await widget.safety.enable(ownKey: _key.text);
+    if (!mounted) return;
+    if (problem == null) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        _busy = false;
+        _error = problem;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Check links with Google Safe Browsing?'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '$appName downloads Google\'s lists of dangerous sites and checks links you open '
+            'against them on this device. Only when a link looks like one on the lists is a '
+            'short piece of its fingerprint sent to Google to confirm; the link itself never is. '
+            'Google sees your IP address when the lists are downloaded.',
+          ),
+          if (!widget.safety.hasBuiltInKey) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'This copy of $appName needs your own Google API key with the Safe Browsing API '
+              'turned on (free, from Google Cloud). It stays in this device\'s keychain.',
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _key,
+              enabled: !_busy,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'API key',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+          if (_busy) ...[
+            const SizedBox(height: 16),
+            const LinearProgressIndicator(),
+            const SizedBox(height: 8),
+            const Text('Downloading the lists…'),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _busy ? null : () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _busy ? null : _turnOn,
+        child: const Text('Turn on'),
+      ),
+    ],
+  );
 }

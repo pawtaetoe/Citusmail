@@ -16,7 +16,7 @@ first, ends with something that can be run or tested, and is committed as
 | M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
 | M4 | Outlook sign-in (OAuth 2.0) | Built; live check tool ready, run waiting on a client ID (Stage 24) |
 | M5 | Gmail: app passwords first, then OAuth 2.0; signing in again | Built (Stages 25-27); live checks waiting |
-| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Server rules (28-29), learned sorting (31) built |
+| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Server rules (28-29), learned sorting (31), Safe Browsing (32) built |
 
 ## Stages so far
 
@@ -82,6 +82,7 @@ first, ends with something that can be run or tested, and is committed as
 | 29 | Test server with Pigeonhole (Sieve, ManageSieve on 14190); integration test that the server files ruled and blocked mail by itself; test servers start with Docker and OpenSSL 3.0 again (Containerfile named, expired certificate made with `openssl ca`) |
 | 30 | Company domains at Google Workspace or Microsoft 365, recognised from their MX records (our DNS client now also asks MX): Workspace gets Gmail's servers and app password help; Microsoft 365 goes straight to Microsoft sign-in |
 | 31 | Sorting learns from each sender's mail, on the device: when the rules find no signal, a sender whose other mail clearly sorts one way (3+ messages, 90%) is followed; never for people the user writes to; stored mail re-sorted once |
+| 32 | Google Safe Browsing (opt-in): our own Update API v4 client in the new mail_lookup package (canonical URLs and expressions per Google's spec, hash-prefix lists with checksums, kept in a file); links the user opens are checked on the device, and only a 4-byte prefix is sent to confirm; built-in or the user's own API key |
 
 ## Next
 
@@ -102,10 +103,8 @@ first, ends with something that can be run or tested, and is committed as
 3. **Before a public Gmail release:** Google's verification of the
    built-in client ID (restricted scope: security assessment).
 4. **M6, the rest.**
-   - Optional link and file checks with Google Safe Browsing (hash prefixes
-     downloaded, links checked on the device) and VirusTotal (your own API
-     key, only for items local checks flagged). Both off by default; each
-     asks before it is turned on.
+   - Optional checks with VirusTotal (your own API key, only for items
+     local checks flagged). Off by default; asks before it is turned on.
 
 ## Rules for every stage
 

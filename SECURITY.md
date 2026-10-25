@@ -123,6 +123,14 @@ public issue. We aim to reply within 7 days.
     The server checks the script before storing it. Turning the setting
     off removes the script.
 
+14. **Outside checks are opt-in and minimal.** Google Safe Browsing runs
+    only after the user turns it on and confirms. Its lists are checked
+    on the device; a link is never sent, only the first 4 bytes of a
+    matching SHA-256 fingerprint, to confirm. Lists are verified against
+    Google's checksum and downloaded afresh when they don't match. All
+    requests go through the hardened `mail_web` client. If a check can't
+    be made in time, the link opens with the usual on-device warnings.
+
 ## Releases
 
 Android releases are signed with a key kept outside the repository (CI

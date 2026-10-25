@@ -24,6 +24,7 @@ dependencies:
   mail_store: any
   mail_sync: any
   mail_trust: any
+  mail_lookup: any
   mail_unsubscribe: any
   mail_view: any
   mail_web: any

@@ -76,6 +76,7 @@ final class _MailShellState extends State<MailShell> {
     _controller.onNotice = _notice;
     _controller.onReconnect = (account) => unawaited(_reconnect(account));
     unawaited(widget.services.worker.start().catchError((Object _) {}));
+    widget.services.linkSafety.start();
     if (widget.notifications) {
       unawaited(_startNotifications());
       unawaited(_startBackground());
@@ -85,6 +86,7 @@ final class _MailShellState extends State<MailShell> {
   @override
   void dispose() {
     unawaited(_announcer?.dispose());
+    widget.services.linkSafety.stop();
     _controller.dispose();
     _searchFocus.dispose();
     _shellFocus.dispose();

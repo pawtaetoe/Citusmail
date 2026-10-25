@@ -18,6 +18,7 @@ import '../security/app_lock.dart';
 import '../security/pin_hasher.dart';
 import 'app_settings.dart';
 import 'device_sync.dart';
+import 'link_safety.dart';
 import 'remote_images.dart';
 import 'secret_store.dart';
 
@@ -52,6 +53,14 @@ final class AppServices {
     this.lock,
     this._databasePath,
   ) : deviceSync = DeviceSync(store, secrets, worker),
+      linkSafety = LinkSafety(
+        store,
+        secrets,
+        web,
+        listFile: _databasePath == null
+            ? null
+            : File('${File(_databasePath).parent.path}/safebrowsing.bin'),
+      ),
       actions = MailActions(store, undoWindow: const Duration(seconds: 5)),
       oneClick = OneClickUnsubscriber(web),
       images = RemoteImages(web),
@@ -70,6 +79,9 @@ final class AppServices {
 
   /// App data sync between the user's devices.
   final DeviceSync deviceSync;
+
+  /// Optional Google Safe Browsing link checks (off by default).
+  final LinkSafety linkSafety;
 
   /// Local changes (read, pin, move, delete); the worker sends them on.
   final MailActions actions;

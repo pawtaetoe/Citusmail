@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
+import 'package:mail_lookup/mail_lookup.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,10 +23,28 @@ abstract final class LinkOpener {
     Uri link, {
     required void Function(Uri mailto) onMailto,
     TrustReport? trust,
+    Future<SafeBrowsingVerdict?> Function(Uri link)? safety,
   }) async {
     if (link.scheme == 'mailto') return onMailto(link);
     final reasons = <String>[...?trust?.link(link)?.reasons];
     var level = trust?.link(link)?.level ?? TrustLevel.ok;
+    // Google Safe Browsing, when the user turned it on: checked on the
+    // device, so this is quick unless a match must be confirmed.
+    if (safety != null) {
+      final verdict = await safety(link);
+      if (!context.mounted) return;
+      if (verdict?.threat case final threat?) {
+        level = TrustLevel.danger;
+        reasons.add(switch (threat) {
+          ThreatType.socialEngineering =>
+            'Google Safe Browsing lists this site as deceptive (phishing).',
+          ThreatType.malware =>
+            'Google Safe Browsing lists this site as spreading malware.',
+          ThreatType.unwantedSoftware =>
+            'Google Safe Browsing lists this site for unwanted software.',
+        });
+      }
+    }
     if (trust?.level == TrustLevel.danger) {
       level = TrustLevel.danger;
       reasons.add('This message may be a scam.');

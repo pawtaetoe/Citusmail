@@ -21,6 +21,7 @@ no analytics, no crash reporting and no advertising.
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
 | Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, unsubscribes, folder rules and image senders, end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
+| Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
 | A link in an email | Only when you tap it and confirm the address | Your browser opens the link, without tracking parameters such as `utm_source` |
 | Images in an email | Only when you tap "Load images", or for a sender you chose "Always from this sender" for (and only when your mail server verified the mail is from them) | A request for each image with a generic user agent: no cookies, no referrer, no language. Like any connection, it shows your IP address, and the sender can tell the message was opened. Tracking pixels are never requested |
 
@@ -32,7 +33,6 @@ Planned optional features (off by default, each asks first):
 
 | Destination | What is sent |
 | --- | --- |
-| Google Safe Browsing | Hash prefixes downloaded to the device; links are checked locally |
 | VirusTotal (your own API key) | Only links or file hashes that local checks flagged |
 
 ## What stays on your device
@@ -43,7 +43,8 @@ device from a few message headers and your Sent folder. Phishing checks
 (sender verification, lookalike addresses, deceptive links, risky
 attachments) also run on the device only, using the results your own mail
 server already wrote into the message and a built-in list of domain
-endings. No link, address or file is looked up anywhere.
+endings. No link, address or file is looked up anywhere, unless you turn on Google
+Safe Browsing (see above), which still checks links on the device first.
 
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail

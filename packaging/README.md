@@ -75,6 +75,12 @@ as a secret": every copy of the app carries it. Without them, the app
 offers Gmail users to enter their own client ID instead (the same steps,
 in their own project).
 
+**Google Safe Browsing** (optional link checks, off until the user turns
+them on) needs a Google API key with the Safe Browsing API enabled, passed
+as `--dart-define=CITUSMAIL_SAFE_BROWSING_KEY=<key>` (`build-aab.sh`
+passes it on). Without it, users who turn the checks on enter their own
+key. Restrict the key to the Safe Browsing API in the Cloud console.
+
 **Other local release builds**: either the same environment variables as
 CI below, or a git-ignored `app/android/key.properties`:
 
