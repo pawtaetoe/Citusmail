@@ -106,6 +106,32 @@ void main() {
     expect(reload(friend).category, MessageCategory.general);
   });
 
+  test('stored verification mail moves to Codes, with its code', () async {
+    store.messages.upsertSummaries(inbox.id, [
+      MessageSummary(
+        uid: 1,
+        receivedAt: DateTime.utc(2026, 10, 1),
+        from: bank,
+        subject: 'Your login code',
+        snippet: 'Use 551200 to sign in. It expires in 10 minutes.',
+      ),
+      MessageSummary(
+        uid: 2,
+        receivedAt: DateTime.utc(2026, 10, 2),
+        from: bank,
+        subject: 'Reset your password',
+      ),
+    ]);
+    await Resorter(store).resortAll();
+    final code = store.messages.byUid(inbox.id, 1)!;
+    final reset = store.messages.byUid(inbox.id, 2)!;
+    expect(code.category, MessageCategory.codes);
+    expect(code.section, SmartSection.codes);
+    expect(code.code, '551200');
+    expect(reset.category, MessageCategory.codes);
+    expect(reset.code, isNull, reason: 'its body is read on the next sync');
+  });
+
   test('runs again when the rules version changes', () async {
     storeUnsorted(1, shop, const {});
     await Resorter(store).resortIfNeeded();

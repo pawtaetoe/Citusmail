@@ -5,19 +5,26 @@
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
-/// What a classifier may look at: the sender, a few headers and the
-/// folder. Never the body, so sorting works on summaries alone.
+/// What a classifier may look at: the sender, a few headers, the subject,
+/// the server's short preview (when it gives one) and the folder. Never
+/// the body, so sorting works on summaries alone.
 final class ClassificationInput {
   /// [headers] must use lower-case names (as fetched by sync and stored).
   const ClassificationInput({
     required this.from,
     required this.headers,
     this.mailboxUse,
+    this.subject,
+    this.snippet,
   });
 
   final MailAddress? from;
   final Map<String, List<String>> headers;
   final SpecialUse? mailboxUse;
+  final String? subject;
+
+  /// The preview text (IMAP PREVIEW), if the server sent one.
+  final String? snippet;
 
   /// The first non-empty value of header [name] (lower case), trimmed.
   String? header(String name) {
@@ -48,6 +55,9 @@ enum SortingReason {
   knownService,
   autoReply,
   readReceipt,
+
+  /// A verification code, sign-in link or password reset.
+  verification,
   oneClickUnsubscribe,
   automatedSender,
   mailingList,
@@ -76,7 +86,8 @@ final class Classification {
   String toString() => 'Classification(${category.name}, ${reason.name})';
 }
 
-/// Decides General / Newsletters / Notifications from a message's headers.
+/// Decides General / Codes / Newsletters / Notifications from a message's
+/// headers and subject.
 abstract interface class MessageClassifier {
   /// Changes whenever the same input could get a different answer (new
   /// rules or service lists), so stored mail is re-sorted after updates.

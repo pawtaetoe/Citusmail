@@ -34,8 +34,11 @@ avatars or other assets are ever downloaded.
 ## What stays on your device
 
 Mail, contacts, settings and caches are stored encrypted on the device.
-Sorting into Important, General, Newsletters and Notifications runs on the
-device from a few message headers and your Sent folder. Phishing checks
+Sorting into Important, General, Verification, Newsletters and
+Notifications runs on the device from a few message headers, the subject
+and your Sent folder. Codes in verification mail are found on the device
+too; for this, new verification mail (from the last day) is downloaded
+from your own mail server, as if you had opened it, but it stays unread. Phishing checks
 (sender verification, lookalike addresses, deceptive links, risky
 attachments) also run on the device only, using the results your own mail
 server already wrote into the message and a built-in list of domain
@@ -61,8 +64,8 @@ settings, the app lock and your PIN never sync.
 ## Notifications
 
 New-mail notifications show the sender and subject, never the message
-text, and only for Important and General mail. On Android the lock screen
-shows only that there is new mail. They are created on your device; no
+text, and only for Verification, Important and General mail (and pins).
+On Android the lock screen shows only that there is new mail. They are created on your device; no
 push service is involved. On Android, Citusmail checks for mail about every 15
 minutes in the background, or keeps a live connection if you turn on
 "Instant mail" (which shows a permanent notification, as Android requires).

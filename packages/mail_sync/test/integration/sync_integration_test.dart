@@ -189,9 +189,9 @@ void main() {
       });
       expect(subjects(SmartSection.notifications), {
         'Re: [owner/repo] Fix crash on startup (PR #12)',
-        'Reset your password',
         'Read: Final report', // a read receipt
       });
+      expect(subjects(SmartSection.codes), {'Reset your password'});
       expect(subjects(SmartSection.pinned), {'Photos from the hike'});
       expect(count(SmartSection.important), 0, reason: 'Sent not synced yet');
       expect(count(SmartSection.general), 15);

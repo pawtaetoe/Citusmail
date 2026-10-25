@@ -37,6 +37,7 @@ abstract final class SectionSql {
   static const expression =
       'CASE '
       "WHEN (messages.flags & 4) != 0 THEN 'pinned' "
+      "WHEN messages.category = 'codes' THEN 'codes' "
       "WHEN messages.category = 'newsletters' THEN 'newsletters' "
       "WHEN messages.category = 'notifications' THEN 'notifications' "
       "WHEN $_important THEN 'important' "

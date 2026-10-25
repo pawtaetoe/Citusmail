@@ -270,6 +270,36 @@ void main() {
       );
     });
 
+    test('version 12 mail keeps its category and section; codes fit', () {
+      openAt(12)
+        ..execute(
+          'INSERT INTO messages (id, mailbox_id, uid, received_at, category, section, flags) VALUES '
+          "(1, 1, 1, 0, 'newsletters', 'newsletters', 0), (2, 1, 2, 0, 'people', 'pinned', 4)",
+        )
+        ..close();
+      temp.store = MailStore.open(temp.path, temp.key);
+      final db = temp.store.database;
+      expect(
+        db
+            .select('SELECT category, section, code FROM messages ORDER BY id')
+            .map((r) => (r['category'], r['section'], r['code'])),
+        [('newsletters', 'newsletters', null), ('people', 'pinned', null)],
+      );
+      db.execute(
+        "UPDATE messages SET category = 'codes', section = 'codes', code = '123456' WHERE id = 1",
+      );
+      expect(
+        () => db.execute("UPDATE messages SET category = 'other' WHERE id = 1"),
+        throwsA(anything),
+      );
+      expect(
+        db.select(
+          "SELECT name FROM sqlite_master WHERE name IN ('messages_by_section', 'messages_unread', 'messages_by_category_date')",
+        ),
+        hasLength(3),
+      );
+    });
+
     test('a failing migration rolls back completely', () {
       temp.store.close();
       final broken = [

@@ -343,4 +343,33 @@ const List<Migration> schemaMigrations = [
     ALTER TABLE accounts ADD COLUMN sign_in TEXT NOT NULL DEFAULT 'password'
       CHECK (sign_in = 'password' OR sign_in LIKE 'oauth:%')''',
   ]),
+
+  // Codes (verification codes, sign-in and password reset links): a
+  // category and Smart Inbox section of their own, and the code found in
+  // the message ('' when it was looked for and none was found). SQLite
+  // cannot change a CHECK constraint, so category and section are
+  // re-created with the new value allowed.
+  Migration(13, [
+    'DROP INDEX messages_by_category_date',
+    'ALTER TABLE messages RENAME COLUMN category TO category_v12',
+    '''
+    ALTER TABLE messages ADD COLUMN category TEXT NOT NULL DEFAULT 'people'
+      CHECK (category IN ('people', 'newsletters', 'notifications', 'codes'))''',
+    'UPDATE messages SET category = category_v12',
+    'ALTER TABLE messages DROP COLUMN category_v12',
+    'CREATE INDEX messages_by_category_date ON messages (category, received_at DESC, id DESC)',
+    'DROP INDEX messages_by_section',
+    'DROP INDEX messages_unread',
+    'ALTER TABLE messages RENAME COLUMN section TO section_v12',
+    '''
+    ALTER TABLE messages ADD COLUMN section TEXT NOT NULL DEFAULT 'general'
+      CHECK (section IN ('pinned', 'codes', 'important', 'general', 'notifications', 'newsletters'))''',
+    'UPDATE messages SET section = section_v12',
+    'ALTER TABLE messages DROP COLUMN section_v12',
+    'CREATE INDEX messages_by_section ON messages (mailbox_id, section, received_at DESC, id DESC)',
+    'CREATE INDEX messages_unread ON messages (mailbox_id, section) WHERE (flags & 1) = 0',
+    '''
+    ALTER TABLE messages ADD COLUMN code TEXT
+      CHECK (code IS NULL OR length(code) <= 16)''',
+  ]),
 ];

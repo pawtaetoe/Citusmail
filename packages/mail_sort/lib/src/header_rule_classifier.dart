@@ -12,12 +12,14 @@ import 'sorting_rules.dart';
 /// | # | Rule | Category |
 /// | - | ---- | -------- |
 /// | 1 | Sent or Drafts folder | General |
-/// | 2 | Known service (GitHub...) | Notifications |
-/// | 3 | `Auto-Submitted: auto-replied` (out-of-office, bounce) | General |
-/// | 4 | One-click unsubscribe (RFC 8058) | Newsletters |
-/// | 5 | `noreply`-style sender, `Auto-Submitted: auto-generated` | Notifications |
-/// | 6 | `List-Id` or `List-Unsubscribe` | Newsletters |
-/// | 7 | `Precedence: bulk` / `list` / `junk` | Newsletters |
+/// | 2 | Read receipt (RFC 8098 report) | Notifications |
+/// | 3 | Verification code, sign-in link, password reset (subject or preview) | Codes |
+/// | 4 | Known service (GitHub...) | Notifications |
+/// | 5 | `Auto-Submitted: auto-replied` (out-of-office, bounce) | General |
+/// | 6 | One-click unsubscribe (RFC 8058) | Newsletters |
+/// | 7 | `noreply`-style sender, `Auto-Submitted: auto-generated` | Notifications |
+/// | 8 | `List-Id` or `List-Unsubscribe` | Newsletters |
+/// | 9 | `Precedence: bulk` / `list` / `junk` | Newsletters |
 /// | - | anything else | General |
 ///
 /// Pinned and Important are worked out by the store when listing the Smart
@@ -29,11 +31,13 @@ final class HeaderRuleClassifier implements MessageClassifier {
   /// Bump whenever [rules] or the lists they use change, so stored mail is
   /// re-sorted (see `Resorter`).
   /// 2: read receipts sort as notifications.
-  static const currentVersion = 2;
+  /// 3: verification codes, sign-in links and password resets as Codes.
+  static const currentVersion = 3;
 
   static const List<SortingRule> rules = [
     OwnMailRule(),
     ReadReceiptRule(),
+    VerificationRule(),
     KnownServiceRule(),
     AutoReplyRule(),
     OneClickUnsubscribeRule(),

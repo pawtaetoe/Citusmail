@@ -8,6 +8,7 @@ import 'classification.dart';
 import 'header_rule_classifier.dart';
 import 'learned_classifier.dart';
 import 'list_id.dart';
+import 'verification_codes.dart';
 
 /// Re-sorts stored mail from its stored headers when the rules change
 /// (and once after upgrading from a version without sorting). Nothing is
@@ -74,6 +75,8 @@ final class Resorter {
         from: message.from,
         headers: message.headers,
         mailboxUse: message.mailboxUse,
+        subject: message.subject,
+        snippet: message.snippet,
       ),
     );
     return CategoryDecision(
@@ -81,6 +84,9 @@ final class Resorter {
       category: decision.category,
       source: decision.source,
       listId: ListId.fromHeaders(message.headers),
+      code: decision.category == MessageCategory.codes
+          ? VerificationCodes.inMessage(message.subject, message.snippet)
+          : null,
     );
   }
 }
