@@ -91,6 +91,9 @@ first, ends with something that can be run or tested, and is committed as
    (`dart run repo_tools:live_check --send`, see the README).
    - Waiting on: a Microsoft Entra client ID (see
      [packaging/README.md](packaging/README.md)) and an Outlook test account.
+     Until the app has its own, users can enter their own client ID in
+     setup, and CI builds take `CITUSMAIL_MS_CLIENT_ID` from a repository
+     variable.
    - The app build takes the ID as `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`;
      the live check reads it from `LIVE_OAUTH_CLIENT_ID` in `live-test.env`.
    - Its send step reports whether Outlook keeps its own copy in Sent (the

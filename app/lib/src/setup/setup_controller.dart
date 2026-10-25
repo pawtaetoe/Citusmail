@@ -185,10 +185,10 @@ final class SetupController extends ChangeNotifier {
     String? displayName,
   }) async {
     _remember(email, displayName);
-    if (provider.configured) {
+    if (provider.configured || _ownClient == null || _saveOwnClient == null) {
       return signInWith(provider, email: email, displayName: displayName);
     }
-    final own = await _ownClient?.call(provider.id);
+    final own = await _ownClient(provider.id);
     if (own == null) return _set(EnteringOwnClient(provider));
     return signInWith(
       provider.withRegistration(own),
