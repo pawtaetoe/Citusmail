@@ -8,6 +8,7 @@ no analytics, no crash reporting and no advertising.
 | Destination | When | What is sent |
 | --- | --- | --- |
 | Your mail servers | Always, to read and send mail | Your login and mail, over TLS |
+| Your mail server's rules service (ManageSieve, port 4190) | Only with "Rules on the mail server" turned on, when your rules change (and once a day to check) | Your login over TLS, and a script with your blocked senders and folder rules, so the server sorts mail as it arrives |
 | Microsoft's sign-in service | Only for Outlook / Hotmail accounts: when you add one (in your own browser), and to renew access about every hour | Your sign-in happens on Microsoft's page; the app sends only the one-time code it gets back, and later its refresh token, to get access to your mail. Your password never passes through the app |
 | Google's sign-in service | Only for Gmail accounts you add with "Sign in with Google": when you add one (in your own browser), and to renew access about every hour | As for Microsoft: the one-time code, then the refresh token, with the app's (or your own) client ID. Your password never passes through the app |
 | Google Cloud console | Only when you tap "Open Google Cloud" while entering your own client ID | Your browser opens the page |

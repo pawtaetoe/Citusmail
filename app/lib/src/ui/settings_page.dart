@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
 import '../background/background_mail.dart';
@@ -14,6 +15,22 @@ import '../services/app_services.dart';
 import 'block_dialog.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
+
+/// One account's server rules, in words.
+String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
+  null => 'Set up with the next check for mail.',
+  ServerRulesState.active => 'Running on the server.',
+  ServerRulesState.nothingToRun =>
+    'Nothing to run yet: no blocked senders or folder rules.',
+  ServerRulesState.otherScriptActive =>
+    'The server already runs another filter ("${status!.detail}"), so the rules '
+        'run in $appName only.',
+  ServerRulesState.notSupported =>
+    'This server doesn\'t support rules on the server.',
+  ServerRulesState.failed =>
+    'Couldn\'t update the server: ${status!.detail ?? 'unknown problem'}. '
+        'Tried again later.',
+};
 
 /// App settings: notifications, instant mail on Android, and what the app
 /// does with your data.
@@ -142,6 +159,16 @@ final class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _setServerRules(bool on) async {
+    setState(() => widget.services.settings.serverRules = on);
+    try {
+      await widget.services.worker.syncNow();
+    } on SyncWorkerException {
+      // Tried again with the next sync.
+    }
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = widget.services.settings;
@@ -198,6 +225,29 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.dns_outlined),
+            title: const Text('Rules on the mail server'),
+            subtitle: const Text(
+              'Blocked senders and folder rules also run on your mail server, so mail is sorted '
+              'even when $appName isn\'t open. Only where the server supports it (Sieve); a '
+              'filter you already use there is never replaced.',
+            ),
+            value: settings.serverRules,
+            onChanged: _setServerRules,
+          ),
+          if (settings.serverRules)
+            for (final account in widget.services.store.accounts.all())
+              ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.only(left: 72, right: 16),
+                title: Text(account.email),
+                subtitle: Text(
+                  serverRulesText(
+                    ServerRules.statusOf(widget.services.store, account.id),
+                  ),
+                ),
+              ),
           const _Group('About'),
           ListTile(
             leading: const Icon(Icons.shield_outlined),

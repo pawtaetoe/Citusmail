@@ -12,6 +12,7 @@ import 'mailbox_synchronizer.dart';
 import 'outbox_replayer.dart';
 import 'receipt_collector.dart';
 import 'sender_blocker.dart';
+import 'server_rules.dart';
 import 'sync_worker.dart';
 
 /// Why a sync could not finish, in terms the app can act on.
@@ -70,7 +71,11 @@ final class AccountSyncReport {
     this.receipts = 0,
     this.appData,
     this.appDataFailure,
+    this.serverRules,
   }) : mailboxes = Map.unmodifiable(mailboxes);
+
+  /// Where the server rules stand, when they are turned on.
+  final ServerRulesStatus? serverRules;
 
   final ReplayResult replay;
 
@@ -106,6 +111,7 @@ final class AccountSynchronizer {
     this._rules,
     this._blocker,
     this._appData,
+    this._serverRules,
   });
 
   final MailStore _store;
@@ -115,6 +121,7 @@ final class AccountSynchronizer {
   final FolderRuleApplier? _rules;
   final SenderBlocker? _blocker;
   final AppDataSync? _appData;
+  final ServerRules? _serverRules;
 
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled). Without, every
@@ -182,6 +189,15 @@ final class AccountSynchronizer {
           sync.recordProblem(appDataFailure.message);
         }
       }
+      // 7. The rules on the mail server, when turned on. Never fatal.
+      ServerRulesStatus? serverRules;
+      if (_serverRules case final rules?) {
+        try {
+          serverRules = await rules.run(account);
+        } on Object {
+          serverRules = null;
+        }
+      }
       return AccountSyncReport(
         replay: replay,
         mailboxes: results,
@@ -189,6 +205,7 @@ final class AccountSynchronizer {
         receipts: receipts,
         appData: appData,
         appDataFailure: appDataFailure,
+        serverRules: serverRules,
       );
     } finally {
       await imap.logout();

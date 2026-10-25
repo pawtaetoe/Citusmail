@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 /// The user's app settings, stored encrypted with everything else (so the
 /// background job on Android reads the same values).
@@ -24,4 +25,10 @@ final class AppSettings {
   bool get instantMail => _store.settings.read(_instantMail) == 'on';
   set instantMail(bool on) =>
       _store.settings.write(_instantMail, on ? 'on' : 'off');
+
+  /// Blocked senders and folder rules also run on the mail server, where
+  /// it supports Sieve (off by default: it changes the server's setup).
+  bool get serverRules => _store.settings.read(ServerRules.settingKey) == 'on';
+  set serverRules(bool on) =>
+      _store.settings.write(ServerRules.settingKey, on ? 'on' : 'off');
 }

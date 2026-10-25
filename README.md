@@ -32,8 +32,9 @@ macOS and iOS for later.
 │                             encrypted (ChaCha20-Poly1305, sync code)
 │   ├── mail_compose/         Writing mail: drafts, replies, sending with undo
 │   ├── mail_oauth/           OAuth 2.0 sign-in (Outlook, Google): PKCE, browser, tokens
-│   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP and SMTP, written
-│                             from scratch with no runtime dependencies
+│   ├── mail_protocol/        Pure Dart charsets, MIME, IMAP, SMTP and
+│                             ManageSieve, written from scratch with no
+│                             runtime dependencies
 │   ├── mail_setup/           Account setup: discovery (Gmail built in) and
 │                             login verification
 │   ├── mail_sort/            Sorting into General, Newsletters, Notifications

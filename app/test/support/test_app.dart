@@ -25,6 +25,10 @@ final class _OfflineConnector implements MailConnector {
   @override
   Future<SmtpClient> smtp(Account account) async =>
       throw const MailConnectionException('offline (test)');
+
+  @override
+  Future<ManageSieveClient> sieve(Account account) async =>
+      throw const MailConnectionException('offline (test)');
 }
 
 MailConnector _offline(CredentialProvider _) => const _OfflineConnector();

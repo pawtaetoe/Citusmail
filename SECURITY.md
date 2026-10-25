@@ -112,6 +112,17 @@ public issue. We aim to reply within 7 days.
     OAuth package may open a listening
     socket (CI enforces this).
 
+13. **Rules on the mail server change only the app's own script.** When
+    the user turns them on, ManageSieve (RFC 5804) is used over TLS only
+    (STARTTLS required, credentials refused without it), with the same
+    login as IMAP. The app stores one script, `citusmail`, and activates it
+    only when the server runs no other script: a filter the user set up
+    elsewhere is never replaced or edited. Every value in the script is
+    escaped (quotes, backslashes, line breaks, `:matches` wildcards), so a
+    rule can only file mail into a folder, never run other Sieve actions.
+    The server checks the script before storing it. Turning the setting
+    off removes the script.
+
 ## Releases
 
 Android releases are signed with a key kept outside the repository (CI

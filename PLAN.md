@@ -16,7 +16,7 @@ first, ends with something that can be run or tested, and is committed as
 | M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
 | M4 | Outlook sign-in (OAuth 2.0) | Built; live check tool ready, run waiting on a client ID (Stage 24) |
 | M5 | Gmail: app passwords first, then OAuth 2.0; signing in again | Built (Stages 25-27); live checks waiting |
-| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Not started |
+| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Server rules built (Stage 28) |
 
 ## Stages so far
 
@@ -74,6 +74,12 @@ first, ends with something that can be run or tested, and is committed as
 | 26 | Google sign-in for Gmail, offered next to app passwords: built-in client ID from the build, or the user's own ("bring your own"); accounts remember the client that signed them in; live check supports Google |
 | 27 | Fixing a login without removing the account: "Sign in again" (OAuth, with the client that signed it in) and "Update password", from the account menu or the red status line; checked with a real login before it replaces the old one |
 
+### M6: smarter and safer
+
+| Stage | What it delivered |
+| --- | --- |
+| 28 | Rules on the mail server (opt-in): our own ManageSieve client (RFC 5804); blocked senders and folder rules written as one Sieve script, uploaded only when changed, never replacing another active script, removed when turned off; status per account in Settings |
+
 ## Next
 
 1. **Run the Stage 24 live Outlook check.** The tool is ready
@@ -94,8 +100,11 @@ first, ends with something that can be run or tested, and is committed as
    built-in client ID (restricted scope: security assessment). Later,
    recognise Google Workspace addresses on their own domains (today they
    use the manual settings with an app password).
-4. **M6.**
-   - Rules that run on the mail server where it supports them (Sieve).
+4. **Check server rules against a real Dovecot/Pigeonhole server** (the
+   test server has no ManageSieve yet): add Pigeonhole to
+   `test-server/`, and an integration test that a blocked sender's mail
+   lands in Junk without the app.
+5. **M6, the rest.**
    - An on-device model to improve sorting, with nothing sent anywhere.
    - Optional link and file checks with Google Safe Browsing (hash prefixes
      downloaded, links checked on the device) and VirusTotal (your own API

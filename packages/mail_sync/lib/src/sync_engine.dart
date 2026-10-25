@@ -19,6 +19,7 @@ import 'message_loader.dart';
 import 'on_demand_connections.dart';
 import 'outbox_replayer.dart';
 import 'sender_blocker.dart';
+import 'server_rules.dart';
 import 'summary_mapper.dart';
 
 /// Something the UI may want to show.
@@ -71,6 +72,7 @@ final class SyncEngine {
       rules: FolderRuleApplier(_store),
       blocker: SenderBlocker(_store),
       appData: appData,
+      serverRules: ServerRules(_store, _connector.sieve),
     );
   }
 
