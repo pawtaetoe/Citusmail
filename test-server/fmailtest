@@ -20,7 +20,7 @@ readonly CONTAINER_PREFIX="fmail-test"
 readonly MODES=(secure limited plain)
 readonly READY_TIMEOUT_SECONDS=60
 
-# shellcheck source=servers.env
+# shellcheck source-path=SCRIPTDIR source=servers.env
 source "$HERE/servers.env"
 
 log() { echo "[fmailtest] $*" >&2; }

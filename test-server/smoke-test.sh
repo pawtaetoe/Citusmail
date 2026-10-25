@@ -10,7 +10,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly HERE
 readonly CA="$HERE/.generated/certs/ca.crt"
-# shellcheck source=servers.env
+# shellcheck source-path=SCRIPTDIR source=servers.env
 source "$HERE/servers.env"
 
 PASSED=0
