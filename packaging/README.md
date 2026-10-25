@@ -93,8 +93,10 @@ keyAlias=upload
 keyPassword=...
 ```
 
-**CI**: add these repository secrets (Settings → Secrets and variables →
-Actions):
+**CI**: add these secrets, either as repository secrets (Settings → Secrets
+and variables → Actions) or in an environment named `release` (Settings →
+Environments), where only the signed Android build of a version tag
+(`build-android-release`) can read them:
 
 | Secret | Value |
 | --- | --- |
