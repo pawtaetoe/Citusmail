@@ -4,8 +4,8 @@
 
 import 'dart:convert';
 
+import 'package:citusmail/src/services/remote_images.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/services/remote_images.dart';
 
 import 'support/fake_web.dart';
 

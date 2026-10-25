@@ -5,8 +5,8 @@
 // Server rules against the real Dovecot + Pigeonhole test server: the app
 // stores its Sieve script over ManageSieve, and mail delivered afterwards
 // is filed by the server itself, with no device syncing.
-//   test-server/fmailtest up
-//   FMAIL_INTEGRATION=1 dart test test/integration
+//   test-server/citusmailtest up
+//   CITUSMAIL_INTEGRATION=1 dart test test/integration
 
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
@@ -89,14 +89,14 @@ void main() {
   Future<void> deliver(String from, String subject) async {
     final smtp = await SmtpClient.connect(
       ServerEndpoint(
-        'mail.fmail.test',
+        'mail.citusmail.test',
         servers.ports['SECURE_SUBMISSIONS_PORT']!,
         ConnectionSecurity.implicitTls,
         connectAddress: '127.0.0.1',
       ),
       tls: servers.tls,
     );
-    await smtp.authenticate('bob@fmail.test', 'bob-test-password');
+    await smtp.authenticate('bob@citusmail.test', 'bob-test-password');
     final at = from.lastIndexOf('@');
     await smtp.send(
       MessageBuilder().build(
@@ -105,12 +105,12 @@ void main() {
             localPart: from.substring(0, at),
             domain: from.substring(at + 1),
           ),
-          to: const [MailAddress(localPart: 'alice', domain: 'fmail.test')],
+          to: const [MailAddress(localPart: 'alice', domain: 'citusmail.test')],
           subject: subject,
           textBody: 'Server rules test.',
         ),
       ),
-      from: const MailAddress(localPart: 'bob', domain: 'fmail.test'),
+      from: const MailAddress(localPart: 'bob', domain: 'citusmail.test'),
     );
     await smtp.quit();
   }
@@ -159,7 +159,7 @@ void main() {
 
     // Nothing syncs from here on: only the server acts. (Nothing is sent
     // that would stay in INBOX: other tests count its messages.)
-    await deliver('bob@fmail.test', 'rule-$tag Rechnung Übersicht');
+    await deliver('bob@citusmail.test', 'rule-$tag Rechnung Übersicht');
     await deliver('pest-$tag@x.example', 'blocked address $tag');
     await deliver('news@mail.spam-$tag.example', 'blocked subdomain $tag');
 

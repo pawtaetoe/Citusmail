@@ -140,7 +140,7 @@ Integration tests use local test mail servers; see
 [test-server/README.md](test-server/README.md):
 
 ```bash
-test-server/fmailtest up && test-server/fmailtest smoke
+test-server/citusmailtest up && test-server/citusmailtest smoke
 ```
 
 ### Live checks against a real account
@@ -151,7 +151,7 @@ system keychain:
 
 ```bash
 cp live-test.env.example live-test.env          # then edit it
-secret-tool store --label="Fmail test account" service fmail-test account you@example.com
+secret-tool store --label="Citusmail test account" service citusmail-test account you@example.com
 scripts/live-account-check.sh                   # read-only: TLS, capabilities, folders (curl; password accounts)
 dart run repo_tools:live_check                  # read-only: same, using the app's own IMAP/SMTP code
 dart run repo_tools:live_check --send           # also sends one message to the account itself
@@ -162,9 +162,9 @@ For an Outlook account, set `LIVE_SIGN_IN=microsoft` and
 [packaging/README.md](packaging/README.md)) instead of a password. For
 Google sign-in, `LIVE_SIGN_IN=google` with a Google client ID, and its
 client secret in the keychain:
-`secret-tool store --label="Fmail test OAuth client" service fmail-test-oauth-client account <client id>`. The first
+`secret-tool store --label="Citusmail test OAuth client" service citusmail-test-oauth-client account <client id>`. The first
 run opens the browser to sign in; the tokens are then kept in the keychain
-(service `fmail-test-oauth`) and the check renews them as the app does.
+(service `citusmail-test-oauth`) and the check renews them as the app does.
 `--sign-in-again` forgets them and signs in afresh.
 
 ## Adding a dependency

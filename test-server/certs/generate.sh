@@ -2,14 +2,14 @@
 # Creates the test certificate authority and server certificates used by the
 # test mail server. Output goes to test-server/.generated/certs (git-ignored).
 #
-# The CA is name-constrained to the DNS names fmail.test and localhost, so
+# The CA is name-constrained to the DNS names citusmail.test and localhost, so
 # even if it were trusted by mistake it could not impersonate any real site.
 # (No IP constraint: BoringSSL, used by Dart, rejects IP name constraints as
 # unsupported, which would make every certificate from this CA fail.)
 #
 # Certificates:
-#   ca.crt         Fmail Test CA (tests trust only this)
-#   mail.crt       valid for mail.fmail.test, localhost, 127.0.0.1
+#   ca.crt         Citusmail Test CA (tests trust only this)
+#   mail.crt       valid for mail.citusmail.test, localhost, 127.0.0.1
 #   expired.crt    signed by the CA, but expired in 2021
 #   untrusted.crt  self-signed, not from the CA
 #
@@ -19,7 +19,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
-readonly OUT_DIR="${FMAIL_CERT_DIR:-$SCRIPT_DIR/../.generated/certs}"
+readonly OUT_DIR="${CITUSMAIL_CERT_DIR:-$SCRIPT_DIR/../.generated/certs}"
 readonly RENEW_SECONDS=$((30 * 24 * 3600))
 FORCE=false
 [[ "${1:-}" == "--force" ]] && FORCE=true
@@ -40,10 +40,10 @@ make_ca() {
   log "creating test CA"
   new_key "$OUT_DIR/ca.key"
   openssl req -x509 -new -key "$OUT_DIR/ca.key" -sha256 -days 3650 \
-    -subj "/O=Fmail Test/CN=Fmail Test CA (NOT FOR REAL USE)" \
+    -subj "/O=Citusmail Test/CN=Citusmail Test CA (NOT FOR REAL USE)" \
     -addext "basicConstraints=critical,CA:true,pathlen:0" \
     -addext "keyUsage=critical,keyCertSign,cRLSign" \
-    -addext "nameConstraints=critical,permitted;DNS:fmail.test,permitted;DNS:localhost" \
+    -addext "nameConstraints=critical,permitted;DNS:citusmail.test,permitted;DNS:localhost" \
     -out "$OUT_DIR/ca.crt"
   FORCE=true  # a new CA invalidates every certificate it signed
 }
@@ -89,9 +89,9 @@ CONF
     "basicConstraints=critical,CA:false" \
     "keyUsage=critical,digitalSignature" \
     "extendedKeyUsage=serverAuth" \
-    "subjectAltName=DNS:expired.fmail.test" > "$work/ext"
+    "subjectAltName=DNS:expired.citusmail.test" > "$work/ext"
   new_key "$OUT_DIR/expired.key"
-  openssl req -new -key "$OUT_DIR/expired.key" -subj "/CN=expired.fmail.test" \
+  openssl req -new -key "$OUT_DIR/expired.key" -subj "/CN=expired.citusmail.test" \
     -out "$work/expired.csr"
   openssl ca -batch -notext -config "$work/ca.cnf" \
     -cert "$OUT_DIR/ca.crt" -keyfile "$OUT_DIR/ca.key" \
@@ -102,8 +102,8 @@ CONF
 
 make_server_certs() {
   if $FORCE || ! still_valid "$OUT_DIR/mail.crt"; then
-    log "creating mail.fmail.test certificate"
-    sign_cert mail "DNS:mail.fmail.test,DNS:localhost,IP:127.0.0.1" -days 365
+    log "creating mail.citusmail.test certificate"
+    sign_cert mail "DNS:mail.citusmail.test,DNS:localhost,IP:127.0.0.1" -days 365
   fi
   if $FORCE || [[ ! -f "$OUT_DIR/expired.crt" ]]; then
     log "creating expired certificate"
@@ -113,8 +113,8 @@ make_server_certs() {
     log "creating self-signed (untrusted) certificate"
     new_key "$OUT_DIR/untrusted.key"
     openssl req -x509 -new -key "$OUT_DIR/untrusted.key" -sha256 -days 365 \
-      -subj "/CN=untrusted.fmail.test" \
-      -addext "subjectAltName=DNS:untrusted.fmail.test" \
+      -subj "/CN=untrusted.citusmail.test" \
+      -addext "subjectAltName=DNS:untrusted.citusmail.test" \
       -out "$OUT_DIR/untrusted.crt"
   fi
 }

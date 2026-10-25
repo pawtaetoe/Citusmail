@@ -1,9 +1,9 @@
-From: Alice Example <alice@fmail.test>
-To: Bob Example <bob@fmail.test>
+From: Alice Example <alice@citusmail.test>
+To: Bob Example <bob@citusmail.test>
 Subject: Final report
 Date: Mon, 19 Oct 2026 16:00:00 +0800
-Message-ID: <alice-report-1@fmail.test>
-Disposition-Notification-To: Alice Example <alice@fmail.test>
+Message-ID: <alice-report-1@citusmail.test>
+Disposition-Notification-To: Alice Example <alice@citusmail.test>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 

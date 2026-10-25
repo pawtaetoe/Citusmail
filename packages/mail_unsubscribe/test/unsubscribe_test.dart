@@ -13,7 +13,7 @@ import 'package:mail_view/mail_view.dart';
 import 'package:mail_web/mail_web.dart';
 import 'package:test/test.dart';
 
-const _context = TrustContext(trustedAuthServId: 'mail.fmail.test');
+const _context = TrustContext(trustedAuthServId: 'mail.citusmail.test');
 
 MessageView _fixture(String path) =>
     MessageView.parse(File('../../test-data/mail/$path').readAsBytesSync());
@@ -152,7 +152,7 @@ void main() {
     test('no one-click when the signature leaves out the headers', () {
       final plan = _plan(
         _mail('''
-Authentication-Results: mail.fmail.test; dkim=pass header.d=shop.example header.s=mail
+Authentication-Results: mail.citusmail.test; dkim=pass header.d=shop.example header.s=mail
 DKIM-Signature: v=1; d=shop.example; s=mail; h=from:to:subject; b=x
 From: Shop <news@shop.example>
 List-Unsubscribe: <https://shop.example/u>
@@ -164,7 +164,7 @@ List-Unsubscribe-Post: List-Unsubscribe=One-Click'''),
     test('a signature from another domain than the one verified', () {
       final plan = _plan(
         _mail('''
-Authentication-Results: mail.fmail.test; dkim=pass header.d=good.example
+Authentication-Results: mail.citusmail.test; dkim=pass header.d=good.example
 DKIM-Signature: v=1; d=evil.example; s=mail; h=list-unsubscribe:list-unsubscribe-post; b=x
 From: Shop <news@shop.example>
 List-Unsubscribe: <https://shop.example/u>
@@ -204,7 +204,7 @@ List-Unsubscribe: <mailto:u@paypal-security.example>'''),
         'warning', () {
       final plan = _plan(
         _mail('''
-Authentication-Results: mail.fmail.test; dmarc=fail header.from=openrouter.ai
+Authentication-Results: mail.citusmail.test; dmarc=fail header.from=openrouter.ai
 From: OpenRouter Team <welcome@openrouter.ai>
 List-Unsubscribe: <https://openrouter.ai/unsubscribe?u=1>'''),
       );
@@ -241,7 +241,7 @@ List-Unsubscribe: <http://203.0.113.9/u>'''),
     test('for an unverified sender, another domain is pointed out', () {
       final plan = _plan(
         _mail('''
-Authentication-Results: mail.fmail.test; dmarc=fail header.from=openrouter.ai
+Authentication-Results: mail.citusmail.test; dmarc=fail header.from=openrouter.ai
 From: OpenRouter Team <welcome@openrouter.ai>
 List-Unsubscribe: <https://unsub.mailer.example/x>'''),
       );
@@ -252,7 +252,7 @@ List-Unsubscribe: <https://unsub.mailer.example/x>'''),
       // A verified sender may use any mailing service without remark.
       final verified = _plan(
         _mail('''
-Authentication-Results: mail.fmail.test; dmarc=pass header.from=openrouter.ai
+Authentication-Results: mail.citusmail.test; dmarc=pass header.from=openrouter.ai
 From: OpenRouter Team <welcome@openrouter.ai>
 List-Unsubscribe: <https://unsub.mailer.example/x>'''),
       );

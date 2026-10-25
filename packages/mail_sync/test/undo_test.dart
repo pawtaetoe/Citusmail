@@ -21,7 +21,7 @@ void main() {
     store = MailStore.open('${directory.path}/mail.db', DatabaseKey.generate());
     final account = store.accounts.add(
       NewAccount(
-        email: 'alice@fmail.test',
+        email: 'alice@citusmail.test',
         username: 'alice',
         imap: ServerSettings(
           host: 'h.example',
@@ -65,7 +65,7 @@ void main() {
           localPart: 'bob',
           domain: 'x.example',
         ),
-        to: const [MailAddress(localPart: 'alice', domain: 'fmail.test')],
+        to: const [MailAddress(localPart: 'alice', domain: 'citusmail.test')],
         headers: const {
           'list-id': ['<l.x.example>'],
         },
@@ -108,7 +108,7 @@ void main() {
       expect(back.subject, 'Keep me');
       expect(
         store.messages.addresses(back.id, 'to').single.address,
-        'alice@fmail.test',
+        'alice@citusmail.test',
       );
       expect(store.messages.headers(back.id), {
         'list-id': ['<l.x.example>'],

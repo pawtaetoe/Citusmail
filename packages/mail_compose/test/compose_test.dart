@@ -46,7 +46,7 @@ void main() {
   setUp(() {
     directory = Directory.systemTemp.createTempSync('mail_compose_test');
     store = MailStore.open('${directory.path}/mail.db', DatabaseKey.generate());
-    alice = addAccount('alice@fmail.test', name: 'Alice');
+    alice = addAccount('alice@citusmail.test', name: 'Alice');
     final boxes = store.mailboxes.replaceAll(alice.id, [
       ImapMailboxInfo(
         encodedName: 'INBOX',
@@ -86,8 +86,8 @@ void main() {
     final built = MessageBuilder().build(
       OutgoingMessage(
         from: a('bob@x.example', 'Bob'),
-        to: [a('alice@fmail.test', 'Alice'), a('carol@x.example', 'Carol')],
-        cc: [a('dave@x.example'), a('ALICE@fmail.test')],
+        to: [a('alice@citusmail.test', 'Alice'), a('carol@x.example', 'Carol')],
+        cc: [a('dave@x.example'), a('ALICE@citusmail.test')],
         replyTo: a('bob-replies@x.example'),
         subject: 'Re: Plans',
         textBody: 'First line\n\nSecond line',
@@ -207,7 +207,7 @@ void main() {
         Draft(accountId: alice.id, subject: 'v1', body: 'one'),
       );
       expect(
-        store_.close(first.copyWith(savedMessageId: 'old-copy@fmail.test')),
+        store_.close(first.copyWith(savedMessageId: 'old-copy@citusmail.test')),
         DraftOutcome.savedToServer,
       );
       final queued = store.outbox.all(alice.id).map((e) => e.action).toList();
@@ -224,7 +224,7 @@ void main() {
         isA<RemoveDraftAction>().having(
           (x) => x.messageId,
           'id',
-          'old-copy@fmail.test',
+          'old-copy@citusmail.test',
         ),
       );
       expect(
@@ -236,7 +236,7 @@ void main() {
 
     test('an empty draft is dropped, with its old server copy', () {
       final draft = store_.save(
-        Draft(accountId: alice.id, savedMessageId: 'old@fmail.test'),
+        Draft(accountId: alice.id, savedMessageId: 'old@citusmail.test'),
       );
       expect(store_.close(draft), DraftOutcome.discarded);
       expect(store.drafts.all(), isEmpty);
@@ -247,7 +247,7 @@ void main() {
     });
 
     test('without a Drafts folder the draft stays on the device', () {
-      final bob = addAccount('bob@fmail.test');
+      final bob = addAccount('bob@citusmail.test');
       expect(
         store_.close(Draft(accountId: bob.id, body: 'x')),
         DraftOutcome.keptOnDevice,
@@ -338,7 +338,7 @@ void main() {
       final reply = DraftStore(store).save(
         ReplyBuilder(store)
             .reply(message, view)
-            .copyWith(savedMessageId: 'v1@fmail.test'),
+            .copyWith(savedMessageId: 'v1@citusmail.test'),
       );
       final now = DateTime.now();
       final pending = sender.send(reply, now: now);
@@ -383,7 +383,7 @@ void main() {
       final sent = const MimeParser().parse(queued.data!);
       expect(
         sent.headers.value('disposition-notification-to'),
-        contains('alice@fmail.test'),
+        contains('alice@citusmail.test'),
       );
       expect(store.receipts.wasRequested(alice.id, sent.messageId!), isTrue);
 

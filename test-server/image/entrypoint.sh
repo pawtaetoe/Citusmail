@@ -3,16 +3,16 @@
 # either one exits, so a broken server never looks healthy.
 set -euo pipefail
 
-readonly MODE="${FMAIL_TEST_MODE:-secure}"
-readonly CERT_DIR=/etc/fmail-certs
-readonly POSTFIX_SRC=/etc/fmail-postfix
+readonly MODE="${CITUSMAIL_TEST_MODE:-secure}"
+readonly CERT_DIR=/etc/citusmail-certs
+readonly POSTFIX_SRC=/etc/citusmail-postfix
 
 log() { echo "[entrypoint] $*" >&2; }
 
 validate_mode() {
   case "$MODE" in
     secure | limited | plain) ;;
-    *) log "unknown FMAIL_TEST_MODE '$MODE' (use secure, limited or plain)"; exit 64 ;;
+    *) log "unknown CITUSMAIL_TEST_MODE '$MODE' (use secure, limited or plain)"; exit 64 ;;
   esac
 }
 
@@ -20,7 +20,7 @@ require_certificates() {
   local name
   for name in mail expired untrusted; do
     if [[ ! -r "$CERT_DIR/$name.crt" || ! -r "$CERT_DIR/$name.key" ]]; then
-      log "missing $CERT_DIR/$name.{crt,key}; run 'test-server/fmailtest up'"
+      log "missing $CERT_DIR/$name.{crt,key}; run 'test-server/citusmailtest up'"
       exit 66
     fi
   done

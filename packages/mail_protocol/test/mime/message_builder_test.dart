@@ -12,13 +12,13 @@ import 'package:test/test.dart';
 const alice = MailAddress(
   displayName: 'Alice Example',
   localPart: 'alice',
-  domain: 'fmail.test',
+  domain: 'citusmail.test',
 );
-const bob = MailAddress(localPart: 'bob', domain: 'fmail.test');
+const bob = MailAddress(localPart: 'bob', domain: 'citusmail.test');
 const carol = MailAddress(
   displayName: 'Carol',
   localPart: 'carol',
-  domain: 'fmail.test',
+  domain: 'citusmail.test',
 );
 
 final builder = MessageBuilder(random: Random(7));
@@ -53,8 +53,8 @@ void main() {
           subject: 'Lunch on Friday?',
           textBody: 'Hi Bob',
           date: fixedDate,
-          inReplyTo: 'lunch-1@fmail.test',
-          references: ['lunch-0@fmail.test', 'lunch-1@fmail.test'],
+          inReplyTo: 'lunch-1@citusmail.test',
+          references: ['lunch-0@citusmail.test', 'lunch-1@citusmail.test'],
         ),
       );
       expect(m.from.single, alice);
@@ -62,8 +62,11 @@ void main() {
       expect(m.cc.single, carol);
       expect(m.subject, 'Lunch on Friday?');
       expect(m.date!.utc, fixedDate);
-      expect(m.inReplyTo, ['lunch-1@fmail.test']);
-      expect(m.references, ['lunch-0@fmail.test', 'lunch-1@fmail.test']);
+      expect(m.inReplyTo, ['lunch-1@citusmail.test']);
+      expect(m.references, [
+        'lunch-0@citusmail.test',
+        'lunch-1@citusmail.test',
+      ]);
       expect(bodyOf(m.textBody!), 'Hi Bob');
       expect(m.allDefects, isEmpty);
     });
@@ -147,7 +150,7 @@ void main() {
         ),
         subject: 'Ünïcödé ${'long subject ' * 20}',
         textBody: 'x',
-        references: List.generate(20, (i) => 'ref-$i@fmail.test'),
+        references: List.generate(20, (i) => 'ref-$i@citusmail.test'),
       );
       for (final line in headerSection(raw(message)).split('\r\n')) {
         expect(line.length, lessThanOrEqualTo(78), reason: line);
@@ -261,7 +264,7 @@ void main() {
       }
       expect(headers, contains('date: wed, 21 oct 2026 12:30:00 +0000'));
       final id = build(message).messageId;
-      expect(id, matches(RegExp(r'^[0-9a-f]{32}@fmail\.test$')));
+      expect(id, matches(RegExp(r'^[0-9a-f]{32}@citusmail\.test$')));
       expect(build(message).messageId, isNot(id));
     });
 
@@ -388,13 +391,13 @@ void main() {
           to: [bob],
           subject: 'Files',
           textBody: 'See the logo.',
-          htmlBody: '<p>See <img src="cid:logo@fmail.test"></p>',
+          htmlBody: '<p>See <img src="cid:logo@citusmail.test"></p>',
           attachments: [
             OutgoingAttachment(
               filename: 'logo.png',
               mimeType: 'image/png',
               bytes: png,
-              contentId: 'logo@fmail.test',
+              contentId: 'logo@citusmail.test',
             ),
             OutgoingAttachment(
               filename: '“Quarterly report” € ${'long ' * 10}.pdf',
@@ -421,7 +424,7 @@ void main() {
         'multipart/alternative',
       );
       final logo = m.root.allParts.firstWhere(
-        (p) => p.contentId == 'logo@fmail.test',
+        (p) => p.contentId == 'logo@citusmail.test',
       );
       expect(logo.decodeBody().bytes, png);
       expect(logo.isAttachment, isFalse);

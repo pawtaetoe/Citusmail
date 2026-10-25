@@ -6,10 +6,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_web/mail_web.dart';
@@ -78,7 +78,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: FmailTheme.light(),
+        theme: CitusmailTheme.light(),
         home: MailShell(
           notifications: false,
           services: app.services,

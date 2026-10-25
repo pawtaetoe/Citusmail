@@ -187,7 +187,7 @@ void main() {
       db
         ..execute(
           'INSERT INTO accounts (id, email, username, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, created_at) '
-          "VALUES (1, 'a@fmail.test', 'a', 'h', 993, 'implicitTls', 'h', 465, 'implicitTls', 0)",
+          "VALUES (1, 'a@citusmail.test', 'a', 'h', 993, 'implicitTls', 'h', 465, 'implicitTls', 0)",
         )
         ..execute(
           "INSERT INTO mailboxes (id, account_id, encoded_name, name) VALUES (1, 1, 'INBOX', 'INBOX')",

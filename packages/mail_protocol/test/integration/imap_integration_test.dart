@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // Runs against the local test servers:
-//   test-server/fmailtest up
-//   FMAIL_INTEGRATION=1 dart test test/integration
+//   test-server/citusmailtest up
+//   CITUSMAIL_INTEGRATION=1 dart test test/integration
 //
 // Tests that change mail work only in folders they create with a random
 // name, so the seeded folders stay as they are.
@@ -22,8 +22,8 @@ import '../support/test_servers.dart';
 Uint8List sampleMessage(String subject) => MessageBuilder()
     .build(
       OutgoingMessage(
-        from: const MailAddress(localPart: 'alice', domain: 'fmail.test'),
-        to: [const MailAddress(localPart: 'alice', domain: 'fmail.test')],
+        from: const MailAddress(localPart: 'alice', domain: 'citusmail.test'),
+        to: [const MailAddress(localPart: 'alice', domain: 'citusmail.test')],
         subject: subject,
         textBody: 'Test body for $subject',
       ),
@@ -31,7 +31,7 @@ Uint8List sampleMessage(String subject) => MessageBuilder()
     .bytes;
 
 String scratchName() =>
-    'FmailTest-${Random.secure().nextInt(1 << 32).toRadixString(16)}';
+    'CitusmailTest-${Random.secure().nextInt(1 << 32).toRadixString(16)}';
 
 void main() {
   final skip = TestServers.skipReason;
@@ -114,9 +114,9 @@ void main() {
     });
 
     final certificateCases = {
-      'expired.fmail.test': TlsFailure.expired,
-      'untrusted.fmail.test': TlsFailure.untrusted,
-      'wrong-name.fmail.test': TlsFailure.hostnameMismatch,
+      'expired.citusmail.test': TlsFailure.expired,
+      'untrusted.citusmail.test': TlsFailure.untrusted,
+      'wrong-name.citusmail.test': TlsFailure.hostnameMismatch,
     };
     for (final MapEntry(key: name, value: failure)
         in certificateCases.entries) {
@@ -189,7 +189,7 @@ void main() {
       );
       expect(result.messages, hasLength(22));
       final lunch = result.messages.firstWhere(
-        (m) => m.envelope?.messageId == 'lunch-1@fmail.test',
+        (m) => m.envelope?.messageId == 'lunch-1@citusmail.test',
       );
       expect(lunch.envelope!.subject, 'Lunch on Friday?');
       expect(lunch.hasFlag(r'\Seen'), isTrue);

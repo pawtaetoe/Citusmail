@@ -10,7 +10,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
-import 'fmail_theme.dart';
+import 'citusmail_theme.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'settings_page.dart';
@@ -369,7 +369,7 @@ final class _Entry extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       child: Material(
         color: selected ? colors.selected : Colors.transparent,
-        borderRadius: BorderRadius.circular(FmailTheme.radiusSmall),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           hoverColor: colors.hover,

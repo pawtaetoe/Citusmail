@@ -1,11 +1,11 @@
-Return-Path: <bob@fmail.test>
-From: Bob Example <bob@fmail.test>
-To: Alice Example <alice@fmail.test>
+Return-Path: <bob@citusmail.test>
+From: Bob Example <bob@citusmail.test>
+To: Alice Example <alice@citusmail.test>
 Subject: Re: Lunch on Friday?
 Date: Mon, 12 Oct 2026 11:02:00 +0800
-Message-ID: <lunch-3@fmail.test>
-In-Reply-To: <lunch-2@fmail.test>
-References: <lunch-1@fmail.test> <lunch-2@fmail.test>
+Message-ID: <lunch-3@citusmail.test>
+In-Reply-To: <lunch-2@citusmail.test>
+References: <lunch-1@citusmail.test> <lunch-2@citusmail.test>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8; format=flowed
 Content-Transfer-Encoding: 7bit

@@ -123,8 +123,8 @@ is restarted (at most three times in ten minutes).
 
 ```bash
 dart test                                        # unit tests
-FMAIL_INTEGRATION=1 dart test test/integration   # needs test-server/fmailtest up
-FMAIL_INTEGRATION=1 FMAIL_CONVERGENCE_SEED=7 dart test test/integration --name converge
+CITUSMAIL_INTEGRATION=1 dart test test/integration   # needs test-server/citusmailtest up
+CITUSMAIL_INTEGRATION=1 CITUSMAIL_CONVERGENCE_SEED=7 dart test test/integration --name converge
 ```
 
 The convergence test runs three devices making random conflicting offline

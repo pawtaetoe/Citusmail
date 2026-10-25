@@ -12,15 +12,15 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:citusmail/src/setup/setup_controller.dart';
+import 'package:citusmail/src/setup/setup_page.dart';
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/setup/setup_controller.dart';
-import 'package:fmail/src/setup/setup_page.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
-import 'package:fmail/src/ui/settings_page.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
@@ -92,8 +92,8 @@ void main() {
         key: boundary,
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: FmailTheme.light(),
-          darkTheme: FmailTheme.dark(),
+          theme: CitusmailTheme.light(),
+          darkTheme: CitusmailTheme.dark(),
           themeMode: dark ? ThemeMode.dark : ThemeMode.light,
           home: home,
         ),

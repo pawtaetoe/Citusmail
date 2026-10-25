@@ -52,11 +52,11 @@ void main() {
 
   group('accounts', () {
     test('add, read, update and order', () {
-      final a = temp.addAccount('alice@fmail.test');
-      final b = temp.addAccount('bob@fmail.test');
+      final a = temp.addAccount('alice@citusmail.test');
+      final b = temp.addAccount('bob@citusmail.test');
       expect(store.accounts.all().map((x) => x.email), [
-        'alice@fmail.test',
-        'bob@fmail.test',
+        'alice@citusmail.test',
+        'bob@citusmail.test',
       ]);
       expect(a.keychainKey, 'account-${a.id}');
       store.accounts.update(
@@ -82,9 +82,9 @@ void main() {
     });
 
     test('the same address twice (any case) is refused', () {
-      temp.addAccount('alice@fmail.test');
+      temp.addAccount('alice@citusmail.test');
       expect(
-        () => temp.addAccount('ALICE@fmail.test'),
+        () => temp.addAccount('ALICE@citusmail.test'),
         throwsA(isA<DuplicateAccountException>()),
       );
     });
@@ -365,7 +365,7 @@ void main() {
     });
 
     test('unified inbox across accounts, by category, with keyset paging', () {
-      final bob = temp.addAccount('bob@fmail.test');
+      final bob = temp.addAccount('bob@citusmail.test');
       final bobFolders = store.mailboxes.replaceAll(bob.id, [
         folder('INBOX'),
         folder('Archive'),
@@ -463,7 +463,7 @@ void main() {
             from: const MailAddress(
               displayName: 'Bob Example',
               localPart: 'bob',
-              domain: 'fmail.test',
+              domain: 'citusmail.test',
             ),
           ),
           summary(4, subject: '100% off; DROP TABLE messages; --'),
@@ -481,7 +481,7 @@ void main() {
 
       test('words in subject, sender and body', () {
         expect(uids('quarterly'), [1]);
-        expect(uids('bob@fmail'), [3]);
+        expect(uids('bob@citusmail'), [3]);
         expect(uids('noodle'), [3]);
         expect(uids('lunch noodle'), [3], reason: 'all terms must match');
         expect(uids('lunch quarterly'), isEmpty);
@@ -561,7 +561,7 @@ void main() {
         ),
         MoveAction(mailboxId: 1, uidValidity: 9, uids: [3], targetMailboxId: 2),
         DeleteAction(mailboxId: 1, uidValidity: 9, uids: [4]),
-        RemoveDraftAction(mailboxId: 5, messageId: 'draft-1@fmail.test'),
+        RemoveDraftAction(mailboxId: 5, messageId: 'draft-1@citusmail.test'),
       ];
       for (final action in actions) {
         store.outbox.enqueue(account.id, action);
@@ -574,8 +574,8 @@ void main() {
       store.outbox.enqueue(
         account.id,
         SendAction(
-          from: 'alice@fmail.test',
-          recipients: ['bob@fmail.test'],
+          from: 'alice@citusmail.test',
+          recipients: ['bob@citusmail.test'],
           sentMailboxId: 3,
         ),
         data: Uint8List.fromList([3]),
@@ -585,8 +585,8 @@ void main() {
         ...actions.map((a) => a.encode()),
         AppendAction(mailboxId: 2, flags: [r'\Draft']).encode(),
         SendAction(
-          from: 'alice@fmail.test',
-          recipients: ['bob@fmail.test'],
+          from: 'alice@citusmail.test',
+          recipients: ['bob@citusmail.test'],
           sentMailboxId: 3,
         ).encode(),
       ]);
@@ -724,7 +724,7 @@ void main() {
           uid: 1,
           receivedAt: DateTime.utc(2026),
           messageId: 'q@x',
-          from: address('alice@fmail.test'),
+          from: address('alice@citusmail.test'),
           to: [address('dave@x.example')],
           cc: [address('Carol@X.example')],
         ),
@@ -861,7 +861,7 @@ void main() {
     });
 
     test('sections can be limited to one account', () {
-      final bob = temp.addAccount('bob@fmail.test');
+      final bob = temp.addAccount('bob@citusmail.test');
       final bobInbox = store.mailboxes.replaceAll(bob.id, [
         folder('INBOX'),
       ]).single;
@@ -1021,7 +1021,10 @@ void main() {
 
     OutboxEntry send({DateTime? notBefore}) => store.outbox.enqueue(
       account.id,
-      SendAction(from: 'alice@fmail.test', recipients: ['bob@fmail.test']),
+      SendAction(
+        from: 'alice@citusmail.test',
+        recipients: ['bob@citusmail.test'],
+      ),
       data: Uint8List.fromList([1]),
       notBefore: notBefore,
     );
@@ -1112,11 +1115,11 @@ void main() {
         accountId: account.id,
         content: '{"subject":"two"}',
         attachments: const [],
-        savedMessageId: 'v1@fmail.test',
+        savedMessageId: 'v1@citusmail.test',
       );
       final draft = store.drafts.byId(id)!;
       expect(draft.content, '{"subject":"two"}');
-      expect(draft.savedMessageId, 'v1@fmail.test');
+      expect(draft.savedMessageId, 'v1@citusmail.test');
       expect(store.drafts.attachments(id), isEmpty);
       expect(store.drafts.all(), hasLength(1));
 
@@ -1254,7 +1257,7 @@ void main() {
     });
 
     test('a rule must point at a folder of the same account', () {
-      final other = temp.addAccount('bob@fmail.test');
+      final other = temp.addAccount('bob@citusmail.test');
       expect(
         () => store.folderRules.add(
           accountId: other.id,

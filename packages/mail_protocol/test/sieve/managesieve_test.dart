@@ -22,7 +22,7 @@ TlsSettings _clientTls() =>
 
 ServerEndpoint _endpoint(FakeServer s, ConnectionSecurity security) =>
     ServerEndpoint(
-      'mail.fmail.test',
+      'mail.citusmail.test',
       s.port,
       security,
       connectAddress: '127.0.0.1',
@@ -160,7 +160,7 @@ void main() {
       expect(client.capabilities.sasl, {'PLAIN', 'XOAUTH2'});
       expect(client.capabilities.version, '1.0');
 
-      await client.authenticate('alice@fmail.test', 'pw');
+      await client.authenticate('alice@citusmail.test', 'pw');
       expect(
         server.received.first,
         startsWith('AUTHENTICATE "PLAIN" "'),
@@ -186,7 +186,7 @@ void main() {
 
     test('warnings come back; an invalid script is refused', () async {
       final client = await connect();
-      await client.authenticate('alice@fmail.test', 'pw');
+      await client.authenticate('alice@citusmail.test', 'pw');
       expect(
         await client.putScript('x', 'require "vacation";'),
         contains('unknown extension'),
@@ -231,11 +231,11 @@ void main() {
       final client = await connect();
       sieve.refuseLogin = true;
       await expectLater(
-        client.authenticate('alice@fmail.test', 'wrong'),
+        client.authenticate('alice@citusmail.test', 'wrong'),
         throwsA(isA<ManageSieveAuthenticationException>()),
       );
       await expectLater(
-        client.authenticateOAuth('alice@fmail.test', 'token'),
+        client.authenticateOAuth('alice@citusmail.test', 'token'),
         throwsA(isA<ManageSieveAuthenticationException>()),
       );
       expect(server.received, contains('"*"'), reason: 'challenge cancelled');

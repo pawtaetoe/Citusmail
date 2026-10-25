@@ -96,42 +96,42 @@ jobs:
     name: Test mail server and integration tests
     runs-on: ubuntu-24.04
     env:
-      FMAIL_CONTAINER_RUNTIME: docker
+      CITUSMAIL_CONTAINER_RUNTIME: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Shellcheck
         run: >-
-          shellcheck -x test-server/fmailtest test-server/smoke-test.sh
+          shellcheck -x test-server/citusmailtest test-server/smoke-test.sh
           test-server/certs/generate.sh test-server/image/entrypoint.sh
       - name: Start test servers
-        run: test-server/fmailtest up
+        run: test-server/citusmailtest up
       - name: Smoke test
-        run: test-server/fmailtest smoke
+        run: test-server/citusmailtest smoke
       - uses: ./.github/actions/setup-flutter
       - name: Resolve dependencies
         run: flutter pub get --enforce-lockfile
       - name: IMAP and SMTP integration tests
         working-directory: packages/mail_protocol
         env:
-          FMAIL_INTEGRATION: "1"
+          CITUSMAIL_INTEGRATION: "1"
         run: dart test test/integration
       - name: Account setup integration tests
         working-directory: packages/mail_setup
         env:
-          FMAIL_INTEGRATION: "1"
+          CITUSMAIL_INTEGRATION: "1"
         run: dart test test/integration
       - name: Sync engine integration tests (incl. multi-device convergence)
         working-directory: packages/mail_sync
         env:
-          FMAIL_INTEGRATION: "1"
+          CITUSMAIL_INTEGRATION: "1"
         run: dart test test/integration
       - name: Server logs
         if: failure()
         run: |
           for mode in secure limited plain; do
-            echo "::group::$mode"; test-server/fmailtest logs "$mode" || true; echo "::endgroup::"
+            echo "::group::$mode"; test-server/citusmailtest logs "$mode" || true; echo "::endgroup::"
           done
 
   build-linux:
@@ -202,14 +202,14 @@ jobs:
       - name: Release signing key
         if: startsWith(github.ref, 'refs/tags/v')
         env:
-          KEYSTORE_BASE64: ${{ secrets.FMAIL_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.CITUSMAIL_KEYSTORE_BASE64 || secrets.FMAIL_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::FMAIL_KEYSTORE_BASE64 is not set; refusing to publish a debug-signed release"
+            echo "::error::CITUSMAIL_KEYSTORE_BASE64 (or the older FMAIL_KEYSTORE_BASE64) is not set; refusing to publish a debug-signed release"
             exit 1
           fi
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
-          echo "FMAIL_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "CITUSMAIL_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
       - working-directory: app
         env:
           # Public client IDs (repository variables) and keys (secrets). Empty
@@ -219,9 +219,9 @@ jobs:
           CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
           CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
           CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
-          FMAIL_KEYSTORE_PASSWORD: ${{ secrets.FMAIL_KEYSTORE_PASSWORD }}
-          FMAIL_KEY_ALIAS: ${{ secrets.FMAIL_KEY_ALIAS }}
-          FMAIL_KEY_PASSWORD: ${{ secrets.FMAIL_KEY_PASSWORD }}
+          CITUSMAIL_KEYSTORE_PASSWORD: ${{ secrets.CITUSMAIL_KEYSTORE_PASSWORD || secrets.FMAIL_KEYSTORE_PASSWORD }}
+          CITUSMAIL_KEY_ALIAS: ${{ secrets.CITUSMAIL_KEY_ALIAS || secrets.FMAIL_KEY_ALIAS }}
+          CITUSMAIL_KEY_PASSWORD: ${{ secrets.CITUSMAIL_KEY_PASSWORD || secrets.FMAIL_KEY_PASSWORD }}
         run: >-
           flutter build apk --release
           --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"

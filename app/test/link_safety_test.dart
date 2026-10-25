@@ -6,13 +6,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:citusmail/src/services/link_safety.dart';
+import 'package:citusmail/src/services/secret_store.dart';
+import 'package:citusmail/src/ui/link_opener.dart';
+import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/services/link_safety.dart';
-import 'package:fmail/src/services/secret_store.dart';
-import 'package:fmail/src/ui/link_opener.dart';
-import 'package:fmail/src/ui/settings_page.dart';
 import 'package:mail_lookup/mail_lookup.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_web/mail_web.dart';

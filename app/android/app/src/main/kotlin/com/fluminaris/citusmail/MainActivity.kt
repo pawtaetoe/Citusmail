@@ -19,24 +19,24 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        oauth = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fmail/oauth")
+        oauth = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "citusmail/oauth")
         // The periodic check (kept if already scheduled; does nothing until
         // an account exists).
         BackgroundSyncWorker.schedule(this)
         // Debug builds only, for testing: `adb shell am start ... --ez
-        // fmail.checkNow true` runs one background check at once (Android
-        // delays forced periodic work); `--ez fmail.instant true|false`
+        // citusmail.checkNow true` runs one background check at once (Android
+        // delays forced periodic work); `--ez citusmail.instant true|false`
         // switches instant mail. Release builds are not debuggable and
         // ignore both.
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
-        if (debuggable && intent.getBooleanExtra("fmail.checkNow", false)) {
+        if (debuggable && intent.getBooleanExtra("citusmail.checkNow", false)) {
             WorkManager.getInstance(this)
                 .enqueue(OneTimeWorkRequestBuilder<BackgroundSyncWorker>().build())
         }
-        if (debuggable && intent.hasExtra("fmail.instant")) {
-            InstantMailService.setEnabled(this, intent.getBooleanExtra("fmail.instant", false))
+        if (debuggable && intent.hasExtra("citusmail.instant")) {
+            InstantMailService.setEnabled(this, intent.getBooleanExtra("citusmail.instant", false))
         }
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fmail/background")
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "citusmail/background")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "setInstant" -> {

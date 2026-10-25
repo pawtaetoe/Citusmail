@@ -2,13 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/main.dart';
+import 'package:citusmail/src/services/app_services.dart';
+import 'package:citusmail/src/services/secret_store.dart';
+import 'package:citusmail/src/setup/setup_controller.dart';
+import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/main.dart';
-import 'package:fmail/src/services/app_services.dart';
-import 'package:fmail/src/services/secret_store.dart';
-import 'package:fmail/src/setup/setup_controller.dart';
-import 'package:fmail/src/setup/setup_page.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
@@ -353,7 +353,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        FmailApp(
+        CitusmailApp(
           startup: () async =>
               const StartupKeychainUnavailable('no secret service'),
         ),
@@ -372,7 +372,7 @@ void main() {
       addTearDown(() => FlutterError.onError = previous);
 
       await tester.pumpWidget(
-        FmailApp(
+        CitusmailApp(
           startup: () async {
             attempts++;
             if (attempts == 1) throw StateError('disk on fire');
@@ -393,7 +393,9 @@ void main() {
 
     testWidgets('unreadable data offers a fresh start', (tester) async {
       await tester.pumpWidget(
-        FmailApp(startup: () async => const StartupDataUnreadable('/tmp/x.db')),
+        CitusmailApp(
+          startup: () async => const StartupDataUnreadable('/tmp/x.db'),
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Start fresh'), findsOneWidget);

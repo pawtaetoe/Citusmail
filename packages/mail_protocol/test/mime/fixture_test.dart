@@ -39,12 +39,12 @@ void main() {
         const MailAddress(
           displayName: 'Bob Example',
           localPart: 'bob',
-          domain: 'fmail.test',
+          domain: 'citusmail.test',
         ),
       );
-      expect(m.to.single.address, 'alice@fmail.test');
+      expect(m.to.single.address, 'alice@citusmail.test');
       expect(m.date!.utc, DateTime.utc(2026, 10, 12, 1, 15));
-      expect(m.messageId, 'lunch-1@fmail.test');
+      expect(m.messageId, 'lunch-1@citusmail.test');
       expect(m.root.section, '1');
       expect(text(m.textBody), startsWith('Hi Alice,\n\nAre you free'));
       expect(m.htmlBody, isNull);
@@ -54,8 +54,11 @@ void main() {
 
     test('thread-reply', () {
       final m = load('people/thread-reply.eml');
-      expect(m.inReplyTo, ['lunch-2@fmail.test']);
-      expect(m.references, ['lunch-1@fmail.test', 'lunch-2@fmail.test']);
+      expect(m.inReplyTo, ['lunch-2@citusmail.test']);
+      expect(m.references, [
+        'lunch-1@citusmail.test',
+        'lunch-2@citusmail.test',
+      ]);
     });
 
     test('html-alternative: quoted-printable soft breaks', () {
@@ -94,7 +97,7 @@ void main() {
       final logo = m.root.allParts.firstWhere(
         (p) => p.contentType.mimeType == 'image/png',
       );
-      expect(logo.contentId, 'logo-1@fmail.test');
+      expect(logo.contentId, 'logo-1@citusmail.test');
       expect(
         logo.isAttachment,
         isFalse,
@@ -144,7 +147,7 @@ void main() {
       final m = load('people/read-receipt-requested.eml');
       expect(
         m.headers.value('disposition-notification-to'),
-        'Bob Example <bob@fmail.test>',
+        'Bob Example <bob@citusmail.test>',
       );
     });
 
@@ -157,8 +160,8 @@ void main() {
       );
       expect(m.from.single.displayName, 'Smith, Eve (Events)');
       expect(m.to.map((a) => a.address), [
-        'alice@fmail.test',
-        'bob@fmail.test',
+        'alice@citusmail.test',
+        'bob@citusmail.test',
       ]);
       expect(m.to[1].displayName, 'Bob "The Builder" Example');
       expect(m.cc.map((a) => a.address), [
@@ -184,7 +187,7 @@ void main() {
       expect(report.contentType.mimeType, 'message/disposition-notification');
       expect(
         text(report),
-        contains('Original-Message-ID: <alice-report-1@fmail.test>'),
+        contains('Original-Message-ID: <alice-report-1@citusmail.test>'),
       );
     });
 

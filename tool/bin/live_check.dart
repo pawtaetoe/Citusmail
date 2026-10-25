@@ -146,16 +146,16 @@ Future<OAuthProvider> _withSecret(OAuthProvider provider) async {
     return provider;
   }
   final keychain = TestKeychain(
-    'fmail-test-oauth-client',
+    'citusmail-test-oauth-client',
     provider.clientId,
-    label: 'Fmail test OAuth client',
+    label: 'Citusmail test OAuth client',
   );
   final secret =
       await keychain.read() ??
       (throw StateError(
         'no client secret in the keychain for ${provider.clientId}. Store it with:\n'
-        '  secret-tool store --label="Fmail test OAuth client" '
-        'service fmail-test-oauth-client account ${provider.clientId}',
+        '  secret-tool store --label="Citusmail test OAuth client" '
+        'service citusmail-test-oauth-client account ${provider.clientId}',
       ));
   return provider.withClientId(provider.clientId, clientSecret: secret);
 }
@@ -373,7 +373,7 @@ final class _Live {
   /// sync, which must then renew it by itself.
   Future<void> checkSync() async {
     stdout.writeln('Sync engine (temporary encrypted store)');
-    final dir = Directory.systemTemp.createTempSync('fmail_live');
+    final dir = Directory.systemTemp.createTempSync('citusmail_live');
     final store = MailStore.open('${dir.path}/live.db', DatabaseKey.generate());
     try {
       final saved = store.accounts.add(account);

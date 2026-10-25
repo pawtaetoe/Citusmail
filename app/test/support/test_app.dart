@@ -6,8 +6,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:fmail/src/services/app_services.dart';
-import 'package:fmail/src/services/secret_store.dart';
+import 'package:citusmail/src/services/app_services.dart';
+import 'package:citusmail/src/services/secret_store.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
@@ -53,7 +53,7 @@ MailAddress _address(String a, [String? name]) => MailAddress(
 );
 
 const _letter = '''From: Stranger Danger <stranger@x.example>
-To: alice@fmail.test
+To: alice@citusmail.test
 Subject: Hello there
 Content-Type: text/html; charset=utf-8
 
@@ -74,22 +74,22 @@ final class TestApp {
   /// [web] answers one-click requests; by default every lookup fails, so
   /// nothing can reach the network.
   static Future<TestApp> create({WebClient? web}) async {
-    final directory = Directory.systemTemp.createTempSync('fmail_app_test');
+    final directory = Directory.systemTemp.createTempSync('citusmail_app_test');
 
     final path = '${directory.path}/mail.db';
     final key = DatabaseKey.generate();
     final store = MailStore.open(path, key);
     final account = store.accounts.add(
       NewAccount(
-        email: 'alice@fmail.test',
-        username: 'alice@fmail.test',
+        email: 'alice@citusmail.test',
+        username: 'alice@citusmail.test',
         imap: ServerSettings(
-          host: 'mail.fmail.test',
+          host: 'mail.citusmail.test',
           port: 993,
           security: ConnectionSecurity.implicitTls,
         ),
         smtp: ServerSettings(
-          host: 'mail.fmail.test',
+          host: 'mail.citusmail.test',
           port: 465,
           security: ConnectionSecurity.implicitTls,
         ),
@@ -140,7 +140,7 @@ final class TestApp {
       MessageSummary(
         uid: 1,
         receivedAt: DateTime.utc(2026, 1),
-        from: _address('alice@fmail.test'),
+        from: _address('alice@citusmail.test'),
         to: [_address('carol@x.example')],
         flags: MessageFlags.fromImap([r'\Seen']),
       ),
@@ -213,12 +213,12 @@ final class TestApp {
   );
 
   static const _authResults =
-      'mail.fmail.test; spf=pass smtp.mailfrom=x.example; dmarc=pass header.from=x.example';
+      'mail.citusmail.test; spf=pass smtp.mailfrom=x.example; dmarc=pass header.from=x.example';
 
   /// Adds an inbox message with [fixture] (from test-data/mail) as its
   /// body. Ten older messages carry the server's Authentication-Results,
   /// so most of the inbox has it and the app learns to trust
-  /// `mail.fmail.test`.
+  /// `mail.citusmail.test`.
   StoredMessage seedFixture(
     String fixture, {
     required String subject,

@@ -16,7 +16,7 @@ import io.flutter.plugin.common.MethodChannel
  * called on the main thread.
  */
 object BackgroundDart {
-    const val CHANNEL = "fmail/background-task"
+    const val CHANNEL = "citusmail/background-task"
 
     /** Starts [entryPoint]; [onDone] runs when Dart calls "done" on [CHANNEL]. */
     fun start(context: Context, entryPoint: String, onDone: (Boolean) -> Unit): FlutterEngine {

@@ -15,24 +15,24 @@ import 'services/secret_store.dart';
 import 'setup/oauth_browser.dart';
 import 'setup/setup_controller.dart';
 import 'setup/setup_page.dart';
-import 'ui/fmail_theme.dart';
+import 'ui/citusmail_theme.dart';
 import 'ui/mail_shell.dart';
 
 /// The product name, in one place so user-facing text never hard-codes it.
 const String appName = 'Citusmail';
 
 /// The app: opens the encrypted store, then shows setup or the home page.
-class FmailApp extends StatefulWidget {
-  const FmailApp({super.key, this.startup = AppStartup.open});
+class CitusmailApp extends StatefulWidget {
+  const CitusmailApp({super.key, this.startup = AppStartup.open});
 
   /// Replaced in tests.
   final Future<StartupResult> Function() startup;
 
   @override
-  State<FmailApp> createState() => _FmailAppState();
+  State<CitusmailApp> createState() => _CitusmailAppState();
 }
 
-class _FmailAppState extends State<FmailApp> {
+class _CitusmailAppState extends State<CitusmailApp> {
   final _lockHost = LockHost();
 
   @override
@@ -45,8 +45,8 @@ class _FmailAppState extends State<FmailApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: appName,
     debugShowCheckedModeBanner: false,
-    theme: FmailTheme.light(),
-    darkTheme: FmailTheme.dark(),
+    theme: CitusmailTheme.light(),
+    darkTheme: CitusmailTheme.dark(),
     // Above the navigator: the lock covers every page and dialog.
     builder: (context, child) =>
         LockGate(host: _lockHost, child: child ?? const SizedBox.shrink()),
@@ -99,7 +99,7 @@ class _StartupGateState extends State<_StartupGate> {
           FlutterErrorDetails(
             exception: error,
             stack: stack,
-            library: 'fmail',
+            library: 'citusmail',
             context: ErrorDescription('while starting up'),
           ),
         );

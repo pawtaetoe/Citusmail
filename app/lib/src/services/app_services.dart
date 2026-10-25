@@ -268,11 +268,35 @@ final class StartupEncryptionUnavailable extends StartupResult {
 abstract final class AppStartup {
   static const _databaseKeyName = 'database-key';
 
+  /// The database in [directory]. Versions before the rename called it
+  /// `fmail.db`: such a database (with its WAL and shared-memory files) is
+  /// moved to the new name once, so mail and accounts carry over. The key
+  /// in the keychain is unchanged.
+  static String databasePath(Directory directory) {
+    String inDir(String name) =>
+        '${directory.path}${Platform.pathSeparator}$name';
+    final path = inDir('citusmail.db');
+    final old = inDir('fmail.db');
+    if (!File(path).existsSync() && File(old).existsSync()) {
+      // The main file last: until it moves, the next start finishes the
+      // move. Another process (background sync) may be doing the same.
+      for (final suffix in ['-wal', '-shm', '']) {
+        try {
+          final file = File('$old$suffix');
+          if (file.existsSync()) file.renameSync('$path$suffix');
+        } on FileSystemException {
+          // Moved by the other process, or retried next start.
+        }
+      }
+    }
+    return path;
+  }
+
   static Future<StartupResult> open({SecretStore? secrets}) async {
     final keychain = secrets ?? KeychainSecretStore();
     final directory = await getApplicationSupportDirectory();
     await directory.create(recursive: true);
-    final path = '${directory.path}${Platform.pathSeparator}fmail.db';
+    final path = databasePath(directory);
 
     try {
       final stored = await keychain.read(_databaseKeyName);
@@ -327,7 +351,7 @@ abstract final class AppStartup {
     try {
       final keychain = KeychainSecretStore();
       final directory = await getApplicationSupportDirectory();
-      final path = '${directory.path}${Platform.pathSeparator}fmail.db';
+      final path = databasePath(directory);
       if (!File(path).existsSync()) return null;
       final stored = await keychain.read(_databaseKeyName);
       if (stored == null) return null;

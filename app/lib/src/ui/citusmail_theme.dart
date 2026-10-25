@@ -24,7 +24,7 @@ abstract final class CitusPalette {
 
 /// The app's look: Material 3, set in IBM Plex Sans (bundled, so it looks
 /// the same on every platform and nothing is fetched from the network).
-abstract final class FmailTheme {
+abstract final class CitusmailTheme {
   /// The bundled typeface (see assets/fonts).
   static const fontFamily = 'IBMPlexSans';
 

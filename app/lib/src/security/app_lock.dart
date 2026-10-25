@@ -162,7 +162,7 @@ final class AppLock with WidgetsBindingObserver {
   bool _observing = false;
 
   /// The Android side (see MainActivity.kt).
-  static const _android = MethodChannel('fmail/background');
+  static const _android = MethodChannel('citusmail/background');
 
   /// Hides the app from the app switcher's pictures while the lock is on.
   Future<void> _applyPrivacy() async {

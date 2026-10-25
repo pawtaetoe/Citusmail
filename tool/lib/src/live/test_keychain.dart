@@ -12,13 +12,17 @@ final class TestKeychain {
   const TestKeychain(this.service, this.account, {required this.label});
 
   /// The test account's password, stored with
-  /// `secret-tool store --label="Fmail test account" service fmail-test account <email>`.
+  /// `secret-tool store --label="Citusmail test account" service citusmail-test account <email>`.
   const TestKeychain.password(String account)
-    : this('fmail-test', account, label: 'Fmail test account');
+    : this('citusmail-test', account, label: 'Citusmail test account');
 
   /// The test account's OAuth tokens, written by the live check itself.
   const TestKeychain.oauth(String account)
-    : this('fmail-test-oauth', account, label: 'Fmail test account sign-in');
+    : this(
+        'citusmail-test-oauth',
+        account,
+        label: 'Citusmail test account sign-in',
+      );
 
   final String service;
   final String account;

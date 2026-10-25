@@ -12,7 +12,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 readonly ENV_FILE="${1:-$REPO_ROOT/live-test.env}"
-readonly KEYCHAIN_SERVICE="fmail-test"
+readonly KEYCHAIN_SERVICE="citusmail-test"
 # Capabilities the sync engine can use, best first.
 readonly WANTED_CAPS=(IDLE CONDSTORE QRESYNC MOVE UIDPLUS SPECIAL-USE ENABLE LITERAL+ NAMESPACE ESEARCH UTF8=ACCEPT)
 
@@ -62,7 +62,7 @@ read_password() {
   local email="$1" password
   if ! password="$(secret-tool lookup service "$KEYCHAIN_SERVICE" account "$email")" || [[ -z "$password" ]]; then
     die "no password in the keychain for $email. Store it with:
-  secret-tool store --label=\"Fmail test account\" service $KEYCHAIN_SERVICE account $email"
+  secret-tool store --label=\"Citusmail test account\" service $KEYCHAIN_SERVICE account $email"
   fi
   printf '%s' "$password"
 }
