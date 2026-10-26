@@ -43,12 +43,12 @@ final class MessageListModel extends ChangeNotifier {
   static const _collapsedKey = 'ui.collapsedSections';
 
   MailLocation _location = const InboxLocation();
-  bool _smart = true;
   Set<SmartSection> _collapsed = const {};
 
   MailLocation get location => _location;
-  bool get smart => _smart;
-  bool get showsSections => _location is InboxLocation && _smart;
+
+  /// The inbox is always the Smart Inbox: sections instead of one list.
+  bool get showsSections => _location is InboxLocation;
 
   /// Smart Inbox: sections with mail, in order.
   List<SectionState> sections = const [];
@@ -67,9 +67,8 @@ final class MessageListModel extends ChangeNotifier {
         ]
       : messages;
 
-  void show(MailLocation location, {required bool smart}) {
+  void show(MailLocation location) {
     _location = location;
-    _smart = smart;
     messages = const [];
     reachedEnd = false;
     refresh();

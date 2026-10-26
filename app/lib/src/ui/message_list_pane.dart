@@ -161,7 +161,7 @@ final class _TopBarState extends State<_TopBar> {
 
 // --------------------------------------------------------------- header
 
-/// Smart / Classic tabs for the inbox (or the view's title), and the sync
+/// The view's title (with a way back, outside the inbox), and the sync
 /// status line.
 final class _ViewHeader extends StatelessWidget {
   const _ViewHeader({required this.controller});
@@ -185,30 +185,13 @@ final class _ViewHeader extends StatelessWidget {
   Widget _title(BuildContext context, MailLocation location) {
     final theme = Theme.of(context);
     final store = controller.services.store;
+    final heading = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
     if (location is InboxLocation) {
-      return ValueListenableBuilder(
-        valueListenable: controller.smartLayout,
-        builder: (context, smart, _) => Align(
-          alignment: Alignment.centerLeft,
-          child: SegmentedButton<bool>(
-            showSelectedIcon: false,
-            style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            segments: const [
-              ButtonSegment(
-                value: true,
-                label: Text('Smart'),
-                tooltip: 'Sorted into sections',
-              ),
-              ButtonSegment(
-                value: false,
-                label: Text('Classic'),
-                tooltip: 'One list, newest first',
-              ),
-            ],
-            selected: {smart},
-            onSelectionChanged: (s) => controller.setSmartLayout(s.single),
-          ),
-        ),
+      return Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Text('Inbox', style: heading),
       );
     }
     final title = switch (location) {
@@ -239,9 +222,7 @@ final class _ViewHeader extends StatelessWidget {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: heading,
           ),
         ),
         if (folder != null && controller.canHaveRules(folder))
