@@ -3,8 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_web/mail_web.dart';
@@ -45,11 +47,17 @@ class _CitusmailAppState extends State<CitusmailApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: appName,
     debugShowCheckedModeBanner: false,
+    showPerformanceOverlay: _performanceOverlay,
     theme: CitusmailTheme.light(),
     darkTheme: CitusmailTheme.dark(),
     // Above the navigator: the lock covers every page and dialog.
-    builder: (context, child) =>
-        LockGate(host: _lockHost, child: child ?? const SizedBox.shrink()),
+    builder: (context, child) {
+      final app = LockGate(
+        host: _lockHost,
+        child: child ?? const SizedBox.shrink(),
+      );
+      return _performanceOverlay ? _FrameRate(child: app) : app;
+    },
     home: _StartupGate(startup: widget.startup, lockHost: _lockHost),
   );
 }
@@ -248,5 +256,80 @@ class _Problem extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+/// `CITUSMAIL_PERF_OVERLAY=1`: Flutter's frame-time graphs and a frames per
+/// second counter, for checking smoothness on a given machine.
+final bool _performanceOverlay =
+    Platform.environment['CITUSMAIL_PERF_OVERLAY'] == '1';
+
+/// Frames drawn in the last second, top right (only while something moves:
+/// an idle app draws nothing).
+final class _FrameRate extends StatefulWidget {
+  const _FrameRate({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_FrameRate> createState() => _FrameRateState();
+}
+
+final class _FrameRateState extends State<_FrameRate> {
+  final _frames = <Duration>[];
+  int _fps = 0;
+  int _slowest = 0;
+  late final Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    SchedulerBinding.instance.addTimingsCallback(_onTimings);
+    _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      final now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
+      _frames.removeWhere((t) => now - t > const Duration(seconds: 1));
+      if (mounted) setState(() => _fps = _frames.length);
+    });
+  }
+
+  void _onTimings(List<FrameTiming> timings) {
+    final now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
+    for (final t in timings) {
+      _frames.add(now);
+      final ms = t.totalSpan.inMilliseconds;
+      if (ms > _slowest) _slowest = ms;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    SchedulerBinding.instance.removeTimingsCallback(_onTimings);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    textDirection: TextDirection.ltr,
+    children: [
+      widget.child,
+      Positioned(
+        top: 4,
+        right: 4,
+        child: IgnorePointer(
+          child: ColoredBox(
+            color: const Color(0xCC000000),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Text(
+                '$_fps fps · slowest ${_slowest}ms',
+                textDirection: TextDirection.ltr,
+                style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 12),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
   );
 }
