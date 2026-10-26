@@ -19,6 +19,28 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// Rendering choices, read from the environment so they can be compared on
+// a given machine without a rebuild (Flutter ignores its own engine
+// switches in release builds):
+//   CITUSMAIL_IMPELLER=0          draw with Skia instead of Impeller
+//   CITUSMAIL_UI_THREAD=separate  run the app's Dart code on its own thread
+//   CITUSMAIL_UI_THREAD=platform  run it on the window's thread (default)
+static void configure_rendering(FlDartProject* project) {
+  const gchar* impeller = g_getenv("CITUSMAIL_IMPELLER");
+  if (impeller != nullptr) {
+    fl_dart_project_set_enable_impeller(project,
+                                        g_strcmp0(impeller, "0") != 0);
+  }
+  const gchar* ui_thread = g_getenv("CITUSMAIL_UI_THREAD");
+  if (g_strcmp0(ui_thread, "separate") == 0) {
+    fl_dart_project_set_ui_thread_policy(
+        project, FL_UI_THREAD_POLICY_RUN_ON_SEPARATE_THREAD);
+  } else if (g_strcmp0(ui_thread, "platform") == 0) {
+    fl_dart_project_set_ui_thread_policy(
+        project, FL_UI_THREAD_POLICY_RUN_ON_PLATFORM_THREAD);
+  }
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
@@ -57,6 +79,7 @@ static void my_application_activate(GApplication* application) {
   gtk_window_set_default_size(window, 1280, 720);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
+  configure_rendering(project);
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);
 
