@@ -279,6 +279,9 @@ final class _FrameRateState extends State<_FrameRate> {
   final _frames = <Duration>[];
   int _fps = 0;
   int _slowest = 0;
+  // Sums over the frames since the last update (microseconds).
+  int _count = 0, _build = 0, _raster = 0, _total = 0;
+  String _averages = '';
   late final Timer _timer;
 
   @override
@@ -288,7 +291,17 @@ final class _FrameRateState extends State<_FrameRate> {
     _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       final now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
       _frames.removeWhere((t) => now - t > const Duration(seconds: 1));
-      if (mounted) setState(() => _fps = _frames.length);
+      if (!mounted) return;
+      setState(() {
+        _fps = _frames.length;
+        if (_count > 0) {
+          String ms(int us) => (us / _count / 1000).toStringAsFixed(1);
+          _averages =
+              ' · build ${ms(_build)} · raster ${ms(_raster)} · '
+              'total ${ms(_total)} ms';
+          _count = _build = _raster = _total = 0;
+        }
+      });
     });
   }
 
@@ -296,6 +309,10 @@ final class _FrameRateState extends State<_FrameRate> {
     final now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
     for (final t in timings) {
       _frames.add(now);
+      _count++;
+      _build += t.buildDuration.inMicroseconds;
+      _raster += t.rasterDuration.inMicroseconds;
+      _total += t.totalSpan.inMicroseconds;
       final ms = t.totalSpan.inMilliseconds;
       if (ms > _slowest) _slowest = ms;
     }
@@ -322,7 +339,7 @@ final class _FrameRateState extends State<_FrameRate> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               child: Text(
-                '$_fps fps · slowest ${_slowest}ms',
+                '$_fps fps · slowest ${_slowest}ms$_averages',
                 textDirection: TextDirection.ltr,
                 style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 12),
               ),
