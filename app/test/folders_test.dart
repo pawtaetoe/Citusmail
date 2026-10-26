@@ -84,7 +84,7 @@ void main() {
     tester,
   ) async {
     await show(tester);
-    await tester.tap(find.text('Classic'));
+    await tester.tap(find.text('Newsletters')); // collapsed at first
     await tester.pump();
     await tester.tap(find.text('Weekly deals'));
     await tester.runAsync(

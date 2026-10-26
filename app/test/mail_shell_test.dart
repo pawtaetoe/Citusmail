@@ -245,21 +245,17 @@ void main() {
     }
   });
 
-  testWidgets('Classic shows one list, newest first', (tester) async {
+  testWidgets('the inbox is always the Smart Inbox', (tester) async {
     await show(tester, const Size(1400, 900));
-    await tester.tap(find.text('Classic'));
+    expect(find.text('Classic'), findsNothing);
+    expect(find.text('Pinned'), findsOneWidget);
+    // Another view and back: still sections.
+    await tester.tap(find.text('Archive'));
     await tester.pump();
     expect(find.text('Pinned'), findsNothing);
-    for (final subject in [
-      'Hello there',
-      'Lunch?',
-      'Weekly deals',
-      'Your parcel',
-      'Keep this',
-    ]) {
-      expect(find.text(subject), findsOneWidget);
-    }
-    expect(top(tester, 'Keep this') < top(tester, 'Hello there'), isTrue);
+    await tester.tap(find.byTooltip('Back to Inbox'));
+    await tester.pump();
+    expect(find.text('Pinned'), findsOneWidget);
   });
 
   testWidgets('narrow: one pane at a time, back returns to the list', (
@@ -346,8 +342,11 @@ void main() {
   testWidgets('thousands of messages: only what is on screen is built', (
     tester,
   ) async {
-    final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
-    store.messages.upsertSummaries(inbox.id, [
+    // A folder shows one long list, loaded a page at a time.
+    final archive = store.mailboxes
+        .forAccount(store.accounts.all().single.id)
+        .firstWhere((b) => b.encodedName == 'Archive');
+    store.messages.upsertSummaries(archive.id, [
       for (var i = 100; i < 3100; i++)
         MessageSummary(
           uid: i,
@@ -357,10 +356,10 @@ void main() {
         ),
     ]);
     await show(tester, const Size(1400, 900));
-    await tester.tap(find.text('Classic'));
+    await tester.tap(find.text('Archive'));
     await tester.pump();
     final built = find.byType(MessageTile).evaluate().length;
-    expect(built, lessThan(30), reason: 'built $built rows for 3005 messages');
+    expect(built, lessThan(30), reason: 'built $built rows for 3000 messages');
     // Scrolling far down loads more pages and still builds only a screenful.
     await tester.drag(
       find.byType(CustomScrollView).first,

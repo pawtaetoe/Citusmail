@@ -70,7 +70,7 @@ void main() {
     tester,
   ) async {
     await show(tester);
-    await tester.tap(find.text('Classic'));
+    await tester.tap(find.text('Newsletters')); // collapsed at first
     await tester.pump();
     await open(tester, 'Weekly deals');
     await action(tester, 'Block sender');
@@ -108,7 +108,7 @@ void main() {
 
   testWidgets('blocking a whole domain', (tester) async {
     await show(tester);
-    await tester.tap(find.text('Classic'));
+    await tester.tap(find.text('Newsletters')); // collapsed at first
     await tester.pump();
     await open(tester, 'Weekly deals');
     await action(tester, 'Block sender');
