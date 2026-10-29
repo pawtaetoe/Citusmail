@@ -58,7 +58,7 @@ void main() {
   }
 
   MailAddress to(String folder) =>
-      MailAddress(localPart: 'alice+$folder', domain: 'fmail.test');
+      MailAddress(localPart: 'alice+$folder', domain: 'citusmail.test');
 
   test('a reply is delivered once, saved to Sent, threaded, and marks the original answered', () async {
     final folder = scratchFolder('reply');
@@ -101,7 +101,7 @@ void main() {
     final parsed = const MimeParser().parse(delivered.single.sections['']!);
     expect(parsed.subject, 'Re: Lunch on Friday?');
     expect(parsed.inReplyTo, [original.messageId]);
-    expect(parsed.from.single.address, 'alice@fmail.test');
+    expect(parsed.from.single.address, 'alice@citusmail.test');
     expect(
       parsed.textBody!.decodeText().text,
       startsWith('Yes, Friday works.'),
@@ -149,7 +149,7 @@ void main() {
         Draft(
           accountId: me.account.id,
           to: [to(marker)],
-          bcc: [MailAddress(localPart: 'bob', domain: 'fmail.test')],
+          bcc: [MailAddress(localPart: 'bob', domain: 'citusmail.test')],
           subject: 'Draft $marker',
           body: 'version 1',
         ),
@@ -164,7 +164,7 @@ void main() {
       final raw = await MessageLoader(me.store)
           .load(await me.connector.imap(me.account), cached.id);
       draft = drafts.fromDraftsFolder(cached, raw);
-      expect(draft.bcc.single.address, 'bob@fmail.test');
+      expect(draft.bcc.single.address, 'bob@citusmail.test');
       expect(draft.body.trim(), 'version 1');
 
       drafts.close(draft.copyWith(body: 'version 2'));

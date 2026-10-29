@@ -25,7 +25,7 @@ MessageView mail(String headers, {String html = '<p>Hello</p>'}) =>
       ),
     );
 
-const trusted = TrustContext(trustedAuthServId: 'mail.fmail.test');
+const trusted = TrustContext(trustedAuthServId: 'mail.citusmail.test');
 const checker = TrustChecker();
 
 Set<FindingKind> kinds(TrustReport r) => {for (final f in r.findings) f.kind};
@@ -34,11 +34,11 @@ void main() {
   group('Authentication-Results', () {
     test('parses results, properties and comments', () {
       final r = AuthenticationResults.parse(
-        'Mail.Fmail.Test 1; (checked (twice)) spf=fail smtp.mailfrom=x@mailbox.example; '
+        'Mail.Citusmail.Test 1; (checked (twice)) spf=fail smtp.mailfrom=x@mailbox.example; '
         'dkim=pass (2048-bit) header.d=shop.example header.s="mail"; '
         'dmarc=fail (p=REJECT) header.from=mailbox.example',
       )!;
-      expect(r.authServId, 'mail.fmail.test');
+      expect(r.authServId, 'mail.citusmail.test');
       expect(r.spf!.failed, isTrue);
       expect(r.spf!.domain, 'mailbox.example');
       expect(r.dkim.single.passed, isTrue);
@@ -262,7 +262,7 @@ void main() {
     test('SPF failure without DMARC is a caution', () {
       final r = checker.check(
         mail(
-          'Authentication-Results: mail.fmail.test; spf=fail smtp.mailfrom=bob@shop.example\n'
+          'Authentication-Results: mail.citusmail.test; spf=fail smtp.mailfrom=bob@shop.example\n'
           'From: Bob <bob@shop.example>',
         ),
         trusted,
@@ -271,11 +271,45 @@ void main() {
       expect(r.level, TrustLevel.caution);
     });
 
+    test('forwarded mail whose ARC chain checked out: caution only', () {
+      final r = checker.check(
+        mail(
+          'Authentication-Results: mail.citusmail.test; arc=pass; '
+          'dmarc=fail header.from=openrouter.ai\n'
+          'From: OpenRouter Team <welcome@openrouter.ai>',
+        ),
+        trusted,
+      );
+      expect(r.level, TrustLevel.caution);
+      expect(r.findings.single.message, contains('forwarded'));
+    });
+
+    test('ARC counts only from the user\'s own server', () {
+      final r = checker.check(
+        mail(
+          'Authentication-Results: mail.citusmail.test; dmarc=fail header.from=openrouter.ai\n'
+          'Authentication-Results: mx.attacker.example; arc=pass\n'
+          'From: OpenRouter Team <welcome@openrouter.ai>',
+        ),
+        trusted,
+      );
+      expect(r.level, TrustLevel.danger);
+      final failed = checker.check(
+        mail(
+          'Authentication-Results: mail.citusmail.test; arc=fail; '
+          'dmarc=fail header.from=openrouter.ai\n'
+          'From: OpenRouter Team <welcome@openrouter.ai>',
+        ),
+        trusted,
+      );
+      expect(failed.level, TrustLevel.danger);
+    });
+
     test('a forged pass below the real result changes nothing', () {
       final r = checker.check(
         mail(
-          'Authentication-Results: mail.fmail.test; dmarc=fail header.from=paypal.com\n'
-          'Authentication-Results: mail.fmail.test.evil.example; dmarc=pass header.from=paypal.com\n'
+          'Authentication-Results: mail.citusmail.test; dmarc=fail header.from=paypal.com\n'
+          'Authentication-Results: mail.citusmail.test.evil.example; dmarc=pass header.from=paypal.com\n'
           'From: PayPal <service@paypal.com>',
         ),
         trusted,
@@ -288,13 +322,35 @@ void main() {
       final r = checker.check(
         mail(
           'Authentication-Results: mx.attacker.example; dmarc=pass header.from=paypal.com\n'
-          'Authentication-Results: mail.fmail.test; dmarc=fail header.from=paypal.com\n'
+          'Authentication-Results: mail.citusmail.test; dmarc=fail header.from=paypal.com\n'
           'From: PayPal <service@paypal.com>',
         ),
         trusted,
       );
       expect(r.verified, isFalse);
       expect(r.findings, isEmpty, reason: 'the trusted result is not on top');
+    });
+  });
+
+  group('a link on its own', () {
+    test('the message link checks, without shown text', () {
+      expect(
+        TrustChecker.checkLink(Uri.parse('https://openrouter.ai/unsub?x=1')),
+        isNull,
+      );
+      expect(
+        TrustChecker.checkLink(Uri.parse('https://paypa1.com/u'))!.level,
+        TrustLevel.danger,
+      );
+      expect(
+        TrustChecker.checkLink(Uri.parse('https://user@evil.example/u'))!.level,
+        TrustLevel.danger,
+      );
+      expect(
+        TrustChecker.checkLink(Uri.parse('http://203.0.113.9/u'))!.level,
+        TrustLevel.caution,
+      );
+      expect(TrustChecker.checkLink(Uri.parse('mailto:u@x.example')), isNull);
     });
   });
 

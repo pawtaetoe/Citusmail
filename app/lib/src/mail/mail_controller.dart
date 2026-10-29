@@ -173,7 +173,7 @@ final class SyncProblem extends SyncStatus {
 /// The mail screen's state, in separate pieces so each part of the screen
 /// rebuilds only when its own data changes:
 ///
-/// - [location] and [smartLayout]: where the user is;
+/// - [location]: where the user is;
 /// - [list]: what the list shows (paged; index reads only);
 /// - [counts]: sidebar and section counts;
 /// - [reader]: the open message;
@@ -182,14 +182,13 @@ final class SyncProblem extends SyncStatus {
 final class MailController {
   MailController(this.services) : list = MessageListModel(services.store) {
     _events = services.worker.events.listen(_onSyncEvent);
-    list.show(location.value, smart: smartLayout.value);
+    list.show(location.value);
     _refreshCounts();
   }
 
   final AppServices services;
   final MessageListModel list;
   final location = ValueNotifier<MailLocation>(const InboxLocation());
-  final smartLayout = ValueNotifier<bool>(true);
   final counts = ValueNotifier<MailCounts>(MailCounts.empty);
   final reader = ValueNotifier<ReaderState>(const ReaderEmpty());
   final selection = ValueNotifier<Set<int>>(const {});
@@ -227,7 +226,7 @@ final class MailController {
   void goTo(MailLocation target) {
     clearSelection();
     location.value = target;
-    list.show(target, smart: smartLayout.value);
+    list.show(target);
     // Views like Gmail's Starred are not synced in the background.
     if (target case FolderLocation(:final mailboxId)
         when _store.mailboxes.byId(mailboxId)?.isView ?? false) {
@@ -238,14 +237,6 @@ final class MailController {
             .catchError((Object _) {}),
       );
     }
-  }
-
-  void setSmartLayout(bool smart) {
-    if (smartLayout.value == smart) return;
-    smartLayout.value = smart;
-    goTo(
-      location.value is InboxLocation ? location.value : const InboxLocation(),
-    );
   }
 
   void search(String text) {
@@ -1066,7 +1057,6 @@ final class MailController {
     unawaited(_events.cancel());
     list.dispose();
     location.dispose();
-    smartLayout.dispose();
     counts.dispose();
     reader.dispose();
     selection.dispose();

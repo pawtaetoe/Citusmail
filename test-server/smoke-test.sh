@@ -1,9 +1,9 @@
 #!/bin/bash
 # Checks that the running test servers behave the way the app's tests rely
 # on: TLS rules, certificates, capabilities, users, sample mail and SMTP
-# restrictions. Run with `test-server/fmailtest smoke` after `fmailtest up`.
+# restrictions. Run with `test-server/citusmailtest smoke` after `citusmailtest up`.
 #
-# Side effect: sends one message to alice+smoke@fmail.test, which lands in
+# Side effect: sends one message to alice+smoke@citusmail.test, which lands in
 # alice's "smoke" folder. INBOX and the other seeded folders are untouched.
 set -uo pipefail
 
@@ -71,7 +71,7 @@ EOF
 
 send_mail() {
   local url="$1" user="$2" from="$3" rcpt="$4"
-  printf 'From: %s\r\nTo: %s\r\nSubject: smoke test\r\nDate: %s\r\nMessage-ID: <smoke-%s@fmail.test>\r\n\r\nhello\r\n' \
+  printf 'From: %s\r\nTo: %s\r\nSubject: smoke test\r\nDate: %s\r\nMessage-ID: <smoke-%s@citusmail.test>\r\n\r\nhello\r\n' \
       "$from" "$rcpt" "$(date -R)" "$RANDOM$RANDOM" \
     | curl -sS --max-time 15 --ssl-reqd --cacert "$CA" "$url" \
         --mail-from "$from" --mail-rcpt "$rcpt" \
@@ -92,14 +92,14 @@ check_ports_are_local_only() {
 
 check_certificates() {
   echo "Certificates (secure IMAPS)"
-  expect_match "valid certificate for mail.fmail.test" \
-    "$(tls_verdict "$SECURE_IMAPS_PORT" mail.fmail.test)" "return code: 0 "
-  expect_match "expired.fmail.test serves an expired certificate" \
-    "$(tls_verdict "$SECURE_IMAPS_PORT" expired.fmail.test)" "return code: 10 "
-  expect_match "untrusted.fmail.test serves a self-signed certificate" \
-    "$(tls_verdict "$SECURE_IMAPS_PORT" untrusted.fmail.test)" "return code: 18 "
+  expect_match "valid certificate for mail.citusmail.test" \
+    "$(tls_verdict "$SECURE_IMAPS_PORT" mail.citusmail.test)" "return code: 0 "
+  expect_match "expired.citusmail.test serves an expired certificate" \
+    "$(tls_verdict "$SECURE_IMAPS_PORT" expired.citusmail.test)" "return code: 10 "
+  expect_match "untrusted.citusmail.test serves a self-signed certificate" \
+    "$(tls_verdict "$SECURE_IMAPS_PORT" untrusted.citusmail.test)" "return code: 18 "
   expect_match "other names get a hostname mismatch" \
-    "$(tls_verdict "$SECURE_IMAPS_PORT" other.fmail.test)" "return code: 62 "
+    "$(tls_verdict "$SECURE_IMAPS_PORT" other.citusmail.test)" "return code: 62 "
   expect_match "TLS 1.1 is refused" \
     "$(echo | timeout 10 openssl s_client -connect "127.0.0.1:$SECURE_IMAPS_PORT" -tls1_1 2>&1)" \
     "(no protocols available|alert|handshake failure|wrong version|unsupported protocol)"
@@ -114,29 +114,29 @@ check_secure_imap() {
 
   reply="$( { sleep 0.5; printf 'a1 LOGIN alice@%s alice-test-password\r\na2 LOGOUT\r\n' "$TEST_DOMAIN"; sleep 1; } \
     | timeout 10 openssl s_client -quiet -starttls imap -connect "127.0.0.1:$SECURE_IMAP_PORT" \
-        -servername mail.fmail.test -verify_hostname mail.fmail.test -CAfile "$CA" -verify_return_error 2>/dev/null)"
+        -servername mail.citusmail.test -verify_hostname mail.citusmail.test -CAfile "$CA" -verify_return_error 2>/dev/null)"
   expect_match "login after STARTTLS works" "$reply" "^a1 OK"
 
-  reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.fmail.test "a1 LOGIN alice@$TEST_DOMAIN wrong-password" "a2 LOGOUT")"
+  reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.citusmail.test "a1 LOGIN alice@$TEST_DOMAIN wrong-password" "a2 LOGOUT")"
   expect_match "wrong password is refused" "$reply" "^a1 NO"
 
   local user
   for user in $TEST_USERS; do
-    reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.fmail.test "a1 LOGIN $user@$TEST_DOMAIN $(password_of "$user")" "a2 LOGOUT")"
+    reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.citusmail.test "a1 LOGIN $user@$TEST_DOMAIN $(password_of "$user")" "a2 LOGOUT")"
     expect_match "$user can log in over IMAPS" "$reply" "^a1 OK"
   done
 
-  reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.fmail.test "a1 LOGIN alice@$TEST_DOMAIN alice-test-password" "a2 CAPABILITY" "a3 LOGOUT")"
+  reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.citusmail.test "a1 LOGIN alice@$TEST_DOMAIN alice-test-password" "a2 CAPABILITY" "a3 LOGOUT")"
   local cap
   for cap in IDLE CONDSTORE QRESYNC MOVE UIDPLUS SPECIAL-USE ENABLE LITERAL+ NAMESPACE; do
     expect_match "secure server advertises $cap" "$reply" "^\* CAPABILITY .*\b$cap\b"
   done
 
-  reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.fmail.test "a1 LOGIN carol@$TEST_DOMAIN carol-test-password" 'a2 LIST "" "*"' "a3 LOGOUT")"
+  reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.citusmail.test "a1 LOGIN carol@$TEST_DOMAIN carol-test-password" 'a2 LIST "" "*"' "a3 LOGOUT")"
   expect_match "carol uses cPanel-style INBOX. folders" "$reply" '^\* LIST .* "\." INBOX\.Receipts'
   expect_match "carol's INBOX.spam is the \\Junk folder (like Namecheap)" "$reply" '\\Junk\) "\." INBOX\.spam'
   expect_match "carol's INBOX.Junk is a plain folder" "$reply" '^\* LIST \(\\HasNoChildren\) "\." INBOX\.Junk'
-  reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.fmail.test "a1 LOGIN alice@$TEST_DOMAIN alice-test-password" 'a2 LIST "" "*"' "a3 LOGOUT")"
+  reply="$(imap_tls "$SECURE_IMAPS_PORT" mail.citusmail.test "a1 LOGIN alice@$TEST_DOMAIN alice-test-password" 'a2 LIST "" "*"' "a3 LOGOUT")"
   expect_match "alice has nested folder Projects/2026" "$reply" '"/" Projects/2026'
   expect_match "alice has non-ASCII folder (modified UTF-7)" "$reply" '"/" &ZeVnLIqe-'
   expect_match "alice's Sent folder is marked \\Sent" "$reply" '\\Sent\) "/" Sent'
@@ -188,7 +188,7 @@ check_smtp() {
 check_limited() {
   echo "Limited server"
   local reply
-  reply="$(imap_tls "$LIMITED_IMAPS_PORT" mail.fmail.test "a1 LOGIN alice@$TEST_DOMAIN alice-test-password" "a2 CAPABILITY" "a3 LOGOUT")"
+  reply="$(imap_tls "$LIMITED_IMAPS_PORT" mail.citusmail.test "a1 LOGIN alice@$TEST_DOMAIN alice-test-password" "a2 CAPABILITY" "a3 LOGOUT")"
   expect_match "limited server works over TLS" "$reply" "^a1 OK"
   local cap
   for cap in CONDSTORE QRESYNC MOVE; do
@@ -220,7 +220,7 @@ check_plain() {
 }
 
 main() {
-  [[ -r "$CA" ]] || { echo "No CA at $CA; run 'test-server/fmailtest up' first" >&2; exit 2; }
+  [[ -r "$CA" ]] || { echo "No CA at $CA; run 'test-server/citusmailtest up' first" >&2; exit 2; }
   check_ports_are_local_only
   check_certificates
   check_secure_imap

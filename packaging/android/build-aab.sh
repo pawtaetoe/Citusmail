@@ -27,10 +27,10 @@ for name in CITUSMAIL_MS_CLIENT_ID CITUSMAIL_GOOGLE_CLIENT_ID CITUSMAIL_GOOGLE_C
 done
 
 cd "$root/app"
-FMAIL_KEYSTORE_PATH="$keystore" \
-FMAIL_KEY_ALIAS=upload \
-FMAIL_KEYSTORE_PASSWORD="$password" \
-FMAIL_KEY_PASSWORD="$password" \
+CITUSMAIL_KEYSTORE_PATH="$keystore" \
+CITUSMAIL_KEY_ALIAS=upload \
+CITUSMAIL_KEYSTORE_PASSWORD="$password" \
+CITUSMAIL_KEY_PASSWORD="$password" \
   flutter build appbundle --release "${defines[@]}"
 unset password
 

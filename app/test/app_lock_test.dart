@@ -4,10 +4,10 @@
 
 import 'dart:io';
 
+import 'package:citusmail/src/security/app_lock.dart';
+import 'package:citusmail/src/security/pin_hasher.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/security/app_lock.dart';
-import 'package:fmail/src/security/pin_hasher.dart';
 
 import 'support/test_app.dart';
 

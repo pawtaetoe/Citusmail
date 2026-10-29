@@ -16,7 +16,7 @@ import '../mail/mail_controller.dart';
 import 'attachment_saver.dart';
 import 'avatar.dart';
 import 'block_dialog.dart';
-import 'fmail_theme.dart';
+import 'citusmail_theme.dart';
 import 'link_opener.dart';
 import 'mail_text.dart';
 import 'move_dialog.dart';
@@ -218,7 +218,9 @@ final class _Header extends StatelessWidget {
         ],
         final ReaderReady ready => [
           TrustBanner(report: ready.trust),
-          if (ready.unsubscribe.available || ready.unsubscribed != null)
+          if (ready.unsubscribe.available ||
+              ready.unsubscribe.reason != null ||
+              ready.unsubscribed != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: UnsubscribeStatus(controller: controller, reader: ready),
@@ -522,7 +524,7 @@ final class _PrivacyNotice extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(14, 12, 14, canLoad ? 4 : 8),
       decoration: BoxDecoration(
         color: colors.primaryContainer.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(FmailTheme.radius),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
         border: Border.all(color: colors.primary.withValues(alpha: 0.18)),
       ),
       child: Row(
@@ -609,7 +611,7 @@ final class _ReceiptNotice extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(FmailTheme.radius),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -652,7 +654,7 @@ final class _BlockedNotice extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
       decoration: BoxDecoration(
         color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(FmailTheme.radius),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
       ),
       child: Row(
         children: [
@@ -690,7 +692,7 @@ final class _Notice extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(FmailTheme.radius),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
       ),
       child: Row(
         children: [

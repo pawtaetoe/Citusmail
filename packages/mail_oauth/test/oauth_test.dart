@@ -196,6 +196,10 @@ void main() {
           .problemFor(OAuthProvider.microsoft),
       isNull,
     );
+    expect(
+      OAuthRegistration('my-app-id').problemFor(OAuthProvider.microsoft),
+      contains('looks like'),
+    );
     for (final junk in [
       null,
       'nope',

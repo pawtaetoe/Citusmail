@@ -30,7 +30,7 @@ void main() {
     store = MailStore.open('${directory.path}/mail.db', DatabaseKey.generate());
     final account = store.accounts.add(
       NewAccount(
-        email: 'alice@fmail.test',
+        email: 'alice@citusmail.test',
         username: 'alice',
         imap: ServerSettings(
           host: 'h.example',
@@ -136,7 +136,7 @@ void main() {
       MessageSummary(
         uid: 1,
         receivedAt: DateTime.utc(2026, 10, 2),
-        from: const MailAddress(localPart: 'alice', domain: 'fmail.test'),
+        from: const MailAddress(localPart: 'alice', domain: 'citusmail.test'),
         to: const [MailAddress(localPart: 'SAM', domain: 'friend.example')],
       ),
     ]);

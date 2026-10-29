@@ -65,8 +65,13 @@ final class _UnsubscribeDialogState extends State<UnsubscribeDialog> {
               TrustReasons(level: TrustLevel.caution, reasons: [problem]),
               const SizedBox(height: 12),
             ],
+            if (_plan.warnings.isNotEmpty) ...[
+              TrustReasons(level: TrustLevel.caution, reasons: _plan.warnings),
+              const SizedBox(height: 12),
+            ],
             Text(_explanation(), style: text.bodyMedium),
-            if (widget.reader.trust.level == TrustLevel.caution) ...[
+            if (widget.reader.trust.level == TrustLevel.caution &&
+                _plan.warnings.isEmpty) ...[
               const SizedBox(height: 8),
               Text(
                 'This sender couldn\'t be fully checked. Unsubscribing tells '
@@ -221,7 +226,31 @@ final class UnsubscribeStatus extends StatelessWidget {
         ],
       );
     }
-    if (!reader.unsubscribe.available) return const SizedBox.shrink();
+    if (!reader.unsubscribe.available) {
+      final reason = reader.unsubscribe.reason;
+      if (reason == null) return const SizedBox.shrink();
+      // Say why there is no Unsubscribe, instead of leaving it out.
+      return Row(
+        key: const ValueKey('unsubscribe-refused'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.unsubscribe_outlined,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Unsubscribe isn\'t offered. $reason',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: TextButton.icon(

@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
 
 import 'support/test_app.dart';
 
@@ -23,7 +23,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: FmailTheme.light(),
+        theme: CitusmailTheme.light(),
         home: MailShell(
           notifications: false,
           services: app.services,

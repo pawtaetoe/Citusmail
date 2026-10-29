@@ -24,7 +24,7 @@ void main() {
     store = MailStore.open('${directory.path}/mail.db', DatabaseKey.generate());
     final account = store.accounts.add(
       NewAccount(
-        email: 'alice@fmail.test',
+        email: 'alice@citusmail.test',
         username: 'alice',
         imap: ServerSettings(
           host: 'h.example',
@@ -104,6 +104,32 @@ void main() {
     expect(reload(post).listId, 'dev.lists.project.example');
     expect(reload(mine).category, MessageCategory.general); // in Sent
     expect(reload(friend).category, MessageCategory.general);
+  });
+
+  test('stored verification mail moves to Codes, with its code', () async {
+    store.messages.upsertSummaries(inbox.id, [
+      MessageSummary(
+        uid: 1,
+        receivedAt: DateTime.utc(2026, 10, 1),
+        from: bank,
+        subject: 'Your login code',
+        snippet: 'Use 551200 to sign in. It expires in 10 minutes.',
+      ),
+      MessageSummary(
+        uid: 2,
+        receivedAt: DateTime.utc(2026, 10, 2),
+        from: bank,
+        subject: 'Reset your password',
+      ),
+    ]);
+    await Resorter(store).resortAll();
+    final code = store.messages.byUid(inbox.id, 1)!;
+    final reset = store.messages.byUid(inbox.id, 2)!;
+    expect(code.category, MessageCategory.codes);
+    expect(code.section, SmartSection.codes);
+    expect(code.code, '551200');
+    expect(reset.category, MessageCategory.codes);
+    expect(reset.code, isNull, reason: 'its body is read on the next sync');
   });
 
   test('runs again when the rules version changes', () async {

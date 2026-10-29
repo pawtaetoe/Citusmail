@@ -6,11 +6,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:citusmail/src/services/secret_store.dart';
+import 'package:citusmail/src/setup/setup_controller.dart';
+import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/services/secret_store.dart';
-import 'package:fmail/src/setup/setup_controller.dart';
-import 'package:fmail/src/setup/setup_page.dart';
 import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
@@ -185,6 +185,83 @@ void main() {
       expect(find.text('Sign-in was cancelled.'), findsOneWidget);
       expect(flow.saved, isEmpty);
     });
+
+    testWidgets(
+      'without a built-in client: the user\'s own Microsoft client ID',
+      (tester) async {
+        final secrets = _Secrets();
+        final own = OwnOAuthClients(secrets);
+        final signedIn = <OAuthProvider>[];
+        final saved = <OAuthTokens>[];
+        final controller = SetupController(
+          discover: (email, {askMozillaConsent, onStep}) async =>
+              throw StateError('no discovery for Outlook'),
+          verify: (settings, password) async => throw StateError('no password'),
+          save: (settings, password, {displayName}) async =>
+              throw StateError('no password save'),
+          providerFor: (email) =>
+              email.endsWith('@outlook.com') ? OAuthProvider.microsoft : null,
+          oauthSignIn: (provider, email) async {
+            signedIn.add(provider);
+            return OAuthTokens(
+              accessToken: 'AT',
+              refreshToken: 'RT',
+              expiresAt: DateTime.utc(2030),
+            );
+          },
+          verifyOAuth: (settings, token) async =>
+              const VerificationResult.success(),
+          saveOAuth: (settings, provider, tokens, {displayName}) async {
+            saved.add(tokens);
+            return _account;
+          },
+          ownClient: own.read,
+          saveOwnClient: own.save,
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SetupPage(controller: controller, onDone: (_) {}),
+          ),
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Email address'),
+          'me@outlook.com',
+        );
+        await tester.pump();
+        expect(find.textContaining('can\'t do yet'), findsNothing);
+        expect(
+          find.textContaining('your own free app registration'),
+          findsOneWidget,
+        );
+        await tester.ensureVisible(find.text('Continue with Microsoft'));
+        await tester.tap(find.text('Continue with Microsoft'));
+        await tester.pumpAndSettle();
+        expect(find.text('Your own Microsoft client ID'), findsOneWidget);
+        expect(find.textContaining('Microsoft Entra'), findsWidgets);
+        expect(find.widgetWithText(TextField, 'Client secret'), findsNothing);
+
+        final field = find.widgetWithText(TextField, 'Application (client) ID');
+        await tester.enterText(field, 'not-a-guid');
+        await tester.ensureVisible(find.text('Continue with Microsoft'));
+        await tester.tap(find.text('Continue with Microsoft'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('looks like 00000000-'), findsOneWidget);
+        expect(signedIn, isEmpty);
+
+        const id = '0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0';
+        await tester.enterText(field, id);
+        await tester.ensureVisible(find.text('Continue with Microsoft'));
+        await tester.tap(find.text('Continue with Microsoft'));
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(signedIn.single.clientId, id);
+        expect(signedIn.single.clientSecret, isEmpty);
+        expect(saved.single.registration!.clientId, id);
+        expect((await own.read('microsoft'))!.clientId, id);
+        expect(controller.state, isA<SetupDone>());
+      },
+    );
 
     test('a refused mail login is explained, nothing saved', () async {
       final flow = _Flow(

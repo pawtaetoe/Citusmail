@@ -30,6 +30,8 @@ final class StoreSenderHistory implements SenderHistory {
         from: m.from,
         headers: m.headers,
         mailboxUse: m.mailboxUse,
+        subject: m.subject,
+        snippet: m.snippet,
       ),
   ];
 
@@ -114,7 +116,12 @@ final class LearnedClassifier implements MessageClassifier {
       counts[category] = (counts[category] ?? 0) + 1;
     }
     for (final MapEntry(key: category, value: count) in counts.entries) {
-      if (category == MessageCategory.general) continue;
+      // Codes are known from each message itself, never from the sender:
+      // a bank's statements are not codes.
+      if (category == MessageCategory.general ||
+          category == MessageCategory.codes) {
+        continue;
+      }
       if (count >= minEvidence && count / mail.length >= agreement) {
         // Checked last: one query, only when it would matter.
         return history.isCorrespondent(address) ? null : category;

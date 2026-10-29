@@ -58,7 +58,7 @@ void main() {
       'INBOX',
       utf8.encode(
         'From: Orders <orders@$domain>\r\n'
-        'To: carol@fmail.test\r\n'
+        'To: carol@citusmail.test\r\n'
         'Subject: Your order\r\n'
         'Message-ID: <$messageId>\r\n'
         'Date: Thu, 22 Oct 2026 10:00:00 +0000\r\n'
@@ -128,7 +128,7 @@ void main() {
         'INBOX',
         utf8.encode(
           'From: Spammer <offers@mail.$domain>\r\n'
-          'To: carol@fmail.test\r\n'
+          'To: carol@citusmail.test\r\n'
           'Subject: You won\r\n'
           'Message-ID: <$messageId>\r\n'
           'Date: Fri, 23 Oct 2026 10:00:00 +0000\r\n'

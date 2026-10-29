@@ -11,7 +11,8 @@ import 'package:mail_store/mail_store.dart';
 /// write transaction, so when the app and a background job both sync, a
 /// message is announced by only one of them.
 ///
-/// Only unread mail in the Pinned, Important and General sections counts;
+/// Only unread mail in the Pinned, Codes, Important and General sections
+/// counts (codes are waited for);
 /// newsletters, notifications and blocked senders never interrupt. The first claim of an
 /// account (or after its inbox was reset) only sets the mark, so adding an
 /// account does not announce its whole inbox.
@@ -22,6 +23,7 @@ final class NewMailTracker {
 
   static const _sections = [
     SmartSection.pinned,
+    SmartSection.codes,
     SmartSection.important,
     SmartSection.general,
   ];

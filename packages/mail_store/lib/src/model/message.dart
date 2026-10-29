@@ -12,7 +12,10 @@ enum MessageCategory {
   /// change the CHECK constraint that lists the allowed values.
   general('people'),
   newsletters('newsletters'),
-  notifications('notifications');
+  notifications('notifications'),
+
+  /// Verification codes, sign-in links and password resets (schema 13).
+  codes('codes');
 
   const MessageCategory(this.storageName);
 
@@ -33,12 +36,19 @@ enum CategorySource { rule, provider }
 /// first that applies:
 ///
 /// 1. [pinned]: flagged (`\Flagged`, a star in other mail apps);
-/// 2. [newsletters] and [notifications]: by category;
+/// 2. [codes], [newsletters] and [notifications]: by category;
 /// 3. [important]: General mail from someone the user has written to, a
 ///    reply to the user's own mail, or marked important by the server
 ///    (`$Important` keyword or the `\Important` folder);
 /// 4. [general]: everything else.
-enum SmartSection { pinned, important, general, notifications, newsletters }
+enum SmartSection {
+  pinned,
+  codes,
+  important,
+  general,
+  notifications,
+  newsletters,
+}
 
 /// IMAP system flags as bits, plus other keywords ($Forwarded, $Junk...).
 final class MessageFlags {
@@ -133,6 +143,7 @@ final class MessageSummary {
     this.snippet,
     this.headers = const {},
     this.listId,
+    this.code,
   }) {
     if (uid < 1) throw ArgumentError.value(uid, 'uid', 'must be at least 1');
   }
@@ -157,6 +168,9 @@ final class MessageSummary {
   final MessageCategory category;
   final CategorySource categorySource;
   final String? snippet;
+
+  /// A verification code found in the subject or preview, if any.
+  final String? code;
 
   /// The normalized List-Id (lower case), if the message came through a
   /// mailing list (for bulk actions on a list later).
@@ -190,6 +204,7 @@ final class StoredMessage {
     this.snippet,
     this.listId,
     this.section = SmartSection.general,
+    this.code,
   });
 
   final int id;
@@ -218,6 +233,13 @@ final class StoredMessage {
   /// Where the message is in the Smart Inbox (meaningful in an inbox).
   final SmartSection section;
 
+  /// The verification code found in the message: null when not looked
+  /// for, empty when there is none.
+  final String? code;
+
+  /// [code], when there is one.
+  String? get shownCode => code == null || code!.isEmpty ? null : code;
+
   @override
   String toString() => 'StoredMessage($id, mailbox $mailboxId, uid $uid)';
 }
@@ -230,10 +252,18 @@ final class SortableMessage {
     required this.from,
     required this.headers,
     required this.mailboxUse,
+    this.subject,
+    this.snippet,
+    this.code,
   });
 
   final int id;
   final MailAddress? from;
+  final String? subject;
+  final String? snippet;
+
+  /// The stored code (null: not looked for yet).
+  final String? code;
 
   /// Stored headers, lower-case names.
   final Map<String, List<String>> headers;
@@ -247,10 +277,15 @@ final class CategoryDecision {
     required this.category,
     required this.source,
     this.listId,
+    this.code,
   });
 
   final int messageId;
   final MessageCategory category;
   final CategorySource source;
   final String? listId;
+
+  /// A code found in the subject or preview; kept only where none is
+  /// stored yet.
+  final String? code;
 }

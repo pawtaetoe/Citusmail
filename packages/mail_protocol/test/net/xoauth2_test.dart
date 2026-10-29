@@ -21,7 +21,7 @@ TlsSettings _clientTls() =>
     TlsSettings.trustOnly(File('${_certs.path}/ca.crt').readAsBytesSync());
 
 ServerEndpoint _endpoint(FakeServer s) => ServerEndpoint(
-  'mail.fmail.test',
+  'mail.citusmail.test',
   s.port,
   ConnectionSecurity.implicitTls,
   connectAddress: '127.0.0.1',

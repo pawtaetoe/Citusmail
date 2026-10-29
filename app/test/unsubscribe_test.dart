@@ -6,10 +6,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_web/mail_web.dart';
@@ -78,7 +78,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: FmailTheme.light(),
+        theme: CitusmailTheme.light(),
         home: MailShell(
           notifications: false,
           services: app.services,
@@ -238,6 +238,44 @@ void main() {
     await open(tester, '50% off everything this week');
     expect(find.textContaining('Shop Weekly is still sending'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Unsubscribe'), findsNothing);
+  });
+
+  testWidgets('an unverified sender: offered, with a warning to confirm', (
+    tester,
+  ) async {
+    app.seedFixture(
+      'newsletters/forwarded-unverified.eml',
+      subject: 'What developers route to this week',
+      uid: 73,
+    );
+    await show(tester);
+    await open(tester, 'What developers route to this week');
+    expect(find.text('This message may be a scam'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Unsubscribe'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('couldn\'t verify the sender'), findsOneWidget);
+    expect(find.textContaining('news.example'), findsWidgets);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a scam with an unsubscribe header says why it isn\'t offered', (
+    tester,
+  ) async {
+    app.seedFixture(
+      'security/scam-with-unsubscribe.eml',
+      subject: 'Your account is on hold',
+      uid: 74,
+    );
+    await show(tester);
+    await open(tester, 'Your account is on hold');
+    expect(find.widgetWithText(TextButton, 'Unsubscribe'), findsNothing);
+    expect(
+      find.textContaining(
+        'Unsubscribe isn\'t offered. This message may be a scam',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('scam mail and ordinary mail offer no unsubscribe', (

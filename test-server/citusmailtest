@@ -1,35 +1,35 @@
 #!/bin/bash
 # Controls the local test mail servers. NOT for real mail.
 #
-#   fmailtest up       build the image if needed, create certificates,
+#   citusmailtest up       build the image if needed, create certificates,
 #                      start all servers and load sample mail
-#   fmailtest down     stop and remove all test servers (mail is discarded)
-#   fmailtest reset    down + up: fresh servers with fresh sample mail
-#   fmailtest status   show servers and their ports
-#   fmailtest logs M   show logs of server M (secure, limited or plain)
-#   fmailtest smoke    check the running servers behave as expected
+#   citusmailtest down     stop and remove all test servers (mail is discarded)
+#   citusmailtest reset    down + up: fresh servers with fresh sample mail
+#   citusmailtest status   show servers and their ports
+#   citusmailtest logs M   show logs of server M (secure, limited or plain)
+#   citusmailtest smoke    check the running servers behave as expected
 #
-# Uses podman (rootless) or docker. Override with FMAIL_CONTAINER_RUNTIME.
+# Uses podman (rootless) or docker. Override with CITUSMAIL_CONTAINER_RUNTIME.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly HERE
 readonly CERT_DIR="$HERE/.generated/certs"
-readonly IMAGE_NAME="localhost/fmail-test-mail"
-readonly CONTAINER_PREFIX="fmail-test"
+readonly IMAGE_NAME="localhost/citusmail-test-mail"
+readonly CONTAINER_PREFIX="citusmail-test"
 readonly MODES=(secure limited plain)
 readonly READY_TIMEOUT_SECONDS=60
 
 # shellcheck source-path=SCRIPTDIR source=servers.env
 source "$HERE/servers.env"
 
-log() { echo "[fmailtest] $*" >&2; }
+log() { echo "[citusmailtest] $*" >&2; }
 die() { log "error: $*"; exit 1; }
 
 # ------------------------------------------------------------ runtime
 detect_runtime() {
-  if [[ -n "${FMAIL_CONTAINER_RUNTIME:-}" ]]; then
-    echo "$FMAIL_CONTAINER_RUNTIME"
+  if [[ -n "${CITUSMAIL_CONTAINER_RUNTIME:-}" ]]; then
+    echo "$CITUSMAIL_CONTAINER_RUNTIME"
   elif command -v podman >/dev/null; then
     echo podman
   elif command -v docker >/dev/null; then
@@ -100,9 +100,9 @@ start_server() {
   local name; name="$(container_name "$mode")"
   # shellcheck disable=SC2046  # word splitting of the arg lists is intended
   "$RUNTIME" run --detach --name "$name" \
-    --label fmail-test=1 \
-    --env "FMAIL_TEST_MODE=$mode" \
-    --volume "$CERT_DIR:/etc/fmail-certs:ro" \
+    --label citusmail-test=1 \
+    --env "CITUSMAIL_TEST_MODE=$mode" \
+    --volume "$CERT_DIR:/etc/citusmail-certs:ro" \
     $(network_args) $(port_args "$mode") \
     "$image" >/dev/null
   log "started $name"
@@ -125,9 +125,9 @@ wait_for_greeting() {
 wait_until_ready() {
   local mode="$1"
   wait_for_greeting "$(port_of "$mode" IMAP)" "* OK" \
-    || die "$mode IMAP did not start; see 'fmailtest logs $mode'"
+    || die "$mode IMAP did not start; see 'citusmailtest logs $mode'"
   wait_for_greeting "$(port_of "$mode" SUBMISSION)" "220" \
-    || die "$mode SMTP did not start; see 'fmailtest logs $mode'"
+    || die "$mode SMTP did not start; see 'citusmailtest logs $mode'"
 }
 
 seed_server() {
@@ -144,7 +144,7 @@ server_exists() { "$RUNTIME" container inspect "$(container_name "$1")" >/dev/nu
 # ------------------------------------------------------------ commands
 cmd_up() {
   for mode in "${MODES[@]}"; do
-    server_exists "$mode" && die "$(container_name "$mode") already exists; use 'fmailtest reset'"
+    server_exists "$mode" && die "$(container_name "$mode") already exists; use 'citusmailtest reset'"
   done
   "$HERE/certs/generate.sh"
   local image; image="$(ensure_image)"
@@ -182,7 +182,7 @@ cmd_status() {
 
 cmd_logs() {
   local mode="${1:-}"
-  [[ " ${MODES[*]} " == *" $mode "* ]] || die "usage: fmailtest logs secure|limited|plain"
+  [[ " ${MODES[*]} " == *" $mode "* ]] || die "usage: citusmailtest logs secure|limited|plain"
   "$RUNTIME" logs "$(container_name "$mode")"
 }
 

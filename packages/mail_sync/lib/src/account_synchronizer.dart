@@ -6,6 +6,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'app_data/app_data_sync.dart';
+import 'code_reader.dart';
 import 'connector.dart';
 import 'folder_rules.dart';
 import 'mailbox_synchronizer.dart';
@@ -174,6 +175,12 @@ final class AccountSynchronizer {
           receipts = await ReceiptCollector(_store).collect(imap, account);
         } on MailException {
           receipts = 0;
+        }
+        // Codes in new verification mail, for the list. Also optional.
+        try {
+          await CodeReader(_store).read(imap, account);
+        } on MailException {
+          // Read again next time.
         }
       }
 

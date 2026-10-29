@@ -1,8 +1,8 @@
-From: Bob Example <bob@fmail.test>
-To: Alice Example <alice@fmail.test>
+From: Bob Example <bob@citusmail.test>
+To: Alice Example <alice@citusmail.test>
 Subject: Read: Final report
 Date: Mon, 19 Oct 2026 16:45:00 +0800
-Message-ID: <mdn-1@fmail.test>
+Message-ID: <mdn-1@citusmail.test>
 MIME-Version: 1.0
 Content-Type: multipart/report; report-type=disposition-notification;
  boundary="mdn-boundary"
@@ -10,15 +10,15 @@ Content-Type: multipart/report; report-type=disposition-notification;
 --mdn-boundary
 Content-Type: text/plain; charset=utf-8
 
-The message sent on Mon, 19 Oct 2026 16:00:00 +0800 to bob@fmail.test
+The message sent on Mon, 19 Oct 2026 16:00:00 +0800 to bob@citusmail.test
 with subject "Final report" has been displayed.
 
 --mdn-boundary
 Content-Type: message/disposition-notification
 
-Reporting-UA: mail.fmail.test; Example Mailer
-Final-Recipient: rfc822;bob@fmail.test
-Original-Message-ID: <alice-report-1@fmail.test>
+Reporting-UA: mail.citusmail.test; Example Mailer
+Final-Recipient: rfc822;bob@citusmail.test
+Original-Message-ID: <alice-report-1@citusmail.test>
 Disposition: manual-action/MDN-sent-manually; displayed
 
 --mdn-boundary--

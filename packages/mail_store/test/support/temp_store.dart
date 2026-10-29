@@ -38,20 +38,21 @@ final class TempStore {
     directory.deleteSync(recursive: true);
   }
 
-  Account addAccount([String email = 'alice@fmail.test']) => store.accounts.add(
-    NewAccount(
-      email: email,
-      username: email,
-      imap: ServerSettings(
-        host: 'mail.fmail.test',
-        port: 993,
-        security: ConnectionSecurity.implicitTls,
-      ),
-      smtp: ServerSettings(
-        host: 'mail.fmail.test',
-        port: 465,
-        security: ConnectionSecurity.implicitTls,
-      ),
-    ),
-  );
+  Account addAccount([String email = 'alice@citusmail.test']) =>
+      store.accounts.add(
+        NewAccount(
+          email: email,
+          username: email,
+          imap: ServerSettings(
+            host: 'mail.citusmail.test',
+            port: 993,
+            security: ConnectionSecurity.implicitTls,
+          ),
+          smtp: ServerSettings(
+            host: 'mail.citusmail.test',
+            port: 465,
+            security: ConnectionSecurity.implicitTls,
+          ),
+        ),
+      );
 }

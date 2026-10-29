@@ -237,7 +237,7 @@ void main() {
     ServerRules rules() => ServerRules(store, (account) async {
       final client = await ManageSieveClient.connect(
         ServerEndpoint(
-          'mail.fmail.test',
+          'mail.citusmail.test',
           server.port,
           ConnectionSecurity.implicitTls,
           connectAddress: '127.0.0.1',
@@ -255,15 +255,15 @@ void main() {
       store = MailStore.open('${directory.path}/m.db', DatabaseKey.generate());
       account = store.accounts.add(
         NewAccount(
-          email: 'alice@fmail.test',
-          username: 'alice@fmail.test',
+          email: 'alice@citusmail.test',
+          username: 'alice@citusmail.test',
           imap: ServerSettings(
-            host: 'mail.fmail.test',
+            host: 'mail.citusmail.test',
             port: 993,
             security: ConnectionSecurity.implicitTls,
           ),
           smtp: ServerSettings(
-            host: 'mail.fmail.test',
+            host: 'mail.citusmail.test',
             port: 465,
             security: ConnectionSecurity.implicitTls,
           ),

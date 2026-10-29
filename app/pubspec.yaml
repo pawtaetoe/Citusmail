@@ -1,4 +1,4 @@
-name: fmail
+name: citusmail
 description: A free, open source, privacy-first mail client.
 publish_to: none
 version: 0.1.0+2

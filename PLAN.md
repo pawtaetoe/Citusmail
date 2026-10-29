@@ -16,7 +16,7 @@ first, ends with something that can be run or tested, and is committed as
 | M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
 | M4 | Outlook sign-in (OAuth 2.0) | Built; live check tool ready, run waiting on a client ID (Stage 24) |
 | M5 | Gmail: app passwords first, then OAuth 2.0; signing in again | Built (Stages 25-27); live checks waiting |
-| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal | Done (Stages 28-33) |
+| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal, verification codes, safer unsubscribing | Done (Stages 28-35) |
 
 ## Stages so far
 
@@ -84,6 +84,8 @@ first, ends with something that can be run or tested, and is committed as
 | 31 | Sorting learns from each sender's mail, on the device: when the rules find no signal, a sender whose other mail clearly sorts one way (3+ messages, 90%) is followed; never for people the user writes to; stored mail re-sorted once |
 | 32 | Google Safe Browsing (opt-in): our own Update API v4 client in the new mail_lookup package (canonical URLs and expressions per Google's spec, hash-prefix lists with checksums, kept in a file); links the user opens are checked on the device, and only a 4-byte prefix is sent to confirm; built-in or the user's own API key |
 | 33 | VirusTotal (opt-in, the user's own key): "Check with VirusTotal" on risky attachments (by SHA-256, never uploaded) and flagged links (looked up, never submitted), one tap at a time; mail_web gains one validated API-key header |
+| 34 | Verification section in the Smart Inbox: codes, sign-in links and password resets sorted out of Notifications (by subject, or a code in the preview; stored mail re-sorted); the code shown in the list in place of the preview, copied with a tap (read from the subject, preview or, for fresh mail on servers without previews, the body, downloaded unread); notifications for new codes; an open section shows 5 messages first |
+| 35 | Unsubscribe and the phishing checks: unsubscribe addresses get the same checks as links (an unsafe one is never used, an unusual one is pointed out); an unverified sender alone (forwarded mail) no longer hides Unsubscribe, it adds a warning; scams say why there is no Unsubscribe; forwarded mail with a valid ARC chain (checked by the user's own server) is a caution, not a scam alert |
 
 ## Next
 
@@ -91,6 +93,9 @@ first, ends with something that can be run or tested, and is committed as
    (`dart run repo_tools:live_check --send`, see the README).
    - Waiting on: a Microsoft Entra client ID (see
      [packaging/README.md](packaging/README.md)) and an Outlook test account.
+     Until the app has its own, users can enter their own client ID in
+     setup, and CI builds take `CITUSMAIL_MS_CLIENT_ID` from a repository
+     variable.
    - The app build takes the ID as `--dart-define=CITUSMAIL_MS_CLIENT_ID=...`;
      the live check reads it from `LIVE_OAUTH_CLIENT_ID` in `live-test.env`.
    - Its send step reports whether Outlook keeps its own copy in Sent (the
@@ -124,7 +129,7 @@ first, ends with something that can be run or tested, and is committed as
 
 ## Design
 
-Set in [app/lib/src/ui/fmail_theme.dart](app/lib/src/ui/fmail_theme.dart).
+Set in [app/lib/src/ui/citusmail_theme.dart](app/lib/src/ui/citusmail_theme.dart).
 
 - **Colours:** a spruce sidebar (`#15332E`), lagoon green (`#0F7A69`) for
   actions and selection, and one citrus accent (`#F4B740`) for what needs

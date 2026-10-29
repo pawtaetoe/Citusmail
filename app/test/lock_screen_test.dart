@@ -4,12 +4,12 @@
 
 import 'dart:async';
 
+import 'package:citusmail/src/app.dart';
+import 'package:citusmail/src/security/lock_screen.dart';
+import 'package:citusmail/src/services/app_services.dart';
+import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/app.dart';
-import 'package:fmail/src/security/lock_screen.dart';
-import 'package:fmail/src/services/app_services.dart';
-import 'package:fmail/src/ui/settings_page.dart';
 
 import 'support/test_app.dart';
 
@@ -37,7 +37,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      FmailApp(startup: startup ?? () async => StartupReady(app.services)),
+      CitusmailApp(startup: startup ?? () async => StartupReady(app.services)),
     );
     await tester.pump();
     await tester.pump();

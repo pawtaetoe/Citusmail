@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 
 import 'classification.dart';
 import 'sender_patterns.dart';
+import 'verification_codes.dart';
 
 /// One header rule. Rules run in order; the first that decides wins.
 abstract interface class SortingRule {
@@ -27,6 +28,30 @@ final class OwnMailRule implements SortingRule {
         ),
         _ => null,
       };
+}
+
+/// Verification codes, sign-in links and password resets get a section
+/// of their own, so they are found at once: by their subject, or by a
+/// code next to a keyword in the server's preview. Not replies, forwards
+/// or automatic replies, which are conversations.
+final class VerificationRule implements SortingRule {
+  const VerificationRule();
+
+  @override
+  Classification? apply(ClassificationInput input) {
+    if (input.token('auto-submitted') == 'auto-replied') return null;
+    final subject = input.subject;
+    final found =
+        VerificationCodes.isVerificationSubject(subject) ||
+        (!VerificationCodes.isReply(subject) &&
+            VerificationCodes.isVerificationText(input.snippet));
+    return found
+        ? const Classification(
+            MessageCategory.codes,
+            SortingReason.verification,
+          )
+        : null;
+  }
 }
 
 /// Services such as GitHub are notifications, even though their mail has

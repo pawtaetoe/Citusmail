@@ -1,7 +1,7 @@
 From: Octo Cat <notifications@github.com>
 Reply-To: owner/repo <reply+ABC123@reply.github.com>
 To: owner/repo <repo@noreply.github.com>
-Cc: Alice Example <alice@fmail.test>, Mention <mention@noreply.github.com>
+Cc: Alice Example <alice@citusmail.test>, Mention <mention@noreply.github.com>
 Subject: Re: [owner/repo] Fix crash on startup (PR #12)
 Date: Tue, 20 Oct 2026 08:00:00 +0000
 Message-ID: <owner/repo/pull/12/c100@github.com>

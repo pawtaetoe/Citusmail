@@ -8,7 +8,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import 'avatar.dart';
-import 'fmail_theme.dart';
+import 'citusmail_theme.dart';
 import 'mail_text.dart';
 
 /// One message in a list: the sender's initials, sender, time, subject and
@@ -110,6 +110,7 @@ final class _MessageTileState extends State<MessageTile> {
         if (_m.flags.flagged) 'Pinned',
         'From ${MailText.sender(_m)}',
         MailText.subject(_m),
+        if (_m.shownCode case final code?) 'Code $code',
         MailText.listDate(context, _m.receivedAt),
         if (_m.hasAttachments) 'Has attachments',
       ].join('. '),
@@ -120,7 +121,7 @@ final class _MessageTileState extends State<MessageTile> {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
           child: Material(
             color: background,
-            borderRadius: BorderRadius.circular(FmailTheme.radius),
+            borderRadius: BorderRadius.circular(CitusmailTheme.radius),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: _tap,
@@ -262,15 +263,21 @@ final class _MessageTileState extends State<MessageTile> {
             height: 1.35,
           ),
         ),
-        Text(
-          _m.snippet ?? ' ',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: muted,
-            height: 1.35,
+        if (_m.shownCode case final code?)
+          _CodeLine(
+            code: code,
+            style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+          )
+        else
+          Text(
+            _m.snippet ?? ' ',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: muted,
+              height: 1.35,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -312,6 +319,62 @@ final class _MessageTileState extends State<MessageTile> {
       ],
     );
     action?.call();
+  }
+}
+
+/// A verification code in place of the preview, so it can be read (and
+/// copied with a tap) without opening the message. Exactly one text line
+/// high, like the preview it replaces.
+final class _CodeLine extends StatelessWidget {
+  const _CodeLine({required this.code, required this.style});
+
+  final String code;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final size = style?.fontSize ?? 12;
+    return SizedBox(
+      height: size * (style?.height ?? 1.35),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Tooltip(
+          message: 'Copy code',
+          child: InkWell(
+            key: ValueKey('copy-code-$code'),
+            borderRadius: BorderRadius.circular(4),
+            onTap: () async {
+              final messenger = ScaffoldMessenger.maybeOf(context);
+              await Clipboard.setData(ClipboardData(text: code));
+              messenger
+                ?..hideCurrentSnackBar()
+                ..showSnackBar(SnackBar(content: Text('Copied $code')));
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Code ',
+                  style: style?.copyWith(color: colors.onSurfaceVariant),
+                ),
+                Text(
+                  code,
+                  style: style?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.copy, size: size, color: colors.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

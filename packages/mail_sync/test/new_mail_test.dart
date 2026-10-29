@@ -20,7 +20,7 @@ void main() {
     store = MailStore.open('${directory.path}/mail.db', DatabaseKey.generate());
     account = store.accounts.add(
       NewAccount(
-        email: 'alice@fmail.test',
+        email: 'alice@citusmail.test',
         username: 'alice',
         imap: ServerSettings(
           host: 'h.example',

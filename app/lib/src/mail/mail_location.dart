@@ -12,7 +12,7 @@ sealed class MailLocation {
   int? get accountId => null;
 }
 
-/// The inbox of every account (or one), in Smart or Classic layout.
+/// The inbox of every account (or one), as the Smart Inbox.
 final class InboxLocation extends MailLocation {
   const InboxLocation({this.accountId});
 

@@ -72,6 +72,10 @@ final class AuthenticationResults {
 
   AuthResult? get spf => _first('spf');
 
+  /// The ARC result (RFC 8617): whether the chain of forwarding servers
+  /// that sealed the message checked out.
+  AuthResult? get arc => _first('arc');
+
   Iterable<AuthResult> get dkim => results.where((r) => r.method == 'dkim');
 
   AuthResult? _first(String method) {

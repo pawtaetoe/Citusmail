@@ -80,7 +80,10 @@ class InstantMailService : Service() {
     companion object {
         private const val ID = 1
         private const val CHANNEL = "instant_mail"
-        private const val PREFS = "fmail-background"
+        private const val PREFS = "citusmail-background"
+
+        /** The settings' name before the app was renamed from Fmail. */
+        private const val OLD_PREFS = "fmail-background"
         private const val KEY_INSTANT = "instant"
 
         /** Turns instant mail on or off; remembered for restarts after reboot. */
@@ -99,7 +102,17 @@ class InstantMailService : Service() {
             }
         }
 
-        fun isEnabled(context: Context): Boolean =
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_INSTANT, false)
+        fun isEnabled(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            if (!prefs.contains(KEY_INSTANT)) {
+                // Carry the choice over from before the rename, once.
+                val old = context.getSharedPreferences(OLD_PREFS, Context.MODE_PRIVATE)
+                if (old.contains(KEY_INSTANT)) {
+                    prefs.edit().putBoolean(KEY_INSTANT, old.getBoolean(KEY_INSTANT, false)).apply()
+                    old.edit().clear().apply()
+                }
+            }
+            return prefs.getBoolean(KEY_INSTANT, false)
+        }
     }
 }

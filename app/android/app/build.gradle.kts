@@ -41,15 +41,15 @@ android {
     }
     fun signing(name: String, env: String): String? =
         keyProperties.getProperty(name) ?: System.getenv(env)
-    val storePath = signing("storeFile", "FMAIL_KEYSTORE_PATH")
+    val storePath = signing("storeFile", "CITUSMAIL_KEYSTORE_PATH")
 
     signingConfigs {
         if (storePath != null) {
             create("release") {
                 storeFile = file(storePath)
-                storePassword = signing("storePassword", "FMAIL_KEYSTORE_PASSWORD")
-                keyAlias = signing("keyAlias", "FMAIL_KEY_ALIAS")
-                keyPassword = signing("keyPassword", "FMAIL_KEY_PASSWORD")
+                storePassword = signing("storePassword", "CITUSMAIL_KEYSTORE_PASSWORD")
+                keyAlias = signing("keyAlias", "CITUSMAIL_KEY_ALIAS")
+                keyPassword = signing("keyPassword", "CITUSMAIL_KEY_PASSWORD")
             }
         }
     }

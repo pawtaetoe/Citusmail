@@ -1,5 +1,5 @@
 From: Mystery Sender <someone@unknown.example>
-To: alice@fmail.test
+To: alice@citusmail.test
 Subject: Hostile HTML (renderer must make zero network requests)
 Date: Tue, 20 Oct 2026 01:00:00 +0000
 Message-ID: <hostile@unknown.example>

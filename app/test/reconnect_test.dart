@@ -2,11 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/setup/reconnect.dart';
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/setup/reconnect.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
 import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
@@ -197,7 +197,7 @@ void main() {
       );
       await tester.pumpWidget(
         MaterialApp(
-          theme: FmailTheme.light(),
+          theme: CitusmailTheme.light(),
           home: MailShell(
             notifications: false,
             services: app.services,
@@ -212,7 +212,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Update password'));
       await tester.pumpAndSettle();
-      expect(find.text('alice@fmail.test'), findsWidgets);
+      expect(find.text('alice@citusmail.test'), findsWidgets);
 
       await tester.enterText(
         find.widgetWithText(TextField, 'New password'),
@@ -231,7 +231,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(save, ['right']);
       expect(
-        find.text('Password updated for alice@fmail.test'),
+        find.text('Password updated for alice@citusmail.test'),
         findsOneWidget,
       );
     });

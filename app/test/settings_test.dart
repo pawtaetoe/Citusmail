@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/ui/settings_page.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import 'support/test_app.dart';
@@ -37,7 +37,7 @@ void main() {
   ) async {
     final calls = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('fmail/background'),
+      const MethodChannel('citusmail/background'),
       (call) async {
         calls.add(call);
         return null;
@@ -61,14 +61,14 @@ void main() {
       MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
     );
     expect(app.services.settings.serverRules, isFalse);
-    expect(find.text('alice@fmail.test'), findsNothing);
+    expect(find.text('alice@citusmail.test'), findsNothing);
     await tester.tap(find.text('Rules on the mail server'));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 300)),
     );
     await tester.pump();
     expect(app.services.settings.serverRules, isTrue);
-    expect(find.text('alice@fmail.test'), findsOneWidget);
+    expect(find.text('alice@citusmail.test'), findsOneWidget);
   });
 
   test('server rules status in words', () {

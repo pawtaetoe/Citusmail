@@ -24,12 +24,12 @@ void main() {
   }
   final servers = TestServers.load();
 
-  String receipt(String originalId, {String from = 'bob@fmail.test'}) =>
+  String receipt(String originalId, {String from = 'bob@citusmail.test'}) =>
       'From: Bob <$from>\r\n'
-      'To: carol@fmail.test\r\n'
+      'To: carol@citusmail.test\r\n'
       'Subject: Read: Report\r\n'
       'Date: Sat, 24 Oct 2026 10:00:00 +0000\r\n'
-      'Message-ID: <mdn-${Random().nextInt(1 << 30)}@fmail.test>\r\n'
+      'Message-ID: <mdn-${Random().nextInt(1 << 30)}@citusmail.test>\r\n'
       'MIME-Version: 1.0\r\n'
       'Content-Type: multipart/report; report-type=disposition-notification;\r\n'
       ' boundary="b"\r\n'
@@ -58,9 +58,9 @@ void main() {
       await engine.syncAccount(device.account.id);
 
       final tag = scratchFolder('rcpt').toLowerCase();
-      final askedHere = 'asked-$tag@fmail.test';
-      final askedElsewhere = 'other-$tag@fmail.test';
-      final neverAsked = 'never-$tag@fmail.test';
+      final askedHere = 'asked-$tag@citusmail.test';
+      final askedElsewhere = 'other-$tag@citusmail.test';
+      final neverAsked = 'never-$tag@citusmail.test';
       device.store.receipts.requested(device.account.id, askedHere);
 
       final other = await servers.otherDevice('carol');
@@ -87,9 +87,9 @@ void main() {
       await other.append(
         'INBOX.Sent',
         utf8.encode(
-          'From: carol@fmail.test\r\nTo: bob@fmail.test\r\nSubject: Report\r\n'
+          'From: carol@citusmail.test\r\nTo: bob@citusmail.test\r\nSubject: Report\r\n'
           'Message-ID: <$askedElsewhere>\r\n'
-          'Disposition-Notification-To: carol@fmail.test\r\n\r\nHi\r\n',
+          'Disposition-Notification-To: carol@citusmail.test\r\n\r\nHi\r\n',
         ),
         flags: const {r'\Seen'},
       );
@@ -105,7 +105,7 @@ void main() {
             .single;
         expect(
           (got.recipient, got.disposition),
-          ('bob@fmail.test', 'displayed'),
+          ('bob@citusmail.test', 'displayed'),
         );
       }
       expect(

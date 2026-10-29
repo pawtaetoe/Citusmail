@@ -4,12 +4,12 @@
 
 import 'dart:convert';
 
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/link_opener.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/link_opener.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
-import 'package:fmail/src/ui/settings_page.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'support/fake_web.dart';
@@ -43,7 +43,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: FmailTheme.light(),
+        theme: CitusmailTheme.light(),
         home: MailShell(
           notifications: false,
           services: app.services,

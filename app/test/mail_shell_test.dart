@@ -2,14 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/mail/mail_controller.dart';
+import 'package:citusmail/src/services/app_services.dart';
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/ui/message_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/mail/mail_controller.dart';
-import 'package:fmail/src/services/app_services.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
-import 'package:fmail/src/ui/message_tile.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -34,7 +34,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: FmailTheme.light(),
+        theme: CitusmailTheme.light(),
         home: MailShell(
           notifications: false,
           services: services,
@@ -245,21 +245,17 @@ void main() {
     }
   });
 
-  testWidgets('Classic shows one list, newest first', (tester) async {
+  testWidgets('the inbox is always the Smart Inbox', (tester) async {
     await show(tester, const Size(1400, 900));
-    await tester.tap(find.text('Classic'));
+    expect(find.text('Classic'), findsNothing);
+    expect(find.text('Pinned'), findsOneWidget);
+    // Another view and back: still sections.
+    await tester.tap(find.text('Archive'));
     await tester.pump();
     expect(find.text('Pinned'), findsNothing);
-    for (final subject in [
-      'Hello there',
-      'Lunch?',
-      'Weekly deals',
-      'Your parcel',
-      'Keep this',
-    ]) {
-      expect(find.text(subject), findsOneWidget);
-    }
-    expect(top(tester, 'Keep this') < top(tester, 'Hello there'), isTrue);
+    await tester.tap(find.byTooltip('Back to Inbox'));
+    await tester.pump();
+    expect(find.text('Pinned'), findsOneWidget);
   });
 
   testWidgets('narrow: one pane at a time, back returns to the list', (
@@ -283,11 +279,74 @@ void main() {
     expect(find.text('Lunch?'), findsNothing);
   });
 
-  testWidgets('thousands of messages: only what is on screen is built', (
+  testWidgets('codes: own section, code in the row, five per section', (
     tester,
   ) async {
     final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
     store.messages.upsertSummaries(inbox.id, [
+      MessageSummary(
+        uid: 20,
+        receivedAt: DateTime.utc(2026, 10, 20, 8),
+        subject: 'Your verification code',
+        from: MailAddress(localPart: 'no-reply', domain: 'bank.example'),
+        category: MessageCategory.codes,
+        code: '482913',
+      ),
+      for (var i = 0; i < 8; i++)
+        MessageSummary(
+          uid: 30 + i,
+          receivedAt: DateTime.utc(2026, 10, 1, i),
+          subject: 'Older general $i',
+          from: MailAddress(localPart: 'p$i', domain: 'x.example'),
+        ),
+    ]);
+    await show(tester, const Size(1400, 1400));
+
+    expect(find.text('Verification'), findsOneWidget);
+    expect(top(tester, 'Pinned') < top(tester, 'Verification'), isTrue);
+    expect(top(tester, 'Verification') < top(tester, 'Important'), isTrue);
+
+    // The code instead of the preview; a tap copies it.
+    expect(find.text('482913'), findsOneWidget);
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    await tester.tap(find.byKey(const ValueKey('copy-code-482913')));
+    await tester.pump();
+    expect(copied, '482913');
+    expect(find.text('Copied 482913'), findsOneWidget);
+    expect(
+      store.messages
+          .list(const MessageQuery.inbox())
+          .firstWhere((m) => m.subject == 'Your verification code')
+          .flags
+          .seen,
+      isFalse,
+      reason: 'copying does not open the message',
+    );
+
+    // An open section shows five messages first. General has 9: Hello
+    // there, then the older ones, newest first.
+    expect(find.text('Older general 4'), findsOneWidget);
+    expect(find.text('Older general 3'), findsNothing);
+    expect(find.text('Show more (4 more)'), findsOneWidget);
+  });
+
+  testWidgets('thousands of messages: only what is on screen is built', (
+    tester,
+  ) async {
+    // A folder shows one long list, loaded a page at a time.
+    final archive = store.mailboxes
+        .forAccount(store.accounts.all().single.id)
+        .firstWhere((b) => b.encodedName == 'Archive');
+    store.messages.upsertSummaries(archive.id, [
       for (var i = 100; i < 3100; i++)
         MessageSummary(
           uid: i,
@@ -297,10 +356,10 @@ void main() {
         ),
     ]);
     await show(tester, const Size(1400, 900));
-    await tester.tap(find.text('Classic'));
+    await tester.tap(find.text('Archive'));
     await tester.pump();
     final built = find.byType(MessageTile).evaluate().length;
-    expect(built, lessThan(30), reason: 'built $built rows for 3005 messages');
+    expect(built, lessThan(30), reason: 'built $built rows for 3000 messages');
     // Scrolling far down loads more pages and still builds only a screenful.
     await tester.drag(
       find.byType(CustomScrollView).first,

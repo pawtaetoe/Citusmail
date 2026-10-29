@@ -35,6 +35,7 @@ recognise. Nothing here should ever be fetched over the network.
 | web-link-only-unsubscribe.eml | Only a web unsubscribe link |
 | body-link-only.eml | No unsubscribe header; link in body; `Precedence: bulk` |
 | mailing-list-discussion.eml | `List-Id` on a human discussion list (sorting edge case) |
+| forwarded-unverified.eml | Web unsubscribe, DMARC fail as after forwarding, no other sign of a scam |
 | **notifications/** | |
 | github.eml | Known service with `List-Id`: must sort as notification, not newsletter |
 | bank-alert.eml | `no-reply@` sender |
@@ -43,6 +44,7 @@ recognise. Nothing here should ever be fetched over the network.
 | **security/** | |
 | phishing-link-mismatch.eml | Link text vs destination mismatch, display-name spoof, SPF/DKIM/DMARC fail |
 | punycode-lookalike.eml | Cyrillic lookalike domain (`xn--pple-43d`) |
+| scam-with-unsubscribe.eml | Brand-imitating sender with a `List-Unsubscribe` header |
 | risky-attachments.eml | `.html`, double-extension `.pdf.exe`, macro `.docm` (all harmless text) |
 | hostile-html.eml | Every common way HTML loads remote content or runs script; renderer must make zero requests |
 | **malformed/** | |

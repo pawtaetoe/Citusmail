@@ -51,8 +51,10 @@ registrations > New registration:
 
 Its *Application (client) ID* is public. Builds take it as
 `--dart-define=CITUSMAIL_MS_CLIENT_ID=<id>`; `build-aab.sh` passes
-`$CITUSMAIL_MS_CLIENT_ID` on. Without it, Outlook addresses are told that
-this build can't sign in to them.
+`$CITUSMAIL_MS_CLIENT_ID` on, and CI takes it from the repository variable
+of that name (below). Without it, Outlook users can enter their own client
+ID during setup: the same registration in their own Entra directory (the
+app shows the steps).
 
 **Google sign-in** (Gmail) needs a Google Cloud project (free): in the
 [Google Cloud console](https://console.cloud.google.com/apis/credentials):
@@ -91,15 +93,32 @@ keyAlias=upload
 keyPassword=...
 ```
 
-**CI**: add these repository secrets (Settings → Secrets and variables →
-Actions):
+**CI**: add these secrets, either as repository secrets (Settings → Secrets
+and variables → Actions) or in an environment named `release` (Settings →
+Environments), where only the signed Android build of a version tag
+(`build-android-release`) can read them:
 
 | Secret | Value |
 | --- | --- |
-| `FMAIL_KEYSTORE_BASE64` | output of `base64 -w0 keys/citusmail-release.jks` |
-| `FMAIL_KEYSTORE_PASSWORD` | the store password |
-| `FMAIL_KEY_ALIAS` | `upload` |
-| `FMAIL_KEY_PASSWORD` | the key password |
+| `CITUSMAIL_KEYSTORE_BASE64` | output of `base64 -w0 ~/citusmail-release.jks` |
+| `CITUSMAIL_KEYSTORE_PASSWORD` | the store password |
+| `CITUSMAIL_KEY_ALIAS` | `upload` |
+| `CITUSMAIL_KEY_PASSWORD` | the key password |
+| `CITUSMAIL_GOOGLE_CLIENT_SECRET` | Google desktop client secret (optional) |
+| `CITUSMAIL_SAFE_BROWSING_KEY` | Safe Browsing API key (optional) |
+
+Signing secrets saved under the app's former names (`FMAIL_KEYSTORE_BASE64`,
+`FMAIL_KEYSTORE_PASSWORD`, `FMAIL_KEY_ALIAS`, `FMAIL_KEY_PASSWORD`) still work.
+
+And these repository **variables** (same page, *Variables* tab): the client
+IDs are public, so they need not be secrets. Every CI build (APK, Linux,
+Windows) passes all four to `flutter build` as `--dart-define`; any left
+empty means users bring their own.
+
+| Variable | Value |
+| --- | --- |
+| `CITUSMAIL_MS_CLIENT_ID` | Microsoft Entra Application (client) ID |
+| `CITUSMAIL_GOOGLE_CLIENT_ID` | Google desktop client ID |
 
 A tagged release fails rather than publishing a debug-signed APK. Builds
 without a key (local, pull requests) are signed with the debug key: fine
@@ -118,8 +137,8 @@ for testing, never for distribution.
 Debug builds accept two test switches (release builds ignore them):
 
 ```bash
-adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez fmail.checkNow true
-adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez fmail.instant true
+adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez citusmail.checkNow true
+adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez citusmail.instant true
 ```
 
 ## Linux

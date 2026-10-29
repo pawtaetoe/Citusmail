@@ -58,7 +58,7 @@ void main() {
   setUp(() {
     directory = Directory.systemTemp.createTempSync('sender_blocker_test');
     store = MailStore.open('${directory.path}/mail.db', DatabaseKey.generate());
-    account = addAccount('alice@fmail.test');
+    account = addAccount('alice@citusmail.test');
     // cPanel layout: Junk is INBOX.spam with \Junk; INBOX.Junk is a plain folder.
     inbox = folders(account, [
       _folder('INBOX'),
@@ -133,7 +133,7 @@ void main() {
       store.mailboxes.bySpecialUse(account.id, SpecialUse.trash)!.id,
     );
 
-    final other = addAccount('bob@fmail.test');
+    final other = addAccount('bob@citusmail.test');
     final otherInbox = folders(other, [_folder('INBOX')]).single;
     store.messages.upsertSummaries(otherInbox.id, [
       MessageSummary(

@@ -46,21 +46,38 @@ enum UnsubscribeRefusal {
   /// The message looks like a scam: unsubscribing would only confirm
   /// that the address is read.
   suspicious,
+
+  /// Every unsubscribe address failed the phishing checks.
+  unsafeLink,
 }
 
 /// The ways to unsubscribe from a message's list, best first.
 final class UnsubscribePlan {
-  UnsubscribePlan(List<UnsubscribeMethod> methods, {required this.listName})
-    : methods = List.unmodifiable(methods),
-      refusal = methods.isEmpty ? UnsubscribeRefusal.none : null;
+  UnsubscribePlan(
+    List<UnsubscribeMethod> methods, {
+    required this.listName,
+    List<String> warnings = const [],
+  }) : methods = List.unmodifiable(methods),
+       warnings = List.unmodifiable(warnings),
+       refusal = methods.isEmpty ? UnsubscribeRefusal.none : null,
+       reason = null;
 
-  UnsubscribePlan.refused(this.refusal, {required this.listName})
-    : methods = const [];
+  UnsubscribePlan.refused(this.refusal, {required this.listName, this.reason})
+    : methods = const [],
+      warnings = const [];
 
   final List<UnsubscribeMethod> methods;
 
   /// Why [methods] is empty, or null when there are methods.
   final UnsubscribeRefusal? refusal;
+
+  /// For a refusal other than [UnsubscribeRefusal.none]: why, for the
+  /// user.
+  final String? reason;
+
+  /// Things the user should know before unsubscribing (an unverified
+  /// sender, an unusual unsubscribe address), shown when they confirm.
+  final List<String> warnings;
 
   /// What to call the list ("Shop Weekly").
   final String listName;
@@ -79,33 +96,112 @@ final class UnsubscribePlan {
 
 /// Decides how a message can be unsubscribed from.
 abstract final class UnsubscribePlanner {
+  /// Unsubscribing is offered when the message has `List-Unsubscribe`
+  /// and:
+  ///
+  /// - the message shows no sign of a scam other than an unverified
+  ///   sender (forwarding and some lists cause that honestly; the user is
+  ///   warned instead). Lookalike or imitating senders, deceptive links
+  ///   and dangerous files mean a scam: unsubscribing would only confirm
+  ///   the address is read;
+  /// - each unsubscribe address passes the same checks as the links in a
+  ///   message ([TrustChecker.checkLink]); a dangerous one is left out,
+  ///   an unusual one comes with a warning. For an unverified sender, an
+  ///   address outside the sender's domain is pointed out too.
   static UnsubscribePlan plan(MimeMessage message, TrustReport trust) {
     final name = listName(message);
     final header = ListUnsubscribe.parse(message.headers);
     if (header.isEmpty) {
       return UnsubscribePlan.refused(UnsubscribeRefusal.none, listName: name);
     }
-    if (trust.level == TrustLevel.danger) {
+    final scam = trust.findings
+        .where(
+          (f) =>
+              f.level == TrustLevel.danger &&
+              f.kind != FindingKind.failedVerification,
+        )
+        .firstOrNull;
+    if (scam != null) {
       return UnsubscribePlan.refused(
         UnsubscribeRefusal.suspicious,
         listName: name,
+        reason: 'This message may be a scam: ${scam.message}',
       );
     }
 
-    final https = header.links.where((l) => l.scheme == 'https').firstOrNull;
-    final http = header.links.where((l) => l.scheme == 'http').firstOrNull;
+    final warnings = <String>{};
+    final unsafe = <String>[];
+    final sender = message.from.firstOrNull;
+    final senderDomain = sender == null
+        ? null
+        : Domains.registrable(sender.domain);
+
+    /// Whether [host] may be used, adding what the user should know.
+    bool usable(String host, Uri link) {
+      final verdict = TrustChecker.checkLink(link);
+      if (verdict != null && verdict.level == TrustLevel.danger) {
+        unsafe.addAll(verdict.reasons);
+        return false;
+      }
+      if (verdict != null) warnings.addAll(verdict.reasons);
+      final domain = Domains.registrable(host);
+      if (!trust.verified &&
+          senderDomain != null &&
+          domain != null &&
+          domain != senderDomain) {
+        warnings.add(
+          'The unsubscribe address is at $domain, not at the sender\'s '
+          'domain ($senderDomain).',
+        );
+      }
+      return true;
+    }
+
+    final https = header.links
+        .where((l) => l.scheme == 'https' && usable(l.host, l))
+        .firstOrNull;
+    final http = https != null
+        ? null
+        : header.links
+              .where((l) => l.scheme == 'http' && usable(l.host, l))
+              .firstOrNull;
     final mailto = header.links
         .where((l) => l.scheme == 'mailto')
         .map(MailtoRequest.parse)
         .nonNulls
+        .where((m) {
+          final at = m.address.lastIndexOf('@');
+          final host = m.address.substring(at + 1);
+          return usable(host, Uri(scheme: 'https', host: host));
+        })
         .firstOrNull;
 
-    return UnsubscribePlan([
+    final methods = [
       if (https != null && header.oneClick && signedOneClick(message, trust))
         OneClickMethod(https),
       if (mailto != null) EmailMethod(mailto),
       if (https ?? http case final page?) WebPageMethod(page),
-    ], listName: name);
+    ];
+    if (methods.isEmpty && unsafe.isNotEmpty) {
+      return UnsubscribePlan.refused(
+        UnsubscribeRefusal.unsafeLink,
+        listName: name,
+        reason: 'The unsubscribe address isn\'t safe: ${unsafe.first}',
+      );
+    }
+    if (trust.level == TrustLevel.danger) {
+      // Only an unverified sender (see above).
+      warnings.add(
+        'Your mail server couldn\'t verify the sender. Unsubscribe only if '
+        'you signed up for this list: to a scammer, it confirms your address '
+        'is read.',
+      );
+    }
+    return UnsubscribePlan(
+      methods,
+      listName: name,
+      warnings: warnings.toList(),
+    );
   }
 
   /// Whether a DKIM signature that the user's server verified covers both

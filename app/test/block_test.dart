@@ -2,12 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/mail/mail_controller.dart';
+import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fmail/src/mail/mail_controller.dart';
-import 'package:fmail/src/ui/fmail_theme.dart';
-import 'package:fmail/src/ui/mail_shell.dart';
-import 'package:fmail/src/ui/settings_page.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -33,7 +33,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        theme: FmailTheme.light(),
+        theme: CitusmailTheme.light(),
         home: MailShell(
           notifications: false,
           services: app.services,
@@ -70,7 +70,7 @@ void main() {
     tester,
   ) async {
     await show(tester);
-    await tester.tap(find.text('Classic'));
+    await tester.tap(find.text('Newsletters')); // collapsed at first
     await tester.pump();
     await open(tester, 'Weekly deals');
     await action(tester, 'Block sender');
@@ -108,7 +108,7 @@ void main() {
 
   testWidgets('blocking a whole domain', (tester) async {
     await show(tester);
-    await tester.tap(find.text('Classic'));
+    await tester.tap(find.text('Newsletters')); // collapsed at first
     await tester.pump();
     await open(tester, 'Weekly deals');
     await action(tester, 'Block sender');
@@ -188,7 +188,7 @@ void main() {
         uid: 41,
         receivedAt: DateTime.utc(2026, 10, 22),
         subject: 'Colleague',
-        from: const MailAddress(localPart: 'bob', domain: 'fmail.test'),
+        from: const MailAddress(localPart: 'bob', domain: 'citusmail.test'),
       ),
     ]);
     expect(controller.blockChoice(message('From Gmail'))!.domain, isNull);

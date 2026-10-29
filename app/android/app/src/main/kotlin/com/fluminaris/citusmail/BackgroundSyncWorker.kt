@@ -47,11 +47,14 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) :
             }
             // Never hold the device longer than this.
             main.postDelayed({ finish(Result.retry()) }, TimeUnit.MINUTES.toMillis(8))
-            "fmail background sync"
+            "citusmail background sync"
         }
 
     companion object {
-        private const val NAME = "fmail-periodic-sync"
+        private const val NAME = "citusmail-periodic-sync"
+
+        /** The schedule's name before the app was renamed from Fmail. */
+        private const val OLD_NAME = "fmail-periodic-sync"
 
         /** Schedules the periodic check (keeps an existing schedule). */
         fun schedule(context: Context) {
@@ -60,7 +63,10 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) :
                     Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
                 )
                 .build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            val work = WorkManager.getInstance(context)
+            // One schedule only: drop the one made under the old name.
+            work.cancelUniqueWork(OLD_NAME)
+            work.enqueueUniquePeriodicWork(
                 NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
                 request,

@@ -152,7 +152,7 @@ final class LiveSettings {
     return LiveSettings.parse(file.readAsStringSync(), source: file.path);
   }
 
-  static const defaultTestFolder = 'FmailTest';
+  static const defaultTestFolder = 'CitusmailTest';
 
   final String email;
   final ServerEndpoint imap;

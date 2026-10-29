@@ -10,7 +10,7 @@ links and attachments.
 
 | Check | Level |
 | --- | --- |
-| Your own server's DMARC result is `fail` | danger (caution for mailing lists) |
+| Your own server's DMARC result is `fail` | danger (caution for mailing lists, and for forwarded mail whose ARC chain your own server found valid, `arc=pass`) |
 | No DMARC, but SPF fails for the sender's domain | caution |
 | Display name claims a brand (PayPal, Microsoft...) the address doesn't belong to | danger (caution for ordinary words such as "Chase") |
 | Sender domain imitates a brand (`paypa1.example`, `paypal-login.example`) or your own domain (`t0mmykung.cc`) | danger |

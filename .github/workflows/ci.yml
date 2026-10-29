@@ -96,42 +96,42 @@ jobs:
     name: Test mail server and integration tests
     runs-on: ubuntu-24.04
     env:
-      FMAIL_CONTAINER_RUNTIME: docker
+      CITUSMAIL_CONTAINER_RUNTIME: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Shellcheck
         run: >-
-          shellcheck -x test-server/fmailtest test-server/smoke-test.sh
+          shellcheck -x test-server/citusmailtest test-server/smoke-test.sh
           test-server/certs/generate.sh test-server/image/entrypoint.sh
       - name: Start test servers
-        run: test-server/fmailtest up
+        run: test-server/citusmailtest up
       - name: Smoke test
-        run: test-server/fmailtest smoke
+        run: test-server/citusmailtest smoke
       - uses: ./.github/actions/setup-flutter
       - name: Resolve dependencies
         run: flutter pub get --enforce-lockfile
       - name: IMAP and SMTP integration tests
         working-directory: packages/mail_protocol
         env:
-          FMAIL_INTEGRATION: "1"
+          CITUSMAIL_INTEGRATION: "1"
         run: dart test test/integration
       - name: Account setup integration tests
         working-directory: packages/mail_setup
         env:
-          FMAIL_INTEGRATION: "1"
+          CITUSMAIL_INTEGRATION: "1"
         run: dart test test/integration
       - name: Sync engine integration tests (incl. multi-device convergence)
         working-directory: packages/mail_sync
         env:
-          FMAIL_INTEGRATION: "1"
+          CITUSMAIL_INTEGRATION: "1"
         run: dart test test/integration
       - name: Server logs
         if: failure()
         run: |
           for mode in secure limited plain; do
-            echo "::group::$mode"; test-server/fmailtest logs "$mode" || true; echo "::endgroup::"
+            echo "::group::$mode"; test-server/citusmailtest logs "$mode" || true; echo "::endgroup::"
           done
 
   build-linux:
@@ -155,7 +155,20 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       - working-directory: app
-        run: flutter build linux --release
+        env:
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
+        run: >-
+          flutter build linux --release
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
       - name: Debian package
         run: packaging/linux/build-deb.sh
       - name: Flatpak bundle
@@ -173,6 +186,8 @@ jobs:
 
   build-android:
     name: Build Android
+    # Version tags use build-android-release (signed with the release key).
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
     needs: checks
     runs-on: ubuntu-24.04
     steps:
@@ -183,26 +198,79 @@ jobs:
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
-      # Release signing key from repository secrets, written outside the
-      # checkout and removed afterwards. Required for version tags; other
-      # builds are signed with the debug key (fine for testing only).
-      - name: Release signing key
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Signed with the debug key: fine for testing, never for release.
+      - working-directory: app
         env:
-          KEYSTORE_BASE64: ${{ secrets.FMAIL_KEYSTORE_BASE64 }}
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
+        run: >-
+          flutter build apk --release
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
+      - name: Name the APK
+        run: |
+          version="$(sed -n 's/^version: *//p' app/pubspec.yaml | cut -d+ -f1)"
+          mkdir -p build/packages
+          cp app/build/app/outputs/flutter-apk/app-release.apk "build/packages/citusmail-$version.apk"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-package
+          path: build/packages/*.apk
+          if-no-files-found: error
+
+  build-android-release:
+    name: Build Android (release-signed)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: checks
+    runs-on: ubuntu-24.04
+    # The signing secrets may be saved in the "release" environment
+    # (Settings > Environments) or as repository secrets; this job sees both.
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Use JDK 21
+        run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-flutter
+      - run: flutter pub get --enforce-lockfile
+      # Release signing key from the secrets, written outside the checkout
+      # and removed afterwards.
+      - name: Release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CITUSMAIL_KEYSTORE_BASE64 || secrets.FMAIL_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::FMAIL_KEYSTORE_BASE64 is not set; refusing to publish a debug-signed release"
+            echo "::error::CITUSMAIL_KEYSTORE_BASE64 (or the older FMAIL_KEYSTORE_BASE64) is not set; refusing to publish a debug-signed release"
             exit 1
           fi
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
-          echo "FMAIL_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "CITUSMAIL_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
       - working-directory: app
         env:
-          FMAIL_KEYSTORE_PASSWORD: ${{ secrets.FMAIL_KEYSTORE_PASSWORD }}
-          FMAIL_KEY_ALIAS: ${{ secrets.FMAIL_KEY_ALIAS }}
-          FMAIL_KEY_PASSWORD: ${{ secrets.FMAIL_KEY_PASSWORD }}
-        run: flutter build apk --release
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
+          CITUSMAIL_KEYSTORE_PASSWORD: ${{ secrets.CITUSMAIL_KEYSTORE_PASSWORD || secrets.FMAIL_KEYSTORE_PASSWORD }}
+          CITUSMAIL_KEY_ALIAS: ${{ secrets.CITUSMAIL_KEY_ALIAS || secrets.FMAIL_KEY_ALIAS }}
+          CITUSMAIL_KEY_PASSWORD: ${{ secrets.CITUSMAIL_KEY_PASSWORD || secrets.FMAIL_KEY_PASSWORD }}
+        run: >-
+          flutter build apk --release
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
@@ -228,7 +296,21 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       - working-directory: app
-        run: flutter build windows --release
+        env:
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
+        shell: pwsh
+        run: >-
+          flutter build windows --release
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$env:CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$env:CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$env:CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$env:CITUSMAIL_SAFE_BROWSING_KEY"
       - name: Installer (Inno Setup, unsigned)
         shell: pwsh
         run: |
@@ -245,7 +327,7 @@ jobs:
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [checks, test-server, vulnerabilities, build-linux, build-android, build-windows]
+    needs: [checks, test-server, vulnerabilities, build-linux, build-android-release, build-windows]
     runs-on: ubuntu-24.04
     # The only job that may write: it creates the GitHub release.
     permissions:

@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // Sync against the local test servers:
-//   test-server/fmailtest up
-//   FMAIL_INTEGRATION=1 dart test test/integration
+//   test-server/citusmailtest up
+//   CITUSMAIL_INTEGRATION=1 dart test test/integration
 //
 // Tests that change mail use folders with random names.
 
@@ -60,7 +60,7 @@ void main() {
       final messages = alice.messages('INBOX');
       expect(messages, hasLength(22));
       final lunch = messages.firstWhere(
-        (m) => m.messageId == 'lunch-1@fmail.test',
+        (m) => m.messageId == 'lunch-1@citusmail.test',
       );
       expect(lunch.subject, 'Lunch on Friday?');
       expect(lunch.flags.seen && lunch.flags.answered, isTrue);
@@ -189,9 +189,9 @@ void main() {
       });
       expect(subjects(SmartSection.notifications), {
         'Re: [owner/repo] Fix crash on startup (PR #12)',
-        'Reset your password',
         'Read: Final report', // a read receipt
       });
+      expect(subjects(SmartSection.codes), {'Reset your password'});
       expect(subjects(SmartSection.pinned), {'Photos from the hike'});
       expect(count(SmartSection.important), 0, reason: 'Sent not synced yet');
       expect(count(SmartSection.general), 15);
@@ -209,7 +209,7 @@ void main() {
             .list(const MessageQuery.smart(SmartSection.important))
             .map((m) => m.from?.address)
             .toSet(),
-        {'bob@fmail.test'},
+        {'bob@citusmail.test'},
       );
       expect(count(SmartSection.general), 11);
     });
@@ -389,9 +389,12 @@ void main() {
       await me.sync([]);
       final built = MessageBuilder().build(
         OutgoingMessage(
-          from: const MailAddress(localPart: 'alice', domain: 'fmail.test'),
+          from: const MailAddress(localPart: 'alice', domain: 'citusmail.test'),
           to: [
-            MailAddress(localPart: 'alice+$inboxFolder', domain: 'fmail.test'),
+            MailAddress(
+              localPart: 'alice+$inboxFolder',
+              domain: 'citusmail.test',
+            ),
           ],
           subject: 'sync engine send $inboxFolder',
           textBody: 'hello',
@@ -410,7 +413,7 @@ void main() {
       me.store.outbox.enqueue(
         me.account.id,
         SendAction(
-          from: 'alice@fmail.test',
+          from: 'alice@citusmail.test',
           recipients: built.recipients.map((r) => r.address).toList(),
           sentMailboxId: sent.id,
           smtpAccepted: true,
@@ -494,7 +497,7 @@ void main() {
     await setup.create(f1);
     await setup.create(f2);
     for (var i = 0; i < 12; i++) {
-      await setup.append(f1, testMessage('c$i', to: 'bob@fmail.test'));
+      await setup.append(f1, testMessage('c$i', to: 'bob@citusmail.test'));
     }
     await setup.logout();
 
@@ -503,9 +506,9 @@ void main() {
       await p.sync([f1, f2]);
     }
 
-    // FMAIL_CONVERGENCE_SEED runs other random scenarios.
+    // CITUSMAIL_CONVERGENCE_SEED runs other random scenarios.
     final random = _SeededRandom(
-      int.tryParse(Platform.environment['FMAIL_CONVERGENCE_SEED'] ?? '') ??
+      int.tryParse(Platform.environment['CITUSMAIL_CONVERGENCE_SEED'] ?? '') ??
           2026,
     );
     for (var round = 0; round < 6; round++) {

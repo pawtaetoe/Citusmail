@@ -9,7 +9,7 @@ import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../app.dart' show appName;
-import '../ui/fmail_theme.dart';
+import '../ui/citusmail_theme.dart';
 import '../ui/link_opener.dart';
 import 'setup_controller.dart';
 
@@ -105,6 +105,7 @@ class _SetupPageState extends State<SetupPage> {
                     initialEmail: controller.email,
                     error: error,
                     canSignInWith: controller.canSignInWith,
+                    canOffer: controller.canOffer,
                     providerFor: controller.providerFor,
                     optionalProviderFor: (email) =>
                         switch (controller.optionalProviderFor(email)) {
@@ -129,11 +130,13 @@ class _SetupPageState extends State<SetupPage> {
                       displayName: name,
                       askMozillaConsent: _askMozilla,
                     ),
-                    onOAuth: (provider, email, name) => controller.signInWith(
-                      provider,
-                      email: email,
-                      displayName: name,
-                    ),
+                    // Built-in sign-in, or the user's own registration.
+                    onOAuth: (provider, email, name) =>
+                        controller.signInWithAny(
+                          provider,
+                          email: email,
+                          displayName: name,
+                        ),
                   ),
                   EnteringOwnClient(:final provider, :final error) =>
                     _OwnClientForm(
@@ -209,6 +212,7 @@ class _CredentialsForm extends StatefulWidget {
     required this.onOAuth,
     required this.canSignInWith,
     required this.providerFor,
+    required this.canOffer,
     required this.optionalProviderFor,
     required this.onOptionalOAuth,
     required this.onOwnClient,
@@ -225,6 +229,10 @@ class _CredentialsForm extends StatefulWidget {
 
   /// A provider the address may sign in with instead of a password.
   final OAuthProvider? Function(String email) optionalProviderFor;
+
+  /// Whether sign-in with a provider can be offered at all (built in, or
+  /// with the user's own registration).
+  final bool Function(OAuthProvider provider) canOffer;
   final void Function(OAuthProvider provider, String email, String name)
   onOptionalOAuth;
   final void Function(OAuthProvider provider, String email, String name)
@@ -344,9 +352,28 @@ class _CredentialsFormState extends State<_CredentialsForm> {
               widget.canSignInWith(provider)
                   ? '${provider.name} asks you to sign in on its own page. Your browser opens '
                         'for that; $appName never sees your password.'
+                  : widget.canOffer(provider)
+                  ? '${provider.name} asks you to sign in on its own page. This copy of '
+                        '$appName has no ${provider.name} sign-in of its own, so you sign in '
+                        'through your own free app registration with ${provider.name}.'
                   : '${provider.name} accounts need ${provider.name} sign-in, which this copy '
                         'of $appName can\'t do yet.',
             ),
+            if (!provider.configured && widget.canOffer(provider))
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const Key('own-client-required'),
+                  onPressed: () {
+                    if (_emailPattern.hasMatch(_email.text.trim())) {
+                      widget.onOwnClient(provider, _email.text, _name.text);
+                    } else {
+                      _form.currentState!.validate();
+                    }
+                  },
+                  child: Text('Use your own ${provider.name} client ID'),
+                ),
+              ),
           ] else ...[
             const SizedBox(height: 16),
             TextFormField(
@@ -412,7 +439,10 @@ class _CredentialsFormState extends State<_CredentialsForm> {
           ],
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: _provider == null || widget.canSignInWith(_provider!)
+            onPressed:
+                _provider == null ||
+                    widget.canSignInWith(_provider!) ||
+                    widget.canOffer(_provider!)
                 ? _submit
                 : null,
             child: Text(
@@ -472,12 +502,41 @@ class _OwnClientForm extends StatefulWidget {
 }
 
 class _OwnClientFormState extends State<_OwnClientForm> {
+  static const _googleSteps = [
+    'Create a project, and turn on the Gmail API for it.',
+    'Set up the OAuth consent screen ("External"), and add your own address as a test user.',
+    'Create an OAuth client ID of type "Desktop app".',
+    'Copy its client ID and client secret here.',
+  ];
+
+  static const _entraRegister =
+      'App registrations > New registration. Supported account types: personal Microsoft '
+      'accounts and accounts in any organizational directory.';
+  static const _entraPlatform =
+      'Authentication > Add a platform > Mobile and desktop applications, with the redirect '
+      'URIs http://127.0.0.1 and com.fluminaris.citusmail://oauth. Turn on "Allow public '
+      'client flows".';
+  static const _entraPermissions =
+      'API permissions > Add a permission > APIs my organization uses > Office 365 Exchange '
+      'Online > Delegated: IMAP.AccessAsUser.All and SMTP.Send.';
+  static const _microsoftSteps = [
+    _entraRegister,
+    _entraPlatform,
+    _entraPermissions,
+    'Copy the Application (client) ID from Overview here.',
+  ];
+
   final _clientId = TextEditingController();
   final _secret = TextEditingController();
 
-  static final _console = Uri.parse(
+  static final _googleConsole = Uri.parse(
     'https://console.cloud.google.com/apis/credentials',
   );
+  static final _entra = Uri.parse(
+    'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
+  );
+
+  bool get _google => widget.provider.id == 'google';
 
   @override
   void dispose() {
@@ -498,16 +557,15 @@ class _OwnClientFormState extends State<_OwnClientForm> {
         ),
         const SizedBox(height: 8),
         Text(
-          'This copy of $appName has no $name sign-in of its own yet. You can sign in through '
-          'your own free Google Cloud project instead:',
+          _google
+              ? 'This copy of $appName has no $name sign-in of its own yet. You can sign in '
+                    'through your own free Google Cloud project instead:'
+              : 'This copy of $appName has no $name sign-in of its own yet. You can sign in '
+                    'through your own free app registration in Microsoft Entra instead:',
         ),
         const SizedBox(height: 8),
-        for (final (i, step) in const [
-          'Create a project, and turn on the Gmail API for it.',
-          'Set up the OAuth consent screen ("External"), and add your own address as a test user.',
-          'Create an OAuth client ID of type "Desktop app".',
-          'Copy its client ID and client secret here.',
-        ].indexed)
+        for (final (i, step)
+            in (_google ? _googleSteps : _microsoftSteps).indexed)
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text('${i + 1}. $step'),
@@ -516,8 +574,13 @@ class _OwnClientFormState extends State<_OwnClientForm> {
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
             icon: const Icon(Icons.open_in_new, size: 18),
-            label: Text('Open Google Cloud (${_console.host})'),
-            onPressed: () => LinkOpener.launch(context, _console),
+            label: Text(
+              _google
+                  ? 'Open Google Cloud (${_googleConsole.host})'
+                  : 'Open Microsoft Entra (${_entra.host})',
+            ),
+            onPressed: () =>
+                LinkOpener.launch(context, _google ? _googleConsole : _entra),
           ),
         ),
         const SizedBox(height: 8),
@@ -525,26 +588,32 @@ class _OwnClientFormState extends State<_OwnClientForm> {
           controller: _clientId,
           autocorrect: false,
           enableSuggestions: false,
-          decoration: const InputDecoration(
-            labelText: 'Client ID',
-            border: OutlineInputBorder(),
-            hintText: '…apps.googleusercontent.com',
+          decoration: InputDecoration(
+            labelText: _google ? 'Client ID' : 'Application (client) ID',
+            border: const OutlineInputBorder(),
+            hintText: _google
+                ? '…apps.googleusercontent.com'
+                : '00000000-0000-0000-0000-000000000000',
           ),
         ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _secret,
-          autocorrect: false,
-          enableSuggestions: false,
-          decoration: const InputDecoration(
-            labelText: 'Client secret',
-            border: OutlineInputBorder(),
+        if (_google) ...[
+          const SizedBox(height: 16),
+          TextField(
+            controller: _secret,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: const InputDecoration(
+              labelText: 'Client secret',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
+        ],
         const SizedBox(height: 8),
         Text(
-          'Both stay in this device\'s keychain. While the project is in testing, Google ends '
-          'the sign-in after 7 days, and you sign in again.',
+          _google
+              ? 'Both stay in this device\'s keychain. While the project is in testing, Google '
+                    'ends the sign-in after 7 days, and you sign in again.'
+              : 'It stays in this device\'s keychain. No client secret is needed.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         if (widget.error != null) ...[

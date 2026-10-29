@@ -1,2 +1,2 @@
 # Reject any recipient outside the test domain.
-!/@fmail\.test$/  REJECT 5.7.1 test server only delivers to @fmail.test
+!/@citusmail\.test$/  REJECT 5.7.1 test server only delivers to @citusmail.test

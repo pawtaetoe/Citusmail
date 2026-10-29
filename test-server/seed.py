@@ -7,9 +7,9 @@
 Uses only the Python standard library. Messages are added with IMAP APPEND,
 so flags and received dates are set exactly as a real client would set
 them. Safety rules:
-  - only connects to 127.0.0.1 and only to @fmail.test accounts, so it can
+  - only connects to 127.0.0.1 and only to @citusmail.test accounts, so it can
     never touch a real mailbox;
-  - refuses to run if a target mailbox already has mail (use `fmailtest
+  - refuses to run if a target mailbox already has mail (use `citusmailtest
     reset` for a clean start), so messages are never duplicated.
 
 Usage: seed.py --port PORT [--tls --ca CA_FILE] [--plan seed.toml]
@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PLAN = Path(__file__).resolve().parent / "seed.toml"
 FIXTURES_DIR = REPO_ROOT / "test-data" / "mail"
 SERVER_HOST = "127.0.0.1"
-TEST_DOMAIN = "fmail.test"
+TEST_DOMAIN = "citusmail.test"
 ALLOWED_FLAGS = {"\\Seen", "\\Answered", "\\Flagged", "\\Draft", "\\Deleted"}
 # Used when a fixture has no usable Date header.
 FALLBACK_DATE = datetime(2026, 10, 1, tzinfo=timezone.utc)
@@ -211,7 +211,7 @@ class MailboxSeeder:
         self._check((typ, data), f"STATUS {mailbox}")
         if b"(MESSAGES 0)" not in data[0]:
             raise SeedError(f"{self._address}: '{mailbox}' already has mail; "
-                            "run 'test-server/fmailtest reset' for a clean start")
+                            "run 'test-server/citusmailtest reset' for a clean start")
 
     def append(self, message: SeedMessage) -> None:
         raw = message.file.read_bytes()
@@ -240,7 +240,7 @@ def seed(plan: SeedPlan, endpoint: ServerEndpoint) -> int:
                     count += 1
         except (OSError, imaplib.IMAP4.error, ssl.SSLError) as e:
             # Any connection or protocol failure ends with a clear message.
-            raise SeedError(f"{address}: {e}; see 'fmailtest logs'") from e
+            raise SeedError(f"{address}: {e}; see 'citusmailtest logs'") from e
     return count
 
 
