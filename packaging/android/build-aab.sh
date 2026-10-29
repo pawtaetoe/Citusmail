@@ -3,14 +3,14 @@
 #
 #   packaging/android/build-aab.sh     # writes build/packages/citusmail-<version>.aab
 #
-# Signs with the upload key in ~/citusmail-release.jks (alias "upload").
+# Signs with the upload key in keys/citusmail-release.jks (alias "upload").
 # Its password is read from the system keychain, never from a file:
 #   secret-tool lookup service citusmail-release account upload-key
 # Override the keystore with CITUSMAIL_KEYSTORE.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
-keystore="${CITUSMAIL_KEYSTORE:-$HOME/citusmail-release.jks}"
+keystore="${CITUSMAIL_KEYSTORE:-$root/keys/citusmail-release.jks}"
 [[ -f "$keystore" ]] || { echo "error: no keystore at $keystore" >&2; exit 1; }
 
 password="$(secret-tool lookup service citusmail-release account upload-key)" || true

@@ -19,7 +19,7 @@ Android only updates an app with one signed by the same key, so the
 release key must be kept safe and backed up. It never goes into the
 repository (`*.jks` and `key.properties` are git-ignored).
 
-The upload key is `~/citusmail-release.jks` (alias `upload`, RSA 4096).
+The upload key is `keys/citusmail-release.jks` (alias `upload`, RSA 4096).
 Its password lives only in the system keychain:
 
 ```bash
@@ -85,7 +85,7 @@ key. Restrict the key to the Safe Browsing API in the Cloud console.
 CI below, or a git-ignored `app/android/key.properties`:
 
 ```properties
-storeFile=/home/you/citusmail-release.jks
+storeFile=/path/to/Fmail/keys/citusmail-release.jks
 storePassword=...
 keyAlias=upload
 keyPassword=...
@@ -96,7 +96,7 @@ Actions):
 
 | Secret | Value |
 | --- | --- |
-| `FMAIL_KEYSTORE_BASE64` | output of `base64 -w0 ~/citusmail-release.jks` |
+| `FMAIL_KEYSTORE_BASE64` | output of `base64 -w0 keys/citusmail-release.jks` |
 | `FMAIL_KEYSTORE_PASSWORD` | the store password |
 | `FMAIL_KEY_ALIAS` | `upload` |
 | `FMAIL_KEY_PASSWORD` | the key password |
