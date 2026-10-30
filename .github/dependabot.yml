@@ -6,8 +6,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
-  # Keeps the digest-pinned base image of the test mail server current.
+  # Keeps the digest-pinned base image of the test mail server current:
+  # new builds of Ubuntu 24.04 LTS (security fixes) only. Other Ubuntu
+  # releases are left out: interim ones are short-lived, and newer ones
+  # bring a Dovecot whose configuration differs, so moving on is a
+  # deliberate change, not an automatic one.
   - package-ecosystem: docker
     directory: /test-server/image
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*ubuntu"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor

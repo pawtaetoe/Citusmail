@@ -258,6 +258,40 @@ void main() {
     expect(find.text('Pinned'), findsOneWidget);
   });
 
+  testWidgets('phone: controls at the bottom, within reach of the thumb', (
+    tester,
+  ) async {
+    await show(tester, const Size(400, 800));
+    // List: menu, search and New message under the messages.
+    final search = tester.getTopLeft(find.byType(TextField)).dy;
+    expect(search, greaterThan(top(tester, 'Hello there')));
+    expect(search, greaterThan(600));
+    expect(tester.getTopLeft(find.byTooltip('Folders')).dy, greaterThan(600));
+    expect(
+      tester.getTopLeft(find.byTooltip('New message (C)')).dy,
+      greaterThan(600),
+    );
+    // Open message: its actions under it too.
+    await tester.tap(find.text('Hello there'));
+    await settle(tester);
+    expect(
+      tester.getTopLeft(find.byTooltip('Back (Esc)')).dy,
+      greaterThan(600),
+    );
+    expect(
+      tester.getTopLeft(find.byTooltip('Move to Trash (#)')).dy,
+      greaterThan(600),
+    );
+    // Selecting: the actions replace the search bar at the bottom.
+    await tester.tap(find.byTooltip('Back (Esc)'));
+    await tester.pump();
+    await tester.longPress(find.text('Hello there'));
+    await tester.pump();
+    expect(find.text('1 selected'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('1 selected')).dy, greaterThan(600));
+    expect(find.byType(TextField), findsNothing);
+  });
+
   testWidgets('narrow: one pane at a time, back returns to the list', (
     tester,
   ) async {

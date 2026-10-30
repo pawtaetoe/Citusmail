@@ -111,6 +111,33 @@ final class _MailShellState extends State<MailShell> {
       );
   }
 
+  /// The bottom bar on phones: the open message's actions, or the list's
+  /// controls. Lifted above the keyboard while searching.
+  Widget _bottomControls(BuildContext context, Widget menu) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Material(
+        color: colors.surfaceContainer,
+        child: SafeArea(
+          top: false,
+          left: false,
+          child: ListenableBuilder(
+            listenable: _controller.reader,
+            builder: (context, _) => _controller.selected != null
+                ? ReaderControls(controller: _controller)
+                : MessageListControls(
+                    controller: _controller,
+                    onCompose: _controller.compose,
+                    searchFocus: _searchFocus,
+                    leading: menu,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _startBackground() async {
     try {
       // The periodic check is scheduled by Android itself at launch.
@@ -211,17 +238,18 @@ final class _MailShellState extends State<MailShell> {
           // Wide: a labelled button where the eye starts; else the list's.
           onCompose: inDrawer ? null : _controller.compose,
         );
+        final phone = width < MailShell.mediumWidth;
+        final menu = IconButton(
+          tooltip: 'Folders',
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffold.currentState?.openDrawer(),
+        );
         final list = MessageListPane(
           controller: _controller,
           onCompose: wide ? null : _controller.compose,
           searchFocus: _searchFocus,
-          leading: wide
-              ? null
-              : IconButton(
-                  tooltip: 'Folders',
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => _scaffold.currentState?.openDrawer(),
-                ),
+          leading: wide ? null : menu,
+          controlsAtBottom: phone,
         );
 
         final Widget body;
@@ -263,7 +291,11 @@ final class _MailShellState extends State<MailShell> {
                   }
                 },
                 child: open
-                    ? ReaderPane(controller: _controller, showBack: true)
+                    ? ReaderPane(
+                        controller: _controller,
+                        showBack: true,
+                        toolbarAtBottom: true,
+                      )
                     : list,
               );
             },
@@ -274,7 +306,10 @@ final class _MailShellState extends State<MailShell> {
           drawer: wide
               ? null
               : Drawer(width: 290, child: sidebar(inDrawer: true)),
-          body: SafeArea(left: false, child: body),
+          body: SafeArea(left: false, bottom: !phone, child: body),
+          // Phones: menu, search, New message and the message actions at the
+          // bottom, within reach of one thumb. Notices (Undo) float above.
+          bottomNavigationBar: phone ? _bottomControls(context, menu) : null,
         );
       },
     ),

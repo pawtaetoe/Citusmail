@@ -33,12 +33,17 @@ final class ReaderPane extends StatelessWidget {
     super.key,
     required this.controller,
     this.showBack = false,
+    this.toolbarAtBottom = false,
   });
 
   final MailController controller;
 
   /// On phones the reader covers the list, so it needs a way back.
   final bool showBack;
+
+  /// Phones: the actions are in [ReaderControls] at the bottom of the
+  /// screen, within reach of the thumb.
+  final bool toolbarAtBottom;
 
   /// Lines longer than this are hard to read.
   static const readingWidth = 760.0;
@@ -52,13 +57,15 @@ final class ReaderPane extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Toolbar(
-            controller: controller,
-            reader: reader,
-            message: message,
-            showBack: showBack,
-          ),
-          const Divider(),
+          if (!toolbarAtBottom) ...[
+            _Toolbar(
+              controller: controller,
+              reader: reader,
+              message: message,
+              showBack: showBack,
+            ),
+            const Divider(),
+          ],
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -142,6 +149,28 @@ final class ReaderPane extends StatelessWidget {
             _ReplyBar(controller: controller, reader: reader),
         ],
       );
+    },
+  );
+}
+
+/// The open message's actions at the bottom of a phone screen: back,
+/// archive, delete, move... (the less frequent ones under "More").
+final class ReaderControls extends StatelessWidget {
+  const ReaderControls({super.key, required this.controller});
+
+  final MailController controller;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: controller.reader,
+    builder: (context, reader, _) => switch (reader.message) {
+      final message? => _Toolbar(
+        controller: controller,
+        reader: reader,
+        message: message,
+        showBack: true,
+      ),
+      null => const SizedBox.shrink(),
     },
   );
 }
