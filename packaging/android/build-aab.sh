@@ -13,7 +13,7 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 keystore="${CITUSMAIL_KEYSTORE:-$root/keys/citusmail-release.jks}"
 [[ -f "$keystore" ]] || { echo "error: no keystore at $keystore" >&2; exit 1; }
 
-password="$(secret-tool lookup service citusmail-release account upload-key)" || true
+password="${CITUSMAIL_KEYSTORE_PASSWORD:-$(secret-tool lookup service citusmail-release account upload-key 2>/dev/null || true)}"
 [[ -n "$password" ]] || { echo "error: upload key password not in the keychain" >&2; exit 1; }
 
 version="$(sed -n 's/^version: *\([0-9.]*\)+\{0,1\}.*/\1/p' "$root/app/pubspec.yaml")"
