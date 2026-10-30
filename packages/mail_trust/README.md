@@ -20,6 +20,13 @@ links and attachments.
 | Link text shows another address (often a newsletter's tracking redirect) or goes to a bare IP | flagged on the link only |
 | Attachment is a program, a program posing as a document (`invoice.pdf.exe`) | danger |
 | Attachment is a disk image, a macro document or a web page | caution |
+| The subject names the reader's own organisation (its initials or name spell a label of an address the mail went to, e.g. "Singapore Institute of Technology" for `sit.singaporetech.edu.sg`), but the sender is outside it | caution; danger with a hidden recipient list or a form link |
+| The message writes in the name of a well-known company (subject, "in partnership with" / "on behalf of", or a signature line naming a team or office) that the sender's domain doesn't belong to | caution; danger with a hidden recipient list or a form link |
+| Hidden recipient list (`To: undisclosed-recipients:;`, or only Bcc) | caution |
+| A link opens a free form service (Google Forms, Microsoft Forms, Typeform...) | caution, also on the link |
+
+The last four catch scams from real, verified addresses (often a hijacked
+account), which pass every sender check.
 
 **Which verification results count.** Anyone can write an
 `Authentication-Results` header. Only results from the user's own server

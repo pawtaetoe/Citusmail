@@ -9,6 +9,7 @@ library;
 export 'src/attachments.dart';
 export 'src/authentication_results.dart';
 export 'src/brands.dart' show Brand, Brands;
+export 'src/content_signals.dart';
 export 'src/domains.dart';
 export 'src/free_mail.dart';
 export 'src/link_cleaner.dart';

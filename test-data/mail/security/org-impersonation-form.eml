@@ -1,0 +1,15 @@
+Authentication-Results: mail.citusmail.test; spf=pass smtp.mailfrom=college.example;
+ dkim=pass header.d=college.example; dmarc=none header.from=college.example
+From: Riya K <riya.k@college.example>
+To: undisclosed-recipients:;
+Bcc: <2500123@eit.easttech.edu.sg>
+Subject: STUDENT NOTICE - 2026 Skills Program x East Institute of Technology
+Date: Fri, 30 Oct 2026 06:58:08 +0000
+Message-ID: <notice-1@college.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<p>Dear Student,</p>
+<p>Attendance is mandatory for all students. Delivered in partnership with IBM and Microsoft.</p>
+<p><a href="https://forms.gle/AbCdEfGh123">[ UNIVERSITY REGISTRATION PORTAL ]</a></p>
+<p>Sincerely,<br>Program Steering Committee<br>Microsoft Academic Partnerships</p>

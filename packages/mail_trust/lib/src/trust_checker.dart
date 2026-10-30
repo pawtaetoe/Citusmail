@@ -8,6 +8,7 @@ import 'package:mail_view/mail_view.dart';
 import 'attachments.dart';
 import 'authentication_results.dart';
 import 'brands.dart';
+import 'content_signals.dart';
 import 'domains.dart';
 import 'links.dart';
 import 'trust_report.dart';
@@ -39,6 +40,7 @@ final class TrustChecker {
       ..sender()
       ..displayName()
       ..links()
+      ..content()
       ..attachments();
     return check.report();
   }
@@ -316,6 +318,103 @@ final class _Check {
       return s;
     } on FormatException {
       return s; // percent-encoded bytes that are not UTF-8
+    }
+  }
+
+  // ------------------------------------------------------------- content
+
+  /// What the message says and whom it was sent to. Scams from hijacked
+  /// accounts pass every sender check, but give themselves away here: they
+  /// claim to speak for the reader's own organisation or a big company,
+  /// go to a hidden list of people, and collect details through a free
+  /// form. A claim alone is worth a look (amber); a claim together with a
+  /// hidden list or a form is typical of scams (red).
+  void content() {
+    final message = view.message;
+    final sender = fromRegistrable;
+    final shownSender = sender ?? 'an unknown address';
+
+    // Free forms behind the links, flagged on the link too.
+    ShownLink? form;
+    String? formName;
+    for (final shown in DocumentLinks.collect(view.body)) {
+      final service = ContentSignals.formService(shown.link);
+      if (service == null) continue;
+      final reason =
+          'This opens a $service form (${shown.link.host}), not an official '
+          'site. Anyone can make one to collect details.';
+      final key = shown.link.toString();
+      final previous = _links[key];
+      _links[key] = LinkVerdict(
+        shown.link,
+        (previous?.level ?? TrustLevel.ok).max(TrustLevel.caution),
+        [...?previous?.reasons, reason],
+      );
+      if (form == null) {
+        form = shown;
+        formName = service;
+      }
+    }
+
+    final hidden =
+        ContentSignals.hidesRecipients(message) &&
+        !message.headers.contains('list-id') &&
+        !context.ownDomains.contains(sender); // the user's own Bcc mail
+    final suspicious = hidden || form != null;
+    final level = suspicious ? TrustLevel.danger : TrustLevel.caution;
+
+    final recipientHosts = <String>{
+      for (final a in [...message.to, ...message.cc, ...message.bcc])
+        ?Domains.normalize(a.domain),
+      ...context.ownDomains,
+    };
+    final organisation = ContentSignals.namedOrganisation(
+      message.subject,
+      recipientHosts,
+    );
+    if (organisation != null &&
+        sender != Domains.registrable(organisation.host)) {
+      _add(
+        FindingKind.namesOwnOrganisation,
+        level,
+        'It names ${organisation.name}, the organisation of your '
+        '${organisation.host} address, but comes from $shownSender, outside '
+        'it.',
+      );
+    }
+    if (sender != null) {
+      final brands = ContentSignals.speaksFor(
+        message.subject,
+        view.body.plainText,
+        sender,
+      ).where((b) => !_imitated.contains(b)).toList();
+      if (brands.isNotEmpty) {
+        final names = brands.length == 1
+            ? brands.single.name
+            : '${brands.sublist(0, brands.length - 1).map((b) => b.name).join(', ')}'
+                  ' and ${brands.last.name}';
+        _add(
+          FindingKind.speaksForBrand,
+          level,
+          'It writes in the name of $names, but comes from $sender.',
+        );
+      }
+    }
+    if (hidden) {
+      _add(
+        FindingKind.hiddenRecipients,
+        TrustLevel.caution,
+        'It was sent to a hidden list of people, not to you by name.',
+      );
+    }
+    if (form case final shown?) {
+      final label = shown.text.isEmpty ? 'A link' : 'The link "${shown.text}"';
+      _add(
+        FindingKind.formLink,
+        TrustLevel.caution,
+        '$label opens a $formName form (${shown.link.host}), not an official '
+        'site. Anyone can make one to collect details.',
+      );
     }
   }
 
