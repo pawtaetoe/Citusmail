@@ -25,7 +25,9 @@ macOS and iOS for later.
   password or Google sign-in) and Outlook / Microsoft 365 (Microsoft
   sign-in).
 - **Phishing checks** on the device: unverified senders, lookalike
-  domains, deceptive links, risky attachments. Optional Google Safe
+  domains, deceptive links, risky attachments, and outsiders writing in
+  the name of your own institution or a big company (with hidden
+  recipient lists and free-form "portals"). Optional Google Safe
   Browsing and VirusTotal.
 - **Privacy**: images and trackers blocked, read receipts never sent,
   tracking parameters removed from links, one-tap unsubscribe (with the

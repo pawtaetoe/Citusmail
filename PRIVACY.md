@@ -40,7 +40,8 @@ and your Sent folder. Codes in verification mail are found on the device
 too; for this, new verification mail (from the last day) is downloaded
 from your own mail server, as if you had opened it, but it stays unread. Phishing checks
 (sender verification, lookalike addresses, deceptive links, risky
-attachments) also run on the device only, using the results your own mail
+attachments, and mail that claims to speak for your own organisation or a
+big company while coming from elsewhere) also run on the device only, using the results your own mail
 server already wrote into the message and a built-in list of domain
 endings. No link, address or file is looked up anywhere, unless you turn on Google
 Safe Browsing (see above), which still checks links on the device first.

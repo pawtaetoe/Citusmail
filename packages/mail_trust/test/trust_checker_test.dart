@@ -354,6 +354,115 @@ void main() {
     });
   });
 
+  group('what the message says and whom it was sent to', () {
+    const context = TrustContext(trustedAuthServId: 'mail.citusmail.test');
+
+    test('an outsider naming your institution, with a form: red', () {
+      final r = checker.check(
+        fixture('security/org-impersonation-form.eml'),
+        context,
+      );
+      expect(r.level, TrustLevel.danger);
+      expect(kinds(r), {
+        FindingKind.namesOwnOrganisation,
+        FindingKind.speaksForBrand,
+        FindingKind.hiddenRecipients,
+        FindingKind.formLink,
+      });
+      final org = r.findings.firstWhere(
+        (f) => f.kind == FindingKind.namesOwnOrganisation,
+      );
+      expect(org.message, contains('East Institute of Technology'));
+      expect(org.message, contains('eit.easttech.edu.sg'));
+      expect(
+        r.findings
+            .firstWhere((f) => f.kind == FindingKind.speaksForBrand)
+            .message,
+        allOf(contains('Microsoft'), contains('IBM')),
+      );
+      // The form link warns when tapped too.
+      expect(
+        r.link(Uri.parse('https://forms.gle/AbCdEfGh123'))!.level,
+        TrustLevel.caution,
+      );
+    });
+
+    test('your institution writing to you is not flagged', () {
+      final r = checker.check(
+        mail(
+          'From: Registry <registry@easttech.edu.sg>\n'
+          'To: <2500123@eit.easttech.edu.sg>\n'
+          'Subject: East Institute of Technology: exam timetable',
+        ),
+        context,
+      );
+      expect(r.findings, isEmpty);
+    });
+
+    test('a claim alone, addressed to you: only worth a look', () {
+      final r = checker.check(
+        mail(
+          'From: Events <events@partner.example>\n'
+          'To: <2500123@eit.easttech.edu.sg>\n'
+          'Subject: Workshop for East Institute of Technology students',
+        ),
+        context,
+      );
+      expect(kinds(r), {FindingKind.namesOwnOrganisation});
+      expect(r.level, TrustLevel.caution);
+    });
+
+    test('a form link alone: amber, not red', () {
+      final r = checker.check(
+        mail(
+          'From: Ana <ana@club.example>\nTo: <bob@club.example>',
+          html: '<a href="https://docs.google.com/forms/d/x/viewform">Sign up</a>',
+        ),
+        context,
+      );
+      expect(kinds(r), {FindingKind.formLink});
+      expect(r.level, TrustLevel.caution);
+    });
+
+    test('app store badges in a footer do not speak for Google', () {
+      final r = checker.check(
+        mail(
+          'From: Shop <news@shop.example>\nTo: <bob@club.example>',
+          html:
+              '<p>Our news</p><p>Get it on Google Play</p>'
+              '<p>Download on the App Store</p>',
+        ),
+        context,
+      );
+      expect(r.findings, isEmpty);
+    });
+
+    test('initials need three letters; free mail names no institution', () {
+      expect(
+        ContentSignals.namedOrganisation('Hello Bob Smith', [
+          'bs.example.org',
+          'gmail.com',
+        ]),
+        isNull,
+      );
+      expect(
+        ContentSignals.namedOrganisation('Notice from NUS', ['u.nus.edu']),
+        (name: 'NUS', host: 'u.nus.edu'),
+      );
+    });
+
+    test('your own mail to a Bcc list is not "hidden recipients"', () {
+      final r = checker.check(
+        mail(
+          'From: Bob <bob@club.example>\nTo: undisclosed-recipients:;\n'
+          'Subject: Meeting',
+        ),
+        const TrustContext(ownDomains: {'club.example'}),
+      );
+      expect(r.findings, isEmpty);
+    });
+  });
+
   group('links', () {
     TrustReport links(String html) =>
         checker.check(mail('From: Shop <news@shop.example>', html: html));

@@ -41,6 +41,21 @@ enum FindingKind {
 
   /// An attachment can run code.
   riskyAttachment,
+
+  /// The subject names the reader's own organisation (by their address),
+  /// but the mail comes from outside it.
+  namesOwnOrganisation,
+
+  /// The message writes in the name of a well-known company that the
+  /// sender's address doesn't belong to.
+  speaksForBrand,
+
+  /// Sent to a hidden list of recipients, not to the reader by name.
+  hiddenRecipients,
+
+  /// A link opens a free form service (Google Forms...), where anyone can
+  /// collect details.
+  formLink,
 }
 
 /// One reason for concern, in words for the user.

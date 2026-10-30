@@ -320,7 +320,7 @@ void main() {
         .listSync(recursive: true)
         .whereType<File>()
         .where((f) => f.path.endsWith('.eml'));
-    expect(files, hasLength(36));
+    expect(files, hasLength(37));
     for (final file in files) {
       final m = const MimeParser().parse(file.readAsBytesSync());
       expect(m.headers.fields, isNotEmpty, reason: file.path);

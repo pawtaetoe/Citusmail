@@ -223,6 +223,7 @@ abstract final class Brands {
     Brand('Discord', {'discord', 'discordapp'}, domains: {'discord.gg'}),
     Brand('Norton', {'norton', 'nortonlifelock'}, distinctive: false),
     Brand('McAfee', {'mcafee'}),
+    Brand('IBM', {'ibm'}, domains: {'ibm.biz', 'ibmcloud.com'}),
   ];
 
   /// Words that may come with a brand in a display name without making
