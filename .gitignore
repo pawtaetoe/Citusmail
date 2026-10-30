@@ -25,6 +25,8 @@ coverage/
 *.keystore
 *.jks
 key.properties
+# Release signing keys kept in the checkout (see packaging/README.md).
+/keys/
 local.properties
 *.sqlite
 *.sqlite3
