@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_compose/mail_compose.dart';
 
 import '../ui/citusmail_theme.dart';
+import '../ui/mail_shell.dart';
 import '../ui/mail_text.dart';
 import 'compose_controller.dart';
 import 'recipient_field.dart';
@@ -143,183 +144,195 @@ final class _ComposePageState extends State<ComposePage> {
             builder: (context, _) {
               final draft = _c.draft;
               final accounts = _c.accounts;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 12, 4),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Close (keeps the draft)',
-                          icon: const Icon(Icons.close),
-                          onPressed: _close,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            draft.subject.trim().isEmpty
-                                ? 'New message'
-                                : draft.subject,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: draft.requestReceipt
-                              ? 'Read receipt requested (tap to cancel)'
-                              : 'Ask for a read receipt',
-                          isSelected: draft.requestReceipt,
-                          icon: const Icon(Icons.mark_email_read_outlined),
-                          selectedIcon: const Icon(Icons.mark_email_read),
-                          onPressed: () =>
-                              _c.setRequestReceipt(!draft.requestReceipt),
-                        ),
-                        IconButton(
-                          tooltip: 'Attach files',
-                          icon: const Icon(Icons.attach_file),
-                          onPressed: _attach,
-                        ),
-                        IconButton(
-                          tooltip: 'Discard',
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: _discard,
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton.icon(
-                          onPressed: _send,
-                          icon: const Icon(Icons.send, size: 18),
-                          label: const Text('Send'),
-                        ),
-                      ],
+              // Phones: the actions (Send...) at the bottom, just above the
+              // keyboard, within reach of the thumb.
+              final phone =
+                  MediaQuery.sizeOf(context).width < MailShell.mediumWidth;
+              final actions = Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 12, 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Close (keeps the draft)',
+                      icon: const Icon(Icons.close),
+                      onPressed: _close,
                     ),
-                  ),
-                  const Divider(),
-                  if (accounts.length > 1)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 44,
-                            child: Text(
-                              'From',
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                          DropdownButton<int>(
-                            value: draft.accountId,
-                            underline: const SizedBox.shrink(),
-                            items: [
-                              for (final a in accounts)
-                                DropdownMenuItem(
-                                  value: a.id,
-                                  child: Text(a.email),
-                                ),
-                            ],
-                            onChanged: (id) {
-                              if (id != null) _c.setAccount(id);
-                            },
-                          ),
-                        ],
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        draft.subject.trim().isEmpty
+                            ? 'New message'
+                            : draft.subject,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  RecipientField(
-                    label: 'To',
-                    list: _c.to,
-                    suggest: _c.suggest,
-                    autofocus: draft.to.isEmpty,
-                    trailing: TextButton(
-                      onPressed: _c.toggleCopies,
-                      child: const Text('Cc Bcc'),
+                    IconButton(
+                      tooltip: draft.requestReceipt
+                          ? 'Read receipt requested (tap to cancel)'
+                          : 'Ask for a read receipt',
+                      isSelected: draft.requestReceipt,
+                      icon: const Icon(Icons.mark_email_read_outlined),
+                      selectedIcon: const Icon(Icons.mark_email_read),
+                      onPressed: () =>
+                          _c.setRequestReceipt(!draft.requestReceipt),
                     ),
-                  ),
-                  if (_c.showCopies) ...[
-                    const Divider(indent: 16),
-                    RecipientField(
-                      label: 'Cc',
-                      list: _c.cc,
-                      suggest: _c.suggest,
+                    IconButton(
+                      tooltip: 'Attach files',
+                      icon: const Icon(Icons.attach_file),
+                      onPressed: _attach,
                     ),
-                    const Divider(indent: 16),
-                    RecipientField(
-                      label: 'Bcc',
-                      list: _c.bcc,
-                      suggest: _c.suggest,
+                    IconButton(
+                      tooltip: 'Discard',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: _discard,
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: _send,
+                      icon: const Icon(Icons.send, size: 18),
+                      label: const Text('Send'),
                     ),
                   ],
-                  const Divider(indent: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TextField(
-                      controller: _subject,
-                      onChanged: _c.setSubject,
-                      textInputAction: TextInputAction.next,
-                      onSubmitted: (_) => _bodyFocus.requestFocus(),
-                      decoration: CitusmailTheme.bareField(hintText: 'Subject'),
-                      style: theme.textTheme.titleSmall,
-                    ),
-                  ),
-                  const Divider(),
-                  if (_c.problems.isNotEmpty)
-                    Container(
-                      color: theme.colorScheme.errorContainer,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      child: Text(
-                        _c.problems.map(_problem).join(' '),
-                        style: TextStyle(
-                          color: theme.colorScheme.onErrorContainer,
+                ),
+              );
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: phone ? MediaQuery.viewInsetsOf(context).bottom : 0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!phone) ...[actions, const Divider()],
+                    if (accounts.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 44,
+                              child: Text(
+                                'From',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                            DropdownButton<int>(
+                              value: draft.accountId,
+                              underline: const SizedBox.shrink(),
+                              items: [
+                                for (final a in accounts)
+                                  DropdownMenuItem(
+                                    value: a.id,
+                                    child: Text(a.email),
+                                  ),
+                              ],
+                              onChanged: (id) {
+                                if (id != null) _c.setAccount(id);
+                              },
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  if (draft.attachments.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final file in draft.attachments)
-                            InputChip(
-                              avatar: const Icon(Icons.attach_file, size: 18),
-                              label: Text(
-                                '${file.fileName} · ${MailText.size(file.bytes.length)}',
-                              ),
-                              onDeleted: () => _c.removeAttachment(file),
-                            ),
-                        ],
+                    RecipientField(
+                      label: 'To',
+                      list: _c.to,
+                      suggest: _c.suggest,
+                      autofocus: draft.to.isEmpty,
+                      trailing: TextButton(
+                        onPressed: _c.toggleCopies,
+                        child: const Text('Cc Bcc'),
                       ),
                     ),
-                  Expanded(
-                    child: Padding(
+                    if (_c.showCopies) ...[
+                      const Divider(indent: 16),
+                      RecipientField(
+                        label: 'Cc',
+                        list: _c.cc,
+                        suggest: _c.suggest,
+                      ),
+                      const Divider(indent: 16),
+                      RecipientField(
+                        label: 'Bcc',
+                        list: _c.bcc,
+                        suggest: _c.suggest,
+                      ),
+                    ],
+                    const Divider(indent: 16),
+                    Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextField(
-                        controller: _body,
-                        focusNode: _bodyFocus,
-                        autofocus: draft.to.isNotEmpty,
-                        onChanged: _c.setBody,
-                        maxLines: null,
-                        expands: true,
-                        keyboardType: TextInputType.multiline,
-                        textAlignVertical: TextAlignVertical.top,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          height: 1.45,
-                        ),
+                        controller: _subject,
+                        onChanged: _c.setSubject,
+                        textInputAction: TextInputAction.next,
+                        onSubmitted: (_) => _bodyFocus.requestFocus(),
                         decoration: CitusmailTheme.bareField(
-                          hintText: 'Write your message',
+                          hintText: 'Subject',
+                        ),
+                        style: theme.textTheme.titleSmall,
+                      ),
+                    ),
+                    const Divider(),
+                    if (_c.problems.isNotEmpty)
+                      Container(
+                        color: theme.colorScheme.errorContainer,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        child: Text(
+                          _c.problems.map(_problem).join(' '),
+                          style: TextStyle(
+                            color: theme.colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    if (draft.attachments.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final file in draft.attachments)
+                              InputChip(
+                                avatar: const Icon(Icons.attach_file, size: 18),
+                                label: Text(
+                                  '${file.fileName} · ${MailText.size(file.bytes.length)}',
+                                ),
+                                onDeleted: () => _c.removeAttachment(file),
+                              ),
+                          ],
+                        ),
+                      ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          controller: _body,
+                          focusNode: _bodyFocus,
+                          autofocus: draft.to.isNotEmpty,
+                          onChanged: _c.setBody,
+                          maxLines: null,
+                          expands: true,
+                          keyboardType: TextInputType.multiline,
+                          textAlignVertical: TextAlignVertical.top,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            height: 1.45,
+                          ),
+                          decoration: CitusmailTheme.bareField(
+                            hintText: 'Write your message',
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    if (phone) ...[const Divider(), actions],
+                  ],
+                ),
               );
             },
           ),

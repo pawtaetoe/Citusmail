@@ -25,9 +25,15 @@ final class MessageListPane extends StatelessWidget {
     required this.onCompose,
     required this.searchFocus,
     this.leading,
+    this.controlsAtBottom = false,
   });
 
   final MailController controller;
+
+  /// Phones: the search bar and the selection actions are in
+  /// [MessageListControls] at the bottom of the screen, within reach of the
+  /// thumb; only the view's title stays on top.
+  final bool controlsAtBottom;
 
   /// Null when the sidebar has the "New message" button.
   final VoidCallback? onCompose;
@@ -44,24 +50,68 @@ final class MessageListPane extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _TopBar(
-          controller: controller,
-          onCompose: onCompose,
-          searchFocus: searchFocus,
-          leading: leading,
-        ),
-        SizedBox(
-          height: 48,
-          child: ValueListenableBuilder(
-            valueListenable: controller.selection,
-            builder: (context, selected, _) => selected.isEmpty
-                ? _ViewHeader(controller: controller)
-                : _SelectionBar(controller: controller, count: selected.length),
+        if (controlsAtBottom)
+          SizedBox(height: 48, child: _ViewHeader(controller: controller))
+        else ...[
+          _TopBar(
+            controller: controller,
+            onCompose: onCompose,
+            searchFocus: searchFocus,
+            leading: leading,
           ),
-        ),
+          SizedBox(
+            height: 48,
+            child: ValueListenableBuilder(
+              valueListenable: controller.selection,
+              builder: (context, selected, _) => selected.isEmpty
+                  ? _ViewHeader(controller: controller)
+                  : _SelectionBar(
+                      controller: controller,
+                      count: selected.length,
+                    ),
+            ),
+          ),
+        ],
         Expanded(child: _Messages(controller: controller)),
       ],
     ),
+  );
+}
+
+/// The list's controls at the bottom of a phone screen: menu, search and
+/// New message, or the actions for selected messages.
+final class MessageListControls extends StatelessWidget {
+  const MessageListControls({
+    super.key,
+    required this.controller,
+    required this.onCompose,
+    required this.searchFocus,
+    required this.leading,
+  });
+
+  final MailController controller;
+  final VoidCallback onCompose;
+  final FocusNode searchFocus;
+  final Widget leading;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: controller.selection,
+    builder: (context, selected, _) => selected.isEmpty
+        ? _TopBar(
+            controller: controller,
+            onCompose: onCompose,
+            searchFocus: searchFocus,
+            leading: leading,
+            padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+          )
+        : SizedBox(
+            height: 60,
+            child: _SelectionBar(
+              controller: controller,
+              count: selected.length,
+            ),
+          ),
   );
 }
 
@@ -73,12 +123,14 @@ final class _TopBar extends StatefulWidget {
     required this.onCompose,
     required this.searchFocus,
     this.leading,
+    this.padding = const EdgeInsets.fromLTRB(12, 12, 12, 4),
   });
 
   final MailController controller;
   final VoidCallback? onCompose;
   final FocusNode searchFocus;
   final Widget? leading;
+  final EdgeInsets padding;
 
   @override
   State<_TopBar> createState() => _TopBarState();
@@ -95,7 +147,7 @@ final class _TopBarState extends State<_TopBar> {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+    padding: widget.padding,
     child: Row(
       children: [
         ?widget.leading,
