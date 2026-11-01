@@ -23,6 +23,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # A version tag must be on a commit whose app version matches it
+      # (v0.4.0 needs "version: 0.4.0+N"), so a tag made on an older commit
+      # stops here instead of publishing a mislabelled release.
+      - name: Tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(sed -n 's/^version: *\([0-9][0-9.]*\).*/\1/p' app/pubspec.yaml)"
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::Tag $TAG is on a commit whose app version is $version (app/pubspec.yaml). Delete the tag and tag the commit that has version ${TAG#v}: git fetch origin && git tag -a $TAG -m \"Citusmail ${TAG#v}\" origin/main"
+            exit 1
+          fi
+          echo "Tag $TAG matches app version $version"
       - uses: ./.github/actions/setup-flutter
       - name: Resolve dependencies (lock file must match)
         run: flutter pub get --enforce-lockfile
