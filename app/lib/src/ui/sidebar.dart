@@ -212,47 +212,58 @@ final class Sidebar extends StatelessWidget {
                             );
                           },
                         ),
-                        for (final account in accounts) ...[
-                          _Heading(
-                            accounts.length > 1
-                                ? (account.displayName ?? account.email)
-                                : 'Folders',
-                            onAdd: () => NewFolderDialog.show(
+                        // One block per account: its status, menu and
+                        // folders. With several accounts each one folds
+                        // away (remembered), so the list stays short.
+                        for (final account in accounts)
+                          _AccountBlock(
+                            key: ValueKey('account-${account.id}'),
+                            account: account,
+                            store: store,
+                            collapsible: accounts.length > 1,
+                            holdsSelection:
+                                here is FolderLocation &&
+                                here.accountId == account.id,
+                            event: controller.lastEvent(account.id),
+                            onNewFolder: () => NewFolderDialog.show(
                               context,
                               controller,
                               account.id,
                             ),
+                            onRemove: () => onRemoveAccount(account),
+                            onReconnect: () => onReconnectAccount(account),
+                            folders: [
+                              for (final (mailbox, depth) in _folders(
+                                store,
+                                account,
+                              ))
+                                _Entry(
+                                  icon: MailText.folderIcon(mailbox),
+                                  indent: depth,
+                                  label: MailText.folder(mailbox),
+                                  badge: mailbox.specialUse == null
+                                      ? counts.folderUnread[mailbox.id] ?? 0
+                                      : 0,
+                                  selected:
+                                      here ==
+                                      FolderLocation(mailbox.id, account.id),
+                                  onTap: () => go(
+                                    FolderLocation(mailbox.id, account.id),
+                                  ),
+                                ),
+                            ],
                           ),
-                          for (final (mailbox, depth) in _folders(
-                            store,
-                            account,
-                          ))
-                            _Entry(
-                              icon: MailText.folderIcon(mailbox),
-                              indent: depth,
-                              label: MailText.folder(mailbox),
-                              badge: mailbox.specialUse == null
-                                  ? counts.folderUnread[mailbox.id] ?? 0
-                                  : 0,
-                              selected:
-                                  here ==
-                                  FolderLocation(mailbox.id, account.id),
-                              onTap: () =>
-                                  go(FolderLocation(mailbox.id, account.id)),
-                            ),
-                        ],
                       ],
                     ),
                   ),
                   Divider(color: colors.selected, height: 1),
                   const SizedBox(height: 6),
-                  for (final account in accounts)
-                    _AccountRow(
-                      account: account,
-                      event: controller.lastEvent(account.id),
-                      onRemove: () => onRemoveAccount(account),
-                      onReconnect: () => onReconnectAccount(account),
-                    ),
+                  // One line for all accounts; a problem names the
+                  // account (its block shows it too).
+                  _SyncSummary(
+                    accounts: accounts,
+                    eventOf: controller.lastEvent,
+                  ),
                   _Entry(
                     icon: Icons.person_add_alt,
                     label: 'Add account',
@@ -306,55 +317,6 @@ final class Sidebar extends StatelessWidget {
             others.any((o) => o != m && o.name.startsWith(m.name)))
           (m, depth(m)),
     ];
-  }
-}
-
-final class _Heading extends StatelessWidget {
-  const _Heading(this.text, {this.onAdd});
-
-  final String text;
-
-  /// "New folder", when given.
-  final VoidCallback? onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = SidebarColors.of(context).muted;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        onAdd == null ? 18 : 12,
-        8,
-        onAdd == null ? 6 : 0,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: muted,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          if (onAdd != null)
-            IconButton(
-              tooltip: 'New folder',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                Icons.create_new_folder_outlined,
-                size: 18,
-                color: muted,
-              ),
-              onPressed: onAdd,
-            ),
-        ],
-      ),
-    );
   }
 }
 
@@ -468,80 +430,253 @@ final class _Entry extends StatelessWidget {
   }
 }
 
-/// An account with its sync status, and a menu to remove it.
-final class _AccountRow extends StatelessWidget {
-  const _AccountRow({
+/// What an account's last sync says, in a few words, and whether it is a
+/// problem.
+(String, bool) _statusOf(Account account, SyncEvent? event) => switch (event) {
+  AccountSyncStarted() => ('Checking for mail…', false),
+  AccountSyncFailed(:final failure) => (
+    switch (failure.kind) {
+      SyncFailureKind.authentication =>
+        account.usesOAuth ? 'Sign-in ended' : 'Password not accepted',
+      SyncFailureKind.security => 'Connection refused for security',
+      SyncFailureKind.network => 'Offline, retrying',
+      SyncFailureKind.server => 'Server problem',
+    },
+    true,
+  ),
+  AccountSynced() => ('Up to date', false),
+  null => ('', false),
+};
+
+Color _dotOf(SidebarColors colors, SyncEvent? event) => switch (event) {
+  AccountSyncFailed() => colors.problem,
+  AccountSyncStarted() => colors.badge,
+  AccountSynced() => const Color(0xFF6FD6A8),
+  null => colors.muted,
+};
+
+/// An account's folders under a header with its address, status dot and
+/// menu (sign in again, remove). With several accounts the folders fold
+/// away; the choice is remembered, and the block opens by itself when one
+/// of its folders is shown. A sync problem shows on the header even when
+/// folded.
+final class _AccountBlock extends StatefulWidget {
+  const _AccountBlock({
+    super.key,
     required this.account,
+    required this.store,
+    required this.collapsible,
+    required this.holdsSelection,
     required this.event,
+    required this.folders,
+    required this.onNewFolder,
     required this.onRemove,
     required this.onReconnect,
   });
 
   final Account account;
+  final MailStore store;
+  final bool collapsible;
+
+  /// One of its folders is being shown.
+  final bool holdsSelection;
   final SyncEvent? event;
+  final List<Widget> folders;
+  final VoidCallback onNewFolder;
   final VoidCallback onRemove;
   final VoidCallback onReconnect;
+
+  static const _openKey = 'ui.openAccounts';
+
+  @override
+  State<_AccountBlock> createState() => _AccountBlockState();
+}
+
+final class _AccountBlockState extends State<_AccountBlock> {
+  late bool _open = _stored().contains('${widget.account.id}');
+
+  Set<String> _stored() => {
+    ...?widget.store.settings
+        .read(_AccountBlock._openKey)
+        ?.split(',')
+        .where((s) => s.isNotEmpty),
+  };
+
+  void _toggle() {
+    setState(() => _open = !_open);
+    final ids = _stored();
+    final id = '${widget.account.id}';
+    _open ? ids.add(id) : ids.remove(id);
+    widget.store.settings.write(_AccountBlock._openKey, ids.join(','));
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = SidebarColors.of(context);
-    final (status, problem) = switch (event) {
-      AccountSyncStarted() => ('Checking for mail…', false),
-      AccountSyncFailed(:final failure) => (
-        switch (failure.kind) {
-          SyncFailureKind.authentication =>
-            account.usesOAuth ? 'Sign-in ended' : 'Password not accepted',
-          SyncFailureKind.security => 'Connection refused for security',
-          SyncFailureKind.network => 'Offline, retrying',
-          SyncFailureKind.server => 'Server problem',
-        },
-        true,
-      ),
-      AccountSynced() => ('Up to date', false),
-      null => ('', false),
-    };
-    final dot = switch (event) {
-      AccountSyncFailed() => colors.problem,
-      AccountSyncStarted() => colors.badge,
-      AccountSynced() => const Color(0xFF6FD6A8),
-      null => colors.muted,
-    };
-    return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.only(left: 20, right: 4),
-      horizontalTitleGap: 10,
-      minLeadingWidth: 8,
-      leading: Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-      ),
-      title: Text(
-        account.email,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: colors.text, fontWeight: FontWeight.w500),
-      ),
-      subtitle: status.isEmpty
-          ? null
-          : Text(
-              status,
-              style: TextStyle(
-                color: problem ? colors.problem : colors.muted,
-                fontSize: 12,
-              ),
-            ),
-      trailing: PopupMenuButton<void>(
-        tooltip: 'Account',
-        icon: Icon(Icons.more_horiz, color: colors.muted),
-        itemBuilder: (_) => [
-          PopupMenuItem(
-            onTap: onReconnect,
-            child: Text(
-              account.usesOAuth ? 'Sign in again' : 'Update password',
+    final account = widget.account;
+    final open = !widget.collapsible || _open || widget.holdsSelection;
+    final (status, problem) = _statusOf(account, widget.event);
+    final name = account.displayName ?? account.email;
+
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(8, 10, 4, 0),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          hoverColor: colors.hover,
+          onTap: widget.collapsible ? _toggle : null,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 0, 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _dotOf(colors, widget.event),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.muted,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      // Problems always show; "Up to date" only when there
+                      // is one account (the summary below covers several).
+                      if (problem || (!widget.collapsible && status.isNotEmpty))
+                        Text(
+                          status,
+                          style: TextStyle(
+                            color: problem ? colors.problem : colors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<void>(
+                  tooltip: 'Account',
+                  icon: Icon(Icons.more_horiz, size: 20, color: colors.muted),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      onTap: widget.onNewFolder,
+                      child: const Text('New folder'),
+                    ),
+                    PopupMenuItem(
+                      onTap: widget.onReconnect,
+                      child: Text(
+                        account.usesOAuth ? 'Sign in again' : 'Update password',
+                      ),
+                    ),
+                    PopupMenuItem(
+                      onTap: widget.onRemove,
+                      child: const Text('Remove account'),
+                    ),
+                  ],
+                ),
+                if (widget.collapsible)
+                  Semantics(
+                    label: open ? 'Hide folders' : 'Show folders',
+                    child: Icon(
+                      open ? Icons.expand_less : Icons.expand_more,
+                      color: colors.muted,
+                    ),
+                  ),
+                const SizedBox(width: 6),
+              ],
             ),
           ),
-          PopupMenuItem(onTap: onRemove, child: const Text('Remove account')),
+        ),
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        header,
+        AnimatedSize(
+          duration: const Duration(milliseconds: 160),
+          alignment: Alignment.topCenter,
+          child: open
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: widget.folders,
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+      ],
+    );
+  }
+}
+
+/// The accounts' sync status in one line: "All accounts up to date", or
+/// the problem to look at.
+final class _SyncSummary extends StatelessWidget {
+  const _SyncSummary({required this.accounts, required this.eventOf});
+
+  final List<Account> accounts;
+  final SyncEvent? Function(int accountId) eventOf;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SidebarColors.of(context);
+    if (accounts.isEmpty) return const SizedBox.shrink();
+    final failed = [
+      for (final a in accounts)
+        if (eventOf(a.id) is AccountSyncFailed) a,
+    ];
+    final checking = accounts.any((a) => eventOf(a.id) is AccountSyncStarted);
+    final String text;
+    final Color dot;
+    if (failed.length == 1) {
+      text =
+          '${failed.single.email}: ${_statusOf(failed.single, eventOf(failed.single.id)).$1}';
+      dot = colors.problem;
+    } else if (failed.length > 1) {
+      text = '${failed.length} accounts need attention';
+      dot = colors.problem;
+    } else if (checking) {
+      text = 'Checking for mail…';
+      dot = colors.badge;
+    } else if (accounts.every((a) => eventOf(a.id) is AccountSynced)) {
+      text = accounts.length == 1 ? 'Up to date' : 'All accounts up to date';
+      dot = const Color(0xFF6FD6A8);
+    } else {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 12, 4),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: failed.isEmpty ? colors.muted : colors.problem,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
         ],
       ),
     );

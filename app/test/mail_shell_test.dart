@@ -392,6 +392,53 @@ void main() {
     expect(find.textContaining('Hello there.eml'), findsOneWidget);
   });
 
+  testWidgets('several accounts: each folds away, remembered', (tester) async {
+    final bob = store.accounts.add(
+      NewAccount(
+        email: 'bob@citusmail.test',
+        username: 'bob@citusmail.test',
+        imap: ServerSettings(
+          host: 'mail.citusmail.test',
+          port: 993,
+          security: ConnectionSecurity.implicitTls,
+        ),
+        smtp: ServerSettings(
+          host: 'mail.citusmail.test',
+          port: 465,
+          security: ConnectionSecurity.implicitTls,
+        ),
+      ),
+    );
+    store.mailboxes.replaceAll(bob.id, [
+      ImapMailboxInfo(
+        encodedName: 'INBOX',
+        delimiter: '/',
+        attributes: const {},
+      ),
+      ImapMailboxInfo(
+        encodedName: 'Bob Projects',
+        delimiter: '/',
+        attributes: const {},
+      ),
+    ]);
+    await show(tester, const Size(1400, 900));
+
+    // Folded: each account's header, no folders.
+    expect(find.text('alice@citusmail.test'), findsWidgets);
+    expect(find.text('bob@citusmail.test'), findsWidgets);
+    expect(find.text('Bob Projects'), findsNothing);
+    expect(find.text('Archive'), findsNothing);
+    // One status line instead of a row per account.
+    expect(find.text('Up to date'), findsNothing);
+
+    // Open Bob's block: his folders, not Alice's.
+    await tester.tap(find.text('bob@citusmail.test').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Bob Projects'), findsOneWidget);
+    expect(find.text('Archive'), findsNothing);
+    expect(store.settings.read('ui.openAccounts'), '${bob.id}');
+  });
+
   testWidgets('thousands of messages: only what is on screen is built', (
     tester,
   ) async {
