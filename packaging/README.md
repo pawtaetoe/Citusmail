@@ -13,6 +13,11 @@ from `app/pubspec.yaml`.
 
 The release also has `SHA256SUMS`.
 
+The tag must be on a commit whose `app/pubspec.yaml` version matches it
+(`v0.4.0` needs `version: 0.4.0+N`); CI stops otherwise, before building
+anything. Tag the latest `main` after a fetch:
+`git fetch origin && git tag -a v0.4.0 -m "Citusmail 0.4.0" origin/main`.
+
 ## Android release signing
 
 Android only updates an app with one signed by the same key, so the

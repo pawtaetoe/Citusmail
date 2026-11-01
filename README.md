@@ -65,7 +65,7 @@ ask.
   &nbsp;
   <img src="docs/screenshots/readme_phone_compose.png" alt="Writing on a phone: To, Subject and the message, with Close, read receipt, Attach, Discard and Send at the bottom" width="24%">
   &nbsp;
-  <img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: notifications, Instant mail, app lock, Google Safe Browsing and VirusTotal (off until turned on), sync between devices" width="24%">
+  <img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: notifications, Instant mail, app lock, sync between devices, images and blocked senders" width="24%">
 </p>
 
 On phones, the menu, search, New message, the message actions and Send
@@ -83,7 +83,7 @@ are at the bottom of the screen, within reach of one thumb.
   domains, deceptive links, risky attachments, and outsiders writing in
   the name of your own institution or a big company (with hidden
   recipient lists and free-form "portals"). Optional Google Safe
-  Browsing and VirusTotal.
+  Browsing and VirusTotal, under Settings > Advanced.
 - **Privacy**: images and trackers blocked, read receipts never sent,
   tracking parameters removed from links, one-tap unsubscribe (with the
   unsubscribe address checked too), blocking senders.

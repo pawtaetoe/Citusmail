@@ -215,7 +215,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+      MaterialApp(home: AdvancedSettingsPage(services: app.services)),
     );
     expect(find.textContaining('checked on this device only'), findsOneWidget);
     await tester.tap(find.text('Check links with Google Safe Browsing'));

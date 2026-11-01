@@ -58,7 +58,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+      MaterialApp(home: AdvancedSettingsPage(services: app.services)),
     );
     expect(app.services.settings.serverRules, isFalse);
     expect(find.text('alice@citusmail.test'), findsNothing);
@@ -98,5 +98,33 @@ void main() {
       ),
       contains('quota'),
     );
+  });
+
+  testWidgets('outside services and server rules are under Advanced', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    for (final hidden in [
+      'Check links with Google Safe Browsing',
+      'Ask VirusTotal about flagged files and links',
+      'Rules on the mail server',
+    ]) {
+      expect(find.text(hidden), findsNothing, reason: hidden);
+    }
+    await tester.scrollUntilVisible(find.text('Advanced'), 200);
+    await tester.tap(find.text('Advanced'));
+    await tester.pumpAndSettle();
+    for (final shown in [
+      'Check links with Google Safe Browsing',
+      'Ask VirusTotal about flagged files and links',
+      'Rules on the mail server',
+    ]) {
+      expect(find.text(shown), findsOneWidget, reason: shown);
+    }
   });
 }

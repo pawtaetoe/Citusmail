@@ -43,9 +43,9 @@ receipts and renewal emails), run entirely on the device.
 | Microsoft sign-in (Outlook, Microsoft 365) | Only if you add such an account | As for Google: sign-in on Microsoft's page, then a token for your mail |
 | Your provider's setup information, your DNS resolver | When you add an account | Your email domain, to find your mail server settings |
 | Mozilla's mail server database | Only if you allow it during setup | Your email domain (never your full address) |
-| Your mail server's rules service (ManageSieve) | Only if you turn on "Rules on the mail server" | Your blocked senders and folder rules, so your server can sort mail |
-| Google Safe Browsing | Only if you turn on "Check links with Google Safe Browsing" | Lists of dangerous sites are downloaded; to confirm a match, only a 4-byte part of a link's fingerprint is sent, never the link itself |
-| VirusTotal | Only if you turn it on with your own API key, and only when you tap "Check with VirusTotal" | A file's SHA-256 fingerprint (the file is never uploaded) or a link's address |
+| Your mail server's rules service (ManageSieve) | Only if you turn on "Rules on the mail server" (Settings > Advanced) | Your blocked senders and folder rules, so your server can sort mail |
+| Google Safe Browsing | Only if you turn on "Check links with Google Safe Browsing" (Settings > Advanced) | Lists of dangerous sites are downloaded; to confirm a match, only a 4-byte part of a link's fingerprint is sent, never the link itself |
+| VirusTotal | Only if you turn it on with your own API key (Settings > Advanced), and only when you tap "Check with VirusTotal" | A file's SHA-256 fingerprint (the file is never uploaded) or a link's address |
 | Newsletter senders | Only when you tap Unsubscribe and confirm | The unsubscribe request the newsletter asked for |
 | Images and links in an email | Only when you choose to load images or open a link | A request for the image or page, without cookies; like any connection, it shows your IP address |
 

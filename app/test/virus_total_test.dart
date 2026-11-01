@@ -192,7 +192,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+      MaterialApp(home: AdvancedSettingsPage(services: app.services)),
     );
     await tester.tap(find.text('Ask VirusTotal about flagged files and links'));
     await tester.pumpAndSettle();
