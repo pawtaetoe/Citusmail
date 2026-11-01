@@ -1,0 +1,109 @@
+# Citusmail Privacy Policy
+
+Effective date: 1 November 2026
+
+Citusmail is an email app published by **Fluminaris**. This policy explains
+what the app does with your information. Questions or requests:
+**kungchihchia@gmail.com**, or an issue at
+<https://github.com/pawtaetoe/Citusmail/issues>.
+
+## In short
+
+- Citusmail has **no account with us and no server of ours**. We do not
+  collect, receive, store, sell or share any of your data.
+- No analytics, no crash reporting, no advertising, no advertising ID, no
+  tracking.
+- Your mail, contacts and settings stay **on your device, encrypted**, and
+  travel only between your device and the services you use: your own mail
+  provider, and optional services you turn on yourself.
+
+## The data the app handles
+
+To work as an email app, Citusmail handles on your device:
+
+| Data | Why | Where it goes |
+| --- | --- | --- |
+| Your email address, mail server settings, and password or sign-in token | To connect to your mail account | Only to your own mail provider (and its sign-in service, see below). Passwords and tokens are kept in your device's secure keychain |
+| Your email messages, attachments, contacts and folders | To show, search, sort and send your mail | Downloaded from and sent through your own mail provider; stored encrypted on the device |
+| App settings, blocked senders, folder rules | To remember your choices | On the device; optionally synced between your own devices, end-to-end encrypted (see below) |
+
+None of this is sent to Fluminaris or to any third party other than the
+services listed in the next section.
+
+## Services the app connects to
+
+| Service | When | What is sent |
+| --- | --- | --- |
+| Your mail provider (IMAP, SMTP) | Always, to read and send mail | Your login and your mail, over encrypted connections (TLS) |
+| Google sign-in (Gmail) | Only if you add a Gmail account with "Sign in with Google" | Sign-in happens on Google's page in your browser; the app then receives a token to access your mail. Your password never passes through the app |
+| Microsoft sign-in (Outlook, Microsoft 365) | Only if you add such an account | As for Google: sign-in on Microsoft's page, then a token for your mail |
+| Your provider's setup information, your DNS resolver | When you add an account | Your email domain, to find your mail server settings |
+| Mozilla's mail server database | Only if you allow it during setup | Your email domain (never your full address) |
+| Your mail server's rules service (ManageSieve) | Only if you turn on "Rules on the mail server" | Your blocked senders and folder rules, so your server can sort mail |
+| Google Safe Browsing | Only if you turn on "Check links with Google Safe Browsing" | Lists of dangerous sites are downloaded; to confirm a match, only a 4-byte part of a link's fingerprint is sent, never the link itself |
+| VirusTotal | Only if you turn it on with your own API key, and only when you tap "Check with VirusTotal" | A file's SHA-256 fingerprint (the file is never uploaded) or a link's address |
+| Newsletter senders | Only when you tap Unsubscribe and confirm | The unsubscribe request the newsletter asked for |
+| Images and links in an email | Only when you choose to load images or open a link | A request for the image or page, without cookies; like any connection, it shows your IP address |
+
+Each of these services handles data under its own privacy policy.
+
+## Google user data
+
+When you sign in with Google, Citusmail asks for access to your Gmail
+mailbox (IMAP and SMTP) so it can show and send your mail. This data is
+used only to provide the app's email features to you, on your device. It
+is not transferred to Fluminaris or to anyone else, not used for
+advertising, and not read by people.
+
+Citusmail's use and transfer of information received from Google APIs
+adheres to the
+[Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy),
+including the Limited Use requirements.
+
+## Sync between your devices (optional)
+
+Off until you turn it on. Then your blocked senders, unsubscribes, folder
+rules and image choices are kept the same on your devices. They travel
+through a folder in **your own mail account**, never through a server of
+ours, and are end-to-end encrypted with a code only your devices hold.
+
+## Android permissions
+
+| Permission | Why |
+| --- | --- |
+| Internet, network state | To connect to your mail provider |
+| Notifications | To tell you about new mail (sender and subject only; on the lock screen only that there is new mail) |
+| Foreground service, start at boot | To check for new mail in the background, or keep a live connection if you turn on "Instant mail" |
+| Fingerprint or face unlock | Only if you turn on the app lock; checked by Android, the app only learns "yes" or "no" |
+
+The app does not use your location, camera, microphone, contacts list or
+advertising ID.
+
+## Security
+
+Connections to mail servers are encrypted (TLS). Mail and settings on the
+device are stored in an encrypted database whose key is kept in the
+device's secure keychain. Passwords and sign-in tokens are kept only in
+that keychain. Images and trackers in emails are blocked unless you load
+them, and the app checks messages for signs of phishing on the device.
+
+## Keeping and deleting your data
+
+Your data stays on your device for as long as the account is in the app.
+Removing an account from the app deletes its mail and settings from the
+device; uninstalling the app deletes everything it stored. Mail on your
+mail provider's servers is managed by your provider and is not affected,
+except by actions you take in the app (such as deleting a message).
+
+Because Fluminaris holds no data about you, there is nothing for us to
+delete; you can still contact us with any question.
+
+## Children
+
+Citusmail is not directed at children under 13 and does not knowingly
+collect data from anyone.
+
+## Changes to this policy
+
+If this policy changes, the new version will be published at this address
+with a new effective date.
