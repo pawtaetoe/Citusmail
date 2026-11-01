@@ -161,6 +161,117 @@ final class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final settings = widget.services.settings;
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          const _Group('Notifications'),
+          SwitchListTile(
+            title: const Text('New mail notifications'),
+            subtitle: const Text(
+              'Sender and subject of new mail in Verification, Important and General. '
+              'The lock screen shows only that there is new mail.',
+            ),
+            value: settings.notifications,
+            onChanged: (on) => setState(() => settings.notifications = on),
+          ),
+          if (_android) ...[
+            SwitchListTile(
+              title: const Text('Instant mail'),
+              subtitle: const Text(
+                'Keeps a live connection to your mail server so new mail arrives at once. '
+                'Android requires a permanent "$appName is connected" notification and it uses more '
+                'battery. When off, $appName checks about every 5 minutes.',
+              ),
+              value: settings.instantMail,
+              onChanged: _setInstant,
+            ),
+          ],
+          const _Group('Security'),
+          ..._lockSettings(),
+          const _Group('Senders and devices'),
+          DeviceSyncTile(services: widget.services),
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Images'),
+            subtitle: const Text('Senders whose images load automatically'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ImageSendersPage(services: widget.services),
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.block),
+            title: const Text('Blocked senders'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BlockedSendersPage(services: widget.services),
+              ),
+            ),
+          ),
+          const _Group('About'),
+          ListTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text('Privacy'),
+            subtitle: Text(
+              '$appName has no servers and collects nothing. Mail is stored encrypted on this '
+              'device and goes only to your own mail servers. Remote images and trackers are '
+              'blocked.',
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Licences'),
+            subtitle: Text(
+              '$appName is free software under the Mozilla Public License 2.0.',
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () =>
+                showLicensePage(context: context, applicationName: appName),
+          ),
+          const Divider(height: 24),
+          ListTile(
+            leading: const Icon(Icons.tune),
+            title: const Text('Advanced'),
+            subtitle: const Text(
+              'Outside link and file checks, rules on your mail server',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => AdvancedSettingsPage(services: widget.services),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Settings for people who want more: checks by outside services (with
+/// their own API keys) and rules on the mail server. Kept off the main
+/// Settings page so it stays simple.
+final class AdvancedSettingsPage extends StatefulWidget {
+  const AdvancedSettingsPage({super.key, required this.services});
+
+  final AppServices services;
+
+  @override
+  State<AdvancedSettingsPage> createState() => _AdvancedSettingsPageState();
+}
+
+final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
   Future<void> _setSafeBrowsing(bool on) async {
     final safety = widget.services.linkSafety;
     if (!on) {
@@ -201,34 +312,21 @@ final class _SettingsPageState extends State<SettingsPage> {
     final settings = widget.services.settings;
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('Advanced')),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
-          const _Group('Notifications'),
-          SwitchListTile(
-            title: const Text('New mail notifications'),
-            subtitle: const Text(
-              'Sender and subject of new mail in Verification, Important and General. '
-              'The lock screen shows only that there is new mail.',
-            ),
-            value: settings.notifications,
-            onChanged: (on) => setState(() => settings.notifications = on),
-          ),
-          if (_android) ...[
-            SwitchListTile(
-              title: const Text('Instant mail'),
-              subtitle: const Text(
-                'Keeps a live connection to your mail server so new mail arrives at once. '
-                'Android requires a permanent "$appName is connected" notification and it uses more '
-                'battery. When off, $appName checks about every 5 minutes.',
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(
+              'Everything here is off unless you turn it on, and $appName works '
+              'fully without it.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              value: settings.instantMail,
-              onChanged: _setInstant,
             ),
-          ],
-          const _Group('Security'),
-          ..._lockSettings(),
+          ),
+          const _Group('Checks by outside services'),
           SwitchListTile(
             secondary: const Icon(Icons.travel_explore),
             title: const Text('Check links with Google Safe Browsing'),
@@ -253,29 +351,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             value: widget.services.virusTotal.enabled,
             onChanged: _setVirusTotal,
           ),
-          const _Group('Senders and devices'),
-          DeviceSyncTile(services: widget.services),
-          ListTile(
-            leading: const Icon(Icons.image_outlined),
-            title: const Text('Images'),
-            subtitle: const Text('Senders whose images load automatically'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ImageSendersPage(services: widget.services),
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.block),
-            title: const Text('Blocked senders'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => BlockedSendersPage(services: widget.services),
-              ),
-            ),
-          ),
+          const _Group('Mail server'),
           SwitchListTile(
             secondary: const Icon(Icons.dns_outlined),
             title: const Text('Rules on the mail server'),
@@ -299,28 +375,6 @@ final class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ),
-          const _Group('About'),
-          ListTile(
-            leading: const Icon(Icons.shield_outlined),
-            title: const Text('Privacy'),
-            subtitle: Text(
-              '$appName has no servers and collects nothing. Mail is stored encrypted on this '
-              'device and goes only to your own mail servers. Remote images and trackers are '
-              'blocked.',
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Licences'),
-            subtitle: Text(
-              '$appName is free software under the Mozilla Public License 2.0.',
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () =>
-                showLicensePage(context: context, applicationName: appName),
-          ),
         ],
       ),
     );

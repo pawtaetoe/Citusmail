@@ -140,7 +140,9 @@ jobs:
         working-directory: packages/mail_sync
         env:
           CITUSMAIL_INTEGRATION: "1"
-        run: dart test test/integration
+        # One file at a time: they share the test accounts, and one file's
+        # delivery must not land between another's two syncs.
+        run: dart test test/integration --concurrency=1
       - name: Server logs
         if: failure()
         run: |
