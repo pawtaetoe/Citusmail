@@ -17,7 +17,7 @@ import '../services/secret_store.dart';
 /// Mail checks while the app is closed (Android). The Kotlin side runs the
 /// entry points in main.dart in a background Flutter engine:
 ///
-/// - [runOnce]: the periodic check (about every 15 minutes);
+/// - [runOnce]: the periodic check (about every 5 minutes);
 /// - [runInstant]: "Instant mail", a live connection kept by a foreground
 ///   service.
 ///

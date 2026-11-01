@@ -7,18 +7,24 @@ import 'dart:io';
 import 'package:mail_view/mail_view.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// Saves attachments into the Downloads folder. Files are never opened
+/// Saves attachments (and whole messages, as .eml) into the Downloads folder. Files are never opened
 /// automatically: an attachment can be malware.
 abstract final class AttachmentSaver {
   /// Writes [attachment] and returns where. Never overwrites a file.
-  static Future<File> save(AttachmentView attachment) async {
+  static Future<File> save(AttachmentView attachment) =>
+      saveBytes(attachment.fileName, attachment.bytes());
+
+  /// Writes [bytes] as [fileName] (already a safe name, see
+  /// `SafeFileName`) into Downloads and returns where. Never overwrites a
+  /// file.
+  static Future<File> saveBytes(String fileName, List<int> bytes) async {
     final directory =
         await getDownloadsDirectory() ??
         await getApplicationDocumentsDirectory();
     await directory.create(recursive: true);
-    final file = await _createNew(directory, attachment.fileName);
+    final file = await _createNew(directory, fileName);
     try {
-      await file.writeAsBytes(attachment.bytes(), flush: true);
+      await file.writeAsBytes(bytes, flush: true);
     } on Object {
       await file.delete();
       rethrow;

@@ -34,6 +34,8 @@ macOS and iOS for later.
   unsubscribe address checked too), blocking senders.
 - **Writing mail**: drafts, replies, undo send, custom folders and rules
   (also as server-side Sieve rules).
+- **Every message, whole**: save it as an .eml file, see its original
+  headers and source, or forward it as an attachment.
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.

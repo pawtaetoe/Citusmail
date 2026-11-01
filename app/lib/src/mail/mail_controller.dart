@@ -910,6 +910,18 @@ final class MailController {
   void forward(ReaderReady r) =>
       onCompose?.call(services.replies.forward(r.message, r.view));
 
+  /// The open message exactly as the server sent it (stored when opened),
+  /// or null if it is not on the device.
+  Uint8List? rawMessage(StoredMessage message) =>
+      _store.messages.body(message.id);
+
+  /// Forward the whole message as an attached email.
+  void forwardAsAttachment(ReaderReady r) {
+    final raw = rawMessage(r.message);
+    if (raw == null) return;
+    onCompose?.call(services.replies.forwardAsAttachment(r.message, raw));
+  }
+
   bool _isDraft(StoredMessage m) =>
       m.flags.draft &&
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.drafts;

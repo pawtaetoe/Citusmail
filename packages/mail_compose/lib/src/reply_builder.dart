@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:typed_data';
+
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
@@ -52,6 +54,26 @@ final class ReplyBuilder {
           ),
       ],
     );
+  }
+
+  /// Forward the original whole, as an attached email ([raw], exactly as
+  /// stored), with an empty text to write in.
+  Draft forwardAsAttachment(StoredMessage message, Uint8List raw) => Draft(
+    accountId: message.accountId,
+    subject: _prefixed('Fwd: ', message.subject),
+    attachments: [
+      DraftAttachment(
+        fileName: emlName(message.subject),
+        mimeType: 'message/rfc822',
+        bytes: raw,
+      ),
+    ],
+  );
+
+  /// A safe file name for a message saved or attached as an .eml file.
+  static String emlName(String? subject) {
+    final name = SafeFileName.from(subject, fallback: 'message');
+    return name.toLowerCase().endsWith('.eml') ? name : '$name.eml';
   }
 
   Draft _reply(StoredMessage message, MessageView view, {required bool all}) {

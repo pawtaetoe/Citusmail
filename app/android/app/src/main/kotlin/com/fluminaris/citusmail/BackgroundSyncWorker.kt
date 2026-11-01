@@ -11,8 +11,10 @@ import android.util.Log
 import androidx.concurrent.futures.CallbackToFutureAdapter
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.ListenableWorker
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -21,9 +23,11 @@ import io.flutter.embedding.engine.FlutterEngine
 import java.util.concurrent.TimeUnit
 
 /**
- * Checks every account for new mail about every 15 minutes (the shortest
- * period Android allows), when there is a network. Android may wait longer
- * in battery saving.
+ * Checks every account for new mail about every 5 minutes, when there is a
+ * network. Android's periodic work runs at most every 15 minutes, so each
+ * check schedules the next one 5 minutes later; the 15-minute periodic
+ * work stays as a safety net that restarts this chain if Android drops it.
+ * Android may wait longer in battery saving (Doze).
  */
 class BackgroundSyncWorker(context: Context, params: WorkerParameters) :
     ListenableWorker(context, params) {
@@ -37,6 +41,17 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) :
                 if (finished) return
                 finished = true
                 Log.i("Citusmail", "background check finished: $result")
+                // A chained check appends the next one (replacing would cancel
+                // this very check); the periodic one only restarts a chain
+                // that is gone.
+                scheduleNext(
+                    applicationContext,
+                    if (tags.contains(CHAIN_TAG)) {
+                        ExistingWorkPolicy.APPEND_OR_REPLACE
+                    } else {
+                        ExistingWorkPolicy.KEEP
+                    },
+                )
                 main.post { engine?.destroy(); engine = null }
                 completer.set(result)
             }
@@ -56,12 +71,36 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) :
         /** The schedule's name before the app was renamed from Fmail. */
         private const val OLD_NAME = "fmail-periodic-sync"
 
-        /** Schedules the periodic check (keeps an existing schedule). */
+        /** The next check of the 5-minute chain. */
+        private const val NEXT_NAME = "citusmail-next-check"
+
+        /** Marks the checks of the chain (not the periodic safety net). */
+        private const val CHAIN_TAG = "citusmail-chain"
+
+        /** Time between checks. */
+        private const val MINUTES = 5L
+
+        private val network =
+            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+
+        /**
+         * Schedules the next check in [MINUTES]. KEEP leaves a pending one in
+         * place; APPEND_OR_REPLACE queues it after the running check.
+         */
+        private fun scheduleNext(context: Context, policy: ExistingWorkPolicy) {
+            val request = OneTimeWorkRequestBuilder<BackgroundSyncWorker>()
+                .setInitialDelay(MINUTES, TimeUnit.MINUTES)
+                .setConstraints(network)
+                .addTag(CHAIN_TAG)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(NEXT_NAME, policy, request)
+        }
+
+        /** Schedules the checks (keeps existing schedules). */
         fun schedule(context: Context) {
+            scheduleNext(context, ExistingWorkPolicy.KEEP)
             val request = PeriodicWorkRequestBuilder<BackgroundSyncWorker>(15, TimeUnit.MINUTES)
-                .setConstraints(
-                    Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
-                )
+                .setConstraints(network)
                 .build()
             val work = WorkManager.getInstance(context)
             // One schedule only: drop the one made under the old name.

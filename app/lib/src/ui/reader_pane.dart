@@ -2,9 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_lookup/mail_lookup.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
@@ -336,6 +339,27 @@ final class _Toolbar extends StatelessWidget {
           () => BlockDialog.show(context, controller, message),
           group: 2,
         ),
+      // The whole message, as the server sent it.
+      if (reader is ReaderReady) ...[
+        _Action(
+          'Forward as attachment',
+          Icons.forward_to_inbox_outlined,
+          () => controller.forwardAsAttachment(reader as ReaderReady),
+          group: 3,
+        ),
+        _Action(
+          'Save as .eml',
+          Icons.download_outlined,
+          () => _saveEml(context),
+          group: 3,
+        ),
+        _Action(
+          'Show original',
+          Icons.code,
+          () => _showOriginal(context),
+          group: 3,
+        ),
+      ],
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -394,6 +418,45 @@ final class _Toolbar extends StatelessWidget {
     );
   }
 
+  /// Saves the message to Downloads as an .eml file, which any mail app
+  /// opens.
+  Future<void> _saveEml(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final raw = controller.rawMessage(message);
+    if (raw == null) return;
+    try {
+      final file = await AttachmentSaver.saveBytes(
+        ReplyBuilder.emlName(message.subject),
+        raw,
+      );
+      messenger.showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
+    } on Object {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Couldn\'t save the message.')),
+      );
+    }
+  }
+
+  /// The message's headers and source as text, to check where it really
+  /// came from. Shown as plain text: nothing in it is run or loaded.
+  Future<void> _showOriginal(BuildContext context) async {
+    final raw = controller.rawMessage(message);
+    if (raw == null) return;
+    const shown = 512 * 1024;
+    final text = utf8.decode(
+      raw.length > shown ? raw.sublist(0, shown) : raw,
+      allowMalformed: true,
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _OriginalDialog(
+        text: text,
+        cut: raw.length > shown,
+        onSave: () => _saveEml(context),
+      ),
+    );
+  }
+
   Future<void> _delete(BuildContext context, bool forever) async {
     if (forever) {
       final confirmed = await showDialog<bool>(
@@ -418,6 +481,100 @@ final class _Toolbar extends StatelessWidget {
       if (confirmed != true) return;
     }
     controller.delete([message]);
+  }
+}
+
+/// "Show original": the raw message in a scrollable, selectable view.
+final class _OriginalDialog extends StatelessWidget {
+  const _OriginalDialog({
+    required this.text,
+    required this.cut,
+    required this.onSave,
+  });
+
+  final String text;
+
+  /// Only the start is shown (very large message).
+  final bool cut;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final split = text.indexOf(RegExp(r'\r?\n\r?\n'));
+    final headers = split < 0 ? text : text.substring(0, split);
+    return Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900, maxHeight: 760),
+        child: DefaultTabController(
+          length: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Original message',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Copy',
+                      icon: const Icon(Icons.copy),
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.maybeOf(context);
+                        await Clipboard.setData(ClipboardData(text: text));
+                        messenger?.showSnackBar(
+                          const SnackBar(content: Text('Copied')),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Save as .eml',
+                      icon: const Icon(Icons.download_outlined),
+                      onPressed: onSave,
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const TabBar(
+                tabs: [
+                  Tab(text: 'Headers'),
+                  Tab(text: 'Source'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    for (final body in [headers, text])
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: SelectableText(
+                          body + (cut && body == text ? '\n[…]' : ''),
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 12.5,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

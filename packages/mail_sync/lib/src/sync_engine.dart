@@ -53,7 +53,7 @@ final class SyncEngine {
     this._connector, {
     MessageClassifier? classifier,
     SyncSettings settings = const SyncSettings(),
-    this.fullSyncInterval = const Duration(minutes: 15),
+    this.fullSyncInterval = const Duration(minutes: 5),
     this.changeDelay = const Duration(milliseconds: 500),
     SyncCodeProvider? syncCodes,
   }) : appData = syncCodes == null ? null : AppDataSync(_store, syncCodes),

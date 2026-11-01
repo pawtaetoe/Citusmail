@@ -221,7 +221,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               subtitle: const Text(
                 'Keeps a live connection to your mail server so new mail arrives at once. '
                 'Android requires a permanent "$appName is connected" notification and it uses more '
-                'battery. When off, $appName checks about every 15 minutes.',
+                'battery. When off, $appName checks about every 5 minutes.',
               ),
               value: settings.instantMail,
               onChanged: _setInstant,
