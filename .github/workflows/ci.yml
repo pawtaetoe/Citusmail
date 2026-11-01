@@ -2,8 +2,10 @@ name: CI
 
 on:
   push:
+    # On main, a new app version (app/pubspec.yaml) is released by itself:
+    # see the checks job's "Release?" step. Pushing a version tag (v0.1.0)
+    # by hand still works too.
     branches: [main]
-    # A version tag (v0.1.0) also publishes a release with the packages.
     tags: ["v*"]
   pull_request:
 
@@ -19,6 +21,10 @@ jobs:
   checks:
     name: Policy, format, analyze, test
     runs-on: ubuntu-24.04
+    outputs:
+      # "true" when this run publishes a release, and its tag (v0.4.1).
+      release: ${{ steps.release.outputs.release }}
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,6 +43,33 @@ jobs:
             exit 1
           fi
           echo "Tag $TAG matches app version $version"
+      # A release when a version tag was pushed, or when main has an app
+      # version that has no tag yet (the version was just bumped). The
+      # release job then creates the tag on this commit.
+      - name: Release?
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          version="$(sed -n 's/^version: *\([0-9][0-9.]*\).*/\1/p' app/pubspec.yaml)"
+          release=false
+          tag="v$version"
+          if [[ "$REF" == refs/tags/v* ]]; then
+            release=true
+            tag="$REF_NAME"
+          elif [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>/dev/null; then
+              echo "$tag already exists: no release"
+            else
+              echo "App version $version has no tag yet: this run releases $tag"
+              release=true
+            fi
+          fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/setup-flutter
       - name: Resolve dependencies (lock file must match)
         run: flutter pub get --enforce-lockfile
@@ -202,8 +235,8 @@ jobs:
 
   build-android:
     name: Build Android
-    # Version tags use build-android-release (signed with the release key).
-    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    # Releases use build-android-release (signed with the release key).
+    if: needs.checks.outputs.release != 'true'
     needs: checks
     runs-on: ubuntu-24.04
     steps:
@@ -243,7 +276,7 @@ jobs:
 
   build-android-release:
     name: Build Android (release-signed)
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.checks.outputs.release == 'true'
     needs: checks
     runs-on: ubuntu-24.04
     # The signing secrets may be saved in the "release" environment
@@ -342,7 +375,7 @@ jobs:
 
   release:
     name: Publish release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.checks.outputs.release == 'true'
     needs: [checks, test-server, vulnerabilities, build-linux, build-android-release, build-windows]
     runs-on: ubuntu-24.04
     # The only job that may write: it creates the GitHub release.
@@ -356,10 +389,13 @@ jobs:
       - name: Checksums
         working-directory: packages
         run: sha256sum -- * > SHA256SUMS
+      # Also creates the tag on this commit when it doesn't exist yet. A tag
+      # made with this job's token starts no other run.
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.checks.outputs.tag }}
         run: >-
           gh release create "$TAG" packages/*
-          --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --draft
+          --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+          --title "Citusmail ${TAG#v}" --generate-notes

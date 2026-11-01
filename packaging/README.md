@@ -1,8 +1,10 @@
 # Packaging
 
-CI builds every package on each push and attaches them to a **draft**
-GitHub release when a version tag (`v0.1.0`) is pushed. The version comes
-from `app/pubspec.yaml`.
+CI builds every package on each push. **A release is made by raising the
+version**: when `main` has an `app/pubspec.yaml` version with no tag yet
+(after a pull request such as "Release 0.4.2" is merged), that run builds
+the release-signed packages, creates the tag (`v0.4.2`) on that commit and
+publishes the GitHub release with them. Nothing to tag by hand.
 
 | Platform | Package | Built by |
 | --- | --- | --- |
@@ -13,10 +15,16 @@ from `app/pubspec.yaml`.
 
 The release also has `SHA256SUMS`.
 
-The tag must be on a commit whose `app/pubspec.yaml` version matches it
-(`v0.4.0` needs `version: 0.4.0+N`); CI stops otherwise, before building
-anything. Tag the latest `main` after a fetch:
-`git fetch origin && git tag -a v0.4.0 -m "Citusmail 0.4.0" origin/main`.
+To release:
+
+1. Raise `version:` in `app/pubspec.yaml` (`0.4.1+8` to `0.4.2+9`: the
+   number after `+` must always go up, Android needs it) and add the
+   release to `packaging/linux/com.fluminaris.citusmail.metainfo.xml`.
+2. Merge that to `main`. The CI run on `main` releases it.
+
+Pushing a version tag by hand still works. The tag must be on a commit
+whose version matches it (`v0.4.2` needs `version: 0.4.2+N`); CI stops
+otherwise, before building anything.
 
 ## Android release signing
 
