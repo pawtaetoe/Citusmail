@@ -186,13 +186,17 @@ abstract final class SubscriptionFinder {
     'trial',
     'cancel',
     'auto-renew',
+    'bill',
+    'statement',
   ];
 
   static final _subscriptionWords = RegExp(
     r'\b(?:subscriptions?|subscribed|membership|renews?|renewed|renewal|'
     r'auto-renew\w*|recurring|your plan|premium plan|billing period|'
     r'next billing|next payment|free trial|trial|'
-    r'unused time on|remaining time on)\b',
+    r'unused time on|remaining time on|'
+    // Phone, broadband and utility bills recur too.
+    r'e-?bill|monthly (?:bill|invoice|statement))\b',
     caseSensitive: false,
   );
 
@@ -209,7 +213,9 @@ abstract final class SubscriptionFinder {
 
   static final _chargeWords = RegExp(
     r'\b(?:receipt|invoice|payment (?:received|confirmation|successful)|'
-    r'paid|charged|renewed|order confirmation|your order|billing statement)\b',
+    r'paid|charged|renewed|order confirmation|your order|billing statement|'
+    r'e-?bill|your (?:\w+ )?bill|bill (?:is|for)|'
+    r'statement (?:is ready|is available))\b',
     caseSensitive: false,
   );
 

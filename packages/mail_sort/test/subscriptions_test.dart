@@ -266,6 +266,44 @@ void main() {
       expect(s.lastCharge, isNull);
     });
 
+    test('phone and broadband bills', () {
+      final found = SubscriptionFinder.find([
+        mail(
+          'myrepublic.net',
+          'Your MyRepublic e-Bill is ready!',
+          day(10, 29),
+          name: 'MyRepublic',
+          text:
+              'Your e-bill is ready! The monthly bill for your MyRepublic '
+              'mobile is now ready! The outstanding amount for your account '
+              'C4082197 is: \$6.00',
+        ),
+        mail(
+          'myrepublic.com.sg',
+          'Your monthly invoice is ready!',
+          day(10, 6),
+          name: 'MyRepublic',
+          text:
+              'Your e-bill is ready! View bill on MyAccount. The outstanding '
+              'amount for your account RA2328693 is: \$32.99 PayNow QR',
+        ),
+      ], now: now);
+      expect(found, hasLength(2));
+      final mobile = found.firstWhere((s) => s.company == 'myrepublic.net');
+      expect(mobile.amount, const Money(600, r'$'));
+      expect(mobile.cadence, Cadence.monthly);
+      expect(mobile.status, SubscriptionStatus.active);
+      final home = found.firstWhere((s) => s.company == 'myrepublic.com.sg');
+      expect(home.amount, const Money(3299, r'$'));
+      expect(home.cadence, Cadence.monthly);
+      expect(
+        SubscriptionFinder.subjectWords.any(
+          (w) => 'Your MyRepublic e-Bill is ready!'.toLowerCase().contains(w),
+        ),
+        isTrue,
+      );
+    });
+
     test('replies and forwards are not receipts', () {
       final found = SubscriptionFinder.find([
         mail(
