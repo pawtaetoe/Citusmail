@@ -154,7 +154,44 @@ void main() {
     });
   }
 
-  testWidgets('subscriptions', (tester) async {
+  // More README screens, from the same made-up mail.
+  testWidgets('readme gallery', (tester) async {
+    _seedDemo(app.store);
+    app.seedFixture(
+      'security/org-impersonation-form.eml',
+      subject:
+          'STUDENT NOTICE - 2026 Skills Program x East Institute of Technology',
+      uid: 90,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
+    );
+
+    // A scam from a real, verified address: the warning says why.
+    await show(tester, shell(), size: const Size(1440, 860), dark: true);
+    await tester.tap(find.textContaining('STUDENT NOTICE').first);
+    await shoot(tester, 'readme_phishing');
+
+    // Phone: the same message, its actions at the bottom.
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await shoot(tester, 'readme_phone_reader');
+
+    // Phone: writing, Send at the bottom.
+    await tester.tap(find.byTooltip('Back (Esc)'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('New message (C)'));
+    await shoot(tester, 'readme_phone_compose');
+  });
+
+  testWidgets('readme settings', (tester) async {
+    await show(
+      tester,
+      SettingsPage(services: app.services, isAndroid: true),
+      size: const Size(390, 844),
+      dark: true,
+    );
+    await shoot(tester, 'readme_phone_settings');
+  });
+
+  testWidgets('readme subscriptions', (tester) async {
     _seedSubscriptions(app.store);
     await show(
       tester,
@@ -162,9 +199,9 @@ void main() {
       size: const Size(390, 844),
       dark: true,
     );
-    await shoot(tester, 'phone_subscriptions');
+    await shoot(tester, 'readme_subscriptions');
     await tester.tap(find.text('StreamFlix'));
-    await shoot(tester, 'phone_subscription');
+    await shoot(tester, 'readme_subscription');
   });
 
   testWidgets('settings', (tester) async {

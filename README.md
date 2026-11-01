@@ -54,6 +54,23 @@ ask.
 - **No server of ours**: everything above runs on your device; there is
   no Citusmail account, cloud or tracking.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/readme_phishing.png" alt="A scam from a real, verified address: the red warning lists why (it names your institution but comes from outside it, writes in the name of Microsoft and IBM, hides its recipients, and its 'portal' link is a Google Form)" width="90%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/readme_phone_reader.png" alt="The same message on a phone: the warning, Reply and Forward, and the message actions in a bar at the bottom" width="24%">
+  &nbsp;
+  <img src="docs/screenshots/readme_phone_compose.png" alt="Writing on a phone: To, Subject and the message, with Close, read receipt, Attach, Discard and Send at the bottom" width="24%">
+  &nbsp;
+  <img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: notifications, Instant mail, app lock, Google Safe Browsing and VirusTotal (off until turned on), sync between devices" width="24%">
+</p>
+
+On phones, the menu, search, New message, the message actions and Send
+are at the bottom of the screen, within reach of one thumb.
+
 ## Features
 
 - **Smart Inbox**: mail sorted on your device into Pinned, Verification,
