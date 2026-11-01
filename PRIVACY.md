@@ -46,6 +46,12 @@ server already wrote into the message and a built-in list of domain
 endings. No link, address or file is looked up anywhere, unless you turn on Google
 Safe Browsing (see above), which still checks links on the device first.
 
+Subscriptions are found the same way, on the device: receipts and
+renewal emails from the last two years are read for the company, price
+and dates. Where a price or date is missing, "Read receipts" downloads
+those receipts from your own mail server, only when you tap it; they stay
+unread.
+
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail
 account and never shown as a notification.

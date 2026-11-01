@@ -30,6 +30,10 @@ To work as an email app, Citusmail handles on your device:
 None of this is sent to Fluminaris or to any third party other than the
 services listed in the next section.
 
+Features that understand your mail, such as sorting, finding verification
+codes, phishing checks and the list of your paid subscriptions (found in
+receipts and renewal emails), run entirely on the device.
+
 ## Services the app connects to
 
 | Service | When | What is sent |

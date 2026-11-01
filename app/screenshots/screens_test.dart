@@ -12,11 +12,13 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
+import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -152,6 +154,17 @@ void main() {
     });
   }
 
+  testWidgets('subscriptions', (tester) async {
+    _seedSubscriptions(app.store);
+    await show(
+      tester,
+      SubscriptionsPage(controller: MailController(app.services)),
+      size: const Size(390, 844),
+      dark: true,
+    );
+    await shoot(tester, 'phone_subscriptions');
+  });
+
   testWidgets('settings', (tester) async {
     await show(
       tester,
@@ -183,6 +196,67 @@ void main() {
     await tester.tap(find.byTooltip('New message (C)'));
     await shoot(tester, 'desktop_compose');
   });
+}
+
+/// Made-up receipts for the Subscriptions screen.
+void _seedSubscriptions(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 400;
+  MessageSummary receipt(
+    String domain,
+    String name,
+    String subject,
+    int daysAgo,
+    String snippet,
+  ) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.subtract(Duration(days: daysAgo)),
+    subject: subject,
+    from: MailAddress(localPart: 'billing', domain: domain, displayName: name),
+    snippet: snippet,
+    flags: MessageFlags.fromImap([r'\Seen']),
+  );
+  store.messages.upsertSummaries(inbox.id, [
+    for (final d in [27, 57, 87])
+      receipt(
+        'streamflix.example',
+        'StreamFlix',
+        'Your StreamFlix receipt',
+        d,
+        'Your membership has been renewed. Total S\$17.98',
+      ),
+    for (final d in [12, 42, 72])
+      receipt(
+        'tunes.example',
+        'Tunes',
+        'Tunes Premium receipt',
+        d,
+        'Subscription renewed. You paid S\$11.98',
+      ),
+    receipt(
+      'cloudbox.example',
+      'CloudBox',
+      'Receipt for your subscription',
+      200,
+      'Plus plan, billed yearly. Total US\$119.88',
+    ),
+    for (final d in [150, 180])
+      receipt(
+        'gym.example',
+        'City Gym',
+        'Membership payment received',
+        d,
+        'Amount charged S\$89.00',
+      ),
+    receipt(
+      'gym.example',
+      'City Gym',
+      'Your membership has been cancelled',
+      140,
+      '',
+    ),
+  ]);
 }
 
 /// Made-up mail for the demo screens.

@@ -1531,6 +1531,47 @@ void main() {
     });
   });
 
+  group('subscription candidates', () {
+    test('subject words, any case; not own, trash, junk or newsletters', () {
+      final account = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+        folder('Sent', use: 'Sent'),
+        folder('Trash', use: 'Trash'),
+        folder('Archive', use: 'Archive'),
+      ]);
+      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      store.messages.upsertSummaries(id('INBOX'), [
+        summary(1, subject: 'Your Netflix RECEIPT'),
+        summary(2, subject: 'Lunch?'),
+        summary(
+          3,
+          subject: 'Renewal notice',
+          category: MessageCategory.newsletters,
+        ),
+        summary(4, subject: 'Old receipt', at: DateTime.utc(2020)),
+      ]);
+      store.messages.upsertSummaries(id('Archive'), [
+        summary(5, subject: 'Subscription renewed'),
+      ]);
+      store.messages.upsertSummaries(id('Sent'), [
+        summary(6, subject: 'Re: your receipt'),
+      ]);
+      store.messages.upsertSummaries(id('Trash'), [
+        summary(7, subject: 'Invoice 7'),
+      ]);
+      final found = store.messages.withSubjectWords([
+        'receipt',
+        'renew',
+        'invoice',
+      ], since: DateTime.utc(2025));
+      expect(found.map((m) => m.subject), [
+        'Subscription renewed',
+        'Your Netflix RECEIPT',
+      ]);
+    });
+  });
+
   group('settings', () {
     test('read, write, overwrite, delete, and persist', () {
       expect(store.settings.read('k'), isNull);

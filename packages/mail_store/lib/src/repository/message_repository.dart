@@ -776,6 +776,35 @@ final class MessageRepository {
   });
 
   /// Stores new sorting decisions (e.g. after the rules changed).
+  /// Mail received since [since] whose subject contains one of [words]
+  /// (any case): receipts and renewal notices for finding subscriptions.
+  /// Not the user's own mail, nor Trash and Junk, nor newsletters; each
+  /// message once across folders. Newest first.
+  List<StoredMessage> withSubjectWords(
+    List<String> words, {
+    required DateTime since,
+    int limit = 1500,
+  }) {
+    if (words.isEmpty) return const [];
+    final like = List.filled(words.length, 'm.subject LIKE ?').join(' OR ');
+    return [
+      for (final row in _db.select(
+        'SELECT $_columns $_from WHERE ($like) AND m.received_at >= ? '
+        "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts', 'trash', 'junk')) "
+        'AND m.category != ? AND $_notACopy '
+        'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+        [
+          for (final w in words)
+            '%${w.replaceAll('%', '').replaceAll('_', '')}%',
+          since.toUtc().millisecondsSinceEpoch,
+          MessageCategory.newsletters.storageName,
+          limit.clamp(1, 5000),
+        ],
+      ))
+        _fromRow(row),
+    ];
+  }
+
   /// Code mail in [mailboxId] received since [since] whose body was not
   /// looked at for a code yet, at most [maxSize] bytes, newest first.
   List<StoredMessage> codesToRead(

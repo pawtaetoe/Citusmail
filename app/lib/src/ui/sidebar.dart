@@ -14,6 +14,7 @@ import 'citusmail_theme.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'settings_page.dart';
+import 'subscriptions_page.dart';
 
 /// The dark navigation column: inboxes, pins, folders and accounts. It
 /// rebuilds only when counts, the place shown or sync status change.
@@ -196,6 +197,20 @@ final class Sidebar extends StatelessWidget {
                           label: 'Pins',
                           selected: here == const PinsLocation(),
                           onTap: () => go(const PinsLocation()),
+                        ),
+                        _Entry(
+                          icon: Icons.autorenew,
+                          label: 'Subscriptions',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    SubscriptionsPage(controller: controller),
+                              ),
+                            );
+                          },
                         ),
                         for (final account in accounts) ...[
                           _Heading(

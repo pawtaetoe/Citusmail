@@ -16,7 +16,7 @@ first, ends with something that can be run or tested, and is committed as
 | M3 | App data synced between devices (end-to-end encrypted), read receipts you ask for | Done |
 | M4 | Outlook sign-in (OAuth 2.0) | Built; live check tool ready, run waiting on a client ID (Stage 24) |
 | M5 | Gmail: app passwords first, then OAuth 2.0; signing in again | Built (Stages 25-27); live checks waiting |
-| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal, verification codes, safer unsubscribing, content phishing checks | Done (Stages 28-37) |
+| M6 | Server-side rules, on-device sorting model, optional Safe Browsing and VirusTotal, verification codes, safer unsubscribing, content phishing checks, subscriptions | Done (Stages 28-38) |
 
 ## Stages so far
 
@@ -88,6 +88,7 @@ first, ends with something that can be run or tested, and is committed as
 | 35 | Unsubscribe and the phishing checks: unsubscribe addresses get the same checks as links (an unsafe one is never used, an unusual one is pointed out); an unverified sender alone (forwarded mail) no longer hides Unsubscribe, it adds a warning; scams say why there is no Unsubscribe; forwarded mail with a valid ARC chain (checked by the user's own server) is a caution, not a scam alert |
 | 36 | Phishing checks on what a message says: an outsider naming the reader's own organisation (by the address it was sent to), writing in the name of a well-known company, a hidden recipient list, and free-form "portal" links; red when a claim comes with a hidden list or a form. Smart-only inbox (no Classic layout). Phones: menu, search, New message, message actions and the writing screen's Send at the bottom, for one-handed use |
 | 37 | Mail checked every 5 minutes (Android: a chain of 5-minute checks, the 15-minute periodic work as its safety net; in the app too). Save a message as .eml, Show original (headers and source), Forward as attachment (`message/rfc822`, sent unencoded when 7-bit as RFC 2046 requires, else a plain .eml file) |
+| 38 | Subscriptions: paid subscriptions found on the device in receipts and renewal mail (company by sender domain; cadence from the dates of charges or the wording; price, status, next charge); a page with the monthly total, renewing soon, receipts per subscription, "Not a subscription" with Undo, and "Read receipts" only when a price or date is missing |
 
 ## Next
 
