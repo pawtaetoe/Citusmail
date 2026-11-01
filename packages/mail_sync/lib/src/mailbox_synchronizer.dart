@@ -9,14 +9,53 @@ import 'summary_mapper.dart';
 
 /// Tuning for message sync.
 final class SyncSettings {
-  const SyncSettings({this.initialWindow = 500, this.fetchBatch = 100});
+  const SyncSettings({
+    this.initialWindow = 500,
+    this.fetchBatch = 100,
+    this.backfillBatch = 500,
+  });
 
-  /// Newest messages downloaded on a folder's first sync; older ones are
-  /// fetched on demand with [MailboxSynchronizer.fetchOlder].
+  /// Newest messages downloaded on a folder's first sync. Older ones
+  /// follow on later syncs, [backfillBatch] at a time, back to what
+  /// [KeepMail] says; and on demand with [MailboxSynchronizer.fetchOlder].
   final int initialWindow;
 
   /// Messages per FETCH and per stored transaction.
   final int fetchBatch;
+
+  /// Older messages downloaded per folder per sync, until the folder
+  /// reaches back to [KeepMail]'s date.
+  final int backfillBatch;
+}
+
+/// How far back mail is kept on the device (summaries: headers and a
+/// preview; whole messages download when opened). The user's choice, in
+/// the settings under [key].
+enum KeepMail {
+  threeMonths('3m', 91),
+  year('1y', 366),
+  twoYears('2y', 731),
+  everything('all', null);
+
+  const KeepMail(this.storageName, this._days);
+
+  final String storageName;
+  final int? _days;
+
+  static const key = 'sync.keepMail';
+  static const standard = KeepMail.twoYears;
+
+  static KeepMail read(MailStore store) {
+    final value = store.settings.read(key);
+    return values.firstWhere(
+      (k) => k.storageName == value,
+      orElse: () => standard,
+    );
+  }
+
+  /// The oldest date kept, or null for everything.
+  DateTime? since(DateTime now) =>
+      _days == null ? null : now.subtract(Duration(days: _days));
 }
 
 /// How a folder was synchronised.
@@ -42,21 +81,28 @@ final class MailboxSyncResult {
     this.updated = 0,
     this.removed = 0,
     this.wasReset = false,
+    this.backfilled = 0,
   });
 
   final SyncMethod method;
+
+  /// New messages.
   final int added;
+
+  /// Older messages downloaded to reach back to [KeepMail]'s date.
+  final int backfilled;
   final int updated;
   final int removed;
 
   /// The server's UIDVALIDITY changed and the cache was rebuilt.
   final bool wasReset;
 
-  bool get hasChanges => added + updated + removed > 0 || wasReset;
+  bool get hasChanges => added + updated + removed + backfilled > 0 || wasReset;
 
   @override
   String toString() =>
-      'MailboxSyncResult(${method.name}, +$added ~$updated -$removed${wasReset ? ', reset' : ''})';
+      'MailboxSyncResult(${method.name}, +$added ~$updated -$removed'
+      '${backfilled > 0 ? ' <$backfilled' : ''}${wasReset ? ', reset' : ''})';
 }
 
 /// Brings one cached folder in line with the server.
@@ -130,9 +176,11 @@ final class MailboxSynchronizer {
     };
     final added = await _fetchNew(imap, mailbox, cached, selected);
     _saveState(mailbox, selected);
+    final backfilled = await _backfill(imap, mailbox);
     return MailboxSyncResult(
       method: method,
       added: added,
+      backfilled: backfilled,
       updated: updated,
       removed: removed,
     );
@@ -157,6 +205,35 @@ final class MailboxSynchronizer {
       imap,
       mailbox,
       uids.sublist(uids.length > count ? uids.length - count : 0),
+    );
+  }
+
+  /// Older messages, newest first, back to [KeepMail]'s date (on the
+  /// server's INTERNALDATE): at most [SyncSettings.backfillBatch] a time,
+  /// so a sync stays short; the next one goes on. Nothing once the folder
+  /// reaches back far enough. Not on a folder's first sync, which shows
+  /// its newest mail first.
+  Future<int> _backfill(ImapClient imap, StoredMailbox mailbox) async {
+    final lowest = _store.messages.lowestUid(mailbox.id);
+    if (lowest == null || lowest <= 1 || settings.backfillBatch <= 0) {
+      return 0;
+    }
+    final since = KeepMail.read(_store).since(DateTime.now());
+    final range = SearchCriteria.uids(SequenceSet.range(1, lowest - 1));
+    final older = (await imap.uidSearch(
+      since == null
+          ? range
+          : SearchCriteria.and([range, SearchCriteria.since(since)]),
+    )).matches.toList();
+    if (older.isEmpty) return 0;
+    return _fetchSummaries(
+      imap,
+      mailbox,
+      older.sublist(
+        older.length > settings.backfillBatch
+            ? older.length - settings.backfillBatch
+            : 0,
+      ),
     );
   }
 

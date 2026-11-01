@@ -161,6 +161,54 @@ final class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  static String _keepLabel(KeepMail keep) => switch (keep) {
+    KeepMail.threeMonths => 'The last 3 months',
+    KeepMail.year => 'The last year',
+    KeepMail.twoYears => 'The last 2 years',
+    KeepMail.everything => 'Everything',
+  };
+
+  /// How far back mail is downloaded (headers and previews; whole
+  /// messages when opened). Going further back fills in over the next
+  /// checks for mail.
+  Future<void> _chooseKeepMail() async {
+    final store = widget.services.store;
+    final current = KeepMail.read(store);
+    final chosen = await showDialog<KeepMail>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Keep mail from'),
+        children: [
+          RadioGroup<KeepMail>(
+            groupValue: current,
+            onChanged: (k) => Navigator.pop(context, k),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final k in KeepMail.values)
+                  RadioListTile<KeepMail>(
+                    value: k,
+                    title: Text(_keepLabel(k)),
+                    subtitle: k == KeepMail.everything
+                        ? const Text('Uses more space on large mailboxes')
+                        : null,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (chosen == null || chosen == current) return;
+    store.settings.write(KeepMail.key, chosen.storageName);
+    setState(() {});
+    try {
+      await widget.services.worker.syncNow();
+    } on SyncWorkerException {
+      // Filled in with the next check for mail.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = widget.services.settings;
@@ -192,6 +240,18 @@ final class _SettingsPageState extends State<SettingsPage> {
               onChanged: _setInstant,
             ),
           ],
+          const _Group('Mail on this device'),
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('Keep mail from'),
+            subtitle: Text(
+              '${_keepLabel(KeepMail.read(widget.services.store))}. Older mail '
+              'still loads when you scroll down. Search and Subscriptions see '
+              'what is on this device.',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _chooseKeepMail,
+          ),
           const _Group('Security'),
           ..._lockSettings(),
           const _Group('Senders and devices'),

@@ -66,7 +66,7 @@ ask.
   &nbsp;
   <img src="docs/screenshots/readme_phone_compose.png" alt="Writing on a phone: To, Subject and the message, with Close, read receipt, Attach, Discard and Send at the bottom" width="24%">
   &nbsp;
-  <img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: notifications, Instant mail, app lock, sync between devices, images and blocked senders" width="24%">
+  <img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: notifications, Instant mail, how far back mail is kept, app lock, sync between devices" width="24%">
 </p>
 
 On phones, the menu, search, New message, the message actions and Send

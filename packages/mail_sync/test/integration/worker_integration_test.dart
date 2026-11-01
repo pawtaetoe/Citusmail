@@ -125,6 +125,35 @@ void main() {
       expect(device.messages('INBOX'), hasLength(22));
     });
 
+    test('later syncs fill in older mail, a batch at a time', () async {
+      await engine.dispose();
+      engine = SyncEngine(
+        device.store,
+        DefaultMailConnector(
+          const TestCredentials(),
+          tls: servers.tls,
+          endpointFor: servers.endpointFor,
+        ),
+        settings: const SyncSettings(initialWindow: 5, backfillBatch: 10),
+      );
+      // The seeded mail is from today: any "keep" period covers it.
+      device.store.settings.write(
+        KeepMail.key,
+        KeepMail.threeMonths.storageName,
+      );
+      Future<int> backfilled() async {
+        final report = await engine.syncAccount(device.account.id);
+        return report!.mailboxes[device.mailbox('INBOX').id]!.backfilled;
+      }
+
+      expect(await backfilled(), 0, reason: 'first sync: newest only');
+      expect(device.messages('INBOX'), hasLength(5));
+      expect(await backfilled(), 10);
+      expect(await backfilled(), 7);
+      expect(await backfilled(), 0);
+      expect(device.messages('INBOX'), hasLength(22));
+    });
+
     test('several messages open over one reused connection', () async {
       await engine.syncAccount(device.account.id);
       for (final m in device.messages('INBOX')) {
