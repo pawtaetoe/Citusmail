@@ -16,6 +16,61 @@ macOS and iOS for later.
   <img src="docs/screenshots/readme_phone.png" alt="Citusmail on a phone: the same Smart Inbox" width="24%">
 </p>
 
+## What sets it apart
+
+### Your subscriptions, found in your mail
+
+Most paid subscriptions send a receipt every time they charge you, but
+they are easy to forget, and bank statements make monthly and yearly ones
+hard to tell apart. Citusmail reads your receipts and renewal emails **on
+your device** and lists every subscription it finds:
+
+- **what you pay each month in total**, and which ones renew this week;
+- for each one, the **price, how often it charges and the next charge**;
+- **every past receipt** with what was charged, opening right in place,
+  and when the **price went up**;
+- **cancelled and lapsed** ones kept apart, so you can see what you
+  stopped paying for.
+
+Nothing leaves your device; receipts you haven't opened are only
+downloaded (from your own mail server, and they stay unread) when you
+ask.
+
+<p align="center">
+  <img src="docs/screenshots/readme_subscriptions.png" alt="The Subscriptions page: about S$29.96 plus US$9.99 a month, one renewing in 2 days, active and cancelled subscriptions with their prices" width="32%">
+  &nbsp;
+  <img src="docs/screenshots/readme_subscription.png" alt="One subscription: S$17.98 monthly, charged 5 times, S$85.90 in total, the price went up from S$15.98, and every receipt" width="32%">
+</p>
+
+### Also unlike most mail apps
+
+- **Verification codes in the list**: one-time codes, sign-in links and
+  password resets get their own section, and the code shows without
+  opening the email.
+- **Phishing checks that read the message**: besides forged senders and
+  lookalike links, it warns when an outsider writes in the name of your
+  own school or company, or a big brand, especially with hidden
+  recipients or a form "portal".
+- **No server of ours**: everything above runs on your device; there is
+  no Citusmail account, cloud or tracking.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/readme_phishing.png" alt="A scam from a real, verified address: the red warning lists why (it names your institution but comes from outside it, writes in the name of Microsoft and IBM, hides its recipients, and its 'portal' link is a Google Form)" width="90%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/readme_phone_reader.png" alt="The same message on a phone: the warning, Reply and Forward, and the message actions in a bar at the bottom" width="24%">
+  &nbsp;
+  <img src="docs/screenshots/readme_phone_compose.png" alt="Writing on a phone: To, Subject and the message, with Close, read receipt, Attach, Discard and Send at the bottom" width="24%">
+  &nbsp;
+  <img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: notifications, Instant mail, app lock, Google Safe Browsing and VirusTotal (off until turned on), sync between devices" width="24%">
+</p>
+
+On phones, the menu, search, New message, the message actions and Send
+are at the bottom of the screen, within reach of one thumb.
+
 ## Features
 
 - **Smart Inbox**: mail sorted on your device into Pinned, Verification,
@@ -37,7 +92,8 @@ macOS and iOS for later.
 - **Every message, whole**: save it as an .eml file, see its original
   headers and source, or forward it as an attachment.
 - **Subscriptions**: the paid subscriptions found in your receipts and
-  renewal mail, with what each costs, how often, and the next charge.
+  renewal mail, with what each costs, how often, the next charge and
+  every past receipt (see above).
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.

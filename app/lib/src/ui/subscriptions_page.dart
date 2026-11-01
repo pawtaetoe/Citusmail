@@ -9,6 +9,7 @@ import '../mail/mail_controller.dart';
 import '../mail/subscriptions_model.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
+import 'subscription_detail_page.dart';
 
 /// Paid subscriptions found in the user's receipts and renewal mail: what
 /// each costs, how often, and when it charges next. Found on the device.
@@ -46,11 +47,19 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
     super.dispose();
   }
 
-  void _open(int messageId) {
-    final message = _model.message(messageId);
-    if (message == null) return;
-    Navigator.pop(context);
-    widget.controller.open(message);
+  /// The subscription's own page; "Not a subscription" there comes back
+  /// here, with Undo.
+  Future<void> _select(Subscription s) async {
+    final notOne = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SubscriptionDetailPage(
+          subscription: s,
+          controller: widget.controller,
+          messageById: _model.message,
+        ),
+      ),
+    );
+    if (notOne == true && mounted) _hide(s);
   }
 
   void _hide(Subscription s) {
@@ -127,8 +136,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
                         subscription: s,
                         today: _today,
                         soon: true,
-                        onOpen: _open,
-                        onHide: () => _hide(s),
+                        onSelect: () => _select(s),
                       ),
                   ],
                   if (active.any((s) => !soon.contains(s))) ...[
@@ -137,8 +145,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
                       _SubscriptionTile(
                         subscription: s,
                         today: _today,
-                        onOpen: _open,
-                        onHide: () => _hide(s),
+                        onSelect: () => _select(s),
                       ),
                   ],
                   if (ended.isNotEmpty) ...[
@@ -147,8 +154,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
                       _SubscriptionTile(
                         subscription: s,
                         today: _today,
-                        onOpen: _open,
-                        onHide: () => _hide(s),
+                        onSelect: () => _select(s),
                       ),
                   ],
                   if (_model.hiddenOnes.isNotEmpty) ...[
@@ -341,15 +347,15 @@ final class _SubscriptionTile extends StatelessWidget {
   const _SubscriptionTile({
     required this.subscription,
     required this.today,
-    required this.onOpen,
-    required this.onHide,
+    required this.onSelect,
     this.soon = false,
   });
 
   final Subscription subscription;
   final DateTime today;
-  final void Function(int messageId) onOpen;
-  final VoidCallback onHide;
+
+  /// Opens the subscription's page (its receipts).
+  final VoidCallback onSelect;
   final bool soon;
 
   @override
@@ -380,111 +386,74 @@ final class _SubscriptionTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       clipBehavior: Clip.antiAlias,
-      child: Theme(
-        data: theme.copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          key: PageStorageKey('subscription-${s.company}'),
-          leading: Opacity(
-            opacity: ended ? 0.6 : 1,
-            child: Avatar(name: s.name, address: s.company),
+      child: ListTile(
+        key: ValueKey('subscription-${s.company}'),
+        contentPadding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+        onTap: onSelect,
+        leading: Opacity(
+          opacity: ended ? 0.6 : 1,
+          child: Avatar(name: s.name, address: s.company),
+        ),
+        title: Text(
+          s.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleSmall,
+        ),
+        subtitle: Text(
+          details.join(' · '),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant,
           ),
-          title: Text(
-            s.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall,
-          ),
-          subtitle: Text(
-            details.join(' · '),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                s.amount == null ? '—' : Prices.format(s.amount!),
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  color: ended ? colors.onSurfaceVariant : null,
-                ),
-              ),
-              if (soon && days != null)
-                Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: CitusPalette.citrus,
-                    borderRadius: BorderRadius.circular(
-                      CitusmailTheme.radiusSmall,
-                    ),
-                  ),
-                  child: Text(
-                    days <= 0
-                        ? 'today'
-                        : days == 1
-                        ? 'tomorrow'
-                        : 'in $days days',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: CitusPalette.onCitrus,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            for (final r in s.records.take(12))
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(_eventIcon(r.event), size: 20),
-                title: Text(
-                  r.email.subject.isEmpty ? '(no subject)' : r.email.subject,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(date(r.email.at)),
-                trailing: r.amount == null
-                    ? null
-                    : Text(Prices.format(r.amount!)),
-                onTap: () => onOpen(r.email.messageId),
-              ),
-            Row(
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Expanded(
-                  child: Text(
-                    s.company,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
+                Text(
+                  s.amount == null ? '—' : Prices.format(s.amount!),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: ended ? colors.onSurfaceVariant : null,
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: onHide,
-                  icon: const Icon(Icons.visibility_off_outlined, size: 18),
-                  label: const Text('Not a subscription'),
-                ),
+                if (soon && days != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: CitusPalette.citrus,
+                      borderRadius: BorderRadius.circular(
+                        CitusmailTheme.radiusSmall,
+                      ),
+                    ),
+                    child: Text(
+                      days <= 0
+                          ? 'today'
+                          : days == 1
+                          ? 'tomorrow'
+                          : 'in $days days',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: CitusPalette.onCitrus,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
               ],
             ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right),
           ],
         ),
       ),
     );
   }
-
-  static IconData _eventIcon(SubscriptionEvent e) => switch (e) {
-    SubscriptionEvent.charge => Icons.receipt_long_outlined,
-    SubscriptionEvent.trial => Icons.hourglass_top,
-    SubscriptionEvent.cancelled => Icons.cancel_outlined,
-    SubscriptionEvent.notice => Icons.mail_outline,
-  };
 }
 
 final class _Empty extends StatelessWidget {

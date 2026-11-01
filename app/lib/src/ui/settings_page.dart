@@ -209,7 +209,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           SwitchListTile(
             title: const Text('New mail notifications'),
             subtitle: const Text(
-              'Sender and subject of new mail in Important and General. '
+              'Sender and subject of new mail in Verification, Important and General. '
               'The lock screen shows only that there is new mail.',
             ),
             value: settings.notifications,

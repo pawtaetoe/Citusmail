@@ -158,18 +158,23 @@ final class _ComposePageState extends State<ComposePage> {
                       onPressed: _close,
                     ),
                     const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        draft.subject.trim().isEmpty
-                            ? 'New message'
-                            : draft.subject,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                    // Phones: no room for a title next to the buttons
+                    // (the subject field shows it); Send keeps the edge.
+                    if (phone)
+                      const Spacer()
+                    else
+                      Expanded(
+                        child: Text(
+                          draft.subject.trim().isEmpty
+                              ? 'New message'
+                              : draft.subject,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
                     IconButton(
                       tooltip: draft.requestReceipt
                           ? 'Read receipt requested (tap to cancel)'
