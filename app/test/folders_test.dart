@@ -115,7 +115,9 @@ void main() {
 
   testWidgets('creating a folder offline says so', (tester) async {
     await show(tester);
-    await tester.tap(find.byTooltip('New folder'));
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New folder'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Receipts');
     await tester.tap(find.text('Create'));
