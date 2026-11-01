@@ -200,7 +200,7 @@ void main() {
       dark: true,
     );
     await shoot(tester, 'readme_subscriptions');
-    await tester.tap(find.text('StreamFlix'));
+    await tester.tap(find.text('StreamFlix').last);
     await shoot(tester, 'readme_subscription');
   });
 

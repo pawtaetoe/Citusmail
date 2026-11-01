@@ -75,16 +75,22 @@ void main() {
     await settle(tester);
     await tester.pumpAndSettle();
 
-    expect(find.text('About S\$17.98 a month'), findsOneWidget);
+    // What it costs a year, a month and a day, and its share of the year.
+    expect(find.text('S\$215.76'), findsOneWidget);
+    expect(find.text('S\$17.98'), findsWidgets); // a month, and its price
+    expect(find.text('S\$0.59'), findsOneWidget);
+    expect(find.text('S\$215.76 a year'), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
     expect(find.textContaining('1 active'), findsOneWidget);
-    expect(find.text('StreamFlix'), findsOneWidget);
+    expect(find.text('StreamFlix'), findsNWidgets(2)); // split and list
     expect(find.textContaining('Monthly · Next charge about'), findsOneWidget);
     expect(find.text('Receipt for lunch'), findsNothing);
-    // Every price is known: nothing to download.
-    expect(find.text('Read receipts'), findsNothing);
+    // Every price is known; only the unrecognised receipt (it may be a
+    // subscription whose preview says little) is offered for reading.
+    expect(find.textContaining('found in 1 receipt not'), findsOneWidget);
 
     // Its own page: what was charged, every receipt.
-    await tester.tap(find.text('StreamFlix'));
+    await tester.tap(find.text('StreamFlix').last);
     await tester.pumpAndSettle();
     expect(find.text('S\$17.98 · monthly'), findsOneWidget);
     expect(find.textContaining('3 times since'), findsOneWidget);
@@ -106,6 +112,6 @@ void main() {
     expect(find.text('No subscriptions found'), findsOneWidget);
     await tester.tap(find.text('Undo'));
     await settle(tester);
-    expect(find.text('StreamFlix'), findsOneWidget);
+    expect(find.text('StreamFlix'), findsNWidgets(2));
   });
 }

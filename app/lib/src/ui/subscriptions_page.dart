@@ -69,6 +69,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
       ..showSnackBar(
         SnackBar(
           content: Text('${s.name} won\'t be listed as a subscription'),
+          persist: false,
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () => _model.unhide(s.company),
@@ -117,7 +118,11 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
                   if (all.isEmpty)
                     const _Empty()
                   else
-                    _Summary(model: _model, soon: soon.length),
+                    _Overview(
+                      model: _model,
+                      soon: soon.length,
+                      onSelect: _select,
+                    ),
                   if (_model.reading case final r?)
                     _Reading(
                       done: r.done,
@@ -193,25 +198,38 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
   );
 }
 
-/// "About S$46.95 a month · 5 active".
-final class _Summary extends StatelessWidget {
-  const _Summary({required this.model, required this.soon});
+/// The overview: what the active subscriptions cost a year, a month and
+/// a day, and how the year splits between them (one bar per currency;
+/// prices are never converted).
+final class _Overview extends StatelessWidget {
+  const _Overview({
+    required this.model,
+    required this.soon,
+    required this.onSelect,
+  });
 
   final SubscriptionsModel model;
   final int soon;
+  final void Function(Subscription) onSelect;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final totals = model.monthlyTotals;
     final active = model.active;
-    final unpriced = active.where((s) => s.monthly == null).length;
-    final total = totals.isEmpty
-        ? null
-        : totals.entries
-              .map((e) => Prices.format(Money(e.value, e.key)))
-              .join(' + ');
+    final unpriced = active.where((s) => s.yearly == null).length;
+    // Per currency, the biggest spend first.
+    final byCurrency = <String, List<Subscription>>{};
+    for (final s in active) {
+      if (s.yearly case final y?) {
+        byCurrency.putIfAbsent(y.currency, () => []).add(s);
+      }
+    }
+    int total(List<Subscription> list) =>
+        list.fold(0, (sum, s) => sum + s.yearly!.minor);
+    final currencies = byCurrency.keys.toList()
+      ..sort((a, b) => total(byCurrency[b]!).compareTo(total(byCurrency[a]!)));
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Padding(
@@ -219,11 +237,8 @@ final class _Summary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              total == null ? 'Your subscriptions' : 'About $total a month',
-              style: theme.textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 6),
+            Text('Your subscriptions', style: theme.textTheme.titleLarge),
+            const SizedBox(height: 4),
             Text(
               [
                 '${active.length} active',
@@ -234,9 +249,239 @@ final class _Summary extends StatelessWidget {
                 color: colors.onSurfaceVariant,
               ),
             ),
+            for (final (i, currency) in currencies.indexed) ...[
+              if (i > 0)
+                const Divider(height: 32)
+              else
+                const SizedBox(height: 18),
+              _Spend(
+                yearly: Money(total(byCurrency[currency]!), currency),
+                subscriptions: byCurrency[currency]!,
+                onSelect: onSelect,
+              ),
+            ],
+            if (currencies.length > 1) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Prices in different currencies are added up separately.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// One currency's spend: per year, month and day, and the split.
+final class _Spend extends StatelessWidget {
+  const _Spend({
+    required this.yearly,
+    required this.subscriptions,
+    required this.onSelect,
+  });
+
+  final Money yearly;
+  final List<Subscription> subscriptions;
+  final void Function(Subscription) onSelect;
+
+  /// Categorical colours in a fixed order (checked for colour blindness
+  /// against each mode's surface); a sixth and later go into "Others".
+  static const _light = [
+    Color(0xFF00927A),
+    Color(0xFFE0A030),
+    Color(0xFF4F6FD0),
+    Color(0xFFD0604A),
+    Color(0xFF9A62C0),
+  ];
+  static const _dark = [
+    Color(0xFF14957D),
+    Color(0xFFBA7A12),
+    Color(0xFF5A7BD0),
+    Color(0xFFC9604D),
+    Color(0xFF9A6BC0),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final palette = theme.brightness == Brightness.dark ? _dark : _light;
+    final c = yearly.currency;
+    final sorted = [...subscriptions]
+      ..sort((a, b) => b.yearly!.minor.compareTo(a.yearly!.minor));
+    final shown = sorted.length > palette.length
+        ? sorted.take(palette.length - 1).toList()
+        : sorted;
+    final others = sorted.skip(shown.length).toList();
+    final parts = <({String name, int minor, Color color, Subscription? s})>[
+      for (final (i, s) in shown.indexed)
+        (name: s.name, minor: s.yearly!.minor, color: palette[i], s: s),
+      if (others.isNotEmpty)
+        (
+          name: '${others.length} others',
+          minor: others.fold(0, (sum, s) => sum + s.yearly!.minor),
+          color: colors.outline,
+          s: null,
+        ),
+    ];
+    String pct(int minor) {
+      final p = minor * 100 / yearly.minor;
+      return p < 1 ? '<1%' : '${p.round()}%';
+    }
+
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: colors.onSurfaceVariant,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 4,
+              child: _Figure(
+                label: 'Per year',
+                value: Prices.format(yearly),
+                big: true,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 3,
+              child: _Figure(
+                label: 'Per month',
+                value: Prices.format(Money((yearly.minor / 12).round(), c)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 3,
+              child: _Figure(
+                label: 'Per day',
+                value: Prices.format(Money((yearly.minor / 365).round(), c)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // The split: one bar, a 2px gap between parts.
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 14,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (i, part) in parts.indexed) ...[
+                  if (i > 0) const SizedBox(width: 2),
+                  Expanded(
+                    flex: part.minor < 1 ? 1 : part.minor,
+                    child: Tooltip(
+                      message:
+                          '${part.name}: ${Prices.format(Money(part.minor, c))} '
+                          'a year (${pct(part.minor)})',
+                      child: ColoredBox(color: part.color),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final part in parts)
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: part.s == null ? null : () => onSelect(part.s!),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+              child: Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: part.color,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      part.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  Text(
+                    '${Prices.format(Money(part.minor, c))} a year',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text(
+                      pct(part.minor),
+                      textAlign: TextAlign.end,
+                      style: muted?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// A labelled number: "Per month / S$29.96".
+final class _Figure extends StatelessWidget {
+  const _Figure({required this.label, required this.value, this.big = false});
+
+  final String label;
+  final String value;
+  final bool big;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        // Shrinks rather than wraps when a price is long.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            maxLines: 1,
+            style:
+                (big
+                        ? theme.textTheme.headlineSmall
+                        : theme.textTheme.titleLarge)
+                    ?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -266,9 +511,10 @@ final class _ReadOffer extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Some prices or dates are missing. They can be found in '
-                    '$count receipt${count == 1 ? '' : 's'} not on this device '
-                    'yet, downloaded from your mail server (they stay unread).',
+                    'Some subscriptions, prices or dates may be missing. '
+                    'They can be found in $count receipt${count == 1 ? '' : 's'} '
+                    'not on this device yet, downloaded from your mail server '
+                    '(they stay unread).',
                   ),
                 ),
               ],

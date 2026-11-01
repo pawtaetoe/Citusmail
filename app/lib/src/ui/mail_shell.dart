@@ -104,6 +104,8 @@ final class _MailShellState extends State<MailShell> {
           behavior: SnackBarBehavior.floating,
           width: MediaQuery.sizeOf(context).width > 600 ? 420 : null,
           duration: Duration(seconds: undo == null ? 3 : 5),
+          // With Undo too it goes away after [duration].
+          persist: false,
           action: undo == null
               ? null
               : SnackBarAction(label: 'Undo', onPressed: undo),

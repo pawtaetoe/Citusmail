@@ -25,7 +25,8 @@ they are easy to forget, and bank statements make monthly and yearly ones
 hard to tell apart. Citusmail reads your receipts and renewal emails **on
 your device** and lists every subscription it finds:
 
-- **what you pay each month in total**, and which ones renew this week;
+- **what you spend a year, a month and a day**, and how the year splits
+  between your subscriptions, and which ones renew this week;
 - for each one, the **price, how often it charges and the next charge**;
 - **every past receipt** with what was charged, opening right in place,
   and when the **price went up**;
@@ -37,7 +38,7 @@ downloaded (from your own mail server, and they stay unread) when you
 ask.
 
 <p align="center">
-  <img src="docs/screenshots/readme_subscriptions.png" alt="The Subscriptions page: about S$29.96 plus US$9.99 a month, one renewing in 2 days, active and cancelled subscriptions with their prices" width="32%">
+  <img src="docs/screenshots/readme_subscriptions.png" alt="The Subscriptions page: S$359.52 a year (S$29.96 a month, S$0.98 a day) split 60/40 between StreamFlix and Tunes, US$119.88 a year for CloudBox, one renewing in 2 days" width="32%">
   &nbsp;
   <img src="docs/screenshots/readme_subscription.png" alt="One subscription: S$17.98 monthly, charged 5 times, S$85.90 in total, the price went up from S$15.98, and every receipt" width="32%">
 </p>

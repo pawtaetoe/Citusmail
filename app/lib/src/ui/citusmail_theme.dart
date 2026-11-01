@@ -226,6 +226,10 @@ abstract final class CitusmailTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        // Every notice can be closed; it also closes by itself (see
+        // SnackBar.persist: those with a button pass false).
+        showCloseIcon: true,
+        closeIconColor: light ? Colors.white70 : CitusPalette.ink,
         backgroundColor: light
             ? const Color(0xFF1E2B28)
             : const Color(0xFFDDE7E4),

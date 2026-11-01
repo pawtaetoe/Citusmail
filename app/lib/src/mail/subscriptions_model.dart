@@ -36,6 +36,9 @@ final class SubscriptionsModel extends ChangeNotifier {
   static const _perSubscription = 6;
   static const _maxBytes = 512 * 1024;
 
+  /// Receipts of companies not recognised yet, downloaded at most.
+  static const _unknownMax = 30;
+
   bool loading = true;
   List<Subscription> subscriptions = const [];
 
@@ -64,18 +67,6 @@ final class SubscriptionsModel extends ChangeNotifier {
     for (final s in subscriptions)
       if (s.status == SubscriptionStatus.active) s,
   ];
-
-  /// What the active subscriptions cost a month, per currency (those with
-  /// a known price and cadence).
-  Map<String, int> get monthlyTotals {
-    final totals = <String, int>{};
-    for (final s in active) {
-      if (s.monthly case final m?) {
-        totals[m.currency] = (totals[m.currency] ?? 0) + m.minor;
-      }
-    }
-    return totals;
-  }
 
   Future<void> load() async {
     hidden = {
@@ -128,9 +119,33 @@ final class SubscriptionsModel extends ChangeNotifier {
                   )
                   .take(_perSubscription))
             r.email.messageId,
+      // Receipts of companies not recognised yet: their whole text may
+      // show a billing period ("Sep 28, 2026 – Sep 28, 2027").
+      ..._unknownReceipts(emails, all, sizes),
     ];
     loading = false;
     notifyListeners();
+  }
+
+  /// Receipts not on the device, newest first, from companies that are
+  /// neither listed nor hidden.
+  Iterable<int> _unknownReceipts(
+    List<SubscriptionEmail> emails,
+    List<Subscription> found,
+    Map<int, int> sizes,
+  ) {
+    final known = {for (final s in found) s.company};
+    final receipts = [
+      for (final e in emails)
+        if (!known.contains(e.company) &&
+            !hidden.contains(e.company) &&
+            !SubscriptionFinder.isReplyOrForward(e.subject) &&
+            SubscriptionFinder.eventOf(e) == SubscriptionEvent.charge &&
+            _store.messages.body(e.messageId) == null &&
+            (sizes[e.messageId] ?? 0) <= _maxBytes)
+          e,
+    ]..sort((a, b) => b.at.compareTo(a.at));
+    return receipts.take(_unknownMax).map((e) => e.messageId);
   }
 
   /// Downloads the receipts in [toRead] from the user's own mail server
