@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Adaptive icon foreground: the envelope inside the 66dp safe zone. -->
+<!-- Adaptive icon foreground: a forward-leaning envelope with citrus speed
+     lines ("citus" is Latin for fast), inside the 66dp safe zone. Drawn
+     from assets/icon/icon.svg. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -7,12 +9,18 @@
     android:viewportHeight="108">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M31,35h46a5,5 0,0 1,5 5v28a5,5 0,0 1,-5 5H31a5,5 0,0 1,-5 -5V40a5,5 0,0 1,5 -5z"/>
+        android:pathData="M49.11,40.53L78.41,40.53Q82.21,40.53 81.26,44.34L76.44,63.66Q75.49,67.47 71.68,67.47L42.39,67.47Q38.58,67.47 39.53,63.66L44.36,44.34Q45.30,40.53 49.11,40.53z"/>
     <path
-        android:strokeColor="#FF2F80ED"
-        android:strokeWidth="4"
+        android:strokeColor="#FF0F7A69"
+        android:strokeWidth="3.22"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M29.5,39L54,56.5L78.5,39"/>
+        android:pathData="M46.92,43.46L60.03,55.47L79.14,43.46"/>
+    <path
+        android:strokeColor="#FFF4B740"
+        android:strokeWidth="3.22"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M30.34,47.26L39.72,47.26M27.41,54.00L38.55,54.00M30.34,60.74L36.79,60.74"/>
 </vector>
