@@ -373,6 +373,25 @@ void main() {
     expect(find.text('Show more (4 more)'), findsOneWidget);
   });
 
+  testWidgets('show original, and forward the whole message as an .eml', (
+    tester,
+  ) async {
+    await show(tester, const Size(1400, 900));
+    await tester.tap(find.text('Hello there'));
+    await settle(tester);
+
+    await tester.tap(find.byTooltip('Show original'));
+    await tester.pumpAndSettle();
+    expect(find.text('Original message'), findsOneWidget);
+    expect(find.textContaining('Subject:'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Forward as attachment'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Hello there.eml'), findsOneWidget);
+  });
+
   testWidgets('thousands of messages: only what is on screen is built', (
     tester,
   ) async {

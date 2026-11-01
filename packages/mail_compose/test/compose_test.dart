@@ -160,6 +160,30 @@ void main() {
     });
   });
 
+  group('forward as attachment', () {
+    test('the original whole, as an attached email', () {
+      final (message, _) = received();
+      final raw = Uint8List.fromList(
+        latin1.encode('Subject: Re: Plans\r\n\r\nFirst line\r\n'),
+      );
+      final draft = ReplyBuilder(store).forwardAsAttachment(message, raw);
+      expect(draft.subject, 'Fwd: Re: Plans');
+      expect(draft.body, isEmpty);
+      expect(draft.to, isEmpty);
+      final attachment = draft.attachments.single;
+      expect(attachment.mimeType, 'message/rfc822');
+      expect(attachment.fileName, 'Re_ Plans.eml');
+      expect(attachment.bytes, raw);
+    });
+
+    test('.eml names are safe and end in .eml', () {
+      expect(ReplyBuilder.emlName('Invoice 42'), 'Invoice 42.eml');
+      expect(ReplyBuilder.emlName('../../etc/passwd'), 'passwd.eml');
+      expect(ReplyBuilder.emlName(null), 'message.eml');
+      expect(ReplyBuilder.emlName('saved.EML'), 'saved.EML');
+    });
+  });
+
   group('drafts', () {
     late DraftStore store_;
     setUp(() => store_ = DraftStore(store));

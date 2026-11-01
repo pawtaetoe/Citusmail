@@ -294,6 +294,60 @@ void main() {
       },
     );
 
+    test('an attached email goes as message/rfc822 when it is 7-bit', () {
+      final original = latin1.encode(
+        'From: carol@x.example\r\nSubject: Original\r\n\r\nHello\r\n',
+      );
+      final built = raw(
+        OutgoingMessage(
+          from: alice,
+          to: [bob],
+          textBody: 'see attached',
+          attachments: [
+            OutgoingAttachment(
+              filename: 'Original.eml',
+              mimeType: 'message/rfc822',
+              bytes: original,
+            ),
+          ],
+        ),
+      );
+      expect(built, contains('Content-Type: message/rfc822'));
+      expect(built, contains('Content-Transfer-Encoding: 7bit'));
+      // Sent exactly as received, not base64.
+      expect(built, contains('Subject: Original\r\n\r\nHello\r\n'));
+      final part = const MimeParser()
+          .parse(latin1.encode(built))
+          .root
+          .allParts
+          .firstWhere((p) => p.contentType.isEmbeddedMessage);
+      expect(part.embeddedMessage?.subject, 'Original');
+    });
+
+    test('an 8-bit email is attached as a plain .eml file instead', () {
+      final original = Uint8List.fromList(
+        utf8.encode('Subject: Grüße\r\n\r\nHallo Wörld\r\n'),
+      );
+      final m = roundTrip(
+        OutgoingMessage(
+          from: alice,
+          to: [bob],
+          textBody: 'x',
+          attachments: [
+            OutgoingAttachment(
+              filename: 'Original.eml',
+              mimeType: 'message/rfc822',
+              bytes: original,
+            ),
+          ],
+        ),
+      );
+      final part = m.attachments.single;
+      expect(part.contentType.mimeType, 'application/octet-stream');
+      expect(part.filename, 'Original.eml');
+      expect(part.decodeBody().bytes, original);
+    });
+
     test('invalid attachment types and missing recipients are rejected', () {
       expect(
         () => build(

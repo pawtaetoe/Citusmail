@@ -158,6 +158,28 @@ final class MessageBuilder {
   }
 
   _Entity _attachment(OutgoingAttachment attachment) {
+    if (attachment.mimeType.toLowerCase() == 'message/rfc822') {
+      // An attached email may not be base64 (RFC 2046 5.2.1): sent as it
+      // is when it is 7-bit with proper lines, else as a plain .eml file.
+      if (_isSevenBitMessage(attachment.bytes)) {
+        final name = _safeFilename(attachment.filename);
+        return _Entity(
+          'message/rfc822',
+          'Content-Type: message/rfc822${_filenameParameter('name', name)}\r\n'
+              'Content-Transfer-Encoding: 7bit\r\n'
+              'Content-Disposition: attachment'
+              '${_filenameParameter('filename', name)}\r\n',
+          attachment.bytes,
+        );
+      }
+      return _attachment(
+        OutgoingAttachment(
+          filename: attachment.filename,
+          mimeType: 'application/octet-stream',
+          bytes: attachment.bytes,
+        ),
+      );
+    }
     final name = _safeFilename(attachment.filename);
     final headers = StringBuffer()
       ..write(
@@ -176,6 +198,26 @@ final class MessageBuilder {
       headers.toString(),
       BodyEncoder.encodeBase64(attachment.bytes),
     );
+  }
+
+  /// Whether [bytes] can travel as-is in a 7-bit body: ASCII without NUL,
+  /// CR and LF only as CRLF, lines of at most 998 characters (RFC 5322).
+  static bool _isSevenBitMessage(Uint8List bytes) {
+    var line = 0;
+    for (var i = 0; i < bytes.length; i++) {
+      final b = bytes[i];
+      if (b == 0 || b > 0x7F) return false;
+      if (b == 0x0D) {
+        if (i + 1 >= bytes.length || bytes[i + 1] != 0x0A) return false;
+        i++;
+        line = 0;
+      } else if (b == 0x0A) {
+        return false; // a bare LF
+      } else if (++line > 998) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// `;\r\n name="file.pdf"` for short ASCII names; for others RFC 2231

@@ -28,7 +28,7 @@ final class SyncWorkerConfig {
     required this.databasePath,
     required this.key,
     this.connector = _defaultConnector,
-    this.fullSyncInterval = const Duration(minutes: 15),
+    this.fullSyncInterval = const Duration(minutes: 5),
   });
 
   final String databasePath;
