@@ -1,13 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Citusmail app icon: a white envelope on a blue tile. -->
+<!-- Citusmail app icon: a forward-leaning envelope with citrus speed lines
+     ("citus" is Latin for fast) on a lagoon tile, in the app's own colours
+     (CitusPalette: lagoon #0F7A69, citrus #F4B740). -->
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3B8CF5"/>
-      <stop offset="1" stop-color="#1F5FC4"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14917C"/>
+      <stop offset="1" stop-color="#0B4A40"/>
     </linearGradient>
   </defs>
   <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
-  <rect x="104" y="150" width="304" height="212" rx="28" fill="#FFFFFF"/>
-  <path d="M120 172 L256 270 L392 172" fill="none" stroke="#2F80ED" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- skewX(-14deg), moved right by 96 -->
+  <g transform="matrix(1 0 -0.2493 1 96 0)">
+    <rect x="150" y="160" width="252" height="184" rx="26" fill="#FFFFFF"/>
+    <path d="M166 180 L276 262 L386 180" fill="none" stroke="#0F7A69" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g stroke="#F4B740" stroke-width="22" stroke-linecap="round">
+    <line x1="104" y1="206" x2="168" y2="206"/>
+    <line x1="84" y1="252" x2="160" y2="252"/>
+    <line x1="104" y1="298" x2="148" y2="298"/>
+  </g>
 </svg>

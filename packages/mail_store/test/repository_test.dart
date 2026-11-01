@@ -1532,7 +1532,7 @@ void main() {
   });
 
   group('subscription candidates', () {
-    test('subject words, any case; not own, trash, junk or newsletters', () {
+    test('subject words, any case; not own, trash or junk', () {
       final account = temp.addAccount();
       final boxes = store.mailboxes.replaceAll(account.id, [
         folder('INBOX'),
@@ -1565,8 +1565,10 @@ void main() {
         'renew',
         'invoice',
       ], since: DateTime.utc(2025));
+      // Newsletters too: bills often come with offers.
       expect(found.map((m) => m.subject), [
         'Subscription renewed',
+        'Renewal notice',
         'Your Netflix RECEIPT',
       ]);
     });

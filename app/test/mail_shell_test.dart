@@ -162,6 +162,38 @@ void main() {
     );
   });
 
+  testWidgets('notices with Undo close by themselves, or with their X', (
+    tester,
+  ) async {
+    await show(tester, const Size(1400, 900));
+    await tester.tap(find.text('Lunch?'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Archive (E)').last);
+    await tester.pump();
+    expect(find.text('Archived'), findsOneWidget);
+    final closeNotice = find.descendant(
+      of: find.byType(SnackBar),
+      matching: find.byIcon(Icons.close),
+    );
+    expect(closeNotice, findsOneWidget);
+    // Gone after its few seconds, Undo or not.
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(find.text('Archived'), findsNothing);
+
+    // The next one closes with its X.
+    await tester.tap(find.byTooltip('Archive (E)').last);
+    await tester.pump();
+    expect(find.text('Archived'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 500)); // slid in
+    await tester.tap(closeNotice);
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    expect(find.text('Archived'), findsNothing);
+  });
+
   test('Gmail: archiving goes to All Mail when there is no Archive', () {
     final accountId = store.accounts.all().single.id;
     final inbox = store.mailboxes.inbox(accountId)!;

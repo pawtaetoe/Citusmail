@@ -154,6 +154,14 @@ final class Subscription {
     if (a == null || c == null) return null;
     return Money((a.minor * c.perMonth).round(), a.currency);
   }
+
+  /// The amount per year, or null.
+  Money? get yearly {
+    final a = amount;
+    final c = cadence;
+    if (a == null || c == null) return null;
+    return Money((a.minor * c.perMonth * 12).round(), a.currency);
+  }
 }
 
 /// Finds paid subscriptions in receipts and renewal mail, on the device.
@@ -178,12 +186,17 @@ abstract final class SubscriptionFinder {
     'trial',
     'cancel',
     'auto-renew',
+    'bill',
+    'statement',
   ];
 
   static final _subscriptionWords = RegExp(
     r'\b(?:subscriptions?|subscribed|membership|renews?|renewed|renewal|'
     r'auto-renew\w*|recurring|your plan|premium plan|billing period|'
-    r'next billing|next payment|free trial|trial)\b',
+    r'next billing|next payment|free trial|trial|'
+    r'unused time on|remaining time on|'
+    // Phone, broadband and utility bills recur too.
+    r'e-?bill|monthly (?:bill|invoice|statement))\b',
     caseSensitive: false,
   );
 
@@ -200,7 +213,9 @@ abstract final class SubscriptionFinder {
 
   static final _chargeWords = RegExp(
     r'\b(?:receipt|invoice|payment (?:received|confirmation|successful)|'
-    r'paid|charged|renewed|order confirmation|your order|billing statement)\b',
+    r'paid|charged|renewed|order confirmation|your order|billing statement|'
+    r'e-?bill|your (?:\w+ )?bill|bill (?:is|for)|'
+    r'statement (?:is ready|is available))\b',
     caseSensitive: false,
   );
 
@@ -223,10 +238,107 @@ abstract final class SubscriptionFinder {
     ),
   };
 
+  static final _replyOrForward = RegExp(
+    r'^\s*(?:\[[^\]]*\]\s*)?(?:re|fwd?|aw|wg|sv|vs|tr|rv)\s*(?:\[\d+\])?\s*:',
+    caseSensitive: false,
+  );
+
+  /// "Re: ..." or "Fwd: ...": a discussion, not a company's own mail.
+  static bool isReplyOrForward(String subject) =>
+      _replyOrForward.hasMatch(subject);
+
+  /// A cancelled shop or food order, not a subscription.
+  static final _orderWords = RegExp(
+    r'\b(?:order|delivery|booking|ride|trip)\b',
+    caseSensitive: false,
+  );
+
+  static const _months = {
+    'jan': 1,
+    'feb': 2,
+    'mar': 3,
+    'apr': 4,
+    'may': 5,
+    'jun': 6,
+    'jul': 7,
+    'aug': 8,
+    'sep': 9,
+    'oct': 10,
+    'nov': 11,
+    'dec': 12,
+  };
+
+  static const _month =
+      r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?';
+
+  /// A billing period as receipts print it ("Sep 28, 2026 – Sep 28, 2027",
+  /// "28 Sep 2026 - 28 Sep 2027", "2026-09-28 to 2027-09-28").
+  static final _periods = [
+    RegExp(
+      '$_month\\s+(\\d{1,2}),?\\s+(\\d{4})\\s*(?:[-–—]|to|until)\\s*'
+      '$_month\\s+(\\d{1,2}),?\\s+(\\d{4})',
+      caseSensitive: false,
+    ),
+    RegExp(
+      '(\\d{1,2})\\s+$_month,?\\s+(\\d{4})\\s*(?:[-–—]|to|until)\\s*'
+      '(\\d{1,2})\\s+$_month,?\\s+(\\d{4})',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'(\d{4})-(\d{2})-(\d{2})\s*(?:[-–—]|to|until)\s*(\d{4})-(\d{2})-(\d{2})',
+    ),
+  ];
+
+  /// The length of a billing period printed in [text], if any.
+  static Duration? billingPeriodIn(String text) {
+    for (final (i, re) in _periods.indexed) {
+      for (final m in re.allMatches(text)) {
+        DateTime? date(int g) {
+          final (y, mo, d) = switch (i) {
+            0 => (m[g + 2], _months[m[g]!.toLowerCase()], m[g + 1]),
+            1 => (m[g + 2], _months[m[g + 1]!.toLowerCase()], m[g]),
+            _ => (m[g], int.tryParse(m[g + 1]!), m[g + 2]),
+          };
+          final year = int.tryParse(y!);
+          final day = int.tryParse(d!);
+          if (year == null || mo == null || day == null) return null;
+          return DateTime.utc(year, mo, day);
+        }
+
+        final from = date(1);
+        final to = date(4);
+        if (from == null || to == null || !to.isAfter(from)) continue;
+        final length = to.difference(from);
+        if (length.inDays >= 6 && length.inDays <= 400) return length;
+      }
+    }
+    return null;
+  }
+
+  static Cadence? _cadenceOfPeriod(Duration period) {
+    for (final c in Cadence.values) {
+      if ((period.inDays - c.days).abs() <= c.days * 0.1 + 2) return c;
+    }
+    return null;
+  }
+
+  /// Whether [email] itself is about a subscription: its wording, or a
+  /// billing period.
+  static bool _speaksOfSubscription(SubscriptionEmail email) =>
+      _subscriptionWords.hasMatch(email.subject) ||
+      _subscriptionWords.hasMatch(email.text) ||
+      billingPeriodIn(email.text) != null;
+
   /// What [email] says.
   static SubscriptionEvent eventOf(SubscriptionEmail email) {
     final subject = email.subject;
-    if (_cancelWords.hasMatch(subject)) return SubscriptionEvent.cancelled;
+    if (_cancelWords.hasMatch(subject)) {
+      // "Your order was cancelled" is about an order.
+      return _orderWords.hasMatch(subject) &&
+              !_subscriptionWords.hasMatch(subject)
+          ? SubscriptionEvent.notice
+          : SubscriptionEvent.cancelled;
+    }
     if (_trialWords.hasMatch(subject)) return SubscriptionEvent.trial;
     if (_chargeWords.hasMatch(subject)) return SubscriptionEvent.charge;
     if (_cancelWords.hasMatch(email.text)) return SubscriptionEvent.cancelled;
@@ -286,17 +398,32 @@ abstract final class SubscriptionFinder {
     '|$_number\\s?(${_codes.join('|')}(?![A-Za-z])|€|£))',
   );
 
+  /// Words right before the amount actually paid.
+  static final _paidWords = RegExp(
+    r'\b(?:amount (?:paid|charged)|you paid|total paid|total charged|'
+    r'grand total|total due|amount due)\W*$',
+    caseSensitive: false,
+  );
+
   static final _totalWords = RegExp(
     r'\b(?:total|amount (?:paid|charged|due)?|charged|you paid|paid|price|grand total|billed)\b',
     caseSensitive: false,
   );
 
-  /// The amount [text] says was charged: the first after a word such as
-  /// "Total" or "charged", else the first one at all.
+  /// A total that is not what was paid: "Total excluding tax".
+  static final _partTotal = RegExp(
+    r'\b(?:sub-?total|total (?:excl(?:uding|\.)?|ex\.?|before|without|net)\b)',
+    caseSensitive: false,
+  );
+
+  /// The amount [text] says was charged: one right after "Amount paid" or
+  /// "Grand total"; else the first after a word such as "Total" or
+  /// "charged" (not "Total excluding tax"); else the first one at all.
   static Money? amountIn(String text) {
     if (text.isEmpty) return null;
     final sample = text.length > 20000 ? text.substring(0, 20000) : text;
     Money? first;
+    Money? total;
     for (final m in _amount.allMatches(sample)) {
       final money = _money(m);
       if (money == null) continue;
@@ -305,9 +432,21 @@ abstract final class SubscriptionFinder {
         m.start - 40 < 0 ? 0 : m.start - 40,
         m.start,
       );
-      if (_totalWords.hasMatch(before)) return money;
+      if (_paidWords.hasMatch(before)) return money;
+      // The words closest to the amount: the last line before it.
+      final line = before
+          .split('\n')
+          .lastWhere((l) => l.trim().isNotEmpty, orElse: () => before);
+      final near = line.trim().isEmpty || _amount.hasMatch(line)
+          ? before
+          : line;
+      if (total == null &&
+          _totalWords.hasMatch(near) &&
+          !_partTotal.hasMatch(near)) {
+        total = money;
+      }
     }
-    return first;
+    return total ?? first;
   }
 
   static Money? _money(RegExpMatch m) {
@@ -345,6 +484,9 @@ abstract final class SubscriptionFinder {
   }) {
     final byCompany = <String, List<SubscriptionEmail>>{};
     for (final e in emails) {
+      // Replies and forwards (a discussion that mentions a receipt or a
+      // subscription) are not the company's own mail.
+      if (isReplyOrForward(e.subject)) continue;
       byCompany.putIfAbsent(e.company, () => []).add(e);
     }
     final found = <Subscription>[];
@@ -358,20 +500,37 @@ abstract final class SubscriptionFinder {
             amountIn('${e.subject}\n${e.text}'),
           ),
       ];
-      final charges = records
+      var charges = records
           .where((r) => r.event == SubscriptionEvent.charge)
           .toList();
-      final cadence =
-          _cadenceFromDates([for (final r in charges) r.email.at]) ??
-          _cadenceFromWords(list);
-      final says = list.any(
-        (e) =>
-            _subscriptionWords.hasMatch(e.subject) ||
-            _subscriptionWords.hasMatch(e.text),
-      );
       final regular =
           charges.length >= 3 &&
           _cadenceFromDates([for (final r in charges) r.email.at]) != null;
+      if (!regular) {
+        // A company that also sells one-off things (rides, food, shop
+        // orders) sends receipts that are not the subscription's: only
+        // those that speak of it count, unless there are just one or two.
+        final own = [
+          for (final r in charges)
+            if (_speaksOfSubscription(r.email)) r,
+        ];
+        if (own.isNotEmpty || charges.length > 2) {
+          final dropped = {
+            for (final r in charges) r,
+            // Their other mail ("your order was cancelled") too.
+            for (final r in records)
+              if (r.event == SubscriptionEvent.notice &&
+                  !_speaksOfSubscription(r.email))
+                r,
+          }..removeAll(own);
+          records.removeWhere(dropped.contains);
+          charges = own;
+        }
+      }
+      final cadence =
+          _cadenceFromDates([for (final r in charges) r.email.at]) ??
+          _cadenceFromWords([for (final r in records) r.email]);
+      final says = records.any((r) => _speaksOfSubscription(r.email));
       if (!says && !regular) continue;
       if (charges.isEmpty &&
           !records.any((r) => r.event == SubscriptionEvent.trial)) {
@@ -446,6 +605,11 @@ abstract final class SubscriptionFinder {
   }
 
   static Cadence? _cadenceFromWords(List<SubscriptionEmail> list) {
+    for (final e in list) {
+      if (billingPeriodIn(e.text) case final period?) {
+        if (_cadenceOfPeriod(period) case final c?) return c;
+      }
+    }
     for (final e in list) {
       final text = '${e.subject}\n${e.text}';
       for (final MapEntry(key: cadence, value: words)

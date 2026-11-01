@@ -127,4 +127,23 @@ void main() {
       expect(find.text(shown), findsOneWidget, reason: shown);
     }
   });
+
+  testWidgets('how far back mail is kept: 2 years unless changed', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    expect(KeepMail.read(app.store), KeepMail.twoYears);
+    expect(find.textContaining('The last 2 years.'), findsOneWidget);
+    await tester.tap(find.text('Keep mail from'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Everything'));
+    await tester.pumpAndSettle();
+    expect(KeepMail.read(app.store), KeepMail.everything);
+    expect(find.textContaining('Everything.'), findsOneWidget);
+  });
 }

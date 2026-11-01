@@ -80,6 +80,7 @@ abstract final class ComposeLauncher {
         SnackBar(
           content: const Text('Sending…'),
           duration: left.isNegative ? Duration.zero : left,
+          persist: false,
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () {

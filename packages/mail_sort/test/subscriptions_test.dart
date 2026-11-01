@@ -25,6 +25,36 @@ SubscriptionEmail mail(
 DateTime day(int month, int d, [int year = 2026]) =>
     DateTime.utc(year, month, d);
 
+const _stripeReceipt = '''
+Anthropic, PBC
+Receipt from Anthropic, PBC
+\$202.39
+Paid September 28, 2026
+Download invoice
+Receipt number
+2813-4113-5333
+Payment method
+Mastercard - 0232
+Receipt #2813-4113-5333
+Sep 28, 2026–Sep 28, 2027
+Claude Pro
+Qty 1
+\$200.00
+Unused time on Claude Pro after 28 Sep 2026
+Qty 1
+-\$14.32
+Subtotal
+\$185.68
+Total excluding tax
+\$185.68
+GST - Singapore (9%)
+\$16.71
+Total
+\$202.39
+Amount paid
+\$202.39
+''';
+
 void main() {
   final now = DateTime.utc(2026, 11, 1);
 
@@ -50,6 +80,33 @@ void main() {
         ),
         const Money(1498, 'SGD'),
       );
+    });
+
+    test('the amount paid, not the total before tax', () {
+      expect(
+        SubscriptionFinder.amountIn(_stripeReceipt),
+        const Money(20239, r'$'),
+      );
+      expect(
+        SubscriptionFinder.amountIn('Subtotal S\$10.00\nTotal S\$10.90'),
+        const Money(1090, 'SGD'),
+      );
+    });
+
+    test('billing periods', () {
+      expect(
+        SubscriptionFinder.billingPeriodIn('Sep 28, 2026–Sep 28, 2027'),
+        const Duration(days: 365),
+      );
+      expect(
+        SubscriptionFinder.billingPeriodIn('Period: 1 Oct 2026 - 1 Nov 2026'),
+        const Duration(days: 31),
+      );
+      expect(
+        SubscriptionFinder.billingPeriodIn('2026-10-01 to 2026-10-31'),
+        const Duration(days: 30),
+      );
+      expect(SubscriptionFinder.billingPeriodIn('Sep 28, 2026'), isNull);
     });
 
     test('no amount: null', () {
@@ -144,6 +201,129 @@ void main() {
         mail('shop.example', 'Your order receipt', day(7, 9)),
         // Mentions a plan, nothing paid or started.
         mail('news.example', 'Payment methods for your plan', day(10, 1)),
+      ], now: now);
+      expect(found, isEmpty);
+    });
+
+    test('a receipt with a billing period is a subscription', () {
+      final found = SubscriptionFinder.find([
+        mail(
+          'anthropic.com',
+          'Your receipt from Anthropic, PBC #2813-4113-5333',
+          day(9, 28),
+          text: _stripeReceipt,
+          name: 'Anthropic, PBC',
+        ),
+      ], now: now);
+      expect(found, hasLength(1));
+      final s = found.single;
+      expect(s.name, 'Anthropic, PBC');
+      expect(s.cadence, Cadence.yearly);
+      expect(s.amount, const Money(20239, r'$'));
+      expect(s.status, SubscriptionStatus.active);
+      expect(s.nextCharge, day(9, 28, 2027));
+    });
+
+    test('a trial does not turn one-off receipts into a subscription', () {
+      final found = SubscriptionFinder.find([
+        mail(
+          'grab.com',
+          'Your Grab E-Receipt',
+          day(9, 28),
+          text: 'Total S\$31.80 GrabFood',
+        ),
+        mail('grab.com', 'Sorry, your order was cancelled', day(9, 28)),
+        mail(
+          'grab.com',
+          'Your Grab E-Receipt',
+          day(10, 4),
+          text: 'Total S\$37.80 GrabCar',
+        ),
+        mail(
+          'grab.com',
+          'You\'re on the free trial 🎉',
+          day(10, 5),
+          text: 'GrabUnlimited: S\$59.88 a year after your free trial',
+        ),
+        mail(
+          'grab.com',
+          'Your Grab E-Receipt',
+          day(10, 5),
+          text: 'Total S\$35.08 GrabFood',
+        ),
+        mail(
+          'grab.com',
+          'Your Grab E-Receipt',
+          day(10, 9),
+          text: 'Total S\$18.00 GrabCar',
+        ),
+      ], now: now);
+      expect(found, hasLength(1));
+      final s = found.single;
+      // Only the trial: no ride or food receipt, no cancelled order.
+      expect(s.records.map((r) => r.event), [SubscriptionEvent.trial]);
+      expect(s.status, SubscriptionStatus.active);
+      expect(s.lastCharge, isNull);
+    });
+
+    test('phone and broadband bills', () {
+      final found = SubscriptionFinder.find([
+        mail(
+          'myrepublic.net',
+          'Your MyRepublic e-Bill is ready!',
+          day(10, 29),
+          name: 'MyRepublic',
+          text:
+              'Your e-bill is ready! The monthly bill for your MyRepublic '
+              'mobile is now ready! The outstanding amount for your account '
+              'C4082197 is: \$6.00',
+        ),
+        mail(
+          'myrepublic.com.sg',
+          'Your monthly invoice is ready!',
+          day(10, 6),
+          name: 'MyRepublic',
+          text:
+              'Your e-bill is ready! View bill on MyAccount. The outstanding '
+              'amount for your account RA2328693 is: \$32.99 PayNow QR',
+        ),
+      ], now: now);
+      expect(found, hasLength(2));
+      final mobile = found.firstWhere((s) => s.company == 'myrepublic.net');
+      expect(mobile.amount, const Money(600, r'$'));
+      expect(mobile.cadence, Cadence.monthly);
+      expect(mobile.status, SubscriptionStatus.active);
+      final home = found.firstWhere((s) => s.company == 'myrepublic.com.sg');
+      expect(home.amount, const Money(3299, r'$'));
+      expect(home.cadence, Cadence.monthly);
+      expect(
+        SubscriptionFinder.subjectWords.any(
+          (w) => 'Your MyRepublic e-Bill is ready!'.toLowerCase().contains(w),
+        ),
+        isTrue,
+      );
+    });
+
+    test('replies and forwards are not receipts', () {
+      final found = SubscriptionFinder.find([
+        mail(
+          'github.com',
+          'Re: [pawtaetoe/Citusmail] Subscriptions: a page per subscription '
+              'with every receipt',
+          day(10, 30),
+          text: 'Your subscription receipt is shown monthly',
+        ),
+        mail(
+          'github.com',
+          'Re: [x/y] Subscriptions found (PR #13)',
+          day(10, 30),
+        ),
+        mail(
+          'shop.example',
+          'Fwd: Your membership receipt',
+          day(10, 1),
+          text: 'Total S\$9.00 monthly',
+        ),
       ], now: now);
       expect(found, isEmpty);
     });
