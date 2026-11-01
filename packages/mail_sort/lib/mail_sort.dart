@@ -13,4 +13,5 @@ export 'src/list_id.dart';
 export 'src/resorter.dart';
 export 'src/sender_patterns.dart';
 export 'src/sorting_rules.dart';
+export 'src/subscriptions.dart';
 export 'src/verification_codes.dart';
