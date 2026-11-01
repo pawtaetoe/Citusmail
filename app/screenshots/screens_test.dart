@@ -163,6 +163,8 @@ void main() {
       dark: true,
     );
     await shoot(tester, 'phone_subscriptions');
+    await tester.tap(find.text('StreamFlix'));
+    await shoot(tester, 'phone_subscription');
   });
 
   testWidgets('settings', (tester) async {
@@ -218,6 +220,14 @@ void _seedSubscriptions(MailStore store) {
     flags: MessageFlags.fromImap([r'\Seen']),
   );
   store.messages.upsertSummaries(inbox.id, [
+    for (final d in [117, 147])
+      receipt(
+        'streamflix.example',
+        'StreamFlix',
+        'Your StreamFlix receipt',
+        d,
+        'Your membership has been renewed. Total S\$15.98',
+      ),
     for (final d in [27, 57, 87])
       receipt(
         'streamflix.example',

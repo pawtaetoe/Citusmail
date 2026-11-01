@@ -83,10 +83,24 @@ void main() {
     // Every price is known: nothing to download.
     expect(find.text('Read receipts'), findsNothing);
 
-    // Its receipts, and "Not a subscription" with Undo.
+    // Its own page: what was charged, every receipt.
     await tester.tap(find.text('StreamFlix'));
     await tester.pumpAndSettle();
-    expect(find.text('Your StreamFlix receipt'), findsNWidgets(3));
+    expect(find.text('S\$17.98 · monthly'), findsOneWidget);
+    expect(find.textContaining('3 times since'), findsOneWidget);
+    expect(find.text('S\$53.94'), findsOneWidget, reason: 'in total');
+    expect(find.text('S\$17.98'), findsNWidgets(3), reason: 'per receipt');
+
+    // A receipt opens right here; Back returns to the subscription.
+    await tester.tap(find.text('S\$17.98').first);
+    await settle(tester);
+    expect(find.text('Receipt'), findsOneWidget);
+    expect(find.text('Your StreamFlix receipt'), findsWidgets);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('S\$17.98 · monthly'), findsOneWidget);
+
+    // "Not a subscription": back to the list, with Undo.
     await tester.tap(find.text('Not a subscription'));
     await settle(tester);
     expect(find.text('No subscriptions found'), findsOneWidget);
