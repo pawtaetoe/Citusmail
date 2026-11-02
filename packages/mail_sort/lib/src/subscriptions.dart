@@ -187,7 +187,6 @@ abstract final class SubscriptionFinder {
     'cancel',
     'auto-renew',
     'bill',
-    'statement',
   ];
 
   static final _subscriptionWords = RegExp(
@@ -196,7 +195,7 @@ abstract final class SubscriptionFinder {
     r'next billing|next payment|free trial|trial|'
     r'unused time on|remaining time on|'
     // Phone, broadband and utility bills recur too.
-    r'e-?bill|monthly (?:bill|invoice|statement))\b',
+    r'e-?bill|monthly (?:bill|invoice))\b',
     caseSensitive: false,
   );
 
@@ -214,8 +213,7 @@ abstract final class SubscriptionFinder {
   static final _chargeWords = RegExp(
     r'\b(?:receipt|invoice|payment (?:received|confirmation|successful)|'
     r'paid|charged|renewed|order confirmation|your order|billing statement|'
-    r'e-?bill|your (?:\w+ )?bill|bill (?:is|for)|'
-    r'statement (?:is ready|is available))\b',
+    r'e-?bill|your (?:\w+ )?bill|bill (?:is|for))\b',
     caseSensitive: false,
   );
 
@@ -329,9 +327,24 @@ abstract final class SubscriptionFinder {
       _subscriptionWords.hasMatch(email.text) ||
       billingPeriodIn(email.text) != null;
 
+  /// An account statement (bank, card, brokerage, CDP): what the account
+  /// holds or did, not a charge.
+  static final _accountStatement = RegExp(
+    r'\b(?:account statement|statement of account|e-?statements?|'
+    r'(?:bank|card|portfolio|securities|monthly|annual) statement)\b',
+    caseSensitive: false,
+  );
+
   /// What [email] says.
   static SubscriptionEvent eventOf(SubscriptionEmail email) {
     final subject = email.subject;
+    if (_accountStatement.hasMatch(subject) &&
+        !RegExp(
+          r'\b(?:bill|invoice)',
+          caseSensitive: false,
+        ).hasMatch(subject)) {
+      return SubscriptionEvent.notice;
+    }
     if (_cancelWords.hasMatch(subject)) {
       // "Your order was cancelled" is about an order.
       return _orderWords.hasMatch(subject) &&
@@ -532,10 +545,9 @@ abstract final class SubscriptionFinder {
           _cadenceFromWords([for (final r in records) r.email]);
       final says = records.any((r) => _speaksOfSubscription(r.email));
       if (!says && !regular) continue;
-      if (charges.isEmpty &&
-          !records.any((r) => r.event == SubscriptionEvent.trial)) {
-        continue; // talk of plans, but nothing paid or started
-      }
+      // Nothing paid yet (only a free trial, or talk of plans): not a
+      // subscription until a charge comes.
+      if (charges.isEmpty) continue;
 
       final lastCharge = charges.firstOrNull?.email.at;
       final cancelledAt = records

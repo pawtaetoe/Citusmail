@@ -624,7 +624,7 @@ final class _SubscriptionTile extends StatelessWidget {
           'Next charge about ${date(s.nextCharge!)}',
         SubscriptionStatus.active when s.lastCharge != null =>
           'Last charged ${date(s.lastCharge!)}',
-        SubscriptionStatus.active => 'Trial',
+        SubscriptionStatus.active => 'Active',
       },
     ];
     final days = s.nextCharge?.difference(today).inDays;
@@ -744,10 +744,12 @@ final class _HowDialog extends StatelessWidget {
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('How is this found?'),
     content: const Text(
-      'Citusmail looks at receipts, invoices and renewal emails from the '
-      'last two years, on this device. A company is listed when its mail '
-      'speaks of a subscription, membership or renewal, or when it charged '
-      'you at a regular interval at least three times.\n\n'
+      'Citusmail looks at receipts, invoices, bills and renewal emails from '
+      'the last two years, on this device. A company is listed once it has '
+      'charged you, and when its mail speaks of a subscription, membership, '
+      'renewal or billing period, or it charged you at a regular interval at '
+      'least three times. A free trial shows once it charges; one-off '
+      'orders and account statements are left out.\n\n'
       'Prices, how often you pay and the next charge are read from those '
       'emails, so they are estimates: check the receipt when it matters. '
       'Nothing is sent anywhere. If something listed is not a subscription, '

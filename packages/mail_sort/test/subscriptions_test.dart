@@ -258,12 +258,38 @@ void main() {
           text: 'Total S\$18.00 GrabCar',
         ),
       ], now: now);
-      expect(found, hasLength(1));
-      final s = found.single;
-      // Only the trial: no ride or food receipt, no cancelled order.
-      expect(s.records.map((r) => r.event), [SubscriptionEvent.trial]);
-      expect(s.status, SubscriptionStatus.active);
-      expect(s.lastCharge, isNull);
+      // No ride or food receipt counts, and a free trial alone is not a
+      // subscription until it charges.
+      expect(found, isEmpty);
+    });
+
+    test('a free trial counts once it charges', () {
+      final trial = [
+        mail(
+          'foodpanda.sg',
+          'Your pandapro free trial has started.',
+          day(7, 12),
+        ),
+        mail('foodpanda.sg', 'Your free trial is ending.', day(8, 9)),
+        mail(
+          'foodpanda.sg',
+          'Your order was canceled.',
+          day(9, 10),
+          text: 'Total S\$13.99',
+        ),
+      ];
+      expect(SubscriptionFinder.find(trial, now: now), isEmpty);
+      final found = SubscriptionFinder.find([
+        ...trial,
+        mail(
+          'foodpanda.sg',
+          'Your pandapro subscription receipt',
+          day(8, 12),
+          text: 'pandapro monthly S\$5.99',
+        ),
+      ], now: now);
+      expect(found.single.amount, const Money(599, 'SGD'));
+      expect(found.single.lastCharge, day(8, 12));
     });
 
     test('phone and broadband bills', () {
@@ -301,6 +327,40 @@ void main() {
           (w) => 'Your MyRepublic e-Bill is ready!'.toLowerCase().contains(w),
         ),
         isTrue,
+      );
+    });
+
+    test('account statements are not charges', () {
+      final found = SubscriptionFinder.find([
+        for (final m in [5, 6, 7, 8, 9, 10])
+          mail(
+            'sgx.com',
+            'Your CDP account statement is ready for viewing on SGX Investor '
+                'Portal',
+            day(m, 4),
+            name: 'CDP Online (Do not reply)',
+            text:
+                'Your latest account statement for CDP Securities Account '
+                'ending 7513 is available online via your Portfolio. You may '
+                'access your past account statements (up to 24 months) and '
+                'notifications (up to 60 days) online, at no charge.',
+          ),
+        for (final m in [8, 9, 10])
+          mail('bank.example', 'Your e-Statement is ready', day(m, 1)),
+      ], now: now);
+      expect(found, isEmpty);
+      expect(
+        SubscriptionFinder.eventOf(
+          mail('x.example', 'Your monthly statement is ready', day(10, 1)),
+        ),
+        SubscriptionEvent.notice,
+      );
+      // A bill that calls itself a statement is still a bill.
+      expect(
+        SubscriptionFinder.eventOf(
+          mail('telco.example', 'Your bill statement is ready', day(10, 1)),
+        ),
+        SubscriptionEvent.charge,
       );
     });
 
