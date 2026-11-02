@@ -138,6 +138,11 @@ final class SubscriptionDetailPage extends StatelessWidget {
                                 '${totals.entries.map((e) => Prices.format(Money(e.value, e.key))).join(' + ')}'
                                 '${totals.length == 1 && charges.any((r) => r.amount == null) ? ' (some receipts without a price)' : ''}',
                           ),
+                        if (s.spentLastYear case final y?)
+                          _Fact(
+                            label: 'Last year',
+                            value: '${Prices.format(y)} in the last 12 months',
+                          ),
                         if (s.variable)
                           const _Fact(
                             label: 'Price',

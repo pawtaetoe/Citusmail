@@ -123,6 +123,7 @@ final class Subscription {
     required this.status,
     required this.nextCharge,
     this.variable = false,
+    this.spentLastYear,
   });
 
   final String company;
@@ -148,6 +149,11 @@ final class Subscription {
   /// not a price change.
   final bool variable;
 
+  /// For a [variable] one with a year of receipts: what it charged in
+  /// the last 12 months (several domains or a utility bill add up
+  /// differently than one price times the cadence).
+  final Money? spentLastYear;
+
   DateTime? get lastCharge => records
       .where((r) => r.event == SubscriptionEvent.charge)
       .map((r) => r.email.at)
@@ -155,6 +161,9 @@ final class Subscription {
 
   /// The amount per month (for a total), or null.
   Money? get monthly {
+    if (spentLastYear case final y?) {
+      return Money((y.minor / 12).round(), y.currency);
+    }
     final a = amount;
     final c = cadence;
     if (a == null || c == null) return null;
@@ -163,6 +172,7 @@ final class Subscription {
 
   /// The amount per year, or null.
   Money? get yearly {
+    if (spentLastYear case final y?) return y;
     final a = amount;
     final c = cadence;
     if (a == null || c == null) return null;
@@ -238,7 +248,8 @@ abstract final class SubscriptionFinder {
       caseSensitive: false,
     ),
     Cadence.yearly: RegExp(
-      r'\b(?:yearly|annual(?:ly)?|per year|/\s?y(?:ea)?r|a year|every year|12 months)\b',
+      r'\b(?:yearly|annual(?:ly)?|per year|/\s?y(?:ea)?r|a year|every year|'
+      r'12 months|1 year|one year|domain (?:renewal|registration))\b',
       caseSensitive: false,
     ),
   };
@@ -342,6 +353,13 @@ abstract final class SubscriptionFinder {
     caseSensitive: false,
   );
 
+  /// A reminder before a renewal or an expiry.
+  static final _reminderWords = RegExp(
+    r'\b(?:renewal (?:notice|reminder)|reminder|upcoming|expir(?:es|ing|ation)|'
+    r'approaching|will (?:auto-?)?renew|due soon|is due)\b',
+    caseSensitive: false,
+  );
+
   /// A payment that didn't go through: nothing was charged.
   static final _failedWords = RegExp(
     r'\b(?:unsuccessful|failed|declined|unable to (?:process|charge)|'
@@ -353,6 +371,13 @@ abstract final class SubscriptionFinder {
   static SubscriptionEvent eventOf(SubscriptionEmail email) {
     final subject = email.subject;
     if (_failedWords.hasMatch(subject)) return SubscriptionEvent.notice;
+    // "Renewal notice: expiring in 60 days" is a reminder, whatever the
+    // body says about what happens if it isn't renewed.
+    if (_reminderWords.hasMatch(subject) &&
+        !_cancelWords.hasMatch(subject) &&
+        !_chargeWords.hasMatch(subject)) {
+      return SubscriptionEvent.notice;
+    }
     if (_accountStatement.hasMatch(subject) &&
         !RegExp(
           r'\b(?:bill|invoice)',
@@ -592,7 +617,14 @@ abstract final class SubscriptionFinder {
       if (status == SubscriptionStatus.active &&
           lastCharge != null &&
           cadence != null) {
-        next = lastCharge.add(cadence.period);
+        // Each charge of the last period comes again (several domains
+        // renewing on their own dates): the soonest of them.
+        final again = [
+          for (final r in charges)
+            if (r.email.at.add(cadence.period).isAfter(now))
+              r.email.at.add(cadence.period),
+        ]..sort();
+        next = again.firstOrNull ?? lastCharge.add(cadence.period);
         while (next!.isBefore(now)) {
           next = next.add(cadence.period);
         }
@@ -607,6 +639,7 @@ abstract final class SubscriptionFinder {
           status: status,
           nextCharge: next,
           variable: variable,
+          spentLastYear: variable ? _spentLastYear(charges, now) : null,
         ),
       );
     }
@@ -617,6 +650,28 @@ abstract final class SubscriptionFinder {
       return b.records.first.email.at.compareTo(at);
     });
     return found;
+  }
+
+  /// What [charges] (newest first) add up to over the last 12 months,
+  /// in the newest currency; null without a year of receipts.
+  static Money? _spentLastYear(List<SubscriptionRecord> charges, DateTime now) {
+    final priced = [
+      for (final r in charges)
+        if (r.amount != null) r,
+    ];
+    if (priced.isEmpty ||
+        now.difference(priced.last.email.at) < const Duration(days: 330)) {
+      return null;
+    }
+    final currency = priced.first.amount!.currency;
+    final since = now.subtract(const Duration(days: 365));
+    var total = 0;
+    for (final r in priced) {
+      if (r.email.at.isAfter(since) && r.amount!.currency == currency) {
+        total += r.amount!.minor;
+      }
+    }
+    return total == 0 ? null : Money(total, currency);
   }
 
   static Money? _average(List<Money> amounts) => amounts.isEmpty
