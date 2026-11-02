@@ -406,6 +406,56 @@ void main() {
       );
     });
 
+    test('several domains renewing yearly on their own dates', () {
+      SubscriptionEmail pb(int y, int m, int d, String subject, [String? t]) =>
+          mail(
+            'porkbun.com',
+            'porkbun.com | $subject',
+            day(m, d, y),
+            text: t ?? 'If your domain is not renewed it will be expired.',
+          );
+      final found = SubscriptionFinder.find([
+        pb(2025, 1, 12, 'Auto Renewal Invoice', 'Total \$10.00'),
+        pb(
+          2025,
+          4,
+          27,
+          'Domain Renewal Notice - domains expiring in 5 days or less',
+        ),
+        pb(2025, 6, 5, 'Auto Renewal Invoice', 'Total \$21.09'),
+        pb(
+          2025,
+          12,
+          11,
+          'Domain Renewal Notice - expiration date approaching in 60 days or less',
+        ),
+        pb(2025, 12, 24, 'Auto Renewal Invoice - Success!', 'Total \$8.55'),
+        pb(2026, 1, 2, 'Auto Renewal Invoice - Success!', 'Total \$11.08'),
+        pb(2026, 3, 17, 'Auto Renewal Invoice - Success!', 'Total \$11.08'),
+        pb(
+          2026,
+          5,
+          21,
+          'Domain Renewal Notice - expiration date approaching in 60 days or less',
+        ),
+        pb(2026, 6, 5, 'Auto Renewal Invoice - Success!', 'Total \$21.11'),
+      ], now: now);
+      final s = found.single;
+      expect(s.status, SubscriptionStatus.active);
+      expect(s.cadence, Cadence.yearly);
+      expect(s.variable, isTrue);
+      // Renewal notices are reminders, not cancellations.
+      expect(
+        s.records.where((r) => r.event == SubscriptionEvent.cancelled),
+        isEmpty,
+      );
+      // The year since 1 Nov 2025: 8.55 + 11.08 + 11.08 + 21.11.
+      expect(s.yearly, const Money(5182, r'$'));
+      expect(s.monthly, const Money(432, r'$'));
+      // The soonest coming renewal: the domain renewed on 24 Dec.
+      expect(s.nextCharge, day(12, 24));
+    });
+
     test('replies and forwards are not receipts', () {
       final found = SubscriptionFinder.find([
         mail(
