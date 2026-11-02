@@ -58,7 +58,10 @@ final class SubscriptionDetailPage extends StatelessWidget {
         totals[a.currency] = (totals[a.currency] ?? 0) + a.minor;
       }
     }
-    final changes = _priceChanges(charges);
+    // A bill that varies every month has no "price changes".
+    final changes = s.variable
+        ? const <({Money from, Money to, DateTime at, bool up})>[]
+        : _priceChanges(charges);
     final firstCharge = charges.lastOrNull?.email.at;
 
     final status = switch (s.status) {
@@ -103,7 +106,8 @@ final class SubscriptionDetailPage extends StatelessWidget {
                                   Text(
                                     s.amount == null
                                         ? 'Price unknown'
-                                        : '${Prices.format(s.amount!)} · '
+                                        : '${s.variable ? 'About ' : ''}'
+                                              '${Prices.format(s.amount!)} · '
                                               '${Prices.cadence(s.cadence).toLowerCase()}',
                                     style: theme.textTheme.titleLarge,
                                   ),
@@ -133,6 +137,13 @@ final class SubscriptionDetailPage extends StatelessWidget {
                             value:
                                 '${totals.entries.map((e) => Prices.format(Money(e.value, e.key))).join(' + ')}'
                                 '${totals.length == 1 && charges.any((r) => r.amount == null) ? ' (some receipts without a price)' : ''}',
+                          ),
+                        if (s.variable)
+                          const _Fact(
+                            label: 'Price',
+                            value:
+                                'Varies from charge to charge: the average of '
+                                'the last ones.',
                           ),
                         _Fact(label: 'From', value: s.company),
                       ],

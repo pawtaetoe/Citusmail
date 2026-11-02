@@ -122,6 +122,7 @@ final class Subscription {
     required this.amount,
     required this.status,
     required this.nextCharge,
+    this.variable = false,
   });
 
   final String company;
@@ -141,6 +142,11 @@ final class Subscription {
 
   /// Estimated from the last charge and the cadence, for active ones.
   final DateTime? nextCharge;
+
+  /// The amount changes from charge to charge (a utility or phone bill):
+  /// [amount] is then the average of the recent charges, and a change is
+  /// not a price change.
+  final bool variable;
 
   DateTime? get lastCharge => records
       .where((r) => r.event == SubscriptionEvent.charge)
@@ -213,6 +219,7 @@ abstract final class SubscriptionFinder {
   static final _chargeWords = RegExp(
     r'\b(?:receipt|invoice|payment (?:received|confirmation|successful)|'
     r'paid|charged|renewed|order confirmation|your order|billing statement|'
+    r'successful payment|payment (?:was )?successful|bill payment|'
     r'e-?bill|your (?:\w+ )?bill|bill (?:is|for))\b',
     caseSensitive: false,
   );
@@ -335,9 +342,17 @@ abstract final class SubscriptionFinder {
     caseSensitive: false,
   );
 
+  /// A payment that didn't go through: nothing was charged.
+  static final _failedWords = RegExp(
+    r'\b(?:unsuccessful|failed|declined|unable to (?:process|charge)|'
+    r'could not be (?:processed|charged)|payment (?:issue|problem))\b',
+    caseSensitive: false,
+  );
+
   /// What [email] says.
   static SubscriptionEvent eventOf(SubscriptionEmail email) {
     final subject = email.subject;
+    if (_failedWords.hasMatch(subject)) return SubscriptionEvent.notice;
     if (_accountStatement.hasMatch(subject) &&
         !RegExp(
           r'\b(?:bill|invoice)',
@@ -549,6 +564,14 @@ abstract final class SubscriptionFinder {
       // subscription until a charge comes.
       if (charges.isEmpty) continue;
 
+      // The newest amounts, in the latest currency.
+      final recent = [
+        for (final a in charges.map((r) => r.amount).nonNulls.take(6))
+          if (a.currency ==
+              charges.map((r) => r.amount).nonNulls.first.currency)
+            a,
+      ];
+      final variable = {for (final a in recent) a.minor}.length >= 3;
       final lastCharge = charges.firstOrNull?.email.at;
       final cancelledAt = records
           .where((r) => r.event == SubscriptionEvent.cancelled)
@@ -580,9 +603,10 @@ abstract final class SubscriptionFinder {
           name: _name(company, list),
           records: List.unmodifiable(records),
           cadence: cadence,
-          amount: charges.map((r) => r.amount).nonNulls.firstOrNull,
+          amount: variable ? _average(recent) : recent.firstOrNull,
           status: status,
           nextCharge: next,
+          variable: variable,
         ),
       );
     }
@@ -594,6 +618,13 @@ abstract final class SubscriptionFinder {
     });
     return found;
   }
+
+  static Money? _average(List<Money> amounts) => amounts.isEmpty
+      ? null
+      : Money(
+          (amounts.fold(0, (sum, a) => sum + a.minor) / amounts.length).round(),
+          amounts.first.currency,
+        );
 
   /// A regular interval between charges (dates newest first), when the
   /// gaps agree: the median gap near a cadence, every gap within 40% of it.

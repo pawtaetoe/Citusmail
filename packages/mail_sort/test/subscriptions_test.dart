@@ -364,6 +364,48 @@ void main() {
       );
     });
 
+    test('a varying bill paid every month: active, an average price', () {
+      SubscriptionEmail sp(
+        int month,
+        int d,
+        String subject, [
+        String? amount,
+      ]) => mail(
+        'spdigital.sg',
+        subject,
+        day(month, d),
+        text: amount == null ? '' : 'Amount paid \$$amount',
+      );
+      final found = SubscriptionFinder.find([
+        sp(2, 4, 'Payment Receipt for Your Utilities Account(s)', '158.13'),
+        sp(3, 7, 'Payment Receipt for Your Utilities Account(s)', '210.06'),
+        sp(3, 7, '<Recurring Payment> Successful Set Up of Recurring Payment'),
+        sp(4, 16, '<Recurring Payment> Unsuccessful Bill Payment', '106.99'),
+        sp(4, 17, '<Recurring Payment> Successful Payment', '106.99'),
+        sp(5, 18, '<Recurring Payment> Successful Payment', '90.44'),
+        sp(6, 16, '<Recurring Payment> Successful Payment', '126.16'),
+        sp(7, 16, '<Recurring Payment> Successful Payment', '105.82'),
+        sp(8, 17, '<Recurring Payment> Successful Payment', '119.59'),
+        sp(9, 16, '<Recurring Payment> Successful Payment', '73.17'),
+        sp(10, 16, '<Recurring Payment> Successful Payment', '132.01'),
+      ], now: now);
+      final s = found.single;
+      expect(s.status, SubscriptionStatus.active);
+      expect(s.cadence, Cadence.monthly);
+      expect(s.lastCharge, day(10, 16));
+      expect(s.variable, isTrue);
+      // The last six charges: 132.01 73.17 119.59 105.82 126.16 90.44.
+      expect(s.amount, const Money(10787, r'$'));
+      // The failed payment was not a charge.
+      expect(
+        s.records
+            .where((r) => r.email.subject.contains('Unsuccessful'))
+            .single
+            .event,
+        SubscriptionEvent.notice,
+      );
+    });
+
     test('replies and forwards are not receipts', () {
       final found = SubscriptionFinder.find([
         mail(

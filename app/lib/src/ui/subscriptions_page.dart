@@ -660,7 +660,9 @@ final class _SubscriptionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  s.amount == null ? '—' : Prices.format(s.amount!),
+                  s.amount == null
+                      ? '—'
+                      : '${s.variable ? '~' : ''}${Prices.format(s.amount!)}',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontFeatures: const [FontFeature.tabularFigures()],
                     color: ended ? colors.onSurfaceVariant : null,
