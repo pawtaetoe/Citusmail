@@ -103,8 +103,9 @@ are at the bottom of the screen, within reach of one thumb.
 
 1. **Privacy.** The app talks only to your own mail servers, plus outside
    services you explicitly switch on. No analytics, no crash reporting, no ads.
-   See [PRIVACY.md](PRIVACY.md) and the
-   [privacy policy](docs/privacy-policy.md).
+   See [PRIVACY.md](PRIVACY.md), the
+   [privacy policy](docs/privacy-policy.md) and the
+   [terms of service](docs/terms-of-service.md).
 2. **Security.** Encrypted connections only, passwords in the system
    keychain, encrypted local storage, and mail that can't run code or load
    remote content. See [SECURITY.md](SECURITY.md).

@@ -107,6 +107,11 @@ delete; you can still contact us with any question.
 Citusmail is not directed at children under 13 and does not knowingly
 collect data from anyone.
 
+## Terms of service
+
+Using Citusmail is also covered by the
+[Terms of Service](terms-of-service.md).
+
 ## Changes to this policy
 
 If this policy changes, the new version will be published at this address
