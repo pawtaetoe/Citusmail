@@ -13,6 +13,7 @@ final class SyncSettings {
     this.initialWindow = 500,
     this.fetchBatch = 100,
     this.backfillBatch = 500,
+    this.connections = 3,
   });
 
   /// Newest messages downloaded on a folder's first sync. Older ones
@@ -26,6 +27,12 @@ final class SyncSettings {
   /// Older messages downloaded per folder per sync, until the folder
   /// reaches back to [KeepMail]'s date.
   final int backfillBatch;
+
+  /// Connections per account during a sync: folders are synced side by
+  /// side, the inbox first. Servers allow a handful per account (Gmail
+  /// 15, Outlook about 16); the app also keeps one for IDLE and one for
+  /// opening messages.
+  final int connections;
 }
 
 /// How far back mail is kept on the device (summaries: headers and a
@@ -120,6 +127,11 @@ final class MailboxSynchronizer {
   final MailStore _store;
   final SummaryMapper _mapper;
   final SyncSettings settings;
+
+  /// Another synchronizer like this one, for a second connection: one
+  /// instance syncs one folder at a time.
+  MailboxSynchronizer another() =>
+      MailboxSynchronizer(_store, _mapper, settings: settings);
 
   /// UIDs whose flags must not be overwritten during the current sync.
   Set<int> _pending = const {};
