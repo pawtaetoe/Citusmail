@@ -49,3 +49,7 @@ test-server/.generated/
 # Python
 __pycache__/
 *.pyc
+
+# Website (site/)
+site/node_modules/
+site/dist/

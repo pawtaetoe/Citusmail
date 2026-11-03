@@ -139,6 +139,32 @@ jobs:
           scan-args: |-
             --lockfile=pubspec.lock
 
+  site:
+    name: Website (build and test)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+      # Vercel deploys the site (see site/README.md); this only makes sure
+      # a pull request doesn't break it.
+      - name: Install (lock file must match)
+        working-directory: site
+        run: npm ci
+      - name: Test
+        working-directory: site
+        env:
+          SITE_OFFLINE: "1"
+        run: npm test
+      - name: Build
+        working-directory: site
+        env:
+          SITE_OFFLINE: "1"
+        run: npm run build
+
   test-server:
     name: Test mail server and integration tests
     runs-on: ubuntu-24.04

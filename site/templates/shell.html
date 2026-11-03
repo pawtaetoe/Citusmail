@@ -1,0 +1,59 @@
+<!doctype html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<meta name="description" content="{{description}}">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0F7A69">
+<link rel="canonical" href="{{canonical}}">
+<link rel="icon" href="/icon/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/icon/32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/icon/256.png">
+<link rel="preload" href="/fonts/IBMPlexSans-Regular-Latin1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/site.css">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Citusmail">
+<meta property="og:title" content="{{title}}">
+<meta property="og:description" content="{{description}}">
+<meta property="og:url" content="{{canonical}}">
+<meta property="og:image" content="{{ogImage}}">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+<body class="{{bodyClass}}">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="/" aria-label="Citusmail home">
+      <img src="/icon/icon.svg" alt="" width="32" height="32">
+      <span>Citusmail</span>
+    </a>
+    <nav aria-label="Main">
+      <a href="/#features">Features</a>
+      <a href="/#download">Download</a>
+      <a href="/privacy-policy">Privacy</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+{{content}}
+</main>
+<footer class="bottom">
+  <div class="wrap footer-row">
+    <p>© {{year}} Fluminaris. Citusmail is free software under the
+      <a href="{{repo}}/blob/main/LICENSE">Mozilla Public License 2.0</a>.</p>
+    <nav aria-label="Footer">
+      <a href="/privacy-policy">Privacy policy</a>
+      <a href="/terms-of-service">Terms of service</a>
+      <a href="{{repo}}">Source code</a>
+      <a href="{{releases}}">Releases</a>
+      <a href="mailto:{{contact}}">Contact</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
