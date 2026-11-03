@@ -3,6 +3,8 @@
 A free, open source, cross-platform mail client inspired by Spark. No
 subscriptions, no pop-ups, no "Sent from" signatures, no telemetry.
 
+Website: **https://citusmail.fluminaris.com**
+
 Status: all six milestones are built; live checks against real Outlook
 and Gmail accounts are still to run, so it is not ready for daily use yet.
 The roadmap and what each stage delivered are in [PLAN.md](PLAN.md).
@@ -146,10 +148,12 @@ are at the bottom of the screen, within reach of one thumb.
 │   └── mail_web/             The only HTTPS to servers named in mail: public
 │                             addresses only, no cookies, no redirects
 ├── assets/icon/              App icon (SVG and PNG sizes)
-├── docs/screenshots/         Demo screens for this README
+├── docs/                     Privacy policy and terms (the website shows them)
+│   └── screenshots/          Demo screens for this README and the website
 ├── packaging/                Linux .deb and Flatpak, Windows installer, signing
 ├── test-data/mail/           Sample emails shared by tests and the test server
 ├── test-server/              Local Dovecot + Postfix test servers (Podman/Docker)
+├── site/                     The website (citusmail.fluminaris.com), on Vercel
 ├── scripts/                  Developer scripts (live account check)
 ├── tool/                     Repository checks run in CI (never shipped)
 │   ├── bin/                  Command-line entry points

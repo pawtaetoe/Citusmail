@@ -45,3 +45,7 @@ Medium, SemiBold and Bold), unmodified.
 - Source: https://github.com/IBM/plex
 - Copyright © 2017 IBM Corp., with Reserved Font Name "Plex"
 - Licence: [SIL Open Font License 1.1](app/assets/fonts/IBMPlexSans/OFL.txt)
+
+The website (`site/`) uses IBM's own Latin-1 web subsets of the same font
+(Regular, SemiBold and Bold, from the `@ibm/plex-sans` package), also
+unmodified, in `site/static/fonts/` with their licence.

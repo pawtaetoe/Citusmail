@@ -1,0 +1,148 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-text">
+      <p class="eyebrow"><em>Citus</em> is Latin for fast</p>
+      <h1>Fast, private email that stays yours</h1>
+      <p class="lead">A free, open-source mail client for Linux, Windows and
+        Android. No subscriptions, no ads, no tracking, and no server of ours:
+        your mail goes only between your device and your mail provider.</p>
+      <p class="actions">
+        <a class="button primary" href="#download">Download</a>
+        <a class="button" href="{{repo}}">Source on GitHub</a>
+      </p>
+      <p class="small">Works with Gmail, Outlook and any IMAP/SMTP provider.</p>
+    </div>
+    <figure class="hero-shots">
+      <img class="shot desktop" src="/screenshots/readme_desktop.png" width="1440" height="860"
+        alt="Citusmail on the desktop: the Smart Inbox with Pinned, Verification, Important and General sections">
+      <img class="shot phone" src="/screenshots/readme_phone.png" width="390" height="844"
+        alt="Citusmail on a phone: the same Smart Inbox">
+    </figure>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="apart">
+  <div class="wrap">
+    <h2 id="apart">What sets it apart</h2>
+    <div class="feature-split">
+      <div>
+        <h3>Your subscriptions, found in your mail</h3>
+        <p>Paid subscriptions send a receipt every time they charge you, but
+          they're easy to forget. Citusmail reads your receipts, bills and
+          renewal emails <strong>on your device</strong> and lists every
+          subscription it finds:</p>
+        <ul class="ticks">
+          <li>what you spend a year, a month and a day, and how it splits
+            between your subscriptions;</li>
+          <li>each one's price, how often it charges and the next charge;</li>
+          <li>every past receipt, opening right in place, and when the price
+            went up;</li>
+          <li>phone, broadband and utility bills too, with their average when
+            they vary.</li>
+        </ul>
+      </div>
+      <div class="shots-pair">
+        <img class="shot" src="/screenshots/readme_subscriptions.png" width="390" height="844" loading="lazy"
+          alt="The Subscriptions page: what you spend a year, a month and a day, and how it splits between subscriptions">
+        <img class="shot" src="/screenshots/readme_subscription.png" width="390" height="844" loading="lazy"
+          alt="One subscription: its price, how often it charges, every receipt and a price change">
+      </div>
+    </div>
+
+    <div class="cards">
+      <article class="card">
+        <h3>Codes in the list</h3>
+        <p>One-time codes, sign-in links and password resets get their own
+          section, and the code shows without opening the email. Copy it with
+          a tap.</p>
+      </article>
+      <article class="card">
+        <h3>Phishing checks that read the message</h3>
+        <p>Besides forged senders and lookalike links, Citusmail warns when an
+          outsider writes in the name of your own school or company, or a big
+          brand, especially with hidden recipients or a form "portal".</p>
+      </article>
+      <article class="card">
+        <h3>No server of ours</h3>
+        <p>Everything runs on your device. There is no Citusmail account,
+          cloud or tracking, and your mail is stored encrypted.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="wrap phishing">
+  <img class="shot" src="/screenshots/readme_phishing.png" width="1440" height="860" loading="lazy"
+    alt="A scam from a real, verified address, with a red warning that lists why it's suspicious">
+</section>
+
+<section id="features" class="wrap" aria-labelledby="features-title">
+  <h2 id="features-title">Everything you need from a mail app</h2>
+  <ul class="feature-list">
+    <li><strong>Smart Inbox.</strong> Mail sorted on your device into Pinned,
+      Verification, Important, General, Notifications and Newsletters.</li>
+    <li><strong>Several accounts in one inbox.</strong> Any IMAP/SMTP provider,
+      Gmail and Outlook / Microsoft 365, with their own sign-in.</li>
+    <li><strong>Privacy by default.</strong> Images and trackers blocked, read
+      receipts never sent, tracking removed from links, one-tap unsubscribe,
+      and blocking senders.</li>
+    <li><strong>Writing mail.</strong> Drafts, replies, undo send, custom folders
+      and rules.</li>
+    <li><strong>Every message, whole.</strong> Save it as an .eml file, see its
+      original headers and source, or forward it as an attachment.</li>
+    <li><strong>Encrypted everywhere.</strong> Encrypted storage, passwords in
+      the system keychain, end-to-end encrypted sync of settings between your
+      devices, and an app lock with PIN or fingerprint.</li>
+  </ul>
+  <div class="phones">
+    <img class="shot" src="/screenshots/readme_phone_reader.png" width="390" height="844" loading="lazy"
+      alt="Reading on a phone: the warning, Reply and Forward, and the message actions at the bottom">
+    <img class="shot" src="/screenshots/readme_phone_compose.png" width="390" height="844" loading="lazy"
+      alt="Writing on a phone: To, Subject and the message, with Send at the bottom">
+    <img class="shot" src="/screenshots/readme_phone_settings.png" width="390" height="844" loading="lazy"
+      alt="Settings on a phone: notifications, how far back mail is kept, app lock">
+  </div>
+  <p class="caption">On phones, the menu, search, New message and Send sit at
+    the bottom of the screen, within reach of one thumb.</p>
+</section>
+
+<section id="download" class="band" aria-labelledby="download-title">
+  <div class="wrap">
+    <h2 id="download-title">Download</h2>
+    <p class="small">{{version}}Free, with no account to create.</p>
+    <div class="downloads">
+      <a class="download" href="{{apk}}">
+        <strong>Android</strong>
+        <span>APK for your phone or tablet</span>
+      </a>
+      <a class="download" href="{{deb}}">
+        <strong>Linux · .deb</strong>
+        <span>Ubuntu, Debian, Mint and more</span>
+      </a>
+      <a class="download" href="{{flatpak}}">
+        <strong>Linux · Flatpak</strong>
+        <span>Any Linux with Flatpak</span>
+      </a>
+      <a class="download" href="{{exe}}">
+        <strong>Windows</strong>
+        <span>Installer for Windows 10 and 11</span>
+      </a>
+    </div>
+    <p class="small">All files, checksums and release notes are on the
+      <a href="{{releases}}">releases page</a>.</p>
+  </div>
+</section>
+
+<section class="wrap privacy" aria-labelledby="privacy-title">
+  <h2 id="privacy-title">Your privacy</h2>
+  <p>Citusmail has no account with us and no server of ours. We don't collect,
+    receive, store, sell or share your data, and there's no analytics, crash
+    reporting or advertising. Your mail, contacts and settings stay on your
+    device, encrypted, and travel only between your device and your own mail
+    provider, plus optional services you turn on yourself.</p>
+  <p><a href="/privacy-policy">Read the privacy policy</a> ·
+    <a href="/terms-of-service">Terms of service</a></p>
+</section>
