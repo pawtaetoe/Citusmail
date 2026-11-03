@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:collection';
+import 'dart:math';
+
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -141,17 +144,11 @@ final class AccountSynchronizer {
         smtp: () => _connector.smtp(account),
       );
 
-      final results = <int, MailboxSyncResult>{};
-      for (final mailbox in foldersToSync(
-        _store.mailboxes.forAccount(account.id),
-        mailboxIds,
-      )) {
-        results[mailbox.id] = await _mailboxSync.sync(
-          imap,
-          mailbox,
-          pendingUids: pendingUids(account.id, mailbox.id),
-        );
-      }
+      final results = await _syncFolders(
+        account,
+        imap,
+        foldersToSync(_store.mailboxes.forAccount(account.id), mailboxIds),
+      );
       // 4. Blocked senders, then the user's folder rules, on new inbox
       // mail; their moves go to the server right away, in this session.
       var movedByRules = 0;
@@ -217,6 +214,64 @@ final class AccountSynchronizer {
     } finally {
       await imap.logout();
     }
+  }
+
+  /// Syncs [folders], the inbox first, over [imap] and up to
+  /// [SyncSettings.connections] - 1 more connections, each taking the next
+  /// folder when it is done with one. A connection the server refuses is
+  /// simply not used. After a folder fails, no new one is started and the
+  /// first failure is thrown once the others are done.
+  Future<Map<int, MailboxSyncResult>> _syncFolders(
+    Account account,
+    ImapClient imap,
+    Iterable<StoredMailbox> folders,
+  ) async {
+    final queue = Queue.of(
+      [...folders]..sort((a, b) => (b.isInbox ? 1 : 0) - (a.isInbox ? 1 : 0)),
+    );
+    final results = <int, MailboxSyncResult>{};
+    (Object, StackTrace)? failure;
+
+    Future<void> work(ImapClient client, MailboxSynchronizer sync) async {
+      while (queue.isNotEmpty && failure == null) {
+        final mailbox = queue.removeFirst();
+        try {
+          results[mailbox.id] = await sync.sync(
+            client,
+            mailbox,
+            pendingUids: pendingUids(account.id, mailbox.id),
+          );
+        } on Object catch (e, s) {
+          failure ??= (e, s);
+        }
+      }
+    }
+
+    Future<void> extra() async {
+      final ImapClient client;
+      try {
+        client = await _connector.imap(account);
+      } on Object {
+        return; // Too many connections, or offline: the others go on.
+      }
+      try {
+        await work(client, _mailboxSync.another());
+      } finally {
+        try {
+          await client.logout();
+        } on Object {
+          // Already gone.
+        }
+      }
+    }
+
+    final extras = min(_mailboxSync.settings.connections - 1, queue.length - 1);
+    await Future.wait([
+      work(imap, _mailboxSync),
+      for (var i = 0; i < extras; i++) extra(),
+    ]);
+    if (failure case (final e, final s)) Error.throwWithStackTrace(e, s);
+    return results;
   }
 
   /// Which of [mailboxes] a sync covers: with [mailboxIds], those;

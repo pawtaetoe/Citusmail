@@ -154,6 +154,52 @@ void main() {
       expect(device.messages('INBOX'), hasLength(22));
     });
 
+    test('folders sync side by side over several connections', () async {
+      final other = await servers.otherDevice('alice');
+      final folders = [for (var i = 0; i < 4; i++) scratchFolder('Par')];
+      for (final f in folders) {
+        await other.create(f);
+        await other.append(f, testMessage('in $f'));
+      }
+      await other.logout();
+
+      Future<(int, AccountSyncReport)> syncWith(int connections) async {
+        final device = TestDevice.create(servers, 'alice');
+        final counting = _CountingConnector(
+          DefaultMailConnector(
+            const TestCredentials(),
+            tls: servers.tls,
+            endpointFor: servers.endpointFor,
+          ),
+        );
+        final engine = SyncEngine(
+          device.store,
+          counting,
+          settings: SyncSettings(connections: connections),
+        );
+        try {
+          final report = await engine.syncAccount(device.account.id);
+          for (final f in folders) {
+            expect(device.messages(f), hasLength(1), reason: f);
+          }
+          expect(device.messages('INBOX'), hasLength(22));
+          return (counting.imapCount, report!);
+        } finally {
+          await engine.dispose();
+        }
+      }
+
+      final (one, oneReport) = await syncWith(1);
+      final (three, threeReport) = await syncWith(3);
+      expect(one, 1);
+      expect(three, 3);
+      expect(
+        threeReport.mailboxes.length,
+        oneReport.mailboxes.length,
+        reason: 'the same folders either way',
+      );
+    });
+
     test('several messages open over one reused connection', () async {
       await engine.syncAccount(device.account.id);
       for (final m in device.messages('INBOX')) {
@@ -188,4 +234,24 @@ void main() {
       );
     });
   });
+}
+
+/// Counts the IMAP connections a sync opens.
+final class _CountingConnector implements MailConnector {
+  _CountingConnector(this._inner);
+
+  final MailConnector _inner;
+  var imapCount = 0;
+
+  @override
+  Future<ImapClient> imap(Account account) {
+    imapCount++;
+    return _inner.imap(account);
+  }
+
+  @override
+  Future<SmtpClient> smtp(Account account) => _inner.smtp(account);
+
+  @override
+  Future<ManageSieveClient> sieve(Account account) => _inner.sieve(account);
 }
