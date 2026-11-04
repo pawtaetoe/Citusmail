@@ -234,7 +234,8 @@ final class FollowUpTile extends StatelessWidget {
     final open = message != null && controller.selected?.id == message.id;
     final when = returned
         ? FollowUpWords.sent(_f, now)
-        : FollowUpSheet.remindsAt(context, _f.due);
+        // Short enough for a phone row; the heading says it's waiting.
+        : 'Reminds you ${FollowUpSheet.describe(context, _f.due)}';
     return Semantics(
       label: [
         'To $who',

@@ -313,7 +313,7 @@ void main() {
 
     expect(find.text('To Ana Costa'), findsOneWidget);
     expect(find.text('To Ben Okafor and 1 other'), findsOneWidget);
-    expect(find.text('Reminds you Fri 4:00 PM if no reply'), findsOneWidget);
+    expect(find.text('Reminds you Fri 4:00 PM'), findsOneWidget);
     expect(find.text('Waiting'), findsOneWidget);
     expect(find.textContaining('A reply in the conversation'), findsOneWidget);
 
