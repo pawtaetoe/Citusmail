@@ -53,6 +53,9 @@ final class MessageListModel extends ChangeNotifier {
   /// Smart Inbox: sections with mail, in order.
   List<SectionState> sections = const [];
 
+  /// Smart Inbox: first-time senders waiting in the Screener.
+  int screenerWaiting = 0;
+
   /// Every other view: one list.
   List<StoredMessage> messages = const [];
   bool reachedEnd = false;
@@ -79,6 +82,9 @@ final class MessageListModel extends ChangeNotifier {
     final location = _location;
     if (showsSections) {
       final counts = _store.messages.sectionCounts(
+        accountIds: _accounts(location.accountId),
+      );
+      screenerWaiting = _store.screener.waitingCount(
         accountIds: _accounts(location.accountId),
       );
       final previous = {for (final s in sections) s.section: s};

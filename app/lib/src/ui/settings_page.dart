@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
@@ -21,6 +22,7 @@ import 'device_sync_page.dart';
 import 'image_senders_page.dart';
 import 'link_opener.dart';
 import 'privacy_report_page.dart';
+import 'screener_page.dart';
 import 'sender_cleanup_page.dart';
 
 /// One account's server rules, in words.
@@ -199,6 +201,85 @@ final class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// First-time senders wait for the user's OK; where screened-out mail
+  /// goes; and every decision, to change later.
+  List<Widget> _screenerSettings() {
+    final screener = widget.services.store.screener;
+    final decided = screener.all().length;
+    void changed() {
+      setState(() {});
+      widget.controller?.refresh();
+    }
+
+    return [
+      SwitchListTile(
+        secondary: const Icon(Icons.how_to_reg_outlined),
+        title: const Text('Screen first-time senders'),
+        subtitle: const Text(
+          'Someone writing for the first time waits in the Screener, at the '
+          'top of your inbox, until you let them in. Everyone you already '
+          'have mail from is let in. Codes and replies to you always come '
+          'straight in.',
+        ),
+        value: screener.enabled,
+        onChanged: (on) {
+          on ? screener.enable() : screener.disable();
+          changed();
+        },
+      ),
+      if (screener.enabled)
+        ListTile(
+          contentPadding: const EdgeInsets.only(left: 72, right: 16),
+          title: const Text('Screened-out mail goes to'),
+          subtitle: const Text('Never deleted, never Junk'),
+          trailing: DropdownButton<ScreenOutPlace>(
+            value: screener.outPlace,
+            underline: const SizedBox.shrink(),
+            items: const [
+              DropdownMenuItem(
+                value: ScreenOutPlace.newsletters,
+                child: Text('Newsletters'),
+              ),
+              DropdownMenuItem(
+                value: ScreenOutPlace.notifications,
+                child: Text('Notifications'),
+              ),
+              DropdownMenuItem(
+                value: ScreenOutPlace.archive,
+                child: Text('Archive'),
+              ),
+            ],
+            onChanged: (place) {
+              if (place == null) return;
+              screener.outPlace = place;
+              changed();
+            },
+          ),
+        ),
+      ListTile(
+        leading: const Icon(Icons.rule),
+        title: const Text('Screened senders'),
+        subtitle: Text(
+          decided == 0
+              ? 'Senders you let in or screened out'
+              : '$decided ${decided == 1 ? 'sender' : 'senders'} you let in or screened out',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ScreenedSendersPage(
+                services: widget.services,
+                controller: widget.controller,
+              ),
+            ),
+          );
+          if (mounted) setState(() {});
+        },
+      ),
+    ];
+  }
+
   Future<void> _setInstant(bool on) async {
     setState(() => widget.services.settings.instantMail = on);
     try {
@@ -335,6 +416,8 @@ final class _SettingsPageState extends State<SettingsPage> {
                 style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
               ),
             ),
+          const _Group('Screener'),
+          ..._screenerSettings(),
           const _Group('Mail on this device'),
           ListTile(
             leading: const Icon(Icons.history),

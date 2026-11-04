@@ -136,7 +136,14 @@ final class MailCounts {
   final Map<int, int> folderUnread;
   final int outbox;
 
-  int get inboxUnread => sections.values.fold(0, (sum, c) => sum + c.unread);
+  /// Unread mail in the Smart Inbox (mail waiting in the Screener isn't
+  /// counted until its sender is let in).
+  int get inboxUnread => unreadIn(sections);
+
+  static int unreadIn(Map<SmartSection, SectionCount> sections) => [
+    for (final MapEntry(:key, :value) in sections.entries)
+      if (key != SmartSection.screener) value.unread,
+  ].fold(0, (sum, n) => sum + n);
 }
 
 /// How the accounts' sync is going, in one line for the list header.
@@ -303,10 +310,9 @@ final class MailController {
       sections: _store.messages.sectionCounts(),
       perAccountUnread: {
         for (final a in accounts)
-          a.id: _store.messages
-              .sectionCounts(accountIds: [a.id])
-              .values
-              .fold(0, (sum, c) => sum + c.unread),
+          a.id: MailCounts.unreadIn(
+            _store.messages.sectionCounts(accountIds: [a.id]),
+          ),
       },
       folderUnread: _store.messages.unreadCounts(),
       outbox: _store.outbox.sends().length,
@@ -1015,6 +1021,104 @@ final class MailController {
     _refreshSelected();
     onNotice?.call(
       'Unblocked ${block.kind == BlockKind.domain ? 'everyone at ' : ''}${block.value}',
+    );
+  }
+
+  // ------------------------------------------------------------ Screener
+
+  /// First-time senders waiting in the Screener, in the inbox of
+  /// [accountId] (or every inbox).
+  List<WaitingSender> waitingSenders({int? accountId}) => _store.screener
+      .waiting(accountIds: accountId == null ? null : [accountId]);
+
+  /// The domain "everyone at …" choices offer for [address]: a company's
+  /// own domain, never a free mail provider's or the user's own.
+  String? screenerDomain(String address) {
+    final lower = address.toLowerCase();
+    final domain = Domains.registrable(
+      lower.substring(lower.lastIndexOf('@') + 1),
+    );
+    if (domain == null || FreeMail.isProvider(domain)) return null;
+    final own = {
+      for (final a in _store.accounts.all())
+        ?Domains.registrable(a.email.substring(a.email.lastIndexOf('@') + 1)),
+    };
+    return own.contains(domain) ? null : domain;
+  }
+
+  /// Lets [sender] in (or, with [wholeDomain], everyone at their domain):
+  /// their mail goes to the Smart Inbox from now on. Offers Undo.
+  void letIn(WaitingSender sender, {bool wholeDomain = false}) =>
+      _screen(sender, ScreenerDecision.letIn, wholeDomain: wholeDomain);
+
+  /// Screens [sender] out (or everyone at their domain): their mail goes
+  /// where the user chose (Newsletters, Notifications or Archive), never
+  /// deleted. Offers Undo.
+  void screenOut(WaitingSender sender, {bool wholeDomain = false}) =>
+      _screen(sender, ScreenerDecision.screenOut, wholeDomain: wholeDomain);
+
+  void _screen(
+    WaitingSender sender,
+    ScreenerDecision decision, {
+    required bool wholeDomain,
+  }) {
+    final screener = _store.screener;
+    final domain = wholeDomain ? screenerDomain(sender.address) : null;
+    final kind = domain == null ? ScreenerKind.address : ScreenerKind.domain;
+    final value = domain ?? sender.address;
+    final previous = screener.find(kind, value);
+    final waiting = waitingSenders();
+    final decided = screener.decide(kind, value, decision);
+    void undo() => screener.restore(decided, previous);
+
+    final who = domain == null
+        ? (sender.name ?? sender.address)
+        : 'Everyone at $domain';
+    if (decision == ScreenerDecision.letIn) {
+      refresh();
+      onNotice?.call(
+        '$who can now reach your inbox',
+        undo: () {
+          undo();
+          refresh();
+        },
+      );
+      return;
+    }
+    final place = screener.outPlace;
+    if (place == ScreenOutPlace.archive) {
+      // Their waiting mail goes now; later mail with each sync.
+      final byAccount = <int, List<StoredMessage>>{};
+      for (final w in waiting) {
+        if (!decided.matches(w.address)) continue;
+        for (final m in w.messages) {
+          final archive = archiveFor(m);
+          if (archive != null && archive.id != m.mailboxId) {
+            byAccount.putIfAbsent(m.accountId, () => []).add(m);
+          }
+        }
+      }
+      final moves = [
+        for (final MapEntry(key: accountId, value: group) in byAccount.entries)
+          () => services.actions.move(group, _archiveFolder(accountId)!),
+      ];
+      if (moves.isNotEmpty) {
+        _remove(moves, '$who screened out. Moved to Archive.', alsoUndo: undo);
+        return;
+      }
+    }
+    refresh();
+    final where = switch (place) {
+      ScreenOutPlace.newsletters => 'Newsletters',
+      ScreenOutPlace.notifications => 'Notifications',
+      ScreenOutPlace.archive => 'Archive',
+    };
+    onNotice?.call(
+      '$who screened out. Their mail goes to $where.',
+      undo: () {
+        undo();
+        refresh();
+      },
     );
   }
 

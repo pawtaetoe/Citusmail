@@ -157,6 +157,8 @@ void main() {
       ('Terms of service', 'https://citusmail.fluminaris.com/terms-of-service'),
     ]) {
       await tester.scrollUntilVisible(find.text(title), 200);
+      await tester.ensureVisible(find.text(title));
+      await tester.pumpAndSettle();
       await tester.tap(find.text(title));
       await tester.pumpAndSettle();
       expect(find.text('Open this link?'), findsOneWidget, reason: title);
@@ -233,6 +235,8 @@ void main() {
       expect(find.text(hidden), findsNothing, reason: hidden);
     }
     await tester.scrollUntilVisible(find.text('Advanced'), 200);
+    await tester.ensureVisible(find.text('Advanced'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Advanced'));
     await tester.pumpAndSettle();
     for (final shown in [
