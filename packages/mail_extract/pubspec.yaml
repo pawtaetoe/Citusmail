@@ -2,7 +2,7 @@ name: mail_extract
 description: >-
   Reads the schema.org data that shops, carriers and travel companies embed
   in their emails (JSON-LD and microdata, the markup mail apps use for
-  cards): parcel deliveries and orders, and later reservations. Never runs
+  cards): parcel deliveries, orders and reservations. Never runs
   anything from the mail. Pure Dart.
 version: 0.1.0
 publish_to: none

@@ -102,13 +102,13 @@ are at the bottom of the screen, within reach of one thumb.
   tracking parameters removed from links, one-tap unsubscribe (with the
   unsubscribe address checked too), blocking senders.
 - **Privacy report**: what was kept from senders in the last 7 or 30
+  days (trackers, remote images, tracking tags on links, read receipts,
+  scam warnings) and the senders that track you most, counted on your
+  device.
 - **Attachments**: every file people sent you in one searchable list
   (PDFs, photos, documents, spreadsheets), from all accounts and
   folders, without downloading your mail. Tap one to open its email or
   save it.
-  days (trackers, remote images, tracking tags on links, read receipts,
-  scam warnings) and the senders that track you most, counted on your
-  device.
 - **Writing mail**: drafts, replies, undo send, custom folders and rules
   (also as server-side Sieve rules).
 - **Meeting invitations**: Outlook, Google Calendar, Zoom and other
@@ -130,6 +130,11 @@ are at the bottom of the screen, within reach of one thumb.
   items, carrier, tracking number and latest status, what's on the way
   first with its expected date; "Track" opens the carrier's page after
   asking.
+- **Trips**: flights, hotels, trains, buses, rental cars, restaurant
+  tables and event tickets found in your booking emails, put together
+  into trips ("Tokyo, 12–18 Dec") with a timeline in local times, on
+  your device and offline. Copy the booking reference with a tap, add a
+  booking to your calendar, and see cancellations and schedule changes.
 - **Return-by dates**: under Deliveries, what you can still return and
   until when, read from the return policy in order confirmations and
   receipts ("30-day returns", "return by 15 Dec"), with a reminder three
