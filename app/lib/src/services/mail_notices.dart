@@ -96,15 +96,16 @@ abstract final class MailNotices {
     bool hideContent = false,
     bool previews = true,
   }) {
-    // Mail waiting in the Screener never notifies (NewMailTracker already
-    // leaves it out; this keeps it so for any other caller).
-    final screened = mail.messages
-        .where((m) => m.section == SmartSection.screener)
-        .length;
+    // Mail waiting in the Screener, and snoozed mail, never notifies
+    // (NewMailTracker already leaves it out; this keeps it so for any
+    // other caller).
+    bool quiet(StoredMessage m) =>
+        m.section == SmartSection.screener || m.section == SmartSection.snoozed;
+    final screened = mail.messages.where(quiet).length;
     if (screened > 0) {
       mail = NewMail(mail.accountId, [
         for (final m in mail.messages)
-          if (m.section != SmartSection.screener) m,
+          if (!quiet(m)) m,
       ], total: mail.total - screened);
     }
     if (mail.isEmpty) return const [];
@@ -147,6 +148,31 @@ abstract final class MailNotices {
             ),
         ];
     }
+  }
+
+  /// The notification for [m], back from snooze: "Back from snooze:
+  /// sender" over its subject (and a preview, when previews are on). With
+  /// [hideContent] (the app lock is on), only that a snoozed email is back.
+  static MailNotice backFromSnooze(
+    StoredMessage m, {
+    bool hideContent = false,
+    bool previews = true,
+  }) {
+    if (hideContent) {
+      return MailNotice(
+        id: idFor(m.id),
+        title: 'A snoozed email is back',
+        body: 'Unlock $appName to read it.',
+      );
+    }
+    return MailNotice(
+      id: idFor(m.id),
+      title: 'Back from snooze: ${senderName(m)}',
+      body: _subjectOf(m),
+      preview: previews ? _preview(m.snippet) : null,
+      messageId: m.id,
+      receivedAt: m.listedAt,
+    );
   }
 
   static MailNotice _notice(StoredMessage m, {required bool previews}) {

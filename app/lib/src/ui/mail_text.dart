@@ -22,6 +22,9 @@ abstract final class MailText {
     SmartSection.newsletters => 'Newsletters',
   };
 
+  /// Snoozed mail: the time it comes back, the "Snoozed" badge.
+  static const snoozeColor = Color(0xFFD6409F);
+
   static IconData sectionIcon(SmartSection section) => switch (section) {
     SmartSection.pinned => Icons.push_pin,
     SmartSection.codes => Icons.password,
@@ -38,7 +41,7 @@ abstract final class MailText {
         SmartSection.pinned => pinColor,
         SmartSection.codes => const Color(0xFF8E4EC6),
         SmartSection.screener => const Color(0xFF0090FF),
-        SmartSection.snoozed => const Color(0xFFD6409F),
+        SmartSection.snoozed => snoozeColor,
         SmartSection.important => const Color(0xFFF5A524),
         SmartSection.general => colors.primary,
         SmartSection.notifications => const Color(0xFF30A46C),

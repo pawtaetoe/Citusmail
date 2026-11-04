@@ -11,8 +11,9 @@ import 'app_services.dart';
 import 'mail_notifier.dart';
 
 /// While the app runs: after each sync, claims new mail and announces it,
-/// unless the user is looking at the app (then the list shows it); and
-/// posts reminders of bills and trials when it is time.
+/// unless the user is looking at the app (then the list shows it); posts
+/// reminders of bills and trials when it is time; and announces snoozed
+/// mail that came back ([backFromSnooze]).
 final class NewMailAnnouncer {
   NewMailAnnouncer(this._services, this._notifier)
     : _tracker = NewMailTracker(_services.store) {
@@ -41,6 +42,19 @@ final class NewMailAnnouncer {
     if (account != null) {
       unawaited(notifier.announce(_services.store, account, mail));
     }
+  }
+
+  /// Announces snoozed mail that came back, by the same rules as new
+  /// mail: not while the user is looking at the app (the list shows it on
+  /// top), nor with notifications off.
+  void backFromSnooze(BackFromSnooze back) {
+    final notifier = _notifier;
+    if (notifier == null || back.isEmpty) return;
+    if (!_services.settings.notifications) return;
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      return;
+    }
+    unawaited(notifier.announceBackFromSnooze(_services.store, back));
   }
 
   Future<void> dispose() => _events.cancel();

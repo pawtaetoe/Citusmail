@@ -122,6 +122,7 @@ final class MailCounts {
     required this.perAccountUnread,
     required this.folderUnread,
     required this.outbox,
+    this.snoozed = 0,
   });
 
   static const empty = MailCounts(
@@ -130,6 +131,9 @@ final class MailCounts {
     folderUnread: {},
     outbox: 0,
   );
+
+  /// Messages snoozed in the inboxes.
+  final int snoozed;
 
   final Map<SmartSection, SectionCount> sections;
   final Map<int, int> perAccountUnread;
@@ -197,6 +201,7 @@ final class MailController {
     list.show(location.value);
     _refreshCounts();
     _refreshCodesOffer();
+    wakeSnoozes();
   }
 
   final AppServices services;
@@ -231,6 +236,10 @@ final class MailController {
   /// Asks for an account's new password or sign-in (set by the screen
   /// that can show it).
   void Function(Account account)? onReconnect;
+
+  /// Announces snoozed mail that came back (set by the screen that can
+  /// post notifications).
+  void Function(BackFromSnooze back)? onBackFromSnooze;
 
   /// Fixes the login of the account in [status], if that is the problem.
   void reconnect(SyncProblem problem) {
@@ -304,6 +313,7 @@ final class MailController {
     _refreshCounts();
     _refreshSelected();
     _refreshCodesOffer();
+    _scheduleWake();
   }
 
   void _refreshCounts() {
@@ -318,6 +328,7 @@ final class MailController {
       },
       folderUnread: _store.messages.unreadCounts(),
       outbox: _store.outbox.sends().length,
+      snoozed: _store.snoozes.count(),
     );
   }
 
@@ -807,17 +818,7 @@ final class MailController {
       }
     }
     clearSelection();
-    StoredMessage? next;
-    if (open != null && removedIds.contains(open.id)) {
-      final index = visible.indexWhere((m) => m.id == open.id);
-      next = [
-        ...visible.skip(index + 1),
-        ...visible.take(index < 0 ? 0 : index).toList().reversed,
-      ].where((m) => !removedIds.contains(m.id)).firstOrNull;
-      reader.value = const ReaderEmpty();
-    }
-    refresh();
-    if (next != null) unawaited(this.open(next));
+    _leaveList(open, visible, removedIds);
     onNotice?.call(
       done,
       undo: () {
@@ -829,6 +830,154 @@ final class MailController {
         }
       },
     );
+  }
+
+  /// After [removedIds] left the list: refreshes, and if [open] was one
+  /// of them, opens the next message (or the one before).
+  void _leaveList(
+    StoredMessage? open,
+    List<StoredMessage> visible,
+    Set<int> removedIds,
+  ) {
+    StoredMessage? next;
+    if (open != null && removedIds.contains(open.id)) {
+      final index = visible.indexWhere((m) => m.id == open.id);
+      next = [
+        ...visible.skip(index + 1),
+        ...visible.take(index < 0 ? 0 : index).toList().reversed,
+      ].where((m) => !removedIds.contains(m.id)).firstOrNull;
+      reader.value = const ReaderEmpty();
+    }
+    refresh();
+    if (next != null) unawaited(this.open(next));
+  }
+
+  // -------------------------------------------------------------- snooze
+
+  Timer? _wakeTimer;
+
+  /// Whether [m] can be snoozed: inbox mail with a Message-ID (what keeps
+  /// it the same message on every device).
+  bool canSnooze(StoredMessage m) =>
+      m.messageId != null &&
+      (_store.mailboxes.byId(m.mailboxId)?.isInbox ?? false);
+
+  /// When [m] comes back, while it is snoozed.
+  DateTime? snoozedUntil(StoredMessage m) {
+    final id = m.messageId;
+    if (id == null || m.section != SmartSection.snoozed) return null;
+    return list.snoozedUntil[id] ?? _store.snoozes.find(id)?.until;
+  }
+
+  /// Snoozes [messages] until [until] (or changes when they come back),
+  /// says [done], and offers Undo. They leave the inbox now; nothing
+  /// changes on the mail server.
+  void snooze(List<StoredMessage> messages, DateTime until, String done) {
+    final targets = [
+      for (final m in messages)
+        if (canSnooze(m)) m,
+    ];
+    if (targets.isEmpty) {
+      onNotice?.call('This email can\'t be snoozed.');
+      return;
+    }
+    final ids = {for (final m in targets) m.messageId!};
+    final previous = {for (final id in ids) id: _store.snoozes.find(id)};
+    _store.transaction(() {
+      for (final id in ids) {
+        _store.snoozes.snooze(id, until);
+      }
+    });
+    final open = selected;
+    final visible = list.visible;
+    clearSelection();
+    if (location.value is SnoozedLocation) {
+      refresh();
+    } else {
+      _leaveList(open, visible, {for (final m in targets) m.id});
+    }
+    onNotice?.call(
+      done,
+      undo: () {
+        _store.transaction(() {
+          for (final MapEntry(key: id, value: before) in previous.entries) {
+            if (before == null) {
+              _store.snoozes.cancel(id);
+            } else {
+              _store.snoozes.snooze(id, before.until);
+            }
+          }
+        });
+        refresh();
+      },
+    );
+  }
+
+  /// Brings [messages] back now, where they were in the inbox (not as
+  /// new), with Undo.
+  void unsnooze(List<StoredMessage> messages) {
+    final ended = <Snooze>[];
+    _store.transaction(() {
+      for (final m in messages) {
+        final id = m.messageId;
+        if (id == null) continue;
+        if (_store.snoozes.cancel(id) case final s?) ended.add(s);
+      }
+    });
+    if (ended.isEmpty) return;
+    final open = selected;
+    final visible = list.visible;
+    clearSelection();
+    if (location.value is SnoozedLocation) {
+      _leaveList(open, visible, {for (final m in messages) m.id});
+    } else {
+      refresh();
+    }
+    onNotice?.call(
+      ended.length == 1 ? 'Unsnoozed' : 'Unsnoozed ${ended.length}',
+      undo: () {
+        _store.transaction(() {
+          for (final s in ended) {
+            _store.snoozes.snooze(s.messageId, s.until);
+          }
+        });
+        refresh();
+      },
+    );
+  }
+
+  /// Brings back snoozed mail whose time came (or that got a reply),
+  /// marked unread, and announces it ([onBackFromSnooze]). Run after each
+  /// sync, when the app comes to the foreground, and at the next due time.
+  void wakeSnoozes([DateTime? now]) {
+    if (_disposed) return;
+    try {
+      final back = SnoozeWaker(_store, services.actions).wake(now: now);
+      if (!back.isEmpty) {
+        for (final id in back.accountIds) {
+          services.worker.requestSync(id);
+        }
+        refresh();
+        onBackFromSnooze?.call(back);
+      }
+    } on Object catch (e) {
+      debugPrint('snooze: ${e.runtimeType}');
+    }
+    _scheduleWake();
+  }
+
+  /// A timer for the next snooze due. Checked at least hourly: timers may
+  /// stop while the device sleeps (coming back to the app checks too).
+  void _scheduleWake() {
+    _wakeTimer?.cancel();
+    _wakeTimer = null;
+    if (_disposed) return;
+    final next = _store.snoozes.nextDue();
+    if (next == null) return;
+    var delay = next.difference(DateTime.now());
+    if (delay > const Duration(hours: 1)) delay = const Duration(hours: 1);
+    if (delay < const Duration(seconds: 1)) delay = const Duration(seconds: 1);
+    _wakeTimer = Timer(delay, wakeSnoozes);
   }
 
   // --------------------------------------------------------- invitations
@@ -1298,7 +1447,10 @@ final class MailController {
   void _onSyncEvent(SyncEvent event) {
     _lastEvent[event.accountId] = event;
     status.value = _computeStatus();
-    if (event is AccountSynced) tidyCodes();
+    if (event is AccountSynced) {
+      tidyCodes();
+      wakeSnoozes();
+    }
     // Several events arrive close together: refresh once.
     _refreshSoon?.cancel();
     _refreshSoon = Timer(const Duration(milliseconds: 250), refresh);
@@ -1325,6 +1477,7 @@ final class MailController {
   void dispose() {
     _disposed = true;
     _refreshSoon?.cancel();
+    _wakeTimer?.cancel();
     unawaited(_events.cancel());
     list.dispose();
     location.dispose();

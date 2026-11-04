@@ -58,6 +58,9 @@ final class MessageListModel extends ChangeNotifier {
 
   /// Every other view: one list.
   List<StoredMessage> messages = const [];
+
+  /// Snoozed: when each message comes back, by Message-ID.
+  Map<String, DateTime> snoozedUntil = const {};
   bool reachedEnd = false;
   bool loadingOlder = false;
 
@@ -106,12 +109,21 @@ final class MessageListModel extends ChangeNotifier {
       ];
     } else {
       final wanted = messages.length < flatPage ? flatPage : messages.length;
+      final snoozed = location is SnoozedLocation
+          ? _store.snoozes.list()
+          : const <SnoozedMessage>[];
+      snoozedUntil = {
+        for (final s in snoozed) s.snooze.messageId: s.snooze.until,
+      };
       messages = switch (location) {
         SearchLocation(:final text) => _store.messages.search(text, limit: 200),
         OutboxLocation() => const [],
+        SnoozedLocation() => [for (final s in snoozed) s.message],
         _ => _store.messages.list(_query(location, limit: wanted)),
       };
-      if (location is SearchLocation) reachedEnd = true;
+      if (location is SearchLocation || location is SnoozedLocation) {
+        reachedEnd = true;
+      }
     }
     notifyListeners();
   }
@@ -210,7 +222,9 @@ final class MessageListModel extends ChangeNotifier {
       before: before,
       limit: limit,
     ),
-    SearchLocation() || OutboxLocation() => throw StateError('not paged'),
+    SearchLocation() ||
+    OutboxLocation() ||
+    SnoozedLocation() => throw StateError('not paged'),
   };
 
   static List<int>? _accounts(int? accountId) =>

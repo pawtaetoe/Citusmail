@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../mail/mail_controller.dart';
 import 'move_dialog.dart';
+import 'snooze_sheet.dart';
 
 /// One shortcut, for the keys and for the help sheet.
 final class _Shortcut {
@@ -39,6 +40,7 @@ final class MailKeyboardShortcuts extends StatelessWidget {
     _Shortcut('E', 'Archive'),
     _Shortcut('# or Delete', 'Move to Trash'),
     _Shortcut('V', 'Move to folder'),
+    _Shortcut('B', 'Snooze, or change the snooze time'),
     _Shortcut('S', 'Pin or unpin'),
     _Shortcut('U', 'Mark as read or unread'),
     _Shortcut('X', 'Select the open message'),
@@ -86,6 +88,11 @@ final class MailKeyboardShortcuts extends StatelessWidget {
       (_, 's') => () => c.togglePin(targets),
       (_, 'u') => () => c.toggleRead(targets),
       (_, 'v') => () => MoveDialog.show(context, c, targets),
+      (_, 'b') when targets.isNotEmpty => () => SnoozeSheet.show(
+        context,
+        c,
+        targets,
+      ),
       (_, 'x') => () {
         final open = c.selected;
         if (open != null) c.toggleSelected(open);

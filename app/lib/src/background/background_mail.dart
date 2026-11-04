@@ -20,7 +20,8 @@ const bool playBuild = appFlavor == 'play';
 /// Mail checks while the app is closed (Android). The Kotlin side runs the
 /// entry points in main.dart in a background Flutter engine:
 ///
-/// - [runOnce]: the periodic check (about every 5 minutes);
+/// - [runOnce]: the periodic check (about every 5 minutes), which also
+///   brings back snoozed mail whose time came;
 /// - [runInstant]: "Instant mail", a live connection kept by a foreground
 ///   service.
 ///
@@ -78,6 +79,13 @@ abstract final class BackgroundMail {
         final mail = tracker.claim(account.id);
         await notifier?.announce(store, account, mail);
       }
+      // Snoozed mail whose time came: back (unread, also on the server),
+      // announced once.
+      final back = SnoozeWaker(store, MailActions(store)).wake();
+      await notifier?.announceBackFromSnooze(store, back);
+      for (final accountId in back.accountIds) {
+        await engine.syncAccount(accountId);
+      }
       // Old codes leave the inbox (once agreed); the moves go to the
       // server right away.
       final tidied = CodeCleaner(
@@ -112,6 +120,7 @@ abstract final class BackgroundMail {
     );
     final tracker = NewMailTracker(store);
     final cleaner = CodeCleaner(store, MailActions(store));
+    final snoozes = SnoozeWaker(store, MailActions(store));
     final notifier = await MailNotifier.create();
     engine.events.listen((event) {
       if (event is! AccountSynced) return;
@@ -120,9 +129,14 @@ abstract final class BackgroundMail {
         engine.requestSync(accountId);
       }
       final mail = tracker.claim(event.accountId);
+      final back = snoozes.wake();
+      for (final accountId in back.accountIds) {
+        engine.requestSync(accountId);
+      }
       final account = store.accounts.byId(event.accountId);
       if (account != null && settings.notifications) {
         unawaited(notifier?.announce(store, account, mail));
+        unawaited(notifier?.announceBackFromSnooze(store, back));
         unawaited(notifier?.remind(store));
       }
     });

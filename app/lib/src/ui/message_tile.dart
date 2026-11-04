@@ -10,6 +10,7 @@ import '../mail/mail_controller.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
 import 'mail_text.dart';
+import 'snooze_sheet.dart';
 
 /// One message in a list: the sender's initials, sender, time, subject and
 /// preview, with an unread dot. Every row has the same height, so long lists
@@ -17,7 +18,7 @@ import 'mail_text.dart';
 ///
 /// - Click opens; Ctrl/Cmd-click or the checkbox selects; Shift-click
 ///   selects a range.
-/// - On hover (desktop): archive, delete, pin and read buttons.
+/// - On hover (desktop): archive, delete, snooze, pin and read buttons.
 /// - On touch: swipe right to archive, left to delete; long-press selects.
 /// - Right-click or the menu key: the same actions in a menu.
 final class MessageTile extends StatefulWidget {
@@ -111,7 +112,12 @@ final class _MessageTileState extends State<MessageTile> {
         'From ${MailText.sender(_m)}',
         MailText.subject(_m),
         if (_m.shownCode case final code?) 'Code $code',
-        MailText.listDate(context, _m.receivedAt),
+        if (_c.snoozedUntil(_m) case final until?)
+          'Snoozed until ${SnoozeSheet.describe(context, until)}'
+        else if (_m.backFromSnooze)
+          'Back from snooze ${MailText.listDate(context, _m.listedAt)}'
+        else
+          MailText.listDate(context, _m.receivedAt),
         if (_m.hasAttachments) 'Has attachments',
       ].join('. '),
       child: MouseRegion(
@@ -243,13 +249,27 @@ final class _MessageTileState extends State<MessageTile> {
                     padding: const EdgeInsets.only(right: 4),
                     child: Icon(Icons.attach_file, size: 14, color: muted),
                   ),
-                Text(
-                  MailText.listDate(context, _m.receivedAt),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: unread ? colors.primary : muted,
-                    fontWeight: unread ? FontWeight.w600 : null,
+                if (_c.snoozedUntil(_m) case final until?) ...[
+                  // In the Snoozed list: when it comes back.
+                  Icon(Icons.snooze, size: 14, color: MailText.snoozeColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    SnoozeSheet.describe(context, until),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: MailText.snoozeColor,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
+                ] else ...[
+                  if (_m.backFromSnooze) const _SnoozedBadge(),
+                  Text(
+                    MailText.listDate(context, _m.listedAt),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: unread ? colors.primary : muted,
+                      fontWeight: unread ? FontWeight.w600 : null,
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
@@ -306,6 +326,20 @@ final class _MessageTileState extends State<MessageTile> {
           PopupMenuItem(
             value: () => _c.archive([_m]),
             child: const Text('Archive'),
+          ),
+        if (_c.snoozedUntil(_m) != null) ...[
+          PopupMenuItem(
+            value: () => SnoozeSheet.show(context, _c, [_m]),
+            child: const Text('Change snooze time…'),
+          ),
+          PopupMenuItem(
+            value: () => _c.unsnooze([_m]),
+            child: const Text('Unsnooze'),
+          ),
+        ] else if (_c.canSnooze(_m))
+          PopupMenuItem(
+            value: () => SnoozeSheet.show(context, _c, [_m]),
+            child: const Text('Snooze…'),
           ),
         if (!_c.isInTrash(_m))
           PopupMenuItem(
@@ -412,6 +446,18 @@ final class _QuickActions extends StatelessWidget {
             Icons.delete_outline,
             () => controller.delete([message]),
           ),
+        if (controller.snoozedUntil(message) != null)
+          button(
+            'Unsnooze',
+            Icons.alarm_off,
+            () => controller.unsnooze([message]),
+          )
+        else if (controller.canSnooze(message))
+          button(
+            'Snooze (B)',
+            Icons.snooze,
+            () => SnoozeSheet.show(context, controller, [message]),
+          ),
         button(
           message.flags.flagged ? 'Unpin (S)' : 'Pin (S)',
           message.flags.flagged ? Icons.push_pin : Icons.push_pin_outlined,
@@ -427,6 +473,35 @@ final class _QuickActions extends StatelessWidget {
       ],
     );
   }
+}
+
+/// "Snoozed" beside the time of mail that came back from snooze.
+final class _SnoozedBadge extends StatelessWidget {
+  const _SnoozedBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(right: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+    decoration: BoxDecoration(
+      color: MailText.snoozeColor.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.snooze, size: 12, color: MailText.snoozeColor),
+        const SizedBox(width: 3),
+        Text(
+          'Snoozed',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: MailText.snoozeColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 final class _SwipeBackground extends StatelessWidget {

@@ -98,3 +98,14 @@ final class OutboxLocation extends MailLocation {
   @override
   int get hashCode => (OutboxLocation).hashCode;
 }
+
+/// Snoozed mail, soonest back first.
+final class SnoozedLocation extends MailLocation {
+  const SnoozedLocation();
+
+  @override
+  bool operator ==(Object other) => other is SnoozedLocation;
+
+  @override
+  int get hashCode => (SnoozedLocation).hashCode;
+}

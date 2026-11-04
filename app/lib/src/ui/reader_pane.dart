@@ -26,6 +26,7 @@ import 'link_opener.dart';
 import 'mail_text.dart';
 import 'move_dialog.dart';
 import 'rich_document_view.dart';
+import 'snooze_sheet.dart';
 import 'trust_banner.dart';
 import 'unsubscribe_dialog.dart';
 
@@ -232,6 +233,15 @@ final class _Header extends StatelessWidget {
       const SizedBox(height: 20),
       if (controller.blockFor(message) case final block?)
         _BlockedNotice(controller: controller, block: block),
+      if (controller.snoozedUntil(message) case final until?)
+        _SnoozedNotice(controller: controller, message: message, until: until)
+      else if (message.backFromSnooze)
+        _Notice(
+          icon: Icons.snooze,
+          text:
+              'Back from snooze '
+              '(${SnoozeSheet.describe(context, message.listedAt)}).',
+        ),
       ...switch (reader) {
         ReaderLoading() => [
           const Padding(
@@ -306,6 +316,23 @@ final class _Toolbar extends StatelessWidget {
           'Archive (E)',
           Icons.archive_outlined,
           () => controller.archive([message]),
+        ),
+      if (controller.snoozedUntil(message) != null) ...[
+        _Action(
+          'Change snooze time (B)',
+          Icons.snooze,
+          () => SnoozeSheet.show(context, controller, [message]),
+        ),
+        _Action(
+          'Unsnooze',
+          Icons.alarm_off,
+          () => controller.unsnooze([message]),
+        ),
+      ] else if (controller.canSnooze(message))
+        _Action(
+          'Snooze (B)',
+          Icons.snooze,
+          () => SnoozeSheet.show(context, controller, [message]),
         ),
       _Action(
         inTrash ? 'Delete forever' : 'Move to Trash (#)',
@@ -864,6 +891,66 @@ final class _BlockedNotice extends StatelessWidget {
           TextButton(
             onPressed: () => controller.unblock(block),
             child: const Text('Unblock'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Snoozed until …", with Unsnooze and Change time.
+final class _SnoozedNotice extends StatelessWidget {
+  const _SnoozedNotice({
+    required this.controller,
+    required this.message,
+    required this.until,
+  });
+
+  final MailController controller;
+  final StoredMessage message;
+  final DateTime until;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+      ),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.snooze, size: 18, color: colors.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Text(
+                  'Snoozed until ${SnoozeSheet.describe(context, until)}',
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => controller.unsnooze([message]),
+                child: const Text('Unsnooze'),
+              ),
+              TextButton(
+                onPressed: () =>
+                    SnoozeSheet.show(context, controller, [message]),
+                child: const Text('Change time'),
+              ),
+            ],
           ),
         ],
       ),

@@ -68,6 +68,9 @@ final class _MailShellState extends State<MailShell> {
   final _shellFocus = FocusNode(debugLabel: 'mail shell');
   NewMailAnnouncer? _announcer;
 
+  /// Coming back to the app brings back snoozed mail that is due.
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +78,8 @@ final class _MailShellState extends State<MailShell> {
         unawaited(ComposeLauncher.open(context, widget.services, draft));
     _controller.onNotice = _notice;
     _controller.onReconnect = (account) => unawaited(_reconnect(account));
+    _controller.onBackFromSnooze = (back) => _announcer?.backFromSnooze(back);
+    _lifecycle = AppLifecycleListener(onResume: _controller.wakeSnoozes);
     unawaited(widget.services.worker.start().catchError((Object _) {}));
     widget.services.linkSafety.start();
     if (widget.notifications) {
@@ -86,6 +91,7 @@ final class _MailShellState extends State<MailShell> {
   @override
   void dispose() {
     unawaited(_announcer?.dispose());
+    _lifecycle.dispose();
     widget.services.linkSafety.stop();
     _controller.dispose();
     _searchFocus.dispose();
