@@ -97,6 +97,9 @@ are at the bottom of the screen, within reach of one thumb.
 - **Subscriptions**: the paid subscriptions found in your receipts and
   renewal mail, with what each costs, how often, the next charge and
   every past receipt (see above).
+- **Clean up**: the senders who fill your inbox and the ones you rarely
+  open, worked out on your device (not on someone's server), with
+  unsubscribe, archive or delete everything from them, block, or keep.
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.
