@@ -939,12 +939,12 @@ void main() {
       test('a damaged schedule makes the entry fail, never send early', () {
         for (final bad in [
           '{"type":"send","from":"a@x","recipients":["b@x"],"schedule":1}',
-          '{"type":"send","from":"a@x","recipients":["b@x"],'
-              '"schedule":{"at":"soon","draft":"","followUps":[]}}',
-          '{"type":"send","from":"a@x","recipients":["b@x"],'
-              '"schedule":{"at":1,"draft":"","followUps":[]}}',
-          '{"type":"send","from":"a@x","recipients":["b@x"],'
-              '"schedule":{"at":1790000000000,"draft":"","followUps":[0]}}',
+          ('{"type":"send","from":"a@x","recipients":["b@x"],'
+              '"schedule":{"at":"soon","draft":"","followUps":[]}}'),
+          ('{"type":"send","from":"a@x","recipients":["b@x"],'
+              '"schedule":{"at":1,"draft":"","followUps":[]}}'),
+          ('{"type":"send","from":"a@x","recipients":["b@x"],'
+              '"schedule":{"at":1790000000000,"draft":"","followUps":[0]}}'),
         ]) {
           expect(
             () => OutboxAction.decode(bad),
