@@ -204,6 +204,27 @@ void main() {
     await shoot(tester, 'readme_subscription');
   });
 
+  testWidgets('subscriptions coming up', (tester) async {
+    _seedSubscriptions(app.store);
+    _seedReminders(app.store);
+    for (final (name, size, dark) in [
+      ('phone_coming_up', const Size(390, 844), false),
+      ('phone_coming_up_dark', const Size(390, 844), true),
+      ('desktop_coming_up', const Size(1440, 900), false),
+    ]) {
+      await show(
+        tester,
+        SubscriptionsPage(
+          key: ValueKey(name),
+          controller: MailController(app.services),
+        ),
+        size: size,
+        dark: dark,
+      );
+      await shoot(tester, name);
+    }
+  });
+
   testWidgets('settings', (tester) async {
     await show(
       tester,
@@ -302,6 +323,52 @@ void _seedSubscriptions(MailStore store) {
       'Your membership has been cancelled',
       140,
       '',
+    ),
+  ]);
+}
+
+/// Made-up bills and a free trial for "Coming up".
+void _seedReminders(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now();
+  String date(DateTime d) => '${d.day}/${d.month}/${d.year}';
+  var uid = 450;
+  MessageSummary mail(
+    String domain,
+    String name,
+    String subject,
+    int daysAgo,
+    String snippet,
+  ) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.subtract(Duration(days: daysAgo)).toUtc(),
+    subject: subject,
+    from: MailAddress(localPart: 'billing', domain: domain, displayName: name),
+    snippet: snippet,
+  );
+  store.messages.upsertSummaries(inbox.id, [
+    mail(
+      'myrepublic.example',
+      'MyRepublic',
+      'Your MyRepublic e-Bill is ready!',
+      4,
+      'The outstanding amount for your account is: \$32.99. Please pay your '
+          'bill within 7 days of receiving this email.',
+    ),
+    mail(
+      'citypower.example',
+      'City Power',
+      'Your electricity bill for this month',
+      3,
+      'Total amount due: S\$84.20. Due date: '
+          '${date(now.add(const Duration(days: 9)))}',
+    ),
+    mail(
+      'pandapro.example',
+      'foodpanda',
+      'Your pandapro free trial is ending',
+      1,
+      'Your free trial ends in 2 days, then S\$59.88/year.',
     ),
   ]);
 }
