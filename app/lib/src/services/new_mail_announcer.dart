@@ -7,7 +7,6 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:mail_sync/mail_sync.dart';
 
-import '../security/app_lock.dart';
 import 'app_services.dart';
 import 'mail_notifier.dart';
 
@@ -40,13 +39,7 @@ final class NewMailAnnouncer {
     }
     final account = _services.store.accounts.byId(event.accountId);
     if (account != null) {
-      unawaited(
-        notifier.show(
-          account,
-          mail,
-          hideContent: AppLock.isEnabledIn(_services.store),
-        ),
-      );
+      unawaited(notifier.announce(_services.store, account, mail));
     }
   }
 

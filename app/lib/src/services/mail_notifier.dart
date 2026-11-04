@@ -4,6 +4,7 @@
 
 import 'dart:io';
 
+import 'package:background_clipboard/background_clipboard.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mail_store/mail_store.dart';
@@ -11,15 +12,24 @@ import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
 import '../security/app_lock.dart';
+import 'app_settings.dart';
+import 'mail_notices.dart';
 import 'reminders.dart';
 
-/// Shows new-mail notifications through the system: the sender and the
-/// subject, never the text. On Android the lock screen shows only that
-/// there is new mail.
+/// Shows new-mail notifications through the system: one per message with
+/// the sender, the subject and a short preview, and a Copy code button for
+/// verification codes. On Android they are bundled per account under a
+/// summary, and the lock screen shows only that there is new mail; with
+/// the app lock on, nothing but that there is new mail is shown anywhere.
 final class MailNotifier {
-  MailNotifier._(this._plugin);
+  MailNotifier._(this._plugin, this._layout);
+
+  /// A notifier posting to [plugin] (a fake in tests).
+  @visibleForTesting
+  MailNotifier.forTesting(this._plugin, this._layout);
 
   final FlutterLocalNotificationsPlugin _plugin;
+  final NoticeLayout _layout;
 
   static const _channelId = 'new_mail';
   static const _appName = appName;
@@ -48,10 +58,26 @@ final class MailNotifier {
             guid: _windowsGuid,
           ),
         ),
-        onDidReceiveNotificationResponse: (response) {
-          final id = _messageId(response.payload);
+        onDidReceiveNotificationResponse: (response) async {
+          // Linux and Windows: buttons arrive here, in the running app.
+          try {
+            final copied = await CopyCodeAction.handle(
+              response.actionId,
+              response.payload,
+              copy: _copy,
+              dismiss: (id) => plugin.cancel(id: id),
+            );
+            if (copied) return;
+          } on Object catch (e) {
+            debugPrint('copy code: ${e.runtimeType}');
+            return;
+          }
+          final id = MailNotices.messageIdOf(response.payload);
           if (id != null) onOpen?.call(id);
         },
+        // Android: Copy code runs in a background engine, without opening
+        // the app.
+        onDidReceiveBackgroundNotificationResponse: copyCodeInBackground,
       );
     } on Object catch (e) {
       // No notification service (e.g. a minimal Linux desktop): mail still
@@ -59,7 +85,10 @@ final class MailNotifier {
       debugPrint('notifications unavailable: ${e.runtimeType}');
       return null;
     }
-    return MailNotifier._(plugin);
+    return MailNotifier._(
+      plugin,
+      Platform.isAndroid ? NoticeLayout.grouped : NoticeLayout.separate,
+    );
   }
 
   /// Asks for permission where the system requires it (Android 13+).
@@ -71,45 +100,42 @@ final class MailNotifier {
           ?.requestNotificationsPermission() ??
       true;
 
-  /// Announces [mail] of [account]: one notification per message, or one
-  /// summary when many arrive at once. With [hideContent] (the app lock is
-  /// on), only that there is new mail: no sender, no subject.
+  /// Announces [mail] of [account] as the settings in [store] say: with
+  /// previews or not, and only "New mail" while the app lock is on.
+  Future<void> announce(MailStore store, Account account, NewMail mail) => show(
+    account,
+    mail,
+    hideContent: AppLock.isEnabledIn(store),
+    previews: AppSettings(store).notificationPreviews,
+  );
+
+  /// Announces [mail] of [account] (see [MailNotices.build]). With
+  /// [hideContent] (the app lock is on), only that there is new mail.
   Future<void> show(
     Account account,
     NewMail mail, {
     bool hideContent = false,
+    bool previews = true,
   }) async {
-    if (mail.isEmpty) return;
-    if (hideContent) {
+    final notices = MailNotices.build(
+      account,
+      mail,
+      layout: _layout,
+      hideContent: hideContent,
+      previews: previews,
+    );
+    final summarized = notices.any((n) => n.isSummary);
+    for (final notice in notices) {
       await _plugin.show(
-        id: _summaryId(account.id),
-        title: mail.total == 1 ? 'New mail' : '${mail.total} new messages',
-        body: 'Unlock $_appName to read it.',
-        notificationDetails: _details(account),
-      );
-      return;
-    }
-    if (mail.total > 3) {
-      await _plugin.show(
-        id: _summaryId(account.id),
-        title: '${mail.total} new messages',
-        body: account.email,
-        notificationDetails: _details(account),
-      );
-      return;
-    }
-    for (final message in mail.messages) {
-      final from = message.from;
-      final sender = from?.displayName?.trim().isNotEmpty == true
-          ? from!.displayName!
-          : from?.address ?? 'New mail';
-      final subject = message.subject?.trim();
-      await _plugin.show(
-        id: message.id & 0x7FFFFFFF,
-        title: sender,
-        body: subject == null || subject.isEmpty ? '(no subject)' : subject,
-        notificationDetails: _details(account),
-        payload: 'message:${message.id}',
+        id: notice.id,
+        title: notice.title,
+        body: _layout == NoticeLayout.grouped ? notice.body : notice.text,
+        notificationDetails: detailsFor(
+          account,
+          notice,
+          bundled: summarized && !notice.isSummary,
+        ),
+        payload: notice.payload,
       );
     }
   }
@@ -174,28 +200,94 @@ final class MailNotifier {
     ),
   );
 
-  static NotificationDetails _details(Account account) => NotificationDetails(
-    android: AndroidNotificationDetails(
-      _channelId,
-      'New mail',
-      channelDescription: 'Sender and subject of new mail',
-      importance: Importance.high,
-      priority: Priority.high,
-      category: AndroidNotificationCategory.email,
-      // The lock screen shows only that there is new mail.
-      visibility: NotificationVisibility.private,
-      groupKey: 'account.${account.id}',
-      subText: account.email,
-    ),
-    linux: const LinuxNotificationDetails(
-      category: LinuxNotificationCategory.emailArrived,
-    ),
+  /// How [notice] looks on each system. When [bundled], its summary makes
+  /// the sound (Android), not each message.
+  @visibleForTesting
+  static NotificationDetails detailsFor(
+    Account account,
+    MailNotice notice, {
+    bool bundled = false,
+  }) {
+    final copyAction = notice.copyActionId;
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        'New mail',
+        channelDescription: 'Sender, subject and a short preview of new mail',
+        importance: Importance.high,
+        priority: Priority.high,
+        category: AndroidNotificationCategory.email,
+        // The lock screen shows only that there is new mail ("Contents
+        // hidden"); the details show once the phone is unlocked.
+        visibility: NotificationVisibility.private,
+        groupKey: 'account.${account.id}',
+        setAsGroupSummary: notice.isSummary && notice.lines.isNotEmpty,
+        groupAlertBehavior: bundled
+            ? GroupAlertBehavior.summary
+            : GroupAlertBehavior.all,
+        subText: account.email,
+        when: notice.receivedAt?.millisecondsSinceEpoch,
+        showWhen: notice.receivedAt != null,
+        styleInformation: notice.lines.isNotEmpty
+            ? InboxStyleInformation(
+                notice.lines,
+                contentTitle: notice.title,
+                summaryText: notice.more,
+              )
+            : notice.preview != null
+            ? BigTextStyleInformation(notice.text, contentTitle: notice.title)
+            : null,
+        actions: [
+          if (copyAction != null)
+            AndroidNotificationAction(
+              copyAction,
+              CopyCodeAction.label,
+              // Copies in the background: the app does not open.
+              showsUserInterface: false,
+              cancelNotification: true,
+            ),
+        ],
+      ),
+      linux: LinuxNotificationDetails(
+        category: LinuxNotificationCategory.emailArrived,
+        actions: [
+          if (copyAction != null)
+            LinuxNotificationAction(
+              key: copyAction,
+              label: CopyCodeAction.label,
+            ),
+        ],
+      ),
+      windows: WindowsNotificationDetails(
+        timestamp: notice.receivedAt,
+        actions: [
+          if (copyAction != null)
+            WindowsAction(content: CopyCodeAction.label, arguments: copyAction),
+        ],
+      ),
+    );
+  }
+
+  static Future<void> _copy(String code) => BackgroundClipboard.copy(
+    code,
+    label: 'Verification code',
+    sensitive: true,
+    confirmation: 'Code copied',
   );
+}
 
-  static int _summaryId(int accountId) => 0x40000000 | (accountId & 0xFFFFFF);
-
-  static int? _messageId(String? payload) {
-    if (payload == null || !payload.startsWith('message:')) return null;
-    return int.tryParse(payload.substring('message:'.length));
+/// Android: a Copy code button pressed (in a background engine Android
+/// starts for it, also while the app is closed). Copies the code; the
+/// plugin has already removed the notification. Nothing else changes.
+@pragma('vm:entry-point')
+Future<void> copyCodeInBackground(NotificationResponse response) async {
+  try {
+    await CopyCodeAction.handle(
+      response.actionId,
+      response.payload,
+      copy: MailNotifier._copy,
+    );
+  } on Object catch (e) {
+    debugPrint('copy code: ${e.runtimeType}');
   }
 }
