@@ -97,6 +97,11 @@ are at the bottom of the screen, within reach of one thumb.
 - **Subscriptions**: the paid subscriptions found in your receipts and
   renewal mail, with what each costs, how often, the next charge and
   every past receipt (see above).
+- **Your accounts**: the online services you have an account with, found
+  in welcome emails, sign-in codes, password resets and security alerts
+  on your device, with the address each one uses. Handy after a data
+  breach, when you change address, or to close accounts you no longer
+  use.
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.
