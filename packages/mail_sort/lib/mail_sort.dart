@@ -19,4 +19,6 @@ export 'src/sender_cleanup.dart';
 export 'src/sender_patterns.dart';
 export 'src/sorting_rules.dart';
 export 'src/subscriptions.dart';
+export 'src/travel_places.dart';
+export 'src/trips.dart';
 export 'src/verification_codes.dart';
