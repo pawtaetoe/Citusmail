@@ -7,12 +7,14 @@ import 'package:mail_sort/mail_sort.dart';
 
 import '../mail/mail_controller.dart';
 import '../mail/subscriptions_model.dart';
+import '../services/reminders.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
 import 'subscription_detail_page.dart';
 
 /// Paid subscriptions found in the user's receipts and renewal mail: what
-/// each costs, how often, and when it charges next. Found on the device.
+/// each costs, how often, and when it charges next; and what is coming up
+/// (bills due, free trials ending, renewals). Found on the device.
 final class SubscriptionsPage extends StatefulWidget {
   const SubscriptionsPage({super.key, required this.controller, this.now});
 
@@ -62,6 +64,39 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
     if (notOne == true && mounted) _hide(s);
   }
 
+  /// The bill, trial email or last receipt, read in place.
+  Future<void> _openReminder(Reminder r) async {
+    final message = _model.message(r.messageId);
+    if (message == null) return;
+    await EmailPage.open(
+      context,
+      widget.controller,
+      message,
+      title: switch (r.kind) {
+        ReminderKind.billDue => 'Bill',
+        ReminderKind.trialEnds => 'Free trial',
+        ReminderKind.renewal => 'Receipt',
+      },
+    );
+  }
+
+  /// "Done" or "Not needed": gone from the list, with Undo.
+  void _dismiss(Reminder r) {
+    _model.dismiss(r);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('${r.name} removed from Coming up'),
+          persist: false,
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => _model.undismiss(r),
+          ),
+        ),
+      );
+  }
+
   void _hide(Subscription s) {
     _model.hide(s.company);
     ScaffoldMessenger.of(context)
@@ -100,6 +135,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
           }
           final all = _model.subscriptions;
           final soon = _model.renewingSoon.toSet();
+          final comingUp = _model.comingUp;
           final active = [
             for (final s in all)
               if (s.status == SubscriptionStatus.active) s,
@@ -115,9 +151,20 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                 children: [
-                  if (all.isEmpty)
+                  // What needs doing soon, first.
+                  if (comingUp.isNotEmpty) ...[
+                    const _SectionTitle('Coming up', top: 8),
+                    for (final r in comingUp)
+                      _ReminderTile(
+                        reminder: r,
+                        now: _today,
+                        onOpen: () => _openReminder(r),
+                        onDismiss: () => _dismiss(r),
+                      ),
+                  ],
+                  if (all.isEmpty && comingUp.isEmpty)
                     const _Empty()
-                  else
+                  else if (all.isNotEmpty)
                     _Overview(
                       model: _model,
                       soon: soon.length,
@@ -134,22 +181,17 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
                       count: _model.toRead.length,
                       onRead: _model.readReceipts,
                     ),
-                  if (soon.isNotEmpty) ...[
-                    const _SectionTitle('Renewing soon'),
-                    for (final s in active.where(soon.contains))
+                  if (active.isNotEmpty) ...[
+                    const _SectionTitle('Active'),
+                    // Renewing within a week first.
+                    for (final s in [
+                      ...active.where(soon.contains),
+                      ...active.where((s) => !soon.contains(s)),
+                    ])
                       _SubscriptionTile(
                         subscription: s,
                         today: _today,
-                        soon: true,
-                        onSelect: () => _select(s),
-                      ),
-                  ],
-                  if (active.any((s) => !soon.contains(s))) ...[
-                    _SectionTitle(soon.isEmpty ? 'Active' : 'Other active'),
-                    for (final s in active.where((s) => !soon.contains(s)))
-                      _SubscriptionTile(
-                        subscription: s,
-                        today: _today,
+                        soon: soon.contains(s),
                         onSelect: () => _select(s),
                       ),
                   ],
@@ -572,13 +614,14 @@ final class _Reading extends StatelessWidget {
 }
 
 final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+  const _SectionTitle(this.text, {this.top = 20});
 
   final String text;
+  final double top;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
+    padding: EdgeInsets.fromLTRB(4, top, 4, 8),
     child: Text(
       text,
       style: Theme.of(context).textTheme.titleSmall
@@ -704,6 +747,142 @@ final class _SubscriptionTile extends StatelessWidget {
   }
 }
 
+/// A bill due, a free trial ending or a renewal: the date, the amount, and
+/// "Done" / "Not needed". Opens its email.
+final class _ReminderTile extends StatelessWidget {
+  const _ReminderTile({
+    required this.reminder,
+    required this.now,
+    required this.onOpen,
+    required this.onDismiss,
+  });
+
+  final Reminder reminder;
+  final DateTime now;
+  final VoidCallback onOpen;
+
+  /// "Done" or "Not needed": no longer shown or notified.
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final r = reminder;
+    final days = r.daysFrom(now);
+    final amount = r.amount;
+    final (IconData icon, String what) = switch (r.kind) {
+      ReminderKind.billDue => (Icons.receipt_long_outlined, 'Bill'),
+      ReminderKind.trialEnds => (Icons.hourglass_bottom, 'Free trial'),
+      ReminderKind.renewal => (Icons.autorenew, 'Renewal'),
+    };
+    final overdue = days < 0;
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        key: ValueKey('reminder-${r.key}'),
+        contentPadding: const EdgeInsets.fromLTRB(16, 6, 0, 6),
+        onTap: onOpen,
+        leading: Avatar(name: r.name, address: r.company),
+        title: Text(
+          r.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleSmall,
+        ),
+        subtitle: Text.rich(
+          TextSpan(
+            children: [
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    icon,
+                    size: 14,
+                    color: colors.onSurfaceVariant,
+                    semanticLabel: what,
+                  ),
+                ),
+              ),
+              TextSpan(text: ReminderWords.detail(r, now)),
+            ],
+          ),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: overdue ? colors.error : colors.onSurfaceVariant,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // A trial's price is in its line; it costs nothing yet.
+                if (amount != null && r.kind != ReminderKind.trialEnds)
+                  Text(
+                    Prices.format(amount),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: overdue
+                        ? colors.errorContainer
+                        : days <= 3
+                        ? CitusPalette.citrus
+                        : colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(
+                      CitusmailTheme.radiusSmall,
+                    ),
+                  ),
+                  child: Text(
+                    ReminderWords.when(days),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: overdue
+                          ? colors.onErrorContainer
+                          : days <= 3
+                          ? CitusPalette.onCitrus
+                          : colors.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Done or not needed',
+              onSelected: (_) => onDismiss(),
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'Done',
+                  child: Text(
+                    r.kind == ReminderKind.billDue
+                        ? 'Done, it\'s paid'
+                        : 'Done',
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'Not needed',
+                  child: Text('Not needed'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 final class _Empty extends StatelessWidget {
   const _Empty();
 
@@ -755,7 +934,11 @@ final class _HowDialog extends StatelessWidget {
       'Prices, how often you pay and the next charge are read from those '
       'emails, so they are estimates: check the receipt when it matters. '
       'Nothing is sent anywhere. If something listed is not a subscription, '
-      'open it and choose "Not a subscription".',
+      'open it and choose "Not a subscription".\n\n'
+      'Coming up lists bills that say when they are due (until a payment '
+      'to the same company arrives), free trials that say when they end, '
+      'and yearly subscriptions renewing within a week. Choose "Done" or '
+      '"Not needed" to remove one.',
     ),
     actions: [
       TextButton(
