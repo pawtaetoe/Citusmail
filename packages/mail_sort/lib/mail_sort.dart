@@ -7,9 +7,11 @@
 library;
 
 export 'src/classification.dart';
+export 'src/due_dates.dart';
 export 'src/header_rule_classifier.dart';
 export 'src/learned_classifier.dart';
 export 'src/list_id.dart';
+export 'src/reminders.dart';
 export 'src/resorter.dart';
 export 'src/sender_patterns.dart';
 export 'src/sorting_rules.dart';
