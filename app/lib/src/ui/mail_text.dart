@@ -14,6 +14,7 @@ abstract final class MailText {
   static String section(SmartSection section) => switch (section) {
     SmartSection.pinned => 'Pinned',
     SmartSection.codes => 'Verification',
+    SmartSection.screener => 'Screener',
     SmartSection.important => 'Important',
     SmartSection.general => 'General',
     SmartSection.notifications => 'Notifications',
@@ -23,6 +24,7 @@ abstract final class MailText {
   static IconData sectionIcon(SmartSection section) => switch (section) {
     SmartSection.pinned => Icons.push_pin,
     SmartSection.codes => Icons.password,
+    SmartSection.screener => Icons.how_to_reg_outlined,
     SmartSection.important => Icons.label_important_outline,
     SmartSection.general => Icons.mail_outline,
     SmartSection.notifications => Icons.notifications_none,
@@ -33,6 +35,7 @@ abstract final class MailText {
       switch (section) {
         SmartSection.pinned => pinColor,
         SmartSection.codes => const Color(0xFF8E4EC6),
+        SmartSection.screener => const Color(0xFF0090FF),
         SmartSection.important => const Color(0xFFF5A524),
         SmartSection.general => colors.primary,
         SmartSection.notifications => const Color(0xFF30A46C),

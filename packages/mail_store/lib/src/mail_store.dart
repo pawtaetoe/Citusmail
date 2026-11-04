@@ -14,6 +14,7 @@ import 'repository/mailbox_repository.dart';
 import 'repository/message_repository.dart';
 import 'repository/outbox_repository.dart';
 import 'repository/receipt_repository.dart';
+import 'repository/screener_repository.dart';
 import 'repository/settings_repository.dart';
 import 'repository/unsubscribe_repository.dart';
 
@@ -32,7 +33,8 @@ final class MailStore {
       blocks = BlockRepository(database),
       imageSenders = ImageSenderRepository(database),
       appDataSync = AppDataSyncRepository(database),
-      receipts = ReceiptRepository(database);
+      receipts = ReceiptRepository(database),
+      screener = ScreenerRepository(database);
 
   /// Opens (or creates) the store at [path], encrypted with [key].
   /// See [MailDatabase.open] for the errors it can raise.
@@ -52,6 +54,7 @@ final class MailStore {
   final ImageSenderRepository imageSenders;
   final AppDataSyncRepository appDataSync;
   final ReceiptRepository receipts;
+  final ScreenerRepository screener;
 
   /// Runs [action] atomically across repositories.
   T transaction<T>(T Function() action) => database.transaction(action);

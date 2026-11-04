@@ -300,6 +300,36 @@ void main() {
       );
     });
 
+    test('version 13 mail keeps its section; the Screener fits', () {
+      openAt(13)
+        ..execute(
+          'INSERT INTO messages (id, mailbox_id, uid, received_at, category, section, flags, code) VALUES '
+          "(1, 1, 1, 0, 'codes', 'codes', 0, '123456'), (2, 1, 2, 0, 'people', 'important', 0, NULL)",
+        )
+        ..close();
+      temp.store = MailStore.open(temp.path, temp.key);
+      final db = temp.store.database;
+      expect(
+        db
+            .select('SELECT section, code FROM messages ORDER BY id')
+            .map((r) => (r['section'], r['code'])),
+        [('codes', '123456'), ('important', null)],
+      );
+      db.execute("UPDATE messages SET section = 'screener' WHERE id = 2");
+      expect(
+        () => db.execute("UPDATE messages SET section = 'other' WHERE id = 1"),
+        throwsA(anything),
+      );
+      expect(
+        db.select(
+          "SELECT name FROM sqlite_master WHERE name IN ('messages_by_section', 'messages_unread', 'screener_senders')",
+        ),
+        hasLength(3),
+      );
+      expect(temp.store.screener.enabled, isFalse);
+      expect(temp.store.screener.all(), isEmpty);
+    });
+
     test('a failing migration rolls back completely', () {
       temp.store.close();
       final broken = [

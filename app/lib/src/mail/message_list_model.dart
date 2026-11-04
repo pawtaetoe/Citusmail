@@ -84,7 +84,8 @@ final class MessageListModel extends ChangeNotifier {
       final previous = {for (final s in sections) s.section: s};
       sections = [
         for (final section in SmartSection.values)
-          if (counts[section]!.total > 0)
+          // Waiting senders have their own entry (Screener), not a section.
+          if (section != SmartSection.screener && counts[section]!.total > 0)
             _loadSection(
               previous[section] ??
                   SectionState(

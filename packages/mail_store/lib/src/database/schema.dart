@@ -246,7 +246,7 @@ const List<Migration> schemaMigrations = [
     '''
     ALTER TABLE messages ADD COLUMN section TEXT NOT NULL DEFAULT 'general'
       CHECK (section IN ('pinned', 'important', 'general', 'notifications', 'newsletters'))''',
-    'UPDATE messages SET section = ${SectionSql.expression}',
+    'UPDATE messages SET section = ${SectionSql.migration6Expression}',
     'CREATE INDEX messages_by_section ON messages (mailbox_id, section, received_at DESC, id DESC)',
     // Unread counts per folder read only unread rows.
     'CREATE INDEX messages_unread ON messages (mailbox_id, section) WHERE (flags & 1) = 0',
@@ -371,5 +371,31 @@ const List<Migration> schemaMigrations = [
     '''
     ALTER TABLE messages ADD COLUMN code TEXT
       CHECK (code IS NULL OR length(code) <= 16)''',
+  ]),
+
+  // The Screener: mail from first-time senders waits in a section of its
+  // own until the user lets the sender in or screens them out. Decisions
+  // are per address or per domain, for every account (like blocks). The
+  // section is re-created with the new value allowed, as in version 13.
+  Migration(14, [
+    'DROP INDEX messages_by_section',
+    'DROP INDEX messages_unread',
+    'ALTER TABLE messages RENAME COLUMN section TO section_v13',
+    '''
+    ALTER TABLE messages ADD COLUMN section TEXT NOT NULL DEFAULT 'general'
+      CHECK (section IN ('pinned', 'codes', 'screener', 'important', 'general', 'notifications', 'newsletters'))''',
+    'UPDATE messages SET section = section_v13',
+    'ALTER TABLE messages DROP COLUMN section_v13',
+    'CREATE INDEX messages_by_section ON messages (mailbox_id, section, received_at DESC, id DESC)',
+    'CREATE INDEX messages_unread ON messages (mailbox_id, section) WHERE (flags & 1) = 0',
+    '''
+    CREATE TABLE screener_senders (
+      id INTEGER PRIMARY KEY,
+      kind TEXT NOT NULL CHECK (kind IN ('address', 'domain')),
+      value TEXT NOT NULL CHECK (length(value) BETWEEN 3 AND 320 AND value = lower(value)),
+      decision TEXT NOT NULL CHECK (decision IN ('in', 'out')),
+      since INTEGER NOT NULL,
+      UNIQUE (kind, value)
+    ) STRICT''',
   ]),
 ];

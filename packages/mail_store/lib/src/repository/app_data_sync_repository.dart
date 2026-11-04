@@ -8,6 +8,7 @@ import 'dart:math';
 import '../database/mail_database.dart';
 import '../model/blocked_sender.dart';
 import '../model/folder_rule.dart';
+import 'screener_repository.dart';
 
 /// Names for app data that are the same on every device, so the user's
 /// devices can tell they mean the same thing (local ids differ).
@@ -20,6 +21,9 @@ abstract final class AppDataKeys {
 
   static String imageSender(String address) =>
       'images:${jsonEncode([address.toLowerCase()])}';
+
+  static String screener(ScreenerKind kind, String value) =>
+      'screener:${jsonEncode([kind.name, value])}';
 
   static String folderRule(
     String accountEmail,
@@ -41,7 +45,7 @@ final class Tombstone {
 
   final String key;
 
-  /// `block`, `unsubscribe`, `imageSender` or `folderRule`.
+  /// `block`, `unsubscribe`, `imageSender`, `folderRule` or `screener`.
   final String kind;
   final DateTime deletedAt;
   final String device;
