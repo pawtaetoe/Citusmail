@@ -223,12 +223,16 @@ abstract final class ReminderCheck {
       state.lastCheck = at;
       final mail = await loadSubscriptionMail(store, at);
       final hidden = hiddenSubscriptions(store);
+      final found = SubscriptionFinder.find(mail.emails, now: at);
       final reminders = Reminders.find(
         mail.emails,
-        subscriptions: SubscriptionFinder.find(mail.emails, now: at),
+        subscriptions: found,
         now: at,
         monthlyRenewals: settings.monthlyRenewals,
-        hidden: hidden,
+        hidden: {
+          ...hidden,
+          ...await learnedNotSubscriptions(store, mail, found, hidden),
+        },
       );
       final returns = await openReturnWindows(store, at);
       final notices = due(

@@ -12,6 +12,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import 'corrections.dart';
 
 /// The Deliveries page's data: shipped orders found in shop and carrier
 /// mail, on the device. Downloaded emails are read whole, with the
@@ -51,7 +52,18 @@ final class DeliveriesModel extends ChangeNotifier {
 
   /// Deliveries the user said are not deliveries (by key).
   Set<String> hidden = const {};
+
+  /// Deliveries left out because they look like ones the user said are
+  /// not deliveries ("Learn from my corrections"; by key).
+  Set<String> learned = const {};
+
+  /// Those of [hidden] and [learned].
   List<Delivery> hiddenOnes = const [];
+
+  /// Everything the rules found.
+  List<Delivery> _all = const [];
+
+  late final _corrections = Corrections(_store);
 
   /// Deliveries the user marked delivered (by key).
   Set<String> marked = const {};
@@ -152,13 +164,20 @@ final class DeliveriesModel extends ChangeNotifier {
       markedDelivered: marked,
     );
     returns = ReturnWindows.find(mail.emails, deliveries: all);
+    _all = all;
+    final messages = {for (final m in candidates) m.id: m};
+    learned = await _corrections.vetoed(MailKind.delivery, {
+      for (final d in all)
+        if (!hidden.contains(d.key)) d.key: _samples(d, (id) => messages[id]),
+    });
+    final left = {...hidden, ...learned};
     deliveries = [
       for (final d in all)
-        if (!hidden.contains(d.key)) d,
+        if (!left.contains(d.key)) d,
     ];
     hiddenOnes = [
       for (final d in all)
-        if (hidden.contains(d.key)) d,
+        if (left.contains(d.key)) d,
     ];
     // Where something may be missing: shipping mail not understood yet,
     // and that of deliveries on the way without a tracking number or a
@@ -172,7 +191,7 @@ final class DeliveriesModel extends ChangeNotifier {
         DeliveryFinder.looksLikeShipping(m.subject ?? '') ||
             ReturnWindows.looksLikeReceipt(m.subject ?? ''),
       final d =>
-        !hidden.contains(d.key) &&
+        !left.contains(d.key) &&
             !d.arrived &&
             (d.trackingNumber == null || d.expected == null),
     };
@@ -213,10 +232,57 @@ final class DeliveriesModel extends ChangeNotifier {
 
   void stopReading() => _stop = true;
 
-  /// "Not a delivery": hidden from the list (undoable).
-  void hide(String key) => _write(_hiddenKey, {...hidden, key});
+  /// "Not a delivery": hidden from the list (undoable), and learned
+  /// from.
+  void hide(String key) {
+    if (_found(key) case final d?) {
+      _corrections.rejected(
+        MailKind.delivery,
+        _samples(d, _store.messages.byId),
+      );
+    }
+    _write(_hiddenKey, {...hidden, key});
+  }
 
-  void unhide(String key) => _write(_hiddenKey, {...hidden}..remove(key));
+  /// Undo, or "List again": listed again (and never left out by
+  /// learning again).
+  void unhide(String key) {
+    final d = _found(key);
+    final samples = d == null
+        ? const <MailSample>[]
+        : _samples(d, _store.messages.byId);
+    if (hidden.contains(key)) {
+      _corrections.rejected(MailKind.delivery, samples, undo: true);
+      _write(_hiddenKey, {...hidden}..remove(key));
+    } else if (learned.contains(key)) {
+      _corrections.kept(MailKind.delivery, key, samples);
+      unawaited(load());
+    }
+  }
+
+  /// [delivery]'s page was opened: a weak sign that it is one.
+  void opened(Delivery delivery) => _corrections.opened(
+    MailKind.delivery,
+    delivery.key,
+    _samples(delivery, _store.messages.byId),
+  );
+
+  Delivery? _found(String key) => _all.where((d) => d.key == key).firstOrNull;
+
+  /// What the classifier reads of [delivery]'s emails.
+  static List<MailSample> _samples(
+    Delivery delivery,
+    StoredMessage? Function(int id) message,
+  ) => [
+    for (final r in delivery.records)
+      mailSample(
+        message(r.email.messageId),
+        domain: r.email.shop,
+        senderName: r.email.senderName,
+        subject: r.email.subject,
+        text: r.email.text,
+      ),
+  ];
 
   /// "Mark as delivered", for one stuck on the way (undoable).
   void markDelivered(String key) => _write(_deliveredKey, {...marked, key});

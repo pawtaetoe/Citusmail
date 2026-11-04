@@ -12,6 +12,7 @@ import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
 import '../services/reminders.dart';
+import 'corrections.dart';
 
 /// The mail subscriptions and reminders are read from: receipts, bills,
 /// renewal and trial emails of the last two years.
@@ -60,6 +61,38 @@ Set<String> hiddenSubscriptions(MailStore store) => {
       .where((s) => s.isNotEmpty),
 };
 
+/// The companies whose subscription is left out because it looks like
+/// ones the user said are not subscriptions ([Corrections]); [found] by
+/// the rules in [mail], those in [hidden] aside.
+Future<Set<String>> learnedNotSubscriptions(
+  MailStore store,
+  SubscriptionMail mail,
+  List<Subscription> found,
+  Set<String> hidden,
+) {
+  final messages = {for (final m in mail.messages) m.id: m};
+  return Corrections(store).vetoed(MailKind.subscription, {
+    for (final s in found)
+      if (!hidden.contains(s.company))
+        s.company: subscriptionSamples(s, (id) => messages[id]),
+  });
+}
+
+/// What the classifier reads of [subscription]'s emails.
+List<MailSample> subscriptionSamples(
+  Subscription subscription,
+  StoredMessage? Function(int id) message,
+) => [
+  for (final r in subscription.records)
+    mailSample(
+      message(r.email.messageId),
+      domain: subscription.company,
+      senderName: r.email.senderName,
+      subject: r.email.subject,
+      text: r.email.text,
+    ),
+];
+
 /// The Subscriptions page's data: paid subscriptions found in receipts and
 /// renewal mail, and what is coming up (bills due, free trials ending,
 /// renewals), on the device. Prices and dates come from the emails' text:
@@ -96,7 +129,18 @@ final class SubscriptionsModel extends ChangeNotifier {
 
   /// Companies the user said are not subscriptions.
   Set<String> hidden = const {};
+
+  /// Companies left out because they look like ones the user said are
+  /// not subscriptions ("Learn from my corrections").
+  Set<String> learned = const {};
+
+  /// Those of [hidden] and [learned].
   List<Subscription> hiddenOnes = const [];
+
+  /// Everything the rules found.
+  List<Subscription> _all = const [];
+
+  late final _corrections = Corrections(_store);
 
   /// Bills due, free trials ending and renewals in the next days, soonest
   /// first, except those the user dismissed.
@@ -133,13 +177,21 @@ final class SubscriptionsModel extends ChangeNotifier {
       now,
     );
     final all = SubscriptionFinder.find(emails, now: now);
+    _all = all;
+    learned = await learnedNotSubscriptions(
+      _store,
+      (messages: candidates, emails: emails),
+      all,
+      hidden,
+    );
+    final left = {...hidden, ...learned};
     final dismissed = ReminderState(_store).dismissed;
     final reminders = Reminders.find(
       emails,
       subscriptions: all,
       now: now,
       monthlyRenewals: _services.settings.monthlyRenewals,
-      hidden: hidden,
+      hidden: left,
     );
     comingUp = [
       for (final r in reminders)
@@ -147,11 +199,11 @@ final class SubscriptionsModel extends ChangeNotifier {
     ];
     subscriptions = [
       for (final s in all)
-        if (!hidden.contains(s.company)) s,
+        if (!left.contains(s.company)) s,
     ];
     hiddenOnes = [
       for (final s in all)
-        if (hidden.contains(s.company)) s,
+        if (left.contains(s.company)) s,
     ];
     final sizes = {for (final m in candidates) m.id: m.size};
     // Bills and trials whose date is known need nothing more.
@@ -201,6 +253,7 @@ final class SubscriptionsModel extends ChangeNotifier {
       for (final e in emails)
         if (!known.contains(e.company) &&
             !hidden.contains(e.company) &&
+            !learned.contains(e.company) &&
             !SubscriptionFinder.isReplyOrForward(e.subject) &&
             SubscriptionFinder.eventOf(e) == SubscriptionEvent.charge &&
             _store.messages.body(e.messageId) == null &&
@@ -235,10 +288,46 @@ final class SubscriptionsModel extends ChangeNotifier {
 
   void stopReading() => _stop = true;
 
-  /// "Not a subscription": hidden from the list (undoable).
-  void hide(String company) => _setHidden({...hidden, company});
+  /// "Not a subscription": hidden from the list (undoable), and learned
+  /// from.
+  void hide(String company) {
+    if (_found(company) case final s?) {
+      _corrections.rejected(MailKind.subscription, _samples(s));
+    }
+    _setHidden({...hidden, company});
+  }
 
-  void unhide(String company) => _setHidden({...hidden}..remove(company));
+  /// Undo, or "List again": listed again (and never left out by
+  /// learning again).
+  void unhide(String company) {
+    final s = _found(company);
+    if (hidden.contains(company)) {
+      if (s != null) {
+        _corrections.rejected(MailKind.subscription, _samples(s), undo: true);
+      }
+      _setHidden({...hidden}..remove(company));
+    } else if (learned.contains(company)) {
+      _corrections.kept(
+        MailKind.subscription,
+        company,
+        s == null ? const [] : _samples(s),
+      );
+      unawaited(load());
+    }
+  }
+
+  /// [subscription]'s page was opened: a weak sign that it is one.
+  void opened(Subscription subscription) => _corrections.opened(
+    MailKind.subscription,
+    subscription.company,
+    _samples(subscription),
+  );
+
+  Subscription? _found(String company) =>
+      _all.where((s) => s.company == company).firstOrNull;
+
+  List<MailSample> _samples(Subscription s) =>
+      subscriptionSamples(s, _store.messages.byId);
 
   void _setHidden(Set<String> companies) {
     _store.settings.write(hiddenKey, companies.join(','));

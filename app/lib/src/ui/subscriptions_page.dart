@@ -52,6 +52,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
   /// The subscription's own page; "Not a subscription" there comes back
   /// here, with Undo.
   Future<void> _select(Subscription s) async {
+    _model.opened(s);
     final notOne = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => SubscriptionDetailPage(
@@ -224,7 +225,12 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
                         ListTile(
                           leading: Avatar(name: s.name, address: s.company),
                           title: Text(s.name),
-                          subtitle: Text(s.company),
+                          subtitle: Text(
+                            _model.learned.contains(s.company)
+                                ? 'Left out: like ones you said aren\'t '
+                                      'subscriptions'
+                                : s.company,
+                          ),
                           trailing: TextButton(
                             onPressed: () => _model.unhide(s.company),
                             child: const Text('List again'),

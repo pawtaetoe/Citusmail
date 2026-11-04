@@ -18,6 +18,7 @@ final class AppSettings {
   static const _reminders = 'reminders.on';
   static const _monthlyRenewals = 'reminders.monthly';
   static const _followUps = 'followUps.notify';
+  static const _learn = 'learning.on';
 
   /// New-mail notifications (on by default).
   bool get notifications => _store.settings.read(_notifications) != 'off';
@@ -42,6 +43,13 @@ final class AppSettings {
   bool get followUpNotifications => _store.settings.read(_followUps) != 'off';
   set followUpNotifications(bool on) =>
       _store.settings.write(_followUps, on ? 'on' : 'off');
+
+  /// "Learn from my corrections" (on by default): items that look like
+  /// ones the user said are not a subscription, delivery, booking or
+  /// account are left out too. Off, the pages show what the rules find.
+  bool get learnFromCorrections => _store.settings.read(_learn) != 'off';
+  set learnFromCorrections(bool on) =>
+      _store.settings.write(_learn, on ? 'on' : 'off');
 
   /// Monthly (and weekly) renewals are reminded of too (off by default:
   /// they come every month).

@@ -13,6 +13,8 @@ export 'src/due_dates.dart';
 export 'src/header_rule_classifier.dart';
 export 'src/learned_classifier.dart';
 export 'src/list_id.dart';
+export 'src/mail_type_seeds.dart';
+export 'src/mail_types.dart';
 export 'src/reminders.dart';
 export 'src/replies.dart';
 export 'src/resorter.dart';

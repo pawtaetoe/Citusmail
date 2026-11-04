@@ -56,6 +56,7 @@ final class _AccountsPageState extends State<AccountsPage> {
   /// The account's own page; "Not an account" there comes back here,
   /// with Undo.
   Future<void> _select(OnlineAccount a) async {
+    _model.opened(a);
     final notOne = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AccountDetailPage(
@@ -247,7 +248,12 @@ final class _AccountsPageState extends State<AccountsPage> {
                         ListTile(
                           leading: Avatar(name: a.name, address: a.company),
                           title: Text(a.name),
-                          subtitle: Text(a.company),
+                          subtitle: Text(
+                            _model.learned.contains(a.company)
+                                ? 'Left out: like ones you said aren\'t '
+                                      'accounts'
+                                : a.company,
+                          ),
                           trailing: TextButton(
                             onPressed: () => _model.unhide(a.company),
                             child: const Text('List again'),

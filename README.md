@@ -157,6 +157,10 @@ are at the bottom of the screen, within reach of one thumb.
   until when, read from the return policy in order confirmations and
   receipts ("30-day returns", "return by 15 Dec"), with a reminder three
   days before the window closes; mark one "Returned" or "Keeping it".
+- **Learns from your corrections**: say "Not a subscription" (or a
+  delivery, booking or account) once, and similar emails stop being
+  picked up too; learned on your device from your own choices only, with
+  "List again" on anything left out and a button to forget it all.
 - **Bill and trial reminders**: a notification a few days before a bill
   is due, a free trial starts charging or a yearly subscription renews,
   found in your mail on the device; mark one "Done" and it stays quiet.

@@ -10,6 +10,7 @@ import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
 import '../background/background_mail.dart';
+import '../mail/corrections.dart';
 import '../mail/mail_controller.dart';
 import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
@@ -582,6 +583,38 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
     if (mounted) setState(() {});
   }
 
+  /// "Forget what it learned", after asking.
+  Future<void> _forget() async {
+    final forget = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Forget what it learned?'),
+        content: const Text(
+          'Things that were left out because they looked like ones you '
+          'corrected are listed again. The ones you marked yourself stay '
+          'hidden.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Forget'),
+          ),
+        ],
+      ),
+    );
+    if (forget != true || !mounted) return;
+    setState(() => Corrections(widget.services.store).forget());
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Forgot what it learned'), persist: false),
+      );
+  }
+
   Future<void> _setServerRules(bool on) async {
     setState(() => widget.services.settings.serverRules = on);
     try {
@@ -604,8 +637,8 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Text(
-              'Everything here is off unless you turn it on, and $appName works '
-              'fully without it.',
+              'Outside services and rules on the server are off unless you '
+              'turn them on, and $appName works fully without them.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -660,6 +693,29 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
                   ),
                 ),
               ),
+          const _Group('Subscriptions, deliveries, trips and accounts'),
+          SwitchListTile(
+            secondary: const Icon(Icons.school_outlined),
+            title: const Text('Learn from my corrections'),
+            subtitle: const Text(
+              'When you say something isn\'t a subscription, delivery, '
+              'booking or account, similar ones are left out too. Learned on '
+              'this device, only from your own choices.',
+            ),
+            value: settings.learnFromCorrections,
+            onChanged: (on) =>
+                setState(() => settings.learnFromCorrections = on),
+          ),
+          ListTile(
+            leading: const Icon(Icons.restart_alt),
+            title: const Text('Forget what it learned'),
+            subtitle: const Text(
+              'Lists everything as it was found again. What you marked '
+              'yourself stays hidden.',
+            ),
+            enabled: Corrections(widget.services.store).learnedAnything,
+            onTap: _forget,
+          ),
         ],
       ),
     );
