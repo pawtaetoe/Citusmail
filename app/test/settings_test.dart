@@ -62,6 +62,31 @@ void main() {
     );
   });
 
+  testWidgets('follow-up reminders: on by default, only with notifications', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    final settings = app.services.settings;
+    expect(settings.followUpNotifications, isTrue);
+    await tester.tap(find.text('Follow-up reminders'));
+    await tester.pump();
+    expect(settings.followUpNotifications, isFalse);
+    await tester.tap(find.text('Follow-up reminders'));
+    await tester.tap(find.text('New mail notifications'));
+    await tester.pump();
+    expect(settings.followUpNotifications, isTrue);
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Follow-up reminders'),
+          )
+          .value,
+      isFalse,
+    );
+  });
+
   testWidgets('message previews: on by default, only with notifications', (
     tester,
   ) async {
@@ -101,6 +126,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: SettingsPage(services: app.services, isAndroid: true)),
     );
+    await tester.scrollUntilVisible(find.text('Instant mail'), 200);
     await tester.tap(find.text('Instant mail'));
     await tester.pump();
     expect(app.services.settings.instantMail, isTrue);
@@ -126,6 +152,7 @@ void main() {
         ),
       ),
     );
+    await tester.scrollUntilVisible(find.text('Checking for new mail'), 200);
     expect(find.text('Instant mail'), findsNothing);
     expect(find.textContaining('live connection'), findsNothing);
     expect(find.text('Checking for new mail'), findsOneWidget);

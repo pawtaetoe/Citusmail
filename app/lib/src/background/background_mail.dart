@@ -47,17 +47,20 @@ abstract final class BackgroundMail {
   }
 
   /// Android: one more background check when the next message scheduled
-  /// with "Send later" is due, so it goes out on time while the app is
-  /// closed (ordinary WorkManager work, no exact alarms: Android may hold
-  /// it a few minutes). [fromCheck] when called from a background check.
-  /// Elsewhere the running app's sync sends it.
+  /// with "Send later" (or the next follow-up reminder) is due, so it goes
+  /// out on time while the app is closed (ordinary WorkManager work, no
+  /// exact alarms: Android may hold it a few minutes). [fromCheck] when
+  /// called from a background check. Elsewhere the running app does it.
   static Future<void> checkWhenDue(
     MailStore store, {
     bool fromCheck = false,
   }) async {
     if (!Platform.isAndroid) return;
     try {
-      final next = ScheduledSends(store, Sender(store)).nextDue();
+      final next = [
+        ?ScheduledSends(store, Sender(store)).nextDue(),
+        ?FollowUpReminders(store).nextDue(),
+      ].fold<DateTime?>(null, (a, b) => a == null || b.isBefore(a) ? b : a);
       if (next == null) return;
       await (fromCheck ? _task : _app).invokeMethod<void>(
         'checkAt',
@@ -121,6 +124,15 @@ abstract final class BackgroundMail {
         await engine.syncAccount(accountId);
       }
       await notifier?.remind(store);
+      // Sent mail that got no reply in time: back in the inbox, and
+      // announced (in the daytime); a reply ends a follow-up quietly.
+      FollowUpReminders(store).check();
+      if (notifier != null) {
+        await notifier.announceFollowUps(store);
+      } else {
+        // Notifications off: nothing to post later either.
+        FollowUpReminders(store).claimUnnotified();
+      }
       // Scheduled messages ("Send later") went out with the syncs above;
       // a quiet note for any that failed, and a check when the next one
       // is due.
@@ -163,12 +175,15 @@ abstract final class BackgroundMail {
       for (final accountId in back.accountIds) {
         engine.requestSync(accountId);
       }
+      // A reply ends a follow-up; no reply in time brings it back.
+      FollowUpReminders(store).check();
       final account = store.accounts.byId(event.accountId);
       if (account != null && settings.notifications) {
         unawaited(notifier?.announce(store, account, mail));
         unawaited(notifier?.announceBackFromSnooze(store, back));
         unawaited(notifier?.remind(store));
         unawaited(notifier?.announceFailedSends(store));
+        unawaited(notifier?.announceFollowUps(store));
       }
     });
     engine.start();

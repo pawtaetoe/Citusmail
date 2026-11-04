@@ -204,7 +204,12 @@ final class ComposeController extends ChangeNotifier {
         services.worker.syncAt(pending.accountId, due);
         unawaited(BackgroundMail.checkWhenDue(services.store));
       }
-      return ComposeSent(pending, followUp: _remind(pending));
+      final followUp = _remind(pending);
+      if (followUp != null) {
+        // Android: a background check when it is due.
+        unawaited(BackgroundMail.checkWhenDue(services.store));
+      }
+      return ComposeSent(pending, followUp: followUp);
     } on ComposeException catch (e) {
       problems = e.problems;
       notifyListeners();

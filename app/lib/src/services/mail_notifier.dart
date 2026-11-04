@@ -13,6 +13,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
+import '../mail/follow_up_times.dart';
 import '../security/app_lock.dart';
 import 'app_settings.dart';
 import 'mail_notices.dart';
@@ -244,6 +245,98 @@ final class MailNotifier {
       priority: Priority.low,
       category: AndroidNotificationCategory.error,
       visibility: NotificationVisibility.private,
+    ),
+  );
+
+  /// Tells the user about sent mail back with "No reply yet" ("No reply
+  /// from Ana to “Quote for the kitchen” — sent 3 days ago"), once each,
+  /// on a channel of its own. Like bill reminders, only in the daytime:
+  /// at night they wait for the morning. None with notifications or
+  /// follow-up notifications off, nor while [inFront] (the inbox shows
+  /// them); those are not posted later either. With the app lock on, only
+  /// that an email is waiting for a reply.
+  Future<void> announceFollowUps(
+    MailStore store, {
+    bool inFront = false,
+    DateTime? now,
+  }) async {
+    final List<MailNotice> notices;
+    try {
+      notices = followUpNotices(store, inFront: inFront, now: now);
+    } on Object catch (e) {
+      debugPrint('follow-ups: ${e.runtimeType}');
+      return;
+    }
+    for (final n in notices) {
+      await _plugin.show(
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        notificationDetails: _followUpDetails,
+        payload: n.payload,
+      );
+    }
+  }
+
+  /// The follow-up notifications to post now (see [announceFollowUps]);
+  /// each returned follow-up is claimed once, whether posted or not,
+  /// except at night, when they wait.
+  @visibleForTesting
+  static List<MailNotice> followUpNotices(
+    MailStore store, {
+    bool inFront = false,
+    DateTime? now,
+  }) {
+    final at = now ?? DateTime.now();
+    final settings = AppSettings(store);
+    final followUps = FollowUpReminders(store);
+    final post = settings.notifications && settings.followUpNotifications;
+    if (post &&
+        (at.hour < ReminderCheck.fromHour ||
+            at.hour > ReminderCheck.untilHour)) {
+      return const []; // in the morning
+    }
+    final claimed = followUps.claimUnnotified();
+    if (!post || inFront) return const [];
+    final hide = AppLock.isEnabledIn(store);
+    return [
+      for (final f in claimed)
+        hide
+            ? MailNotice(
+                id: followUpId(f.messageId),
+                title: 'An email is waiting for a reply',
+                body: 'Unlock $_appName to see it.',
+              )
+            : MailNotice(
+                id: followUpId(f.messageId),
+                title: 'No reply yet',
+                body: FollowUpWords.notification(f, at),
+                messageId: followUps.sentCopy(f)?.id,
+              ),
+    ];
+  }
+
+  /// A notification id of its own for each follow-up, stable across runs,
+  /// apart from new mail, reminders (0x20000000) and failed sends
+  /// (0x30000000): 0x40000000 to 0x4FFFFFFF.
+  static int followUpId(String messageId) {
+    var hash = 0x811C9DC5;
+    for (final unit in messageId.codeUnits) {
+      hash = ((hash ^ unit) * 0x01000193) & 0xFFFFFFFF;
+    }
+    return 0x40000000 | (hash & 0x0FFFFFFF);
+  }
+
+  static const _followUpDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'follow_ups',
+      'Follow-up reminders',
+      channelDescription:
+          'An email you sent got no reply by the time you chose',
+      category: AndroidNotificationCategory.reminder,
+      // The lock screen shows only that there is a notification.
+      visibility: NotificationVisibility.private,
+      groupKey: 'follow_ups',
     ),
   );
 

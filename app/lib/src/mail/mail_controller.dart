@@ -1037,6 +1037,8 @@ final class MailController {
     final before = followUpFor(m);
     followUps.remind(followUps.forMessage(m, due));
     refresh();
+    // Android: a background check at that time.
+    unawaited(BackgroundMail.checkWhenDue(_store));
     onNotice?.call(
       done,
       undo: () {

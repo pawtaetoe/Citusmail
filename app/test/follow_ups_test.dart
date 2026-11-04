@@ -6,9 +6,13 @@ import 'package:citusmail/src/compose/compose_controller.dart';
 import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/mail/follow_up_times.dart';
 import 'package:citusmail/src/mail/send_later_times.dart';
+import 'package:citusmail/src/services/app_settings.dart';
+import 'package:citusmail/src/services/mail_notices.dart';
+import 'package:citusmail/src/services/mail_notifier.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
@@ -21,6 +25,23 @@ MailAddress _address(String a, [String? name]) => MailAddress(
   localPart: a.split('@').first,
   domain: a.split('@').last,
 );
+
+/// Records what would be posted, instead of the system.
+final class _FakePlugin implements FlutterLocalNotificationsPlugin {
+  final shown = <({int id, String? title, String? body, String? payload})>[];
+
+  @override
+  Future<void> show({
+    required int id,
+    String? title,
+    String? body,
+    NotificationDetails? notificationDetails,
+    String? payload,
+  }) async => shown.add((id: id, title: title, body: body, payload: payload));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 /// Wednesday 4 November 2026, 9:10 in the morning.
 final _now = DateTime(2026, 11, 4, 9, 10);
@@ -477,6 +498,87 @@ void main() {
       await tester.tap(find.text('Cancel sending'));
       await settle(tester);
       expect(followUps().all(), isEmpty);
+    });
+  });
+
+  group('notifications', () {
+    /// Back with "No reply yet" since Wednesday morning.
+    void back() {
+      seedSent();
+      followUps().remind(
+        followUps().forMessage(
+          sent('quote.kitchen@citusmail.test'),
+          DateTime.utc(2026, 11, 4, 8),
+        ),
+      );
+      followUps().check(now: DateTime.utc(2026, 11, 4, 9));
+    }
+
+    test('one per email, once: who, what, how long ago', () async {
+      back();
+      final plugin = _FakePlugin();
+      final notifier = MailNotifier.forTesting(plugin, NoticeLayout.grouped);
+      await notifier.announceFollowUps(store(), now: _now);
+      final shown = plugin.shown.single;
+      expect(shown.title, 'No reply yet');
+      expect(
+        shown.body,
+        'No reply from Ana Costa to “Quote for the kitchen” — sent 3 days ago',
+      );
+      expect(
+        shown.payload,
+        'message:${sent('quote.kitchen@citusmail.test').id}',
+      );
+      expect(shown.id & 0xF0000000, 0x40000000, reason: 'its own id range');
+      expect(
+        shown.id,
+        MailNotifier.followUpId('quote.kitchen@citusmail.test'),
+        reason: 'stable',
+      );
+      await notifier.announceFollowUps(store(), now: _now);
+      expect(plugin.shown, hasLength(1), reason: 'once');
+    });
+
+    test('at night it waits for the morning', () {
+      back();
+      expect(
+        MailNotifier.followUpNotices(store(), now: DateTime(2026, 11, 4, 23)),
+        isEmpty,
+      );
+      expect(
+        MailNotifier.followUpNotices(store(), now: DateTime(2026, 11, 5, 6)),
+        isEmpty,
+      );
+      expect(
+        MailNotifier.followUpNotices(store(), now: DateTime(2026, 11, 5, 8)),
+        hasLength(1),
+      );
+    });
+
+    test('not while the app is in front, nor with the switch off; '
+        'never later either', () {
+      back();
+      expect(
+        MailNotifier.followUpNotices(store(), now: _now, inFront: true),
+        isEmpty,
+      );
+      expect(followUps().claimUnnotified(), isEmpty, reason: 'claimed');
+
+      followUps().remind(followUps().returned().single);
+      followUps().check(now: DateTime.utc(2026, 12));
+      AppSettings(store()).followUpNotifications = false;
+      expect(MailNotifier.followUpNotices(store(), now: _now), isEmpty);
+      AppSettings(store()).followUpNotifications = true;
+      expect(MailNotifier.followUpNotices(store(), now: _now), isEmpty);
+    });
+
+    test('with the app lock: only that an email is waiting', () {
+      back();
+      store().settings.write('lock.enabled', 'on');
+      final notice = MailNotifier.followUpNotices(store(), now: _now).single;
+      expect(notice.title, 'An email is waiting for a reply');
+      expect(notice.body, 'Unlock Citusmail to see it.');
+      expect(notice.payload, isNull);
     });
   });
 }

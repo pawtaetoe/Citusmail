@@ -395,6 +395,18 @@ final class _SettingsPageState extends State<SettingsPage> {
             value: settings.monthlyRenewals,
             onChanged: (on) => setState(() => settings.monthlyRenewals = on),
           ),
+          SwitchListTile(
+            title: const Text('Follow-up reminders'),
+            subtitle: const Text(
+              'When nobody has answered an email you sent with “Remind me if '
+              'no reply” by the time you chose. It comes back to the top of '
+              'your inbox either way.',
+            ),
+            value: settings.notifications && settings.followUpNotifications,
+            onChanged: settings.notifications
+                ? (on) => setState(() => settings.followUpNotifications = on)
+                : null,
+          ),
           if (_instantMail)
             SwitchListTile(
               title: const Text('Instant mail'),

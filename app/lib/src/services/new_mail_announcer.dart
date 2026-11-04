@@ -33,6 +33,8 @@ final class NewMailAnnouncer {
     final notifier = _notifier;
     if (notifier == null) return;
     unawaited(notifier.remind(_services.store));
+    // Follow-ups held back overnight go out in the morning.
+    followUpsBack();
     // A message scheduled with "Send later" that failed: a quiet note,
     // also while the app is in front (the Outbox shows it too).
     if (_services.settings.notifications) {
@@ -60,6 +62,21 @@ final class NewMailAnnouncer {
       return;
     }
     unawaited(notifier.announceBackFromSnooze(_services.store, back));
+  }
+
+  /// Announces sent mail back with "No reply yet" (see
+  /// [MailNotifier.announceFollowUps]): not while the user is looking at
+  /// the app (the inbox shows it on top).
+  void followUpsBack() {
+    final notifier = _notifier;
+    if (notifier == null) return;
+    unawaited(
+      notifier.announceFollowUps(
+        _services.store,
+        inFront:
+            WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+      ),
+    );
   }
 
   Future<void> dispose() => _events.cancel();
