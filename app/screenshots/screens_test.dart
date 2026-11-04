@@ -17,6 +17,7 @@ import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/ui/privacy_report_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../test/support/privacy_mail.dart';
 import '../test/support/test_app.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
@@ -203,6 +205,21 @@ void main() {
     await tester.tap(find.text('StreamFlix').last);
     await shoot(tester, 'readme_subscription');
   });
+
+  for (final dark in [false, true]) {
+    final suffix = dark ? '_dark' : '';
+    testWidgets('privacy report$suffix', (tester) async {
+      seedPrivacyMail(app, DateTime.now().toUtc());
+      Widget page() =>
+          PrivacyReportPage(services: app.services, onShowMail: (_) {});
+      await show(tester, page(), size: const Size(390, 844), dark: dark);
+      await shoot(tester, 'phone_privacy_report$suffix');
+      await tester.drag(find.byType(ListView), const Offset(0, -3000));
+      await shoot(tester, 'phone_privacy_report_end$suffix');
+      await show(tester, page(), size: const Size(1200, 860), dark: dark);
+      await shoot(tester, 'desktop_privacy_report$suffix');
+    });
+  }
 
   testWidgets('settings', (tester) async {
     await show(

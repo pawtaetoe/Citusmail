@@ -2,103 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:convert';
-
 import 'package:citusmail/src/mail/privacy_report_model.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
+import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mail_protocol/mail_protocol.dart';
-import 'package:mail_store/mail_store.dart';
 
+import 'support/privacy_mail.dart';
 import 'support/test_app.dart';
-
-/// Mail of the last weeks, as stored after opening it: newsletters with
-/// trackers, pictures and tagged links, a boss asking for a read receipt,
-/// a scam, and a newsletter not downloaded yet. Relative to [now].
-void seedPrivacyMail(TestApp app, DateTime now) {
-  final store = app.store;
-  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
-  var uid = 400;
-  void add(
-    int daysAgo,
-    String from,
-    String name,
-    String subject,
-    String html, {
-    String extraHeaders = '',
-    bool download = true,
-  }) {
-    final at = now.subtract(Duration(days: daysAgo, hours: 1));
-    final address = MailAddress(
-      displayName: name,
-      localPart: from.split('@').first,
-      domain: from.split('@').last,
-    );
-    store.messages.upsertSummaries(inbox.id, [
-      MessageSummary(
-        uid: ++uid,
-        receivedAt: at,
-        subject: subject,
-        from: address,
-        flags: MessageFlags.fromImap([r'\Seen']),
-      ),
-    ]);
-    if (!download) return;
-    store.messages.saveBody(
-      store.messages.byUid(inbox.id, uid)!.id,
-      utf8.encode(
-        'From: $name <$from>\r\nTo: alice@citusmail.test\r\n'
-        'Subject: $subject\r\n$extraHeaders'
-        'Content-Type: text/html; charset=utf-8\r\n\r\n$html\r\n',
-      ),
-      searchableText: subject,
-    );
-  }
-
-  const shop =
-      '<p><a href="https://shop.example/sale?utm_source=newsletter&amp;utm_campaign=autumn">'
-      '<img src="https://cdn.shop.example/banner.jpg" width="600" alt="Autumn sale"></a></p>'
-      '<p>Boots are back. <a href="https://shop.example/boots?mc_cid=1&amp;mc_eid=2">Shop now</a></p>'
-      '<img src="https://ea.pstmrk.it/open?m=1" alt="">'
-      '<img src="https://shop.example/o.gif" width="1" height="1">';
-  add(1, 'news@shop.example', 'Shop', 'Autumn sale: 30% off boots', shop);
-  add(3, 'news@shop.example', 'Shop', 'New arrivals', shop);
-  add(20, 'news@shop.example', 'Shop', 'Summer leftovers', shop);
-  add(
-    2,
-    'deals@market.example',
-    'Market',
-    'Deals of the day',
-    '<p>Today only.</p><img src="https://market.example/pixel/a.gif">'
-        '<img src="https://market.example/t.png" width="1">'
-        '<img src="https://market.example/o.png" height="0">',
-  );
-  add(
-    5,
-    'boss@corp.example',
-    'Pat Boss',
-    'Plan for Monday',
-    '<p>Please read the plan before Monday.</p>',
-    extraHeaders: 'Disposition-Notification-To: boss@corp.example\r\n',
-  );
-  add(
-    6,
-    'carol@x.example',
-    'Carol',
-    'Lunch?',
-    '<p>Lunch on Friday? <a href="https://maps.example/?q=cafe">This place</a>.</p>',
-  );
-  // Received, not downloaded: counted as received only.
-  add(1, 'news@shop.example', 'Shop', 'Flash sale', shop, download: false);
-  app.seedFixture(
-    'security/phishing-link-mismatch.eml',
-    subject: 'Your account has been limited',
-    uid: 399,
-    receivedAt: now.subtract(const Duration(days: 4)),
-  );
-}
 
 void main() {
   final now = DateTime.utc(2026, 11, 4, 12);
@@ -221,6 +134,53 @@ void main() {
     await settle(tester);
     expect(find.text('Nothing to count yet'), findsOneWidget);
     expect(find.text('Trackers blocked'), findsNothing);
+    expect(find.textContaining('Nothing is sent anywhere'), findsOneWidget);
+  });
+
+  testWidgets('from the sidebar; a sender opens their mail', (tester) async {
+    seedPrivacyMail(app, DateTime.now().toUtc());
+    tester.view.physicalSize = const Size(1400, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: CitusmailTheme.light(),
+        home: MailShell(
+          notifications: false,
+          services: app.services,
+          onAddAccount: () {},
+          onAccountsChanged: () {},
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Privacy report'));
+    await tester.pump();
+    await settle(tester);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Citusmail blocked'), findsOneWidget);
+
+    await tester.tap(find.text('Market'));
+    await settle(tester);
+    expect(find.text('Privacy report'), findsOneWidget, reason: 'sidebar');
+    expect(find.text('Deals of the day'), findsOneWidget);
+    expect(find.text('Lunch?'), findsNothing);
+  });
+
+  testWidgets('from Settings, About, Privacy', (tester) async {
+    tester.view.physicalSize = const Size(400, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: CitusmailTheme.light(),
+        home: SettingsPage(services: app.services, isAndroid: false),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Privacy'));
+    await settle(tester);
+    expect(find.text('Privacy report'), findsOneWidget);
     expect(find.textContaining('Nothing is sent anywhere'), findsOneWidget);
   });
 }

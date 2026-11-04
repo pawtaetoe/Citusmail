@@ -17,6 +17,7 @@ import '../services/virus_total_checks.dart';
 import 'block_dialog.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
+import 'privacy_report_page.dart';
 
 /// One account's server rules, in words.
 String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
@@ -37,9 +38,17 @@ String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
 /// App settings: notifications, instant mail on Android, and what the app
 /// does with your data.
 final class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.services, this.isAndroid});
+  const SettingsPage({
+    super.key,
+    required this.services,
+    this.isAndroid,
+    this.onShowMail,
+  });
 
   final AppServices services;
+
+  /// Shows mail matching a search (from the Privacy report's senders).
+  final void Function(String query)? onShowMail;
 
   /// Overrides the platform (tests).
   final bool? isAndroid;
@@ -284,8 +293,17 @@ final class _SettingsPageState extends State<SettingsPage> {
             subtitle: Text(
               '$appName has no servers and collects nothing. Mail is stored encrypted on this '
               'device and goes only to your own mail servers. Remote images and trackers are '
-              'blocked.',
+              'blocked. See what was kept from senders in the Privacy report.',
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PrivacyReportPage(
+                  services: widget.services,
+                  onShowMail: widget.onShowMail,
+                ),
+              ),
             ),
           ),
           ListTile(
