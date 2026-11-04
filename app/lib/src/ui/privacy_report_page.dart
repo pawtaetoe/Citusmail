@@ -293,15 +293,40 @@ final class _Stats extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         const gap = 12.0;
-        final columns = constraints.maxWidth >= 520 ? 2 : 1;
-        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-        return Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: [for (final s in stats) SizedBox(width: width, child: s)],
-          ),
+        // Phone: one column, each number beside its name. Wider: two
+        // columns of equal-height cards.
+        if (constraints.maxWidth < 520) {
+          return Column(
+            children: [
+              for (final s in stats)
+                Padding(
+                  padding: const EdgeInsets.only(top: gap),
+                  child: s.compact(),
+                ),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            for (var i = 0; i < stats.length; i += 2)
+              Padding(
+                padding: const EdgeInsets.only(top: gap),
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: stats[i]),
+                      const SizedBox(width: gap),
+                      Expanded(
+                        child: i + 1 < stats.length
+                            ? stats[i + 1]
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -314,6 +339,7 @@ final class _Stat extends StatelessWidget {
     required this.value,
     required this.label,
     required this.line,
+    this.inline = false,
   });
 
   final IconData icon;
@@ -321,10 +347,28 @@ final class _Stat extends StatelessWidget {
   final String label;
   final String line;
 
+  /// The number beside its name rather than above it.
+  final bool inline;
+
+  _Stat compact() =>
+      _Stat(icon: icon, value: value, label: label, line: line, inline: true);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final number = Text(
+      _number(value),
+      style:
+          (inline
+                  ? theme.textTheme.headlineMedium
+                  : theme.textTheme.displaySmall)
+              ?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: value == 0 ? colors.onSurfaceVariant : null,
+              ),
+    );
+    final name = Text(label, style: theme.textTheme.titleMedium);
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -333,21 +377,19 @@ final class _Stat extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    _number(value),
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: value == 0 ? colors.onSurfaceVariant : null,
-                    ),
-                  ),
-                ),
+                if (inline) ...[
+                  number,
+                  const SizedBox(width: 12),
+                  Expanded(child: name),
+                ] else
+                  Expanded(child: number),
+                const SizedBox(width: 8),
                 Icon(icon, color: colors.primary),
               ],
             ),
-            const SizedBox(height: 2),
-            Text(label, style: theme.textTheme.titleMedium),
+            if (!inline) ...[const SizedBox(height: 2), name],
             const SizedBox(height: 4),
             Text(
               line,
