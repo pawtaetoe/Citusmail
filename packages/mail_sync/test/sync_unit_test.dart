@@ -355,4 +355,71 @@ void main() {
       expect(entry.data, built.bytes);
     });
   });
+
+  test('after a start, a sync runs when a scheduled send is due', () async {
+    final directory = Directory.systemTemp.createTempSync('engine_due_test');
+    final store = MailStore.open(
+      '${directory.path}/mail.db',
+      DatabaseKey.generate(),
+    );
+    addTearDown(() {
+      store.close();
+      directory.deleteSync(recursive: true);
+    });
+    final account = store.accounts.add(
+      NewAccount(
+        email: 'alice@citusmail.test',
+        username: 'alice',
+        imap: ServerSettings(
+          host: 'h.example',
+          port: 993,
+          security: ConnectionSecurity.implicitTls,
+        ),
+        smtp: ServerSettings(
+          host: 'h.example',
+          port: 465,
+          security: ConnectionSecurity.implicitTls,
+        ),
+      ),
+    );
+    // Queued before the app started (no folders yet, so no inbox watch).
+    store.outbox.enqueue(
+      account.id,
+      SendAction(from: 'alice@citusmail.test', recipients: ['b@x.example']),
+      data: Uint8List.fromList(utf8.encode('Subject: x\r\n\r\nx\r\n')),
+      notBefore: DateTime.now().add(const Duration(milliseconds: 600)),
+    );
+    final engine = SyncEngine(
+      store,
+      const _OfflineConnector(),
+      fullSyncInterval: const Duration(hours: 1),
+    );
+    var started = 0;
+    engine.events.listen((e) {
+      if (e is AccountSyncStarted) started++;
+    });
+    engine.start();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(started, 1, reason: 'the first sync');
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    expect(started, 2, reason: 'one more when it was due');
+    await engine.dispose();
+  });
+}
+
+/// No server is reachable.
+final class _OfflineConnector implements MailConnector {
+  const _OfflineConnector();
+
+  @override
+  Future<ImapClient> imap(Account account) async =>
+      throw const MailConnectionException('offline (test)');
+
+  @override
+  Future<SmtpClient> smtp(Account account) async =>
+      throw const MailConnectionException('offline (test)');
+
+  @override
+  Future<ManageSieveClient> sieve(Account account) async =>
+      throw const MailConnectionException('offline (test)');
 }
