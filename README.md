@@ -97,13 +97,13 @@ are at the bottom of the screen, within reach of one thumb.
   tracking parameters removed from links, one-tap unsubscribe (with the
   unsubscribe address checked too), blocking senders.
 - **Privacy report**: what was kept from senders in the last 7 or 30
+  days (trackers, remote images, tracking tags on links, read receipts,
+  scam warnings) and the senders that track you most, counted on your
+  device.
 - **Attachments**: every file people sent you in one searchable list
   (PDFs, photos, documents, spreadsheets), from all accounts and
   folders, without downloading your mail. Tap one to open its email or
   save it.
-  days (trackers, remote images, tracking tags on links, read receipts,
-  scam warnings) and the senders that track you most, counted on your
-  device.
 - **Writing mail**: drafts, replies, undo send, custom folders and rules
   (also as server-side Sieve rules).
 - **Meeting invitations**: Outlook, Google Calendar, Zoom and other
