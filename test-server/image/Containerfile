@@ -6,7 +6,7 @@
 # the real servers the app talks to.
 #
 # Base image pinned by digest so builds are reproducible.
-FROM docker.io/library/ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc
+FROM docker.io/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
