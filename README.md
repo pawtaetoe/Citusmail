@@ -66,6 +66,12 @@ ask.
   the inbox, unread, with one notification (or sooner, if someone
   replies). Snoozed mail waits in its own list, and snoozes follow you to
   your other devices with sync on. Nothing moves on the mail server.
+- **Send later**: write now and choose when it goes (tomorrow morning or
+  afternoon, Monday morning, or a time you pick). It waits in the Outbox
+  on this device, where you can send it now, change the time, edit it or
+  cancel it, and goes out once at its time, while Citusmail (or, on
+  Android, its background check) runs; otherwise when Citusmail next
+  runs.
 - **Phishing checks that read the message**: besides forged senders and
   lookalike links, it warns when an outsider writes in the name of your
   own school or company, or a big brand, especially with hidden
