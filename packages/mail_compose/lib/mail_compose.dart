@@ -7,6 +7,7 @@ library;
 
 export 'src/draft.dart';
 export 'src/draft_store.dart';
+export 'src/invitation_reply.dart';
 export 'src/outgoing.dart';
 export 'src/reply_builder.dart';
 export 'src/sender.dart';

@@ -17,7 +17,8 @@ import 'outgoing_message.dart';
 /// Structure, from the outside in, using only the layers needed:
 ///   multipart/mixed       (when there are regular attachments)
 ///   multipart/related     (when the HTML has inline images)
-///   multipart/alternative (when there is both text and HTML)
+///   multipart/alternative (when there is both text and HTML, or a
+///                          calendar object, which comes last)
 ///
 /// Privacy: no User-Agent or X-Mailer header, the Date is written in UTC
 /// unless [dateOffset] says otherwise, the Message-ID is random, and Bcc
@@ -33,6 +34,7 @@ final class MessageBuilder {
 
   static const _headers = HeaderEncoder();
   static const _bodies = BodyEncoder();
+  static final _token = RegExp(r'^[A-Za-z][A-Za-z0-9-]*$');
   static final _mimeType = RegExp(
     r'^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$',
   );
@@ -120,7 +122,17 @@ final class MessageBuilder {
     final inline = message.attachments.where((a) => a.isInline).toList();
     final regular = message.attachments.where((a) => !a.isInline).toList();
 
-    var body = _alternative(message.textBody, message.htmlBody);
+    if (message.calendar case final calendar?
+        when !_token.hasMatch(calendar.method)) {
+      throw MessageBuildException(
+        'invalid calendar method: ${calendar.method}',
+      );
+    }
+    var body = _alternative(
+      message.textBody,
+      message.htmlBody,
+      message.calendar,
+    );
     if (inline.isNotEmpty && message.htmlBody != null) {
       // RFC 2387: "type" names the root part's type.
       body = _multipart('related', [
@@ -136,7 +148,16 @@ final class MessageBuilder {
     return body;
   }
 
-  _Entity _alternative(String? text, String? html) {
+  _Entity _alternative(String? text, String? html, OutgoingCalendar? calendar) {
+    if (calendar != null) {
+      // RFC 6047 2.4: the calendar part is the last, preferred
+      // alternative; the text describes it for mail apps.
+      return _multipart('alternative', [
+        if (text != null || html == null) _text(text ?? '', 'plain'),
+        if (html != null) _text(html, 'html'),
+        _calendar(calendar),
+      ]);
+    }
     if (text != null && html != null) {
       return _multipart('alternative', [
         _text(text, 'plain'),
@@ -152,6 +173,17 @@ final class MessageBuilder {
     return _Entity(
       'text/$subtype',
       'Content-Type: text/$subtype; charset=utf-8\r\n'
+          'Content-Transfer-Encoding: ${encoded.encoding.token}\r\n',
+      encoded.bytes,
+    );
+  }
+
+  _Entity _calendar(OutgoingCalendar calendar) {
+    final encoded = _bodies.encodeText(calendar.content);
+    final method = calendar.method.toUpperCase();
+    return _Entity(
+      'text/calendar',
+      'Content-Type: text/calendar; charset=utf-8; method=$method\r\n'
           'Content-Transfer-Encoding: ${encoded.encoding.token}\r\n',
       encoded.bytes,
     );

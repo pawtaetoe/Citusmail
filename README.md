@@ -34,6 +34,9 @@ your device** and lists every subscription it finds:
   and when the **price went up**;
 - **cancelled and lapsed** ones kept apart, so you can see what you
   stopped paying for.
+- **coming up**: bills due (read from the bill: "due by 15 Nov", "pay
+  within 7 days"), free trials about to start charging, and yearly
+  renewals, with a reminder notification a few days before.
 
 Nothing leaves your device; receipts you haven't opened are only
 downloaded (from your own mail server, and they stay unread) when you
@@ -50,6 +53,9 @@ ask.
 - **Verification codes in the list**: one-time codes, sign-in links and
   password resets get their own section, and the code shows without
   opening the email.
+- **Old codes tidy themselves up**: once you agree, codes, sign-in links
+  and password resets older than a day (or a week) go to Archive or
+  Trash, with Undo. Pinned ones stay.
 - **Phishing checks that read the message**: besides forged senders and
   lookalike links, it warns when an outsider writes in the name of your
   own school or company, or a big brand, especially with hidden
@@ -90,13 +96,38 @@ are at the bottom of the screen, within reach of one thumb.
 - **Privacy**: images and trackers blocked, read receipts never sent,
   tracking parameters removed from links, one-tap unsubscribe (with the
   unsubscribe address checked too), blocking senders.
+- **Privacy report**: what was kept from senders in the last 7 or 30
+- **Attachments**: every file people sent you in one searchable list
+  (PDFs, photos, documents, spreadsheets), from all accounts and
+  folders, without downloading your mail. Tap one to open its email or
+  save it.
+  days (trackers, remote images, tracking tags on links, read receipts,
+  scam warnings) and the senders that track you most, counted on your
+  device.
 - **Writing mail**: drafts, replies, undo send, custom folders and rules
   (also as server-side Sieve rules).
+- **Meeting invitations**: Outlook, Google Calendar, Zoom and other
+  invitations show as a card with the date in your time zone, the
+  place and the meeting link. Accept, Maybe or Decline answers the
+  organizer (and only them), with undo; "Open in calendar app" adds the
+  event to your own calendar.
 - **Every message, whole**: save it as an .eml file, see its original
   headers and source, or forward it as an attachment.
 - **Subscriptions**: the paid subscriptions found in your receipts and
   renewal mail, with what each costs, how often, the next charge and
   every past receipt (see above).
+- **Your accounts**: the online services you have an account with, found
+  in welcome emails, sign-in codes, password resets and security alerts
+  on your device, with the address each one uses. Handy after a data
+  breach, when you change address, or to close accounts you no longer
+  use.
+- **Deliveries**: every shipped order found in your mail, with its shop,
+  items, carrier, tracking number and latest status, what's on the way
+  first with its expected date; "Track" opens the carrier's page after
+  asking.
+- **Bill and trial reminders**: a notification a few days before a bill
+  is due, a free trial starts charging or a yearly subscription renews,
+  found in your mail on the device; mark one "Done" and it stays quiet.
 - **Clean up**: the senders who fill your inbox and the ones you rarely
   open, worked out on your device (not on someone's server), with
   unsubscribe, archive or delete everything from them, block, or keep.
@@ -131,6 +162,8 @@ are at the bottom of the screen, within reach of one thumb.
 │   ├── mail_appsync/         App data shared between your devices, end-to-end
 │                             encrypted (ChaCha20-Poly1305, sync code)
 │   ├── mail_compose/         Writing mail: drafts, replies, sending with undo
+│   ├── mail_extract/         schema.org data in shop and carrier mail (JSON-LD,
+│                             microdata): parcels and orders, never run
 │   ├── mail_lookup/          Optional outside checks, off until turned on: Google
 │                             Safe Browsing (lists on the device, prefixes only)
 │                             and VirusTotal (your key; file hashes, no uploads)
@@ -192,6 +225,7 @@ flutter analyze                               # static analysis
 (cd packages/mail_sync && dart test)          # sync engine unit tests
 (cd packages/mail_setup && dart test)         # account setup unit tests
 (cd packages/mail_sort && dart test)          # sorting rules
+(cd packages/mail_extract && dart test)       # schema.org data in mail
 (cd packages/mail_view && dart test)          # safe mail display
 (cd packages/mail_trust && dart test)         # phishing checks
 (cd packages/mail_web && dart test)           # hardened HTTPS for one-click unsubscribe

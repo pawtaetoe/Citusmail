@@ -36,6 +36,7 @@ final class Draft {
     this.answeredMessageId,
     this.savedMessageId,
     this.requestReceipt = false,
+    this.calendar,
   });
 
   /// Local id once saved on the device.
@@ -63,6 +64,11 @@ final class Draft {
 
   /// Ask the recipients' mail apps for a read receipt (their choice).
   final bool requestReceipt;
+
+  /// An answer to a meeting invitation, sent along as text/calendar. Not
+  /// stored with the draft: such answers are sent at once, never kept
+  /// as drafts.
+  final OutgoingCalendar? calendar;
 
   List<MailAddress> get recipients => [...to, ...cc, ...bcc];
 
@@ -103,6 +109,7 @@ final class Draft {
     answeredMessageId: answeredMessageId,
     savedMessageId: clearSaved ? null : savedMessageId ?? this.savedMessageId,
     requestReceipt: requestReceipt ?? this.requestReceipt,
+    calendar: calendar,
   );
 
   /// The fields stored as the draft's content (attachments are stored

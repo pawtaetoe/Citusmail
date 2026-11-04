@@ -73,6 +73,17 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps a connection to the user's own mail server (IMAP IDLE) so new mail arrives instantly"/>
         </service>
+        <!-- Hands one meeting invitation (.ics in the cache) to the user's
+             calendar app when they ask; nothing else is shared. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_files"/>
+        </provider>
         <receiver android:name=".BootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
@@ -94,6 +105,11 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
+        </intent>
+        <!-- Opening a meeting invitation in the calendar app. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="text/calendar"/>
         </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

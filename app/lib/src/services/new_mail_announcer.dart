@@ -12,7 +12,8 @@ import 'app_services.dart';
 import 'mail_notifier.dart';
 
 /// While the app runs: after each sync, claims new mail and announces it,
-/// unless the user is looking at the app (then the list shows it).
+/// unless the user is looking at the app (then the list shows it); and
+/// posts reminders of bills and trials when it is time.
 final class NewMailAnnouncer {
   NewMailAnnouncer(this._services, this._notifier)
     : _tracker = NewMailTracker(_services.store) {
@@ -30,7 +31,9 @@ final class NewMailAnnouncer {
     // background job.
     final mail = _tracker.claim(event.accountId);
     final notifier = _notifier;
-    if (mail.isEmpty || notifier == null) return;
+    if (notifier == null) return;
+    unawaited(notifier.remind(_services.store));
+    if (mail.isEmpty) return;
     if (!_services.settings.notifications) return;
     if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
       return;

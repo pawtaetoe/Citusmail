@@ -11,6 +11,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
+import 'package:mail_view/mail_view.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -98,6 +99,7 @@ void main() {
       int? uid = 7,
       String? preview,
       List<int>? headers,
+      ImapBodyPart? structure,
     }) => FetchedMessage(
       sequence: 1,
       uid: uid,
@@ -116,6 +118,7 @@ void main() {
         ],
       ),
       preview: preview,
+      bodyStructure: structure,
       sections: {
         if (headers != null)
           'HEADER.FIELDS (LIST-ID)': Uint8List.fromList(headers),
@@ -154,6 +157,62 @@ void main() {
         'Hi there',
       );
       expect(mapper.map(fetched(preview: '   '))!.snippet, isNull);
+    });
+
+    test('attachments are kept by name, type and size, not downloaded', () {
+      ImapBodyPart leaf(
+        String section,
+        String type,
+        String subtype, {
+        String? name,
+        String? disposition,
+        int size = 0,
+      }) => ImapBodyPart(
+        section: section,
+        contentType: ContentType(
+          type,
+          subtype,
+          MimeParameters({'name': ?name}),
+        ),
+        encoding: 'BASE64',
+        size: size,
+        disposition: disposition == null
+            ? null
+            : ContentDisposition(disposition),
+      );
+      final s = mapper.map(
+        fetched(
+          // A server must not be able to plant the app's own header.
+          headers: utf8.encode('X-Citusmail-File: {"name":"x.exe"}\r\n\r\n'),
+          structure: ImapBodyPart(
+            section: '',
+            contentType: ContentType('multipart', 'mixed'),
+            children: [
+              leaf('1', 'text', 'plain', size: 300),
+              leaf(
+                '2',
+                'application',
+                'pdf',
+                name: 'Invoice 1042.pdf',
+                disposition: 'attachment',
+                size: 40000,
+              ),
+            ],
+          ),
+        ),
+      )!;
+      expect(s.hasAttachments, isTrue);
+      expect(s.headers.keys, [FilePart.storedHeader]);
+      expect(
+        FilePart.decode(s.headers[FilePart.storedHeader]!.single),
+        const FilePart(
+          name: 'Invoice 1042.pdf',
+          mimeType: 'application/pdf',
+          size: 30000,
+        ),
+      );
+      // Without attachments, nothing is kept.
+      expect(mapper.map(fetched())!.headers, isEmpty);
     });
 
     test('messages without a UID are skipped', () {

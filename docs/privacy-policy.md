@@ -31,8 +31,9 @@ None of this is sent to Fluminaris or to any third party other than the
 services listed in the next section.
 
 Features that understand your mail, such as sorting, finding verification
-codes, phishing checks and the list of your paid subscriptions (found in
-receipts and renewal emails), run entirely on the device.
+codes, phishing checks, the list of your paid subscriptions (found in
+receipts and renewal emails) and your deliveries (found in order and
+shipping emails), run entirely on the device.
 
 ## Services the app connects to
 
@@ -47,6 +48,7 @@ receipts and renewal emails), run entirely on the device.
 | Google Safe Browsing | Only if you turn on "Check links with Google Safe Browsing" (Settings > Advanced) | Lists of dangerous sites are downloaded; to confirm a match, only a 4-byte part of a link's fingerprint is sent, never the link itself |
 | VirusTotal | Only if you turn it on with your own API key (Settings > Advanced), and only when you tap "Check with VirusTotal" | A file's SHA-256 fingerprint (the file is never uploaded) or a link's address |
 | Newsletter senders | Only when you tap Unsubscribe and confirm | The unsubscribe request the newsletter asked for |
+| The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline | An email from your own account with your answer and any note you add, sent through your own mail server |
 | Images and links in an email | Only when you choose to load images or open a link | A request for the image or page, without cookies; like any connection, it shows your IP address |
 
 Each of these services handles data under its own privacy policy.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The only files another app may be given: the invitation the user
+     chose to open in their calendar app (see MainActivity). -->
+<paths>
+    <cache-path name="events" path="events/"/>
+</paths>

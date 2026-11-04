@@ -1,0 +1,39 @@
+From: Bob Example <bob@citusmail.test>
+To: alice@citusmail.test
+Subject: Accepted: Coffee chat @ Tue 17 Nov 2026 3pm - 3:30pm (UTC)
+ (alice@citusmail.test)
+Date: Wed, 04 Nov 2026 10:10:10 +0000
+Message-ID: <reply-coffee-42@google.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="0000000000001234"
+
+--0000000000001234
+Content-Type: text/plain; charset="UTF-8"
+
+Bob Example has accepted this invitation.
+
+--0000000000001234
+Content-Type: text/calendar; charset="UTF-8"; method=REPLY
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:REPLY
+BEGIN:VEVENT
+DTSTART:20261117T150000Z
+DTEND:20261117T153000Z
+DTSTAMP:20261104T101010Z
+ORGANIZER;CN=Alice Example:mailto:alice@citusmail.test
+UID:citusmail-coffee-42@citusmail.test
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=Bob E
+ xample;X-NUM-GUESTS=0:mailto:bob@citusmail.test
+COMMENT:See you there!
+SEQUENCE:0
+STATUS:CONFIRMED
+SUMMARY:Coffee chat
+END:VEVENT
+END:VCALENDAR
+
+--0000000000001234--

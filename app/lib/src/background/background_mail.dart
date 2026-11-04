@@ -26,7 +26,8 @@ const bool playBuild = appFlavor == 'play';
 ///   service.
 ///
 /// Both use the same sync code and the same exactly-once new-mail marks as
-/// the app, so nothing is announced twice.
+/// the app, so nothing is announced twice, and tidy up old codes the same
+/// way (at most once an hour between them, silently).
 abstract final class BackgroundMail {
   static const _task = MethodChannel('citusmail/background-task');
   static const _app = MethodChannel('citusmail/background');
@@ -82,6 +83,16 @@ abstract final class BackgroundMail {
           hideContent: AppLock.isEnabledIn(store),
         );
       }
+      // Old codes leave the inbox (once agreed); the moves go to the
+      // server right away.
+      final tidied = CodeCleaner(
+        store,
+        MailActions(store),
+      ).run(DateTime.now().toUtc());
+      for (final accountId in tidied?.accountIds ?? const <int>{}) {
+        await engine.syncAccount(accountId);
+      }
+      await notifier?.remind(store);
       return allOk;
     } finally {
       await engine.dispose();
@@ -105,9 +116,14 @@ abstract final class BackgroundMail {
       syncCodes: KeychainSyncCodes(secrets),
     );
     final tracker = NewMailTracker(store);
+    final cleaner = CodeCleaner(store, MailActions(store));
     final notifier = await MailNotifier.create();
     engine.events.listen((event) {
       if (event is! AccountSynced) return;
+      final tidied = cleaner.run(DateTime.now().toUtc());
+      for (final accountId in tidied?.accountIds ?? const <int>{}) {
+        engine.requestSync(accountId);
+      }
       final mail = tracker.claim(event.accountId);
       final account = store.accounts.byId(event.accountId);
       if (account != null && settings.notifications) {
@@ -118,6 +134,7 @@ abstract final class BackgroundMail {
             hideContent: AppLock.isEnabledIn(store),
           ),
         );
+        unawaited(notifier?.remind(store));
       }
     });
     engine.start();

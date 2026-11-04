@@ -32,6 +32,36 @@ void main() {
     expect(app.services.settings.notifications, isFalse);
   });
 
+  testWidgets('bill and trial reminders: on by default, monthly ones off', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    final settings = app.services.settings;
+    expect(settings.reminders, isTrue);
+    expect(settings.monthlyRenewals, isFalse);
+    await tester.tap(find.text('Also remind me of monthly renewals'));
+    await tester.pump();
+    expect(settings.monthlyRenewals, isTrue);
+    await tester.tap(find.text('Bill and trial reminders'));
+    await tester.pump();
+    expect(settings.reminders, isFalse);
+    // Only with notifications: off with them.
+    await tester.tap(find.text('Bill and trial reminders'));
+    await tester.tap(find.text('New mail notifications'));
+    await tester.pump();
+    expect(settings.reminders, isTrue);
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Bill and trial reminders'),
+          )
+          .value,
+      isFalse,
+    );
+  });
+
   testWidgets('Android: instant mail asks the system to start the service', (
     tester,
   ) async {

@@ -17,7 +17,12 @@ Writing mail. Pure Dart; the app's compose window uses it.
   it can be undone; the send, the original's `\Answered` flag and the
   removal of the draft copy are queued together and undone together. It
   also works offline (it goes out with the next sync), and the outbox
-  never sends twice (see mail_sync).
+  never sends twice (see mail_sync). `cancel` takes back a message the
+  app wrote itself without keeping it as a draft.
+- **`InvitationReplies`**: the answer to a meeting invitation ("Accepted:
+  Q4 roadmap review"), to the organizer only, with the iTIP REPLY
+  (`text/calendar; method=REPLY`, built by mail_view) as an alternative
+  of the text. Sent with `Sender` like any message.
 
 Sent mail carries no app name or version, a random Message-ID on the
 sender's own domain, and its Date in UTC (no time zone).
