@@ -76,7 +76,7 @@ ours, and are end-to-end encrypted with a code only your devices hold.
 | Permission | Why |
 | --- | --- |
 | Internet, network state | To connect to your mail provider |
-| Notifications | To tell you about new mail (sender and subject only; on the lock screen only that there is new mail) |
+| Notifications | To tell you about new mail (sender, subject and, unless you turn previews off, the first lines; on the lock screen only that there is new mail) |
 | Foreground service, start at boot | To check for new mail in the background, or keep a live connection if you turn on "Instant mail" |
 | Fingerprint or face unlock | Only if you turn on the app lock; checked by Android, the app only learns "yes" or "no" |
 

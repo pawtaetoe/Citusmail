@@ -70,10 +70,14 @@ settings, the app lock and your PIN never sync.
 
 ## Notifications
 
-New-mail notifications show the sender and subject, never the message
-text, and only for Verification, Important and General mail (and pins).
-On Android the lock screen shows only that there is new mail. They are created on your device; no
-push service is involved. On Android, Citusmail checks for mail about every 5
+New-mail notifications show the sender, the subject and the first lines
+of the message (turn off "Show message previews" to leave the text out),
+and only for Verification, Important and General mail (and pins). A
+verification code is shown in the title, with a Copy code button that puts
+it on the clipboard (marked sensitive, so Android 13+ hides it in its
+preview). On Android the lock screen shows only that there is new mail;
+with the app lock on, so do the notifications themselves. They are created
+on your device; no push service is involved. On Android, Citusmail checks for mail about every 5
 minutes in the background (Android may wait longer to save battery), or keeps a live connection if you turn on
 "Instant mail" (which shows a permanent notification, as Android requires).
 
