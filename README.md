@@ -50,6 +50,9 @@ ask.
 - **Verification codes in the list**: one-time codes, sign-in links and
   password resets get their own section, and the code shows without
   opening the email.
+- **Old codes tidy themselves up**: once you agree, codes, sign-in links
+  and password resets older than a day (or a week) go to Archive or
+  Trash, with Undo. Pinned ones stay.
 - **Phishing checks that read the message**: besides forged senders and
   lookalike links, it warns when an outsider writes in the name of your
   own school or company, or a big brand, especially with hidden
