@@ -79,7 +79,7 @@ final class _MailShellState extends State<MailShell> {
     _controller.onNotice = _notice;
     _controller.onReconnect = (account) => unawaited(_reconnect(account));
     _controller.onBackFromSnooze = (back) => _announcer?.backFromSnooze(back);
-    _lifecycle = AppLifecycleListener(onResume: _controller.wakeSnoozes);
+    _lifecycle = AppLifecycleListener(onResume: _controller.onResume);
     unawaited(widget.services.worker.start().catchError((Object _) {}));
     widget.services.linkSafety.start();
     if (widget.notifications) {

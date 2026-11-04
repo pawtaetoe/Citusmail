@@ -11,6 +11,7 @@ import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_lookup/mail_lookup.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_sync/mail_sync.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
@@ -21,6 +22,8 @@ import 'attachment_saver.dart';
 import 'avatar.dart';
 import 'block_dialog.dart';
 import 'citusmail_theme.dart';
+import 'follow_up_sheet.dart';
+import 'follow_ups_list.dart';
 import 'invitation_card.dart';
 import 'link_opener.dart';
 import 'mail_text.dart';
@@ -242,6 +245,8 @@ final class _Header extends StatelessWidget {
               'Back from snooze '
               '(${SnoozeSheet.describe(context, message.listedAt)}).',
         ),
+      if (controller.followUpFor(message) case final f?)
+        _FollowUpNotice(controller: controller, message: message, followUp: f),
       ...switch (reader) {
         ReaderLoading() => [
           const Padding(
@@ -333,6 +338,14 @@ final class _Toolbar extends StatelessWidget {
           'Snooze (B)',
           Icons.snooze,
           () => SnoozeSheet.show(context, controller, [message]),
+        ),
+      if (controller.canFollowUp(message))
+        _Action(
+          controller.followUpFor(message) == null
+              ? 'Remind me if no reply'
+              : 'Change reminder',
+          Icons.alarm_add_outlined,
+          () => FollowUpSheet.show(context, controller, message),
         ),
       _Action(
         inTrash ? 'Delete forever' : 'Move to Trash (#)',
@@ -951,6 +964,86 @@ final class _SnoozedNotice extends StatelessWidget {
                 child: const Text('Change time'),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A sent message waiting for a reply ("Reminds you Thu 10:00 AM if no
+/// reply", with Change and Cancel), or back with "No reply yet" (Done).
+final class _FollowUpNotice extends StatelessWidget {
+  const _FollowUpNotice({
+    required this.controller,
+    required this.message,
+    required this.followUp,
+  });
+
+  final MailController controller;
+  final StoredMessage message;
+  final FollowUp followUp;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final returned = followUp.returned;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+      ),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (returned)
+                  const NoReplyBadge()
+                else ...[
+                  Icon(Icons.alarm, size: 18, color: colors.onSurfaceVariant),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      FollowUpSheet.remindsAt(context, followUp.due),
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: returned
+                ? [
+                    TextButton(
+                      onPressed: () =>
+                          FollowUpSheet.show(context, controller, message),
+                      child: const Text('Remind me again'),
+                    ),
+                    TextButton(
+                      onPressed: () => controller.endFollowUp(followUp),
+                      child: const Text('Done'),
+                    ),
+                  ]
+                : [
+                    TextButton(
+                      onPressed: () =>
+                          FollowUpSheet.show(context, controller, message),
+                      child: const Text('Change'),
+                    ),
+                    TextButton(
+                      onPressed: () => controller.endFollowUp(followUp),
+                      child: const Text('Cancel'),
+                    ),
+                  ],
           ),
         ],
       ),

@@ -125,6 +125,7 @@ final class MailCounts {
     required this.folderUnread,
     required this.outbox,
     this.snoozed = 0,
+    this.followUps = 0,
   });
 
   static const empty = MailCounts(
@@ -136,6 +137,10 @@ final class MailCounts {
 
   /// Messages snoozed in the inboxes.
   final int snoozed;
+
+  /// Sent messages waiting for a reply ("Remind me if no reply"),
+  /// including those back with "No reply yet".
+  final int followUps;
 
   final Map<SmartSection, SectionCount> sections;
   final Map<int, int> perAccountUnread;
@@ -204,7 +209,9 @@ final class MailController {
     _refreshCounts();
     _refreshCodesOffer();
     wakeSnoozes();
-    // Android: a background check when the next scheduled message is due.
+    checkFollowUps();
+    // Android: a background check when the next scheduled message (or
+    // follow-up) is due.
     unawaited(BackgroundMail.checkWhenDue(_store));
   }
 
@@ -244,6 +251,10 @@ final class MailController {
   /// Announces snoozed mail that came back (set by the screen that can
   /// post notifications).
   void Function(BackFromSnooze back)? onBackFromSnooze;
+
+  /// Announces sent mail back with "No reply yet" (set by the screen that
+  /// can post notifications).
+  void Function()? onFollowUpsBack;
 
   /// Fixes the login of the account in [status], if that is the problem.
   void reconnect(SyncProblem problem) {
@@ -333,6 +344,7 @@ final class MailController {
       folderUnread: _store.messages.unreadCounts(),
       outbox: _store.outbox.sends().length,
       snoozed: _store.snoozes.count(),
+      followUps: followUps.all().length,
     );
   }
 
@@ -970,18 +982,103 @@ final class MailController {
     _scheduleWake();
   }
 
-  /// A timer for the next snooze due. Checked at least hourly: timers may
-  /// stop while the device sleeps (coming back to the app checks too).
+  /// Coming back to the app: snoozed mail and follow-ups that are due.
+  void onResume() {
+    wakeSnoozes();
+    checkFollowUps();
+  }
+
+  /// A timer for the next snooze or follow-up due. Checked at least
+  /// hourly: timers may stop while the device sleeps (coming back to the
+  /// app checks too).
   void _scheduleWake() {
     _wakeTimer?.cancel();
     _wakeTimer = null;
     if (_disposed) return;
-    final next = _store.snoozes.nextDue();
+    final next = [
+      ?_store.snoozes.nextDue(),
+      ?followUps.nextDue(),
+    ].fold<DateTime?>(null, (a, b) => a == null || b.isBefore(a) ? b : a);
     if (next == null) return;
     var delay = next.difference(DateTime.now());
     if (delay > const Duration(hours: 1)) delay = const Duration(hours: 1);
     if (delay < const Duration(seconds: 1)) delay = const Duration(seconds: 1);
-    _wakeTimer = Timer(delay, wakeSnoozes);
+    _wakeTimer = Timer(delay, onResume);
+  }
+
+  // ---------------------------------------------------------- follow-ups
+
+  /// "Remind me if no reply" on sent mail, kept on this device.
+  late final followUps = FollowUpReminders(_store);
+
+  /// Whether [m] is mail the user sent (in Sent, or from one of their
+  /// addresses) that can get a follow-up reminder.
+  bool canFollowUp(StoredMessage m) {
+    if (m.messageId == null) return false;
+    final use = _store.mailboxes.byId(m.mailboxId)?.specialUse;
+    if (use == SpecialUse.drafts || use == SpecialUse.trash) return false;
+    if (use == SpecialUse.sent) return true;
+    final from = m.from?.address.toLowerCase();
+    return from != null && ownAddresses.any((a) => a.toLowerCase() == from);
+  }
+
+  /// The follow-up of [m], if one is set.
+  FollowUp? followUpFor(StoredMessage m) {
+    final id = m.messageId;
+    return id == null ? null : followUps.find(id);
+  }
+
+  /// Sets (or changes) "Remind me if no reply" on [m], with Undo.
+  void remindIfNoReply(StoredMessage m, DateTime due, String done) {
+    if (!canFollowUp(m)) {
+      onNotice?.call('Only mail you sent can remind you.');
+      return;
+    }
+    final before = followUpFor(m);
+    followUps.remind(followUps.forMessage(m, due));
+    refresh();
+    onNotice?.call(
+      done,
+      undo: () {
+        if (before == null) {
+          followUps.cancel(m.messageId!);
+        } else {
+          followUps.restore(before);
+        }
+        refresh();
+      },
+    );
+  }
+
+  /// Ends a follow-up: "Cancel" while waiting, "Done" once it came back.
+  /// With Undo.
+  void endFollowUp(FollowUp f) {
+    final ended = followUps.cancel(f.messageId);
+    if (ended == null) return;
+    refresh();
+    onNotice?.call(
+      ended.returned ? 'Marked done' : 'Reminder cancelled',
+      undo: () {
+        followUps.restore(ended);
+        refresh();
+      },
+    );
+  }
+
+  /// Ends follow-ups that got a reply, and brings back those whose time
+  /// came without one ("No reply yet", announced by [onFollowUpsBack]).
+  /// Run after each sync, when the app comes to the foreground, and at
+  /// the next due time.
+  void checkFollowUps([DateTime? now]) {
+    if (_disposed) return;
+    try {
+      final result = followUps.check(now: now);
+      if (!result.isEmpty) refresh();
+      if (result.returned.isNotEmpty) onFollowUpsBack?.call();
+    } on Object catch (e) {
+      debugPrint('follow-ups: ${e.runtimeType}');
+    }
+    _scheduleWake();
   }
 
   // --------------------------------------------------------- invitations
@@ -1556,6 +1653,7 @@ final class MailController {
     if (event is AccountSynced) {
       tidyCodes();
       wakeSnoozes();
+      checkFollowUps();
     }
     // Several events arrive close together: refresh once.
     _refreshSoon?.cancel();

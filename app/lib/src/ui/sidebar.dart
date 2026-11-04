@@ -215,6 +215,14 @@ final class Sidebar extends StatelessWidget {
                             selected: here == const SnoozedLocation(),
                             onTap: () => go(const SnoozedLocation()),
                           ),
+                        // While a sent email waits for a reply.
+                        if (counts.followUps > 0)
+                          _Entry(
+                            icon: Icons.hourglass_empty,
+                            label: 'Waiting for a reply',
+                            selected: here == const FollowUpsLocation(),
+                            onTap: () => go(const FollowUpsLocation()),
+                          ),
                         _Entry(
                           icon: Icons.autorenew,
                           label: 'Subscriptions',

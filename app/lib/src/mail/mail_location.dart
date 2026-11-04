@@ -109,3 +109,15 @@ final class SnoozedLocation extends MailLocation {
   @override
   int get hashCode => (SnoozedLocation).hashCode;
 }
+
+/// Sent mail waiting for a reply ("Remind me if no reply"), and what came
+/// back with "No reply yet".
+final class FollowUpsLocation extends MailLocation {
+  const FollowUpsLocation();
+
+  @override
+  bool operator ==(Object other) => other is FollowUpsLocation;
+
+  @override
+  int get hashCode => (FollowUpsLocation).hashCode;
+}
