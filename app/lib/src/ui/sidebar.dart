@@ -13,6 +13,7 @@ import '../mail/mail_location.dart';
 import 'citusmail_theme.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
+import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
 
@@ -121,8 +122,10 @@ final class Sidebar extends StatelessWidget {
                             onNavigated?.call();
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    SettingsPage(services: controller.services),
+                                builder: (_) => SettingsPage(
+                                  services: controller.services,
+                                  controller: controller,
+                                ),
                               ),
                             );
                           },
@@ -208,6 +211,20 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     SubscriptionsPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.cleaning_services_outlined,
+                          label: 'Clean up',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    SenderCleanupPage(controller: controller),
                               ),
                             );
                           },
