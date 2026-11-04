@@ -1,0 +1,30 @@
+From: Dana Friend <dana@friends.example>
+To: alice@citusmail.test, eve@friends.example
+Subject: =?UTF-8?Q?Invitation:_Team_offsite_=E2=80=93_Sintra_@_Thu_10_Dec_2026?=
+Date: Sun, 01 Nov 2026 08:00:00 +0000
+Message-ID: <offsite-invite@friends.example>
+MIME-Version: 1.0
+Content-Type: text/calendar; charset=UTF-8; method=REQUEST
+Content-Transfer-Encoding: 8bit
+
+BEGIN:VCALENDAR
+PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+VERSION:2.0
+METHOD:REQUEST
+BEGIN:VEVENT
+CREATED:20261101T080000Z
+LAST-MODIFIED:20261101T080000Z
+DTSTAMP:20261101T080000Z
+UID:9b1f-offsite-2026@friends.example
+SUMMARY:Team offsite – Sintra
+ORGANIZER;CN="Dana Friend":mailto:dana@friends.example
+ATTENDEE;RSVP=TRUE;PARTSTAT=ACCEPTED;ROLE=REQ-PARTICIPANT:mailto:Alice@Citu
+ smail.test
+ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION;CN=Eve:mailto:eve@friends.example
+DTSTART;VALUE=DATE:20261210
+DTEND;VALUE=DATE:20261212
+LOCATION:Quinta da Regaleira\, Sintra
+DESCRIPTION:Bring walking shoes.\nLunch is on us.
+SEQUENCE:1
+END:VEVENT
+END:VCALENDAR

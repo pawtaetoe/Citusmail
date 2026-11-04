@@ -28,6 +28,20 @@ final class OutgoingAttachment {
   bool get isInline => contentId != null;
 }
 
+/// An iCalendar object sent as an alternative to the text (RFC 6047):
+/// a meeting invitation or an answer to one. Calendar apps read it; mail
+/// apps show the text.
+final class OutgoingCalendar {
+  OutgoingCalendar({required this.method, required this.content});
+
+  /// The iTIP method (RFC 5546), such as `REPLY`; the same as the
+  /// object's own METHOD property.
+  final String method;
+
+  /// The iCalendar text (`BEGIN:VCALENDAR` ... `END:VCALENDAR`).
+  final String content;
+}
+
 /// Everything needed to build a message to send.
 final class OutgoingMessage {
   OutgoingMessage({
@@ -45,6 +59,7 @@ final class OutgoingMessage {
     this.messageId,
     this.date,
     this.receiptTo,
+    this.calendar,
   });
 
   final MailAddress from;
@@ -75,6 +90,9 @@ final class OutgoingMessage {
   /// (`Disposition-Notification-To`, RFC 8098). Their app decides; nothing
   /// else is added to find out whether the message was read.
   final MailAddress? receiptTo;
+
+  /// A calendar object sent alongside the text, as an alternative of it.
+  final OutgoingCalendar? calendar;
 
   /// Everyone the SMTP envelope must deliver to: To, Cc and Bcc.
   List<MailAddress> get envelopeRecipients => [...to, ...cc, ...bcc];

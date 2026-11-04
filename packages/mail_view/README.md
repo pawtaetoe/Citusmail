@@ -16,6 +16,17 @@ Turns a raw email into something safe to show. Pure Dart.
   bytes; images that aren't PNG, JPEG, GIF or WebP, or are larger than
   16384 pixels a side or 40 megapixels (decompression bombs), are refused.
 - **`PlainTextConverter`** handles `>` quotes, `format=flowed` and links.
+- **`CalendarInvite`** reads the meeting invitation, cancellation or
+  answer in a message's `text/calendar` part (or attached `.ics`) with
+  our own RFC 5545 reader (`ICalParser`): line folding, parameters,
+  escaped text, all-day, UTC, floating and zoned times (the file's
+  VTIMEZONE, else a table of common IANA and Windows zone names in
+  `CalendarTimeZones`), organizer, attendees and their answers, and
+  Teams/Zoom/Meet links. `CalendarText` says when it is ("Thu, 12 Nov ·
+  2:00–3:00 pm", "Repeats weekly on Monday") in the reader's time zone;
+  `CalendarReply` builds the iTIP REPLY (RFC 5546) that accepts,
+  declines or tentatively accepts it. Files over 2 MB, deep nesting and
+  broken lines are cut or skipped, never fatal.
 - **`SafeFileName`** cleans attachment names: no paths, no right-to-left
   tricks, no Windows device names, at most 200 bytes.
 

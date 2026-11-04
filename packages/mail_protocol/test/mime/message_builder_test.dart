@@ -488,6 +488,48 @@ void main() {
       expect(m.allDefects, isEmpty);
     });
 
+    test('a calendar answer is the last alternative, with its method', () {
+      const ics =
+          'BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nBEGIN:VEVENT\r\n'
+          'UID:abc@citusmail.test\r\nSUMMARY:Café\r\nEND:VEVENT\r\n'
+          'END:VCALENDAR\r\n';
+      final m = roundTrip(
+        OutgoingMessage(
+          from: alice,
+          to: [bob],
+          subject: 'Accepted: Café',
+          textBody: 'Alice accepted.',
+          calendar: OutgoingCalendar(method: 'reply', content: ics),
+        ),
+      );
+      final types = {
+        for (final p in m.root.allParts) p.section: p.contentType.mimeType,
+      };
+      expect(types, {
+        '': 'multipart/alternative',
+        '1': 'text/plain',
+        '2': 'text/calendar',
+      });
+      final calendar = m.root.children[1];
+      expect(calendar.contentType.parameters['method'], 'REPLY');
+      expect(calendar.contentType.charset, 'utf-8');
+      expect(calendar.isAttachment, isFalse);
+      expect(calendar.decodeText().text, ics.replaceAll('\r\n', '\n'));
+      expect(bodyOf(m.textBody!), 'Alice accepted.');
+      expect(m.allDefects, isEmpty);
+
+      expect(
+        () => build(
+          OutgoingMessage(
+            from: alice,
+            to: [bob],
+            calendar: OutgoingCalendar(method: 'REPLY\r\nX: y', content: ics),
+          ),
+        ),
+        throwsA(isA<MessageBuildException>()),
+      );
+    });
+
     test('inline images without HTML become regular attachments', () {
       final m = roundTrip(
         OutgoingMessage(
