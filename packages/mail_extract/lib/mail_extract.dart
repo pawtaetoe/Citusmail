@@ -4,10 +4,11 @@
 
 /// Reads the schema.org data embedded in email HTML (JSON-LD and
 /// microdata), on the device, without running anything: parcel
-/// deliveries and orders. [SchemaThing] holds any type, so reservations
-/// (flights, hotels, events, trains, rental cars, restaurants) can get
-/// their own typed views the same way.
+/// deliveries and orders, and reservations (flights, hotels, trains,
+/// buses, rental cars, restaurant tables and event tickets). Each is a
+/// typed view of a generic [SchemaThing].
 library;
 
 export 'src/orders.dart';
+export 'src/reservations.dart';
 export 'src/schema_org.dart';

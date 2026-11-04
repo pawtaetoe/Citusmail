@@ -62,6 +62,14 @@ shipping emails" downloads small ones from your own mail server only
 when you tap it; they stay unread. A carrier's tracking page opens in
 your browser only when you choose "Track", after asking.
 
+Trips are found the same way: booking emails (flights, hotels, trains,
+buses, rental cars, tables and tickets) are read on the device, with the
+booking details airlines and booking sites add for mail apps (read as
+data, never run). "Read booking emails" downloads small ones from your
+own mail server only when you tap it; they stay unread. "Add to
+calendar" hands a calendar file to your own calendar app; "Manage
+booking" opens the booking's page only after asking.
+
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail
 account and never shown as a notification.

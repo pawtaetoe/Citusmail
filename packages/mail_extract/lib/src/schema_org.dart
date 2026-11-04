@@ -10,7 +10,7 @@ import 'package:html/parser.dart' as html;
 /// One schema.org item read from an email: its types and properties.
 ///
 /// JSON-LD and microdata both end up in this shape, so the typed views
-/// ([ParcelDeliveryInfo], [OrderInfo] and, later, reservations) read them
+/// ([ParcelDeliveryInfo], [OrderInfo], [ReservationInfo]) read them
 /// the same way. Type and property names have the `schema.org` prefix
 /// removed (`ParcelDelivery`, `trackingNumber`). A property value is a
 /// [String] or a nested [SchemaThing]; numbers and booleans become strings.

@@ -125,6 +125,11 @@ are at the bottom of the screen, within reach of one thumb.
   items, carrier, tracking number and latest status, what's on the way
   first with its expected date; "Track" opens the carrier's page after
   asking.
+- **Trips**: flights, hotels, trains, buses, rental cars, restaurant
+  tables and event tickets found in your booking emails, put together
+  into trips ("Tokyo, 12–18 Dec") with a timeline in local times, on
+  your device and offline. Copy the booking reference with a tap, add a
+  booking to your calendar, and see cancellations and schedule changes.
 - **Return-by dates**: under Deliveries, what you can still return and
   until when, read from the return policy in order confirmations and
   receipts ("30-day returns", "return by 15 Dec"), with a reminder three
