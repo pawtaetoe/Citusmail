@@ -4,6 +4,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import 'mail_location.dart';
 
@@ -20,6 +21,14 @@ final class SectionState {
   List<StoredMessage> messages = const [];
 
   bool get hasMore => messages.length < count.total;
+}
+
+/// A follow-up with its sent message, when that is on the device.
+final class FollowUpRow {
+  const FollowUpRow(this.followUp, this.message);
+
+  final FollowUp followUp;
+  final StoredMessage? message;
 }
 
 /// What the message list shows, loaded a page at a time. Every query reads
@@ -56,6 +65,10 @@ final class MessageListModel extends ChangeNotifier {
   /// Smart Inbox: first-time senders waiting in the Screener.
   int screenerWaiting = 0;
 
+  /// Smart Inbox: sent mail back with "No reply yet", at the top. Waiting
+  /// for a reply: every follow-up, those back first.
+  List<FollowUpRow> followUps = const [];
+
   /// Every other view: one list.
   List<StoredMessage> messages = const [];
 
@@ -68,9 +81,12 @@ final class MessageListModel extends ChangeNotifier {
   /// next message after one is archived).
   List<StoredMessage> get visible => showsSections
       ? [
+          for (final f in followUps) ?f.message,
           for (final s in sections)
             if (s.expanded) ...s.messages,
         ]
+      : location is FollowUpsLocation
+      ? [for (final f in followUps) ?f.message]
       : messages;
 
   void show(MailLocation location) {
@@ -83,6 +99,14 @@ final class MessageListModel extends ChangeNotifier {
   /// Re-reads what is shown, keeping how much was loaded.
   void refresh() {
     final location = _location;
+    followUps = switch (location) {
+      InboxLocation(:final accountId) => _followUps(
+        returnedOnly: true,
+        accountId: accountId,
+      ),
+      FollowUpsLocation() => _followUps(),
+      _ => const [],
+    };
     if (showsSections) {
       final counts = _store.messages.sectionCounts(
         accountIds: _accounts(location.accountId),
@@ -117,11 +141,13 @@ final class MessageListModel extends ChangeNotifier {
       };
       messages = switch (location) {
         SearchLocation(:final text) => _store.messages.search(text, limit: 200),
-        OutboxLocation() => const [],
+        OutboxLocation() || FollowUpsLocation() => const [],
         SnoozedLocation() => [for (final s in snoozed) s.message],
         _ => _store.messages.list(_query(location, limit: wanted)),
       };
-      if (location is SearchLocation || location is SnoozedLocation) {
+      if (location is SearchLocation ||
+          location is SnoozedLocation ||
+          location is FollowUpsLocation) {
         reachedEnd = true;
       }
     }
@@ -224,8 +250,24 @@ final class MessageListModel extends ChangeNotifier {
     ),
     SearchLocation() ||
     OutboxLocation() ||
-    SnoozedLocation() => throw StateError('not paged'),
+    SnoozedLocation() ||
+    FollowUpsLocation() => throw StateError('not paged'),
   };
+
+  /// Follow-ups (of [accountId], or every account) with their sent
+  /// messages: those back with "No reply yet" first, most recent first,
+  /// then the ones waiting, soonest due first.
+  List<FollowUpRow> _followUps({bool returnedOnly = false, int? accountId}) {
+    final reminders = FollowUpReminders(_store);
+    return [
+      for (final f in [
+        ...reminders.returned(),
+        if (!returnedOnly) ...reminders.waiting(),
+      ])
+        if (accountId == null || f.accountId == accountId)
+          FollowUpRow(f, reminders.sentCopy(f)),
+    ];
+  }
 
   static List<int>? _accounts(int? accountId) =>
       accountId == null ? null : [accountId];

@@ -17,6 +17,7 @@ final class AppSettings {
   static const _previews = 'app.notificationPreviews';
   static const _reminders = 'reminders.on';
   static const _monthlyRenewals = 'reminders.monthly';
+  static const _followUps = 'followUps.notify';
 
   /// New-mail notifications (on by default).
   bool get notifications => _store.settings.read(_notifications) != 'off';
@@ -34,6 +35,13 @@ final class AppSettings {
   bool get reminders => _store.settings.read(_reminders) != 'off';
   set reminders(bool on) =>
       _store.settings.write(_reminders, on ? 'on' : 'off');
+
+  /// A notification when an email the user is waiting on got no reply in
+  /// time ("Remind me if no reply"; on by default; only with
+  /// [notifications]). The email comes back to the inbox either way.
+  bool get followUpNotifications => _store.settings.read(_followUps) != 'off';
+  set followUpNotifications(bool on) =>
+      _store.settings.write(_followUps, on ? 'on' : 'off');
 
   /// Monthly (and weekly) renewals are reminded of too (off by default:
   /// they come every month).

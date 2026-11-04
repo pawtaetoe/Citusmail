@@ -74,12 +74,20 @@ final class _MailShellState extends State<MailShell> {
   @override
   void initState() {
     super.initState();
-    _controller.onCompose = (draft) =>
-        unawaited(ComposeLauncher.open(context, widget.services, draft));
+    // Once the window closes, the lists show what it changed (the Outbox,
+    // a follow-up reminder).
+    _controller.onCompose = (draft) => unawaited(
+      ComposeLauncher.open(
+        context,
+        widget.services,
+        draft,
+      ).then((_) => _controller.refresh()),
+    );
     _controller.onNotice = _notice;
     _controller.onReconnect = (account) => unawaited(_reconnect(account));
     _controller.onBackFromSnooze = (back) => _announcer?.backFromSnooze(back);
-    _lifecycle = AppLifecycleListener(onResume: _controller.wakeSnoozes);
+    _controller.onFollowUpsBack = () => _announcer?.followUpsBack();
+    _lifecycle = AppLifecycleListener(onResume: _controller.onResume);
     unawaited(widget.services.worker.start().catchError((Object _) {}));
     widget.services.linkSafety.start();
     if (widget.notifications) {

@@ -23,6 +23,10 @@ final class SummaryMapper {
     'List-Unsubscribe-Post',
     'Precedence',
     'Auto-Submitted',
+    // Older auto-reply marks: an out-of-office doesn't count as a reply
+    // for follow-up reminders.
+    'X-Autoreply',
+    'X-Autorespond',
     'Authentication-Results',
     'Disposition-Notification-To',
     'Feedback-ID',

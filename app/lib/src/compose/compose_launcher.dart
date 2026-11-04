@@ -6,9 +6,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:mail_compose/mail_compose.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import '../mail/send_later_times.dart';
 import '../services/app_services.dart';
+import '../ui/follow_up_sheet.dart';
 import '../ui/send_later_sheet.dart';
 import 'compose_controller.dart';
 import 'compose_page.dart';
@@ -49,8 +51,8 @@ abstract final class ComposeLauncher {
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     switch (result) {
-      case ComposeSent(:final pending):
-        _offerUndo(context, services, pending);
+      case ComposeSent(:final pending, :final followUp):
+        _offerUndo(context, services, pending, followUp);
       case ComposeClosed(outcome: DraftOutcome.savedToServer):
         messenger.showSnackBar(
           const SnackBar(content: Text('Saved to Drafts.')),
@@ -73,6 +75,7 @@ abstract final class ComposeLauncher {
     BuildContext context,
     AppServices services,
     PendingSend pending,
+    FollowUp? followUp,
   ) {
     final messenger = ScaffoldMessenger.of(context);
     final scheduled = pending.scheduledFor;
@@ -85,10 +88,14 @@ abstract final class ComposeLauncher {
       ..showSnackBar(
         SnackBar(
           content: Text(
-            scheduled == null
-                ? 'Sending…'
-                : '${SendLaterSheet.sendsAt(context, scheduled)}. '
-                      'It waits in your Outbox.',
+            [
+              scheduled == null
+                  ? 'Sending…'
+                  : '${SendLaterSheet.sendsAt(context, scheduled)}. '
+                        'It waits in your Outbox.',
+              if (followUp != null)
+                '${FollowUpSheet.remindsAt(context, followUp.due)}.',
+            ].join(' '),
           ),
           duration: left.isNegative ? Duration.zero : left,
           persist: false,
@@ -96,6 +103,9 @@ abstract final class ComposeLauncher {
             label: 'Undo',
             onPressed: () {
               final restored = services.sender.undo(pending);
+              if (restored != null && followUp != null) {
+                FollowUpReminders(services.store).cancel(followUp.messageId);
+              }
               if (restored == null) {
                 messenger.showSnackBar(
                   const SnackBar(

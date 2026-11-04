@@ -555,6 +555,28 @@ final class MessageRepository {
       .map(_fromRow)
       .toList(growable: false);
 
+  /// Messages in [mailboxId] received after [since] that answer another
+  /// (they have In-Reply-To or References), newest first: what might be a
+  /// reply to mail the user sent. Reads the folder's list index (a message
+  /// is never listed before it was received).
+  List<StoredMessage> threadedSince(
+    int mailboxId,
+    DateTime since, {
+    int limit = 2000,
+  }) {
+    final ms = since.toUtc().millisecondsSinceEpoch;
+    return _db
+        .select(
+          'SELECT $_columns $_from WHERE m.mailbox_id = ? AND m.listed_at > ? '
+          'AND m.received_at > ? '
+          "AND (m.in_reply_to IS NOT NULL OR coalesce(m.thread_references, '') != '') "
+          'ORDER BY m.listed_at DESC, m.id DESC LIMIT ?',
+          [mailboxId, ms, ms, limit.clamp(1, 10000)],
+        )
+        .map(_fromRow)
+        .toList(growable: false);
+  }
+
   /// Stored headers of a message: lower-case name -> values.
   Map<String, List<String>> headers(int messageId) {
     final result = <String, List<String>>{};

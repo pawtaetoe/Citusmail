@@ -8,10 +8,12 @@ import 'package:flutter/foundation.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import '../background/background_mail.dart';
 import '../mail/send_later_times.dart';
 import '../services/app_services.dart';
+import '../ui/follow_up_sheet.dart' show FollowUpPick;
 
 /// Addresses in one recipient field, plus text typed but not yet turned
 /// into an address.
@@ -76,9 +78,13 @@ sealed class ComposeResult {
 }
 
 final class ComposeSent extends ComposeResult {
-  const ComposeSent(this.pending);
+  const ComposeSent(this.pending, {this.followUp});
 
   final PendingSend pending;
+
+  /// "Remind me if no reply", when it was chosen (ended by undoing the
+  /// send).
+  final FollowUp? followUp;
 }
 
 final class ComposeClosed extends ComposeResult {
@@ -127,6 +133,15 @@ final class ComposeController extends ChangeNotifier {
   void setAccount(int accountId) =>
       _update(_draft.copyWith(accountId: accountId));
   void setSubject(String subject) => _update(_draft.copyWith(subject: subject));
+
+  /// "Remind me if no reply": when, or null for no reminder.
+  FollowUpPick? get followUp => _followUp;
+  FollowUpPick? _followUp;
+
+  void setFollowUp(FollowUpPick? pick) {
+    _followUp = pick?.at == null ? null : pick;
+    notifyListeners();
+  }
 
   /// Ask the recipients' mail apps for a read receipt (their choice).
   void setRequestReceipt(bool on) =>
@@ -189,10 +204,42 @@ final class ComposeController extends ChangeNotifier {
         services.worker.syncAt(pending.accountId, due);
         unawaited(BackgroundMail.checkWhenDue(services.store));
       }
-      return ComposeSent(pending);
+      final followUp = _remind(pending);
+      if (followUp != null) {
+        // Android: a background check when it is due.
+        unawaited(BackgroundMail.checkWhenDue(services.store));
+      }
+      return ComposeSent(pending, followUp: followUp);
     } on ComposeException catch (e) {
       problems = e.problems;
       notifyListeners();
+      return null;
+    }
+  }
+
+  /// Sets the follow-up chosen for [pending]: relative times count from
+  /// when it goes out.
+  FollowUp? _remind(PendingSend pending) {
+    final pick = _followUp;
+    if (pick == null) return null;
+    final sentAt = pending.scheduledFor ?? DateTime.now();
+    final due = pick.dueFor(sentAt);
+    if (due == null) return null;
+    try {
+      return FollowUpReminders(services.store).remind(
+        FollowUp(
+          messageId: pending.messageId,
+          accountId: pending.accountId,
+          due: due.toUtc(),
+          sentAt: sentAt.toUtc(),
+          subject: _draft.subject.trim(),
+          recipients: [..._draft.to, ..._draft.cc],
+          inReplyTo: _draft.inReplyTo,
+          references: _draft.references,
+        ),
+      );
+    } on Object catch (e) {
+      debugPrint('follow-up: ${e.runtimeType}');
       return null;
     }
   }

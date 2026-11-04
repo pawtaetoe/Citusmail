@@ -15,6 +15,7 @@ import '../mail/send_later_times.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
 import 'folder_dialogs.dart';
+import 'follow_ups_list.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
 import 'move_dialog.dart';
@@ -263,6 +264,7 @@ final class _ViewHeader extends StatelessWidget {
       PinsLocation() => 'Pins',
       OutboxLocation() => 'Outbox',
       SnoozedLocation() => 'Snoozed',
+      FollowUpsLocation() => 'Waiting for a reply',
       SearchLocation(:final text) => 'Results for "$text"',
       InboxLocation() => '',
     };
@@ -533,6 +535,9 @@ final class _MessagesState extends State<_Messages> {
           ? SliverToBoxAdapter(child: CodeCleanupBanner(controller: _c))
           : null;
       if (list.location is OutboxLocation) return _outbox();
+      if (list.location is FollowUpsLocation) {
+        return FollowUpsView(controller: _c);
+      }
       final prototype = MessageTile(
         message: MessageTile.prototype,
         controller: _c,
@@ -541,7 +546,9 @@ final class _MessagesState extends State<_Messages> {
         selecting: false,
       );
       if (list.showsSections) {
-        if (list.sections.isEmpty && list.screenerWaiting == 0) {
+        if (list.sections.isEmpty &&
+            list.screenerWaiting == 0 &&
+            list.followUps.isEmpty) {
           return const _Empty(Icons.inbox_outlined, 'Your inbox is empty.');
         }
         return Scrollbar(
@@ -549,6 +556,11 @@ final class _MessagesState extends State<_Messages> {
           child: CustomScrollView(
             controller: _scroll,
             slivers: [
+              // Sent mail that got no reply in time, on top.
+              if (list.followUps.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: NoReplySection(rows: list.followUps, controller: _c),
+                ),
               // First-time senders, only while someone is waiting.
               if (list.screenerWaiting > 0)
                 SliverToBoxAdapter(

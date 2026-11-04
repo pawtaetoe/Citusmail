@@ -14,6 +14,7 @@ export 'src/header_rule_classifier.dart';
 export 'src/learned_classifier.dart';
 export 'src/list_id.dart';
 export 'src/reminders.dart';
+export 'src/replies.dart';
 export 'src/resorter.dart';
 export 'src/returns.dart';
 export 'src/sender_cleanup.dart';

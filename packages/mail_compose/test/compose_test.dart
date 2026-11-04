@@ -495,6 +495,11 @@ void main() {
       final (message, view) = received();
       final pending = sender.schedule(reply(message, view), thursday, now: now);
       expect(pending.scheduledFor, thursday);
+      // The Message-ID it goes out with, for "Remind me if no reply".
+      expect(
+        const MimeParser().parse(only().entry.data!).messageId,
+        pending.messageId,
+      );
 
       // The undo delay over: only the old Drafts copy goes.
       expect(

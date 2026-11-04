@@ -36,6 +36,7 @@ import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import '../test/support/delivery_mail.dart';
 import '../test/support/privacy_mail.dart';
@@ -621,6 +622,143 @@ void main() {
     );
     await shoot(tester, 'phone_send_later_outbox');
   });
+
+  // Follow-up reminders: sent mail back with "No reply yet" at the top of
+  // the inbox, "Remind me if no reply" on a sent email and in compose,
+  // and the "Waiting for a reply" list.
+  testWidgets('follow-ups', (tester) async {
+    _seedDemo(app.store);
+    _seedFollowUps(app.store);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await shoot(tester, 'desktop_follow_ups_inbox');
+    await tester.tap(find.text('Waiting for a reply'));
+    await settle(tester);
+    await tester.tap(find.text('Notes from Tuesday'));
+    await shoot(tester, 'desktop_follow_ups_list');
+    await tester.tap(find.byTooltip('Change reminder'));
+    await shoot(tester, 'desktop_follow_ups_sheet');
+    await tester.tapAt(const Offset(10, 10));
+    await settle(tester);
+
+    await tester.pumpWidget(const SizedBox()); // a fresh start
+    await show(tester, shell(), size: const Size(390, 844));
+    await shoot(tester, 'phone_follow_ups_inbox');
+    await tester.tap(find.byTooltip('Folders'));
+    await settle(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Drawer),
+        matching: find.text('Waiting for a reply'),
+      ),
+    );
+    await shoot(tester, 'phone_follow_ups_list');
+    await tester.tap(find.byTooltip('New message (C)'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Remind me if no reply'));
+    await shoot(tester, 'phone_follow_ups_compose');
+    await tester.tapAt(const Offset(10, 10));
+    await settle(tester);
+    await tester.pump(const Duration(seconds: 3)); // the draft's autosave
+
+    await tester.pumpWidget(const SizedBox());
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await tester.tap(find.byTooltip('Folders'));
+    await settle(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Drawer),
+        matching: find.text('Waiting for a reply'),
+      ),
+    );
+    await shoot(tester, 'phone_follow_ups_list_dark');
+  });
+}
+
+/// Four emails Alex sent: two came back with "No reply yet", two are
+/// waiting.
+void _seedFollowUps(MailStore store) {
+  final accountId = store.accounts.all().single.id;
+  final sent = store.mailboxes.bySpecialUse(accountId, SpecialUse.sent)!;
+  final me = store.accounts.byId(accountId)!.email;
+  final now = DateTime.now();
+  MailAddress who(String address, [String? name]) => MailAddress(
+    localPart: address.substring(0, address.indexOf('@')),
+    domain: address.substring(address.indexOf('@') + 1),
+    displayName: name,
+  );
+  var uid = 700;
+  MessageSummary mail(
+    Duration ago,
+    List<MailAddress> to,
+    String subject,
+    String snippet,
+  ) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.toUtc().subtract(ago),
+    sentAt: now.toUtc().subtract(ago),
+    subject: subject,
+    from: who(me, 'Alex Morgan'),
+    to: to,
+    snippet: snippet,
+    messageId: 'followup$uid@demo.example',
+    flags: MessageFlags.fromImap([r'\Seen']),
+  );
+  store.messages.upsertSummaries(sent.id, [
+    mail(
+      const Duration(days: 3, hours: 2),
+      [who('ana@buildright.example', 'Ana Costa')],
+      'Quote for the kitchen',
+      'Hi Ana, could you send the quote for the kitchen by Friday?',
+    ),
+    mail(
+      const Duration(days: 7, hours: 1),
+      [
+        who('accounts@lakeside-dental.example', 'Lakeside Dental'),
+        who('billing@lakeside-dental.example'),
+      ],
+      'Refund for the cancelled appointment',
+      'Hello, I was charged for the appointment I cancelled on the 2nd.',
+    ),
+    mail(
+      const Duration(days: 1, hours: 4),
+      [who('priya@studio.example', 'Priya Shah')],
+      'Notes from Tuesday',
+      'Here are my notes from Tuesday. Talk Monday!',
+    ),
+    mail(
+      const Duration(hours: 5),
+      [
+        who('ben@reunion.example', 'Ben Okafor'),
+        who('chloe@reunion.example', 'Chloe Martin'),
+        who('dev@reunion.example', 'Dev Patel'),
+      ],
+      'Venue for the reunion',
+      'Which of the three places do you like best?',
+    ),
+  ]);
+  final followUps = FollowUpReminders(store);
+  StoredMessage m(int uid) => store.messages.byUid(sent.id, uid)!;
+  followUps
+    ..remind(
+      followUps.forMessage(m(700), now.subtract(const Duration(hours: 2))),
+    )
+    ..remind(
+      followUps.forMessage(m(701), now.subtract(const Duration(days: 2))),
+    )
+    ..remind(
+      followUps.forMessage(
+        m(702),
+        DateTime(now.year, now.month, now.day + 2, 9),
+      ),
+    )
+    ..remind(
+      followUps.forMessage(
+        m(703),
+        DateTime(now.year, now.month, now.day + 7, 18),
+      ),
+    )
+    ..check(now: now);
+  followUps.claimUnnotified();
 }
 
 /// Two messages scheduled with Send later, and one that failed.
