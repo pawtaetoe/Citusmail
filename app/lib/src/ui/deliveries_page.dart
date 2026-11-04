@@ -51,6 +51,7 @@ final class _DeliveriesPageState extends State<DeliveriesPage> {
   /// The delivery's own page; "Not a delivery" and "Mark as delivered"
   /// there come back here, with Undo.
   Future<void> _select(Delivery d) async {
+    _model.opened(d);
     final action = await Navigator.of(context).push<DeliveryAction>(
       MaterialPageRoute(
         builder: (_) => DeliveryDetailPage(
@@ -192,7 +193,10 @@ final class _DeliveriesPageState extends State<DeliveriesPage> {
                           leading: Avatar(name: d.shopName, address: d.shop),
                           title: Text(d.shopName),
                           subtitle: Text(
-                            d.records.last.email.subject,
+                            _model.learned.contains(d.key)
+                                ? 'Left out: like ones you said aren\'t '
+                                      'deliveries'
+                                : d.records.last.email.subject,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

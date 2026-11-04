@@ -12,6 +12,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import 'corrections.dart';
 
 /// The "Your accounts" page's data: online services the user has an
 /// account with, found in welcome, sign-in, password and security mail on
@@ -43,7 +44,18 @@ final class AccountsModel extends ChangeNotifier {
 
   /// Companies the user said are not accounts.
   Set<String> hidden = const {};
+
+  /// Companies left out because they look like ones the user said are
+  /// not accounts ("Learn from my corrections").
+  Set<String> learned = const {};
+
+  /// Those of [hidden] and [learned].
   List<OnlineAccount> hiddenOnes = const [];
+
+  /// Everything found.
+  List<OnlineAccount> _all = const [];
+
+  late final _corrections = Corrections(_store);
 
   /// The user's own addresses.
   List<String> ownAddresses = const [];
@@ -129,18 +141,26 @@ final class AccountsModel extends ChangeNotifier {
       freeMailDomains: FreeMail.providers,
       now: _now(),
     );
+    _all = all;
+    final messages = {for (final m in candidates) m.id: m};
+    learned = await _corrections.vetoed(MailKind.account, {
+      for (final a in all)
+        if (!hidden.contains(a.company))
+          a.company: _samples(a, (id) => messages[id]),
+    });
+    final left = {...hidden, ...learned};
     accounts = [
       for (final a in all)
-        if (!hidden.contains(a.company)) a,
+        if (!left.contains(a.company)) a,
     ];
     hiddenOnes = [
       for (final a in all)
-        if (hidden.contains(a.company)) a,
+        if (left.contains(a.company)) a,
     ];
     final sizes = {for (final m in candidates) m.id: m.size};
     toRead = [
       for (final e in emails)
-        if (!hidden.contains(AccountFinder.companyOf(e.company)) &&
+        if (!left.contains(AccountFinder.companyOf(e.company)) &&
             AccountFinder.worthReading(e) &&
             _store.messages.body(e.messageId) == null &&
             (sizes[e.messageId] ?? 0) <= _maxBytes)
@@ -175,10 +195,58 @@ final class AccountsModel extends ChangeNotifier {
 
   void stopReading() => _stop = true;
 
-  /// "Not an account": hidden from the list (undoable).
-  void hide(String company) => _setHidden({...hidden, company});
+  /// "Not an account": hidden from the list (undoable), and learned
+  /// from.
+  void hide(String company) {
+    if (_found(company) case final a?) {
+      _corrections.rejected(
+        MailKind.account,
+        _samples(a, _store.messages.byId),
+      );
+    }
+    _setHidden({...hidden, company});
+  }
 
-  void unhide(String company) => _setHidden({...hidden}..remove(company));
+  /// Undo, or "List again": listed again (and never left out by
+  /// learning again).
+  void unhide(String company) {
+    final a = _found(company);
+    final samples = a == null
+        ? const <MailSample>[]
+        : _samples(a, _store.messages.byId);
+    if (hidden.contains(company)) {
+      _corrections.rejected(MailKind.account, samples, undo: true);
+      _setHidden({...hidden}..remove(company));
+    } else if (learned.contains(company)) {
+      _corrections.kept(MailKind.account, company, samples);
+      unawaited(load());
+    }
+  }
+
+  /// [account]'s page was opened: a weak sign that it is one.
+  void opened(OnlineAccount account) => _corrections.opened(
+    MailKind.account,
+    account.company,
+    _samples(account, _store.messages.byId),
+  );
+
+  OnlineAccount? _found(String company) =>
+      _all.where((a) => a.company == company).firstOrNull;
+
+  /// What the classifier reads of [account]'s emails (the newest few).
+  static List<MailSample> _samples(
+    OnlineAccount account,
+    StoredMessage? Function(int id) message,
+  ) => [
+    for (final r in account.records.take(20))
+      mailSample(
+        message(r.email.messageId),
+        domain: r.email.company,
+        senderName: r.email.senderName,
+        subject: r.email.subject,
+        text: r.email.text,
+      ),
+  ];
 
   void _setHidden(Set<String> companies) {
     _store.settings.write(_hiddenKey, companies.join(','));

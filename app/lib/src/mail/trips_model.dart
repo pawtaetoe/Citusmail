@@ -12,6 +12,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import 'corrections.dart';
 
 /// The Trips page's data: flights, stays, trains, buses, rental cars,
 /// tables and tickets found in booking mail, on the device, put together
@@ -45,7 +46,18 @@ final class TripsModel extends ChangeNotifier {
 
   /// Bookings the user said are not bookings (by key).
   Set<String> hidden = const {};
+
+  /// Bookings left out because they look like ones the user said are not
+  /// bookings ("Learn from my corrections"; by key).
+  Set<String> learned = const {};
+
+  /// Those of [hidden] and [learned].
   List<Booking> hiddenOnes = const [];
+
+  /// Everything the rules found.
+  List<Booking> _all = const [];
+
+  late final _corrections = Corrections(_store);
 
   /// Booking emails not on the device yet, newest first.
   List<int> toRead = const [];
@@ -102,13 +114,20 @@ final class TripsModel extends ChangeNotifier {
           ),
     ];
     final all = TripFinder.bookings(emails);
+    _all = all;
+    final messages = {for (final m in candidates) m.id: m};
+    learned = await _corrections.vetoed(MailKind.booking, {
+      for (final b in all)
+        if (!hidden.contains(b.key)) b.key: _samples(b, (id) => messages[id]),
+    });
+    final left = {...hidden, ...learned};
     trips = TripFinder.trips([
       for (final b in all)
-        if (!hidden.contains(b.key)) b,
+        if (!left.contains(b.key)) b,
     ]);
     hiddenOnes = [
       for (final b in all)
-        if (hidden.contains(b.key)) b,
+        if (left.contains(b.key)) b,
     ];
     // Booking mail not understood yet: its body may say more than its
     // preview.
@@ -154,10 +173,57 @@ final class TripsModel extends ChangeNotifier {
 
   void stopReading() => _stop = true;
 
-  /// "Not a booking": hidden from the trips (undoable).
-  void hide(String key) => _write({...hidden, key});
+  /// "Not a booking": hidden from the trips (undoable), and learned
+  /// from.
+  void hide(String key) {
+    if (_found(key) case final b?) {
+      _corrections.rejected(
+        MailKind.booking,
+        _samples(b, _store.messages.byId),
+      );
+    }
+    _write({...hidden, key});
+  }
 
-  void unhide(String key) => _write({...hidden}..remove(key));
+  /// Undo, or "List again": listed again (and never left out by
+  /// learning again).
+  void unhide(String key) {
+    final b = _found(key);
+    final samples = b == null
+        ? const <MailSample>[]
+        : _samples(b, _store.messages.byId);
+    if (hidden.contains(key)) {
+      _corrections.rejected(MailKind.booking, samples, undo: true);
+      _write({...hidden}..remove(key));
+    } else if (learned.contains(key)) {
+      _corrections.kept(MailKind.booking, key, samples);
+      unawaited(load());
+    }
+  }
+
+  /// [booking]'s page was opened: a weak sign that it is one.
+  void opened(Booking booking) => _corrections.opened(
+    MailKind.booking,
+    booking.key,
+    _samples(booking, _store.messages.byId),
+  );
+
+  Booking? _found(String key) => _all.where((b) => b.key == key).firstOrNull;
+
+  /// What the classifier reads of [booking]'s emails.
+  static List<MailSample> _samples(
+    Booking booking,
+    StoredMessage? Function(int id) message,
+  ) => [
+    for (final r in booking.records)
+      mailSample(
+        message(r.email.messageId),
+        domain: r.email.sender,
+        senderName: r.email.senderName,
+        subject: r.email.subject,
+        text: r.email.text,
+      ),
+  ];
 
   void _write(Set<String> keys) {
     _store.settings.write(_hiddenKey, keys.join(','));

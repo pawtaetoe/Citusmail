@@ -51,6 +51,7 @@ final class _TripsPageState extends State<TripsPage> {
   /// The booking's own page; "Not a booking" there comes back here, with
   /// Undo.
   Future<void> _select(Booking b) async {
+    _model.opened(b);
     final action = await Navigator.of(context).push<BookingAction>(
       MaterialPageRoute(
         builder: (_) => BookingDetailPage(
@@ -173,7 +174,10 @@ final class _TripsPageState extends State<TripsPage> {
                           leading: Icon(BookingText.icon(b.kind)),
                           title: Text(BookingText.title(b)),
                           subtitle: Text(
-                            b.records.last.email.subject,
+                            _model.learned.contains(b.key)
+                                ? 'Left out: like ones you said aren\'t '
+                                      'bookings'
+                                : b.records.last.email.subject,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
