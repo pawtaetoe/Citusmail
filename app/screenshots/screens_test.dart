@@ -230,11 +230,61 @@ void main() {
     await shoot(tester, 'desktop_setup');
   });
 
+  // Old verification codes: the question in the Verification section,
+  // the notice after tidying up, and the setting.
+  testWidgets('code cleanup', (tester) async {
+    _seedDemo(app.store);
+    _seedOldCodes(app.store);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await shoot(tester, 'desktop_code_cleanup');
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await shoot(tester, 'phone_code_cleanup');
+    await tester.tap(find.text('Turn on'));
+    await tester.pump();
+    await shoot(tester, 'phone_code_cleanup_done');
+    await show(
+      tester,
+      SettingsPage(services: app.services, isAndroid: true),
+      size: const Size(390, 844),
+    );
+    await tester.scrollUntilVisible(find.text('Clean up old codes'), 300);
+    await shoot(tester, 'phone_code_cleanup_settings');
+    await tester.tap(find.text('Clean up old codes'));
+    await shoot(tester, 'phone_code_cleanup_dialog');
+  });
+
   testWidgets('compose', (tester) async {
     await show(tester, shell(), size: const Size(1440, 900));
     await tester.tap(find.byTooltip('New message (C)'));
     await shoot(tester, 'desktop_compose');
   });
+}
+
+/// Made-up verification codes from earlier in the week.
+void _seedOldCodes(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 500;
+  MessageSummary code(String domain, String name, String subject, int hours) =>
+      MessageSummary(
+        uid: uid++,
+        receivedAt: now.subtract(Duration(hours: hours)),
+        subject: subject,
+        from: MailAddress(
+          localPart: 'no-reply',
+          domain: domain,
+          displayName: name,
+        ),
+        category: MessageCategory.codes,
+        code: '${730000 + hours}',
+        flags: MessageFlags.fromImap([r'\Seen']),
+      );
+  store.messages.upsertSummaries(inbox.id, [
+    code('northwind.example', 'Northwind Bank', 'Your sign-in code', 30),
+    code('tailspin.example', 'Tailspin', 'Confirm your email', 52),
+    code('wingtip.example', 'Wingtip Toys', 'Your one-time code', 75),
+    code('northwind.example', 'Northwind Bank', 'Your sign-in code', 98),
+  ]);
 }
 
 /// Made-up receipts for the Subscriptions screen.
