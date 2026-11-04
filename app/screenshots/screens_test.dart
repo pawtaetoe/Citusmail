@@ -34,6 +34,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../test/support/delivery_mail.dart';
 import '../test/support/privacy_mail.dart';
+import '../test/support/return_mail.dart';
 import '../test/support/sample_files.dart';
 import '../test/support/test_app.dart';
 
@@ -229,6 +230,37 @@ void main() {
         await shoot(tester, '${name}_deliveries$suffix');
         await tester.tap(find.text('Amazon.sg'));
         await shoot(tester, '${name}_delivery$suffix');
+      });
+    }
+  }
+
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    for (final dark in [false, true]) {
+      testWidgets('returns $name${dark ? ' dark' : ''}', (tester) async {
+        final now = DateTime.now().toUtc();
+        seedDeliveries(app.store, now: now);
+        seedReturns(app.store, now: now);
+        await show(
+          tester,
+          DeliveriesPage(controller: MailController(app.services)),
+          size: size,
+          dark: dark,
+        );
+        final suffix = dark ? '_dark' : '';
+        await tester.scrollUntilVisible(
+          find.text('Can still be returned'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, 40));
+        await shoot(tester, '${name}_returns$suffix');
+        await tester.tap(
+          find.byKey(const ValueKey('delivery-t:NVSGAMZ0099887766')),
+        );
+        await shoot(tester, '${name}_return_delivery$suffix');
       });
     }
   }
