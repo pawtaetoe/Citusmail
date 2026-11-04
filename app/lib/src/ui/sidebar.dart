@@ -12,8 +12,10 @@ import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import 'accounts_page.dart';
 import 'citusmail_theme.dart';
+import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
+import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
 
@@ -122,8 +124,10 @@ final class Sidebar extends StatelessWidget {
                             onNavigated?.call();
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    SettingsPage(services: controller.services),
+                                builder: (_) => SettingsPage(
+                                  services: controller.services,
+                                  controller: controller,
+                                ),
                               ),
                             );
                           },
@@ -223,6 +227,34 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     AccountsPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.local_shipping_outlined,
+                          label: 'Deliveries',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    DeliveriesPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.cleaning_services_outlined,
+                          label: 'Clean up',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    SenderCleanupPage(controller: controller),
                               ),
                             );
                           },

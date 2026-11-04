@@ -17,7 +17,9 @@ import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/accounts_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/deliveries_page.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +30,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../test/support/delivery_mail.dart';
 import '../test/support/test_app.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
@@ -209,6 +212,27 @@ void main() {
     ('phone', const Size(390, 844)),
     ('desktop', const Size(1440, 900)),
   ]) {
+    for (final dark in [false, true]) {
+      testWidgets('deliveries $name${dark ? ' dark' : ''}', (tester) async {
+        seedDeliveries(app.store, now: DateTime.now().toUtc());
+        await show(
+          tester,
+          DeliveriesPage(controller: MailController(app.services)),
+          size: size,
+          dark: dark,
+        );
+        final suffix = dark ? '_dark' : '';
+        await shoot(tester, '${name}_deliveries$suffix');
+        await tester.tap(find.text('Amazon.sg'));
+        await shoot(tester, '${name}_delivery$suffix');
+      });
+    }
+  }
+
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
     testWidgets('accounts $name', (tester) async {
       _seedAccounts(app.store);
       await show(
@@ -221,6 +245,53 @@ void main() {
       await shoot(tester, '${name}_account');
     });
   }
+
+  testWidgets('subscriptions coming up', (tester) async {
+    _seedSubscriptions(app.store);
+    _seedReminders(app.store);
+    for (final (name, size, dark) in [
+      ('phone_coming_up', const Size(390, 844), false),
+      ('phone_coming_up_dark', const Size(390, 844), true),
+      ('desktop_coming_up', const Size(1440, 900), false),
+    ]) {
+      await show(
+        tester,
+        SubscriptionsPage(
+          key: ValueKey(name),
+          controller: MailController(app.services),
+        ),
+        size: size,
+        dark: dark,
+      );
+      await shoot(tester, name);
+    }
+  });
+
+  testWidgets('clean up', (tester) async {
+    _seedSenders(app.store);
+    await show(
+      tester,
+      SenderCleanupPage(controller: MailController(app.services)),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'phone_clean_up');
+    await tester.tap(find.text('ShopMart Deals'));
+    await tester.tap(find.text('Daily Digest'));
+    await shoot(tester, 'phone_clean_up_selected');
+    await show(
+      tester,
+      SenderCleanupPage(controller: MailController(app.services)),
+      size: const Size(1440, 900),
+      dark: true,
+    );
+    await shoot(tester, 'desktop_clean_up_selected_dark');
+    await tester.tap(find.byTooltip('Cancel selection'));
+    await tester.tap(find.text('Most mail'));
+    await settle(tester);
+    await tester.tap(find.text('Least opened').last);
+    await settle(tester);
+    await shoot(tester, 'desktop_clean_up_dark');
+  });
 
   testWidgets('settings', (tester) async {
     await show(
@@ -253,6 +324,44 @@ void main() {
     await tester.tap(find.byTooltip('New message (C)'));
     await shoot(tester, 'desktop_compose');
   });
+}
+
+/// Made-up bulk mail for the Clean up screen: per sender, how many in
+/// the last weeks and how many of them were read.
+void _seedSenders(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 600;
+  final senders = [
+    ('deals', 'shopmart.example', 'ShopMart Deals', 64, 2, true, false),
+    ('digest', 'dailydigest.example', 'Daily Digest', 45, 3, true, false),
+    ('no-reply', 'cloudco.example', 'CloudCo', 30, 21, false, true),
+    ('notifications', 'cloudco.example', 'CloudCo', 12, 9, true, true),
+    ('hello', 'fitapp.example', 'FitApp', 18, 0, true, false),
+    ('news', 'citylibrary.example', 'City Library', 9, 8, true, false),
+    ('offers', 'airline.example', 'SkyAir Offers', 3, 0, true, false),
+  ];
+  store.messages.upsertSummaries(inbox.id, [
+    for (final (local, domain, name, count, read, unsub, notify) in senders)
+      for (var i = 0; i < count; i++)
+        MessageSummary(
+          uid: uid++,
+          receivedAt: now.subtract(Duration(hours: 6 + i * 30)),
+          subject: '$name update ${i + 1}',
+          from: MailAddress(
+            localPart: local,
+            domain: domain,
+            displayName: name,
+          ),
+          category: notify
+              ? MessageCategory.notifications
+              : MessageCategory.newsletters,
+          flags: MessageFlags.fromImap([if (i < read) r'\Seen']),
+          headers: {
+            if (unsub) 'list-unsubscribe': ['<https://$domain/unsubscribe>'],
+          },
+        ),
+  ]);
 }
 
 /// Made-up receipts for the Subscriptions screen.
@@ -322,6 +431,157 @@ void _seedSubscriptions(MailStore store) {
       '',
     ),
   ]);
+}
+
+/// Made-up bills and a free trial for "Coming up".
+void _seedReminders(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now();
+  String date(DateTime d) => '${d.day}/${d.month}/${d.year}';
+  var uid = 450;
+  MessageSummary mail(
+    String domain,
+    String name,
+    String subject,
+    int daysAgo,
+    String snippet,
+  ) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.subtract(Duration(days: daysAgo)).toUtc(),
+    subject: subject,
+    from: MailAddress(localPart: 'billing', domain: domain, displayName: name),
+    snippet: snippet,
+  );
+  store.messages.upsertSummaries(inbox.id, [
+    mail(
+      'myrepublic.example',
+      'MyRepublic',
+      'Your MyRepublic e-Bill is ready!',
+      4,
+      'The outstanding amount for your account is: \$32.99. Please pay your '
+          'bill within 7 days of receiving this email.',
+    ),
+    mail(
+      'citypower.example',
+      'City Power',
+      'Your electricity bill for this month',
+      3,
+      'Total amount due: S\$84.20. Due date: '
+          '${date(now.add(const Duration(days: 9)))}',
+    ),
+    mail(
+      'pandapro.example',
+      'foodpanda',
+      'Your pandapro free trial is ending',
+      1,
+      'Your free trial ends in 2 days, then S\$59.88/year.',
+    ),
+  ]);
+}
+
+/// Made-up mail for the demo screens.
+void _seedDemo(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  MailAddress who(String address, String name) {
+    final at = address.indexOf('@');
+    return MailAddress(
+      localPart: address.substring(0, at),
+      domain: address.substring(at + 1),
+      displayName: name,
+    );
+  }
+
+  var uid = 200;
+  MessageSummary mail(
+    int minutesAgo,
+    String from,
+    String name,
+    String subject, {
+    String? snippet,
+    MessageCategory category = MessageCategory.general,
+    String? code,
+    bool seen = false,
+  }) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.subtract(Duration(minutes: minutesAgo)),
+    subject: subject,
+    from: who(from, name),
+    snippet: snippet,
+    category: category,
+    code: code,
+    flags: MessageFlags.fromImap([if (seen) r'\Seen']),
+  );
+
+  // The test inbox's "Stranger Danger", under a friendlier name.
+  final hello = store.messages.byUid(inbox.id, 1)!;
+  store.messages.upsertSummaries(inbox.id, [
+    MessageSummary(
+      uid: 1,
+      receivedAt: hello.receivedAt,
+      subject: 'Photos from the trip',
+      from: who('sam@contoso.example', 'Sam Rivera'),
+      snippet: 'Here are the best ones. The lake at sunrise is my favourite.',
+    ),
+  ]);
+  store.messages.upsertSummaries(inbox.id, [
+    mail(
+      2,
+      'no-reply@northwind.example',
+      'Northwind Bank',
+      'Your sign-in code',
+      category: MessageCategory.codes,
+      code: '482913',
+    ),
+    mail(
+      9,
+      'accounts@tailspin.example',
+      'Tailspin',
+      'Reset your password',
+      snippet: 'Someone asked to reset the password for your account.',
+      category: MessageCategory.codes,
+      code: '',
+      seen: true,
+    ),
+    mail(
+      14,
+      'maya@fabrikam.example',
+      'Maya Chen',
+      'Design review moved to Thursday',
+      snippet: 'Same room, 3pm. I have attached the latest mockups.',
+    ),
+    mail(
+      40,
+      'jon@contoso.example',
+      'Jon Park',
+      'Weekend hike?',
+      snippet: 'Weather looks good for Saturday. Leaving at 8 from the lake.',
+    ),
+    mail(
+      95,
+      'news@adventure.example',
+      'Adventure Works',
+      'Autumn trail guide',
+      category: MessageCategory.newsletters,
+    ),
+    mail(
+      130,
+      'noreply@parcel.example',
+      'Parcel Co',
+      'Your parcel is out for delivery',
+      category: MessageCategory.notifications,
+    ),
+  ]);
+}
+
+/// Lets isolates (message parsing) finish and animations end.
+Future<void> settle(WidgetTester tester) async {
+  for (var i = 0; i < 4; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 150)),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+  }
 }
 
 /// Made-up account mail for the "Your accounts" screen.
@@ -452,109 +712,4 @@ void _seedAccounts(MailStore store) {
       900,
     ),
   ]);
-}
-
-/// Made-up mail for the demo screens.
-void _seedDemo(MailStore store) {
-  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
-  final now = DateTime.now().toUtc();
-  MailAddress who(String address, String name) {
-    final at = address.indexOf('@');
-    return MailAddress(
-      localPart: address.substring(0, at),
-      domain: address.substring(at + 1),
-      displayName: name,
-    );
-  }
-
-  var uid = 200;
-  MessageSummary mail(
-    int minutesAgo,
-    String from,
-    String name,
-    String subject, {
-    String? snippet,
-    MessageCategory category = MessageCategory.general,
-    String? code,
-    bool seen = false,
-  }) => MessageSummary(
-    uid: uid++,
-    receivedAt: now.subtract(Duration(minutes: minutesAgo)),
-    subject: subject,
-    from: who(from, name),
-    snippet: snippet,
-    category: category,
-    code: code,
-    flags: MessageFlags.fromImap([if (seen) r'\Seen']),
-  );
-
-  // The test inbox's "Stranger Danger", under a friendlier name.
-  final hello = store.messages.byUid(inbox.id, 1)!;
-  store.messages.upsertSummaries(inbox.id, [
-    MessageSummary(
-      uid: 1,
-      receivedAt: hello.receivedAt,
-      subject: 'Photos from the trip',
-      from: who('sam@contoso.example', 'Sam Rivera'),
-      snippet: 'Here are the best ones. The lake at sunrise is my favourite.',
-    ),
-  ]);
-  store.messages.upsertSummaries(inbox.id, [
-    mail(
-      2,
-      'no-reply@northwind.example',
-      'Northwind Bank',
-      'Your sign-in code',
-      category: MessageCategory.codes,
-      code: '482913',
-    ),
-    mail(
-      9,
-      'accounts@tailspin.example',
-      'Tailspin',
-      'Reset your password',
-      snippet: 'Someone asked to reset the password for your account.',
-      category: MessageCategory.codes,
-      code: '',
-      seen: true,
-    ),
-    mail(
-      14,
-      'maya@fabrikam.example',
-      'Maya Chen',
-      'Design review moved to Thursday',
-      snippet: 'Same room, 3pm. I have attached the latest mockups.',
-    ),
-    mail(
-      40,
-      'jon@contoso.example',
-      'Jon Park',
-      'Weekend hike?',
-      snippet: 'Weather looks good for Saturday. Leaving at 8 from the lake.',
-    ),
-    mail(
-      95,
-      'news@adventure.example',
-      'Adventure Works',
-      'Autumn trail guide',
-      category: MessageCategory.newsletters,
-    ),
-    mail(
-      130,
-      'noreply@parcel.example',
-      'Parcel Co',
-      'Your parcel is out for delivery',
-      category: MessageCategory.notifications,
-    ),
-  ]);
-}
-
-/// Lets isolates (message parsing) finish and animations end.
-Future<void> settle(WidgetTester tester) async {
-  for (var i = 0; i < 4; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 150)),
-    );
-    await tester.pump(const Duration(milliseconds: 300));
-  }
 }
