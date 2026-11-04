@@ -805,6 +805,35 @@ final class MessageRepository {
     ];
   }
 
+  /// Mail received since [since], other than the user's own (Sent,
+  /// Drafts), each message once across folders: how many there are, and
+  /// the newest [limit] of them whose full text is on the device, newest
+  /// first. For the privacy report, which counts only what is stored.
+  ({int received, List<StoredMessage> downloaded}) downloadedSince(
+    DateTime since, {
+    int limit = 3000,
+  }) {
+    const where =
+        'WHERE m.received_at >= ? '
+        "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts')) ";
+    final at = since.toUtc().millisecondsSinceEpoch;
+    final received =
+        _db.select('SELECT COUNT(*) AS n $_from $where AND $_notACopy', [
+              at,
+            ]).first['n']
+            as int;
+    final downloaded = [
+      for (final row in _db.select(
+        'SELECT $_columns $_from $where AND $_notACopy '
+        'AND EXISTS (SELECT 1 FROM message_bodies mb WHERE mb.message_id = m.id) '
+        'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+        [at, limit.clamp(1, 10000)],
+      ))
+        _fromRow(row),
+    ];
+    return (received: received, downloaded: downloaded);
+  }
+
   /// Code mail in [mailboxId] received since [since] whose body was not
   /// looked at for a code yet, at most [maxSize] bytes, newest first.
   List<StoredMessage> codesToRead(

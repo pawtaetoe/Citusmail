@@ -14,5 +14,6 @@ export 'src/domains.dart';
 export 'src/free_mail.dart';
 export 'src/link_cleaner.dart';
 export 'src/links.dart';
+export 'src/privacy_report.dart';
 export 'src/trust_checker.dart';
 export 'src/trust_report.dart';
