@@ -317,30 +317,9 @@ final class MailController {
     }
     reader.value = ReaderLoading(message);
     try {
-      if (_store.messages.body(message.id) == null) {
-        await services.worker.loadBody(message.id);
-      }
-      final raw = _store.messages.body(message.id);
-      if (raw == null) throw const BodyUnavailableException(BodyProblem.gone);
-      // Parsing and checking a large message must not block the UI.
-      final (view, trust, plan) = await compute(_parseAndCheck, (
-        raw,
-        _trustContext(message),
-      ));
+      final ready = await readerFor(message);
       if (_disposed || selected?.id != message.id) return;
-      reader.value = ReaderReady(
-        _store.messages.byId(message.id) ?? message,
-        view,
-        to: _store.messages.addresses(message.id, 'to'),
-        cc: _store.messages.addresses(message.id, 'cc'),
-        trust: trust,
-        unsubscribe: plan,
-        unsubscribed: _unsubscription(message),
-        imagesShown:
-            trust.level != TrustLevel.danger &&
-            trust.verified &&
-            _store.imageSenders.isAllowed(message.from?.address),
-      );
+      reader.value = ready;
     } on BodyUnavailableException catch (e) {
       if (_disposed || selected?.id != message.id) return;
       reader.value = ReaderFailed(message, switch (e.problem) {
@@ -365,6 +344,39 @@ final class MailController {
       });
     }
   }
+
+  /// [message] read and checked, as the reading pane shows it, without
+  /// opening it (it stays unread): downloads it first if needed. Throws
+  /// [BodyUnavailableException] or [SyncWorkerException].
+  Future<ReaderReady> readerFor(StoredMessage message) async {
+    if (_store.messages.body(message.id) == null) {
+      await services.worker.loadBody(message.id);
+    }
+    final raw = _store.messages.body(message.id);
+    if (raw == null) throw const BodyUnavailableException(BodyProblem.gone);
+    // Parsing and checking a large message must not block the UI.
+    final (view, trust, plan) = await compute(_parseAndCheck, (
+      raw,
+      _trustContext(message),
+    ));
+    return ReaderReady(
+      _store.messages.byId(message.id) ?? message,
+      view,
+      to: _store.messages.addresses(message.id, 'to'),
+      cc: _store.messages.addresses(message.id, 'cc'),
+      trust: trust,
+      unsubscribe: plan,
+      unsubscribed: _unsubscription(message),
+      imagesShown:
+          trust.level != TrustLevel.danger &&
+          trust.verified &&
+          _store.imageSenders.isAllowed(message.from?.address),
+    );
+  }
+
+  /// When the user unsubscribed from [message]'s list, if they did.
+  Unsubscription? unsubscriptionFor(StoredMessage message) =>
+      _unsubscription(message);
 
   /// What the message checks need besides the message: which server's
   /// verification results to believe, learned from the account's recent
