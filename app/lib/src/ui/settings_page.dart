@@ -16,6 +16,7 @@ import '../services/app_services.dart';
 import '../services/link_safety.dart';
 import '../services/virus_total_checks.dart';
 import 'block_dialog.dart';
+import 'code_cleanup_banner.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
 import 'privacy_report_page.dart';
@@ -159,6 +160,34 @@ final class _SettingsPageState extends State<SettingsPage> {
         ListTile(title: const Text('Change PIN'), onTap: _changePin),
       ],
     ];
+  }
+
+  /// Old codes leave the inbox. Choosing an age here is the user's OK
+  /// (otherwise the Verification section asks first).
+  Widget _codeCleanupTile() {
+    final cleanup = CodeCleanupSettings(widget.services.store);
+    final age = cleanup.age;
+    final choice = age == CodeCleanupAge.off
+        ? CodeCleanupText.age(age)
+        : '${CodeCleanupText.age(age)}: '
+              '${CodeCleanupText.action(cleanup.action)}';
+    final waiting = age != CodeCleanupAge.off && !cleanup.agreed;
+    return ListTile(
+      leading: const Icon(Icons.auto_delete_outlined),
+      title: const Text('Clean up old codes'),
+      subtitle: Text(
+        '$choice. ${CodeCleanupText.explanation}'
+        '${waiting ? ' Not on yet: the Verification section asks you first.' : ''}',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => _CodeCleanupDialog(settings: cleanup),
+        );
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   Future<void> _setInstant(bool on) async {
@@ -326,6 +355,8 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          const _Group('Verification codes'),
+          _codeCleanupTile(),
           const _Group('About'),
           ListTile(
             leading: const Icon(Icons.shield_outlined),
@@ -500,6 +531,98 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
 }
 
 /// A heading that names a group of settings.
+/// How old codes get before they are cleaned up, and where they go.
+final class _CodeCleanupDialog extends StatefulWidget {
+  const _CodeCleanupDialog({required this.settings});
+
+  final CodeCleanupSettings settings;
+
+  @override
+  State<_CodeCleanupDialog> createState() => _CodeCleanupDialogState();
+}
+
+final class _CodeCleanupDialogState extends State<_CodeCleanupDialog> {
+  CodeCleanupSettings get _settings => widget.settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final age = _settings.age;
+    Widget heading(String text) => Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      child: Text(
+        text,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+    return AlertDialog(
+      title: const Text('Clean up old codes'),
+      contentPadding: const EdgeInsets.only(top: 12, bottom: 8),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                CodeCleanupText.explanation,
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
+            heading('When'),
+            RadioGroup<CodeCleanupAge>(
+              groupValue: age,
+              onChanged: (a) {
+                if (a == null) return;
+                setState(() {
+                  _settings.age = a;
+                  if (a != CodeCleanupAge.off) _settings.agree();
+                });
+              },
+              child: Column(
+                children: [
+                  for (final a in CodeCleanupAge.values)
+                    RadioListTile<CodeCleanupAge>(
+                      value: a,
+                      title: Text(CodeCleanupText.age(a)),
+                    ),
+                ],
+              ),
+            ),
+            if (age != CodeCleanupAge.off) ...[
+              heading('What happens'),
+              RadioGroup<CodeCleanupAction>(
+                groupValue: _settings.action,
+                onChanged: (a) {
+                  if (a != null) setState(() => _settings.action = a);
+                },
+                child: Column(
+                  children: [
+                    for (final a in CodeCleanupAction.values)
+                      RadioListTile<CodeCleanupAction>(
+                        value: a,
+                        title: Text(CodeCleanupText.action(a)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Done'),
+        ),
+      ],
+    );
+  }
+}
+
 final class _Group extends StatelessWidget {
   const _Group(this.text);
 
