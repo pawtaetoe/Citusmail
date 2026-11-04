@@ -20,6 +20,7 @@ import 'attachment_saver.dart';
 import 'avatar.dart';
 import 'block_dialog.dart';
 import 'citusmail_theme.dart';
+import 'invitation_card.dart';
 import 'link_opener.dart';
 import 'mail_text.dart';
 import 'move_dialog.dart';
@@ -250,6 +251,12 @@ final class _Header extends StatelessWidget {
         ],
         final ReaderReady ready => [
           TrustBanner(report: ready.trust),
+          if (ready.view.invite case final invite?)
+            InvitationCard(
+              controller: controller,
+              reader: ready,
+              invite: invite,
+            ),
           if (ready.unsubscribe.available ||
               ready.unsubscribe.reason != null ||
               ready.unsubscribed != null)

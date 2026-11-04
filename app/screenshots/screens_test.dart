@@ -204,6 +204,42 @@ void main() {
     await shoot(tester, 'readme_subscription');
   });
 
+  // Meeting invitations (samples in test-data/invites).
+  testWidgets('invitation', (tester) async {
+    app.seedFixture(
+      '../invites/outlook-teams-request.eml',
+      subject: 'Q4 roadmap review',
+      uid: 95,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(hours: 1)),
+    );
+    app.seedFixture(
+      '../invites/google-weekly-request.eml',
+      subject: 'Invitation: Launch stand-up',
+      uid: 96,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+    );
+    app.seedFixture(
+      '../invites/outlook-cancel.eml',
+      subject: 'Canceled: Budget planning',
+      uid: 97,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(hours: 3)),
+    );
+    await show(tester, shell(), size: const Size(1440, 900));
+    await tester.tap(find.text('Q4 roadmap review').first);
+    await shoot(tester, 'desktop_invitation');
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Accept'));
+    await shoot(tester, 'desktop_invitation_accepted');
+    await tester.tap(find.text('Canceled: Budget planning').first);
+    await shoot(tester, 'desktop_invitation_cancelled');
+
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    // The same shell, still showing the cancelled event: back to the list.
+    await tester.tap(find.byTooltip('Back (Esc)'));
+    await settle(tester);
+    await tester.tap(find.text('Invitation: Launch stand-up').first);
+    await shoot(tester, 'phone_invitation');
+  });
+
   testWidgets('settings', (tester) async {
     await show(
       tester,

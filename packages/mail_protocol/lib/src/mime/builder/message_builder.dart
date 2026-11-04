@@ -148,11 +148,7 @@ final class MessageBuilder {
     return body;
   }
 
-  _Entity _alternative(
-    String? text,
-    String? html,
-    OutgoingCalendar? calendar,
-  ) {
+  _Entity _alternative(String? text, String? html, OutgoingCalendar? calendar) {
     if (calendar != null) {
       // RFC 6047 2.4: the calendar part is the last, preferred
       // alternative; the text describes it for mail apps.
