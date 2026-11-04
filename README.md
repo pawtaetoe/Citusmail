@@ -97,6 +97,10 @@ are at the bottom of the screen, within reach of one thumb.
 - **Subscriptions**: the paid subscriptions found in your receipts and
   renewal mail, with what each costs, how often, the next charge and
   every past receipt (see above).
+- **Deliveries**: every shipped order found in your mail, with its shop,
+  items, carrier, tracking number and latest status, what's on the way
+  first with its expected date; "Track" opens the carrier's page after
+  asking.
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.
