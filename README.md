@@ -128,6 +128,10 @@ are at the bottom of the screen, within reach of one thumb.
 - **Bill and trial reminders**: a notification a few days before a bill
   is due, a free trial starts charging or a yearly subscription renews,
   found in your mail on the device; mark one "Done" and it stays quiet.
+- **Notifications that show what arrived**: one per new email with the
+  sender, subject and first lines (bundled per account on Android), and
+  verification codes in the title with a Copy code button. With the app
+  lock on, only "New mail".
 - **Clean up**: the senders who fill your inbox and the ones you rarely
   open, worked out on your device (not on someone's server), with
   unsubscribe, archive or delete everything from them, block, or keep.

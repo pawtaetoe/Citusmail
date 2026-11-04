@@ -8,7 +8,6 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:mail_sync/mail_sync.dart';
 
-import '../security/app_lock.dart';
 import '../services/app_services.dart';
 import '../services/app_settings.dart';
 import '../services/mail_notifier.dart';
@@ -77,11 +76,7 @@ abstract final class BackgroundMail {
           continue;
         }
         final mail = tracker.claim(account.id);
-        await notifier?.show(
-          account,
-          mail,
-          hideContent: AppLock.isEnabledIn(store),
-        );
+        await notifier?.announce(store, account, mail);
       }
       // Old codes leave the inbox (once agreed); the moves go to the
       // server right away.
@@ -127,13 +122,7 @@ abstract final class BackgroundMail {
       final mail = tracker.claim(event.accountId);
       final account = store.accounts.byId(event.accountId);
       if (account != null && settings.notifications) {
-        unawaited(
-          notifier?.show(
-            account,
-            mail,
-            hideContent: AppLock.isEnabledIn(store),
-          ),
-        );
+        unawaited(notifier?.announce(store, account, mail));
         unawaited(notifier?.remind(store));
       }
     });

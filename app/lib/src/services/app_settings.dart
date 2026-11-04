@@ -14,6 +14,7 @@ final class AppSettings {
 
   static const _notifications = 'app.notifications';
   static const _instantMail = 'app.instantMail';
+  static const _previews = 'app.notificationPreviews';
   static const _reminders = 'reminders.on';
   static const _monthlyRenewals = 'reminders.monthly';
 
@@ -21,6 +22,12 @@ final class AppSettings {
   bool get notifications => _store.settings.read(_notifications) != 'off';
   set notifications(bool on) =>
       _store.settings.write(_notifications, on ? 'on' : 'off');
+
+  /// New-mail notifications show a short preview of the text (on by
+  /// default); off, sender and subject only.
+  bool get notificationPreviews => _store.settings.read(_previews) != 'off';
+  set notificationPreviews(bool on) =>
+      _store.settings.write(_previews, on ? 'on' : 'off');
 
   /// Notifications before a bill is due, a free trial ends or a yearly
   /// subscription renews (on by default; only with [notifications]).

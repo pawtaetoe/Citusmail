@@ -275,11 +275,23 @@ final class _SettingsPageState extends State<SettingsPage> {
           SwitchListTile(
             title: const Text('New mail notifications'),
             subtitle: const Text(
-              'Sender and subject of new mail in Verification, Important and General. '
+              'One for each new email in Verification, Important and General, '
+              'with a Copy code button for codes. '
               'The lock screen shows only that there is new mail.',
             ),
             value: settings.notifications,
             onChanged: (on) => setState(() => settings.notifications = on),
+          ),
+          SwitchListTile(
+            title: const Text('Show message previews'),
+            subtitle: const Text(
+              'The first lines of each email under its subject. When off, '
+              'notifications show only the sender and the subject.',
+            ),
+            value: settings.notifications && settings.notificationPreviews,
+            onChanged: settings.notifications
+                ? (on) => setState(() => settings.notificationPreviews = on)
+                : null,
           ),
           SwitchListTile(
             title: const Text('Bill and trial reminders'),
