@@ -106,10 +106,7 @@ void main() {
     await show(tester);
     expect(find.text('Screener'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
-    expect(
-      find.text('2 new senders are waiting. Let them in or screen them out.'),
-      findsOneWidget,
-    );
+    expect(find.text('2 new senders are waiting for your OK'), findsOneWidget);
     expect(find.text('Portfolio review?'), findsNothing);
     expect(find.text('Hello there'), findsOneWidget);
 
@@ -174,10 +171,7 @@ void main() {
     await tester.pump();
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(
-      find.text('1 new sender is waiting. Let them in or screen them out.'),
-      findsOneWidget,
-    );
+    expect(find.text('1 new sender is waiting for your OK'), findsOneWidget);
   });
 
   testWidgets('Screen out to Archive moves their mail, with Undo', (

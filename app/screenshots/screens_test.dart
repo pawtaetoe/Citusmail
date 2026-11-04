@@ -463,6 +463,95 @@ void main() {
     await tester.tap(find.byTooltip('New message (C)'));
     await shoot(tester, 'desktop_compose');
   });
+
+  // The Screener: the entry at the top of the inbox, the page (buttons
+  // per sender on the desktop, a bottom bar on phones), and Settings.
+  testWidgets('screener', (tester) async {
+    _seedDemo(app.store);
+    _seedScreener(app.store);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await shoot(tester, 'desktop_screener_inbox');
+    await tester.tap(find.text('Screener'));
+    await shoot(tester, 'desktop_screener');
+    await tester.pageBack();
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await shoot(tester, 'phone_screener_inbox');
+    await tester.tap(find.text('Screener'));
+    await shoot(tester, 'phone_screener');
+    await tester.pageBack();
+    await show(tester, shell(), size: const Size(390, 844));
+    await tester.tap(find.text('Screener'));
+    await shoot(tester, 'phone_screener_light');
+    await tester.pageBack();
+    await show(
+      tester,
+      SettingsPage(services: app.services, isAndroid: true),
+      size: const Size(390, 844),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Screen first-time senders'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await shoot(tester, 'phone_screener_settings');
+  });
+}
+
+/// Turns the Screener on after the demo inbox (whose senders count as
+/// let in), then three first-time senders write.
+void _seedScreener(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  store.screener.enable();
+  final since = store.screener.since!;
+  MailAddress who(String address, String name) => MailAddress(
+    localPart: address.substring(0, address.indexOf('@')),
+    domain: address.substring(address.indexOf('@') + 1),
+    displayName: name,
+  );
+  var uid = 400;
+  MessageSummary mail(
+    int minutesAfter,
+    MailAddress from,
+    String subject,
+    String snippet,
+  ) => MessageSummary(
+    uid: uid++,
+    receivedAt: since.add(Duration(minutes: minutesAfter)),
+    subject: subject,
+    from: from,
+    snippet: snippet,
+    messageId: 'screener$uid@demo.example',
+  );
+  final ana = who('ana.ruiz@studio-north.example', 'Ana Ruiz');
+  store.messages.upsertSummaries(inbox.id, [
+    mail(
+      1,
+      ana,
+      'Portfolio review?',
+      'Hi! I saw your talk at the design meetup last week and wondered if '
+          'you had 20 minutes to look at my portfolio.',
+    ),
+    mail(
+      2,
+      who('hello@brightlane-realty.example', 'Brightlane Realty'),
+      'Is your home worth more than you think?',
+      'Get a free valuation in 2 minutes. Homes on your street sold for '
+          '12% more this year.',
+    ),
+    mail(
+      3,
+      who('m.okafor@harbourschool.example', 'Mr Okafor'),
+      'Year 5 trip: consent form',
+      'Dear parents, the Year 5 trip to the science museum is on 14 '
+          'November. Please return the consent form by Friday.',
+    ),
+    mail(
+      4,
+      ana,
+      'Following up',
+      'Just making sure this reached you. No rush at all!',
+    ),
+  ]);
 }
 
 /// Made-up bulk mail for the Clean up screen: per sender, how many in

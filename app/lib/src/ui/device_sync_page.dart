@@ -93,8 +93,8 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
       builder: (context) => AlertDialog(
         title: const Text('Turn off sync on this device?'),
         content: const Text(
-          'This device stops sharing its blocked senders, unsubscribes, '
-          'folder rules and image senders. What it has now stays. Your '
+          'This device stops sharing its blocked senders, Screener decisions, '
+          'unsubscribes, folder rules and image senders. What it has now stays. Your '
           'other devices keep syncing with each other.',
         ),
         actions: [
@@ -139,8 +139,8 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
   }
 
   static const _what =
-      'Keeps your blocked senders, unsubscribes, folder rules and image '
-      'senders the same on all your devices. They travel through a folder '
+      'Keeps your blocked senders, Screener decisions, unsubscribes, folder '
+      'rules and image senders the same on all your devices. They travel through a folder '
       'in your own mail account, encrypted so that only your devices can '
       'read them; not even your mail provider can.';
 
@@ -362,7 +362,9 @@ final class DeviceSyncTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     leading: const Icon(Icons.devices_outlined),
     title: const Text('Sync between devices'),
-    subtitle: const Text('Blocked senders, unsubscribes, rules, image senders'),
+    subtitle: const Text(
+      'Blocked and screened senders, unsubscribes, rules, image senders',
+    ),
     trailing: const Icon(Icons.chevron_right),
     onTap: () => Navigator.of(context).push(
       MaterialPageRoute<void>(

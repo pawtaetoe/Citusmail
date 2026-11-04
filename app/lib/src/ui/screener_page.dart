@@ -163,10 +163,9 @@ final class _SenderCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 6),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(
-          color: picked ? colors.primary : colors.outlineVariant,
-          width: picked ? 2 : 1,
-        ),
+        side: picked
+            ? BorderSide(color: colors.primary, width: 2)
+            : BorderSide.none,
       ),
       clipBehavior: Clip.antiAlias,
       child: Semantics(
@@ -192,9 +191,17 @@ final class _SenderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleMedium,
                           ),
+                          if (sender.name != null)
+                            Text(
+                              sender.address,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
                           Text(
                             [
-                              if (sender.name != null) sender.address,
                               count == 1 ? '1 email' : '$count emails',
                               MailText.listDate(
                                 context,
@@ -248,7 +255,9 @@ final class _SenderCard extends StatelessWidget {
                   children: [
                     TextButton(
                       onPressed: onRead,
-                      child: Text(count == 1 ? 'Read it' : 'Read the first'),
+                      child: Text(
+                        count == 1 ? 'Read it' : 'Read the first email',
+                      ),
                     ),
                     const Spacer(),
                     if (showActions) ...[

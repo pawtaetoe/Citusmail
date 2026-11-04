@@ -848,7 +848,7 @@ final class _ScreenerEntry extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        '$who. Let them in or screen them out.',
+                        '$who for your OK',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
