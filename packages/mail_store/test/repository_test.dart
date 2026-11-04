@@ -546,6 +546,184 @@ void main() {
     });
   });
 
+  group('messages with files', () {
+    const header = 'x-citusmail-file';
+    String file(String name, [String type = 'application/pdf']) =>
+        jsonEncode({'name': name, 'type': type, 'size': 1000});
+    late Account account;
+    late Map<String, StoredMailbox> boxes;
+
+    MessageSummary withFiles(
+      int uid,
+      String subject,
+      List<String> files, {
+      MessageCategory category = MessageCategory.general,
+      String sender = 'priya@studio.example',
+      String? name,
+    }) => MessageSummary(
+      uid: uid,
+      subject: subject,
+      receivedAt: DateTime.utc(2026, 10, 1).add(Duration(hours: uid)),
+      from: MailAddress(
+        displayName: name,
+        localPart: sender.split('@').first,
+        domain: sender.split('@').last,
+      ),
+      category: category,
+      hasAttachments: true,
+      headers: {if (files.isNotEmpty) header: files},
+    );
+
+    setUp(() {
+      account = temp.addAccount();
+      boxes = {
+        for (final b in store.mailboxes.replaceAll(account.id, [
+          folder('INBOX'),
+          folder('Archive', use: 'Archive'),
+          folder('Sent', use: 'Sent'),
+          folder('Trash', use: 'Trash'),
+          folder('Junk', use: 'Junk'),
+          folder('Drafts', use: 'Drafts'),
+          folder(StoredMailbox.appDataName),
+        ]))
+          b.name: b,
+      };
+      store.messages.upsertSummaries(boxes['INBOX']!.id, [
+        withFiles(
+          1,
+          'Lease for Flat 4',
+          [file('Lease agreement.pdf')],
+          name: 'Harbour Lettings',
+          sender: 'tenancies@harbour.example',
+        ),
+        withFiles(
+          2,
+          'Weekly deals',
+          [file('catalogue.pdf')],
+          category: MessageCategory.newsletters,
+          sender: 'news@shop.example',
+        ),
+        // Not downloaded and never looked at: its files are unknown.
+        withFiles(3, 'Photos from the weekend', []),
+        // Plain mail: no files.
+        summary(4, subject: 'Lunch?'),
+      ]);
+      store.messages.upsertSummaries(boxes['Archive']!.id, [
+        withFiles(5, 'Q3 budget', [file('budget.xlsx', 'application/zip')]),
+      ]);
+      store.messages.upsertSummaries(boxes['Sent']!.id, [
+        withFiles(6, 'Signed form', [
+          file('form signed.pdf'),
+        ], sender: 'alice@citusmail.test'),
+      ]);
+      for (final name in [
+        'Trash',
+        'Junk',
+        'Drafts',
+        StoredMailbox.appDataName,
+      ]) {
+        store.messages.upsertSummaries(boxes[name]!.id, [
+          withFiles(7, 'In $name', [file('$name.pdf')]),
+        ]);
+      }
+    });
+
+    List<String> subjects(
+      Iterable<({StoredMessage message, List<String> files, bool downloaded})>
+      rows,
+    ) => [for (final r in rows) r.message.subject!];
+
+    test(
+      'every folder but Trash, Junk, Drafts and sync data, newest first',
+      () {
+        final rows = store.messages.withAttachments(header: header);
+        expect(subjects(rows), [
+          'Signed form',
+          'Q3 budget',
+          'Photos from the weekend',
+          'Weekly deals',
+          'Lease for Flat 4',
+        ]);
+        expect(rows.last.files, [file('Lease agreement.pdf')]);
+        expect(rows[2].files, isEmpty);
+        expect(rows.every((r) => !r.downloaded), isTrue);
+      },
+    );
+
+    test('from people only; paging', () {
+      expect(
+        subjects(
+          store.messages.withAttachments(header: header, peopleOnly: true),
+        ),
+        isNot(contains('Weekly deals')),
+      );
+      final first = store.messages.withAttachments(header: header, limit: 2);
+      final next = store.messages.withAttachments(
+        header: header,
+        limit: 2,
+        before: first.last.message,
+      );
+      expect(subjects(next), ['Photos from the weekend', 'Weekly deals']);
+    });
+
+    test('search by file name, sender or subject; typed text is literal', () {
+      List<String> find(String words) => subjects(
+        store.messages.withAttachments(header: header, words: words.split(' ')),
+      );
+      expect(find('agreement'), ['Lease for Flat 4']);
+      expect(find('harbour'), ['Lease for Flat 4']);
+      expect(find('budget'), ['Q3 budget']);
+      expect(find('lease pdf'), ['Lease for Flat 4']);
+      // "application" is in the stored type, not the name.
+      expect(find('application'), isEmpty);
+      expect(find('100%'), isEmpty);
+      expect(find('Trash'), isEmpty);
+    });
+
+    test('unknown files: not stored and not downloaded', () {
+      expect(
+        store.messages.withUnknownFiles(header: header).map((m) => m.subject),
+        ['Photos from the weekend'],
+      );
+      final photos = store.messages.byUid(boxes['INBOX']!.id, 3)!;
+      store.messages.setHeader(photos.id, header, [
+        file('IMG_0412.jpg', 'image/jpeg'),
+        file('IMG_0413.jpg', 'image/jpeg'),
+      ]);
+      expect(store.messages.withUnknownFiles(header: header), isEmpty);
+      expect(store.messages.headers(photos.id)[header], hasLength(2));
+      expect(
+        subjects(
+          store.messages.withAttachments(header: header, words: ['0413']),
+        ),
+        ['Photos from the weekend'],
+      );
+      // Other kept headers stay; none removes it again.
+      store.messages.setHeader(photos.id, header, const []);
+      expect(store.messages.headers(photos.id), isEmpty);
+      // A message that is gone gets nothing.
+      store.messages.setHeader(99999, header, [file('x.pdf')]);
+      expect(store.messages.headers(99999), isEmpty);
+    });
+
+    test('a downloaded message counts as known', () {
+      final photos = store.messages.byUid(boxes['INBOX']!.id, 3)!;
+      store.messages.saveBody(
+        photos.id,
+        Uint8List.fromList(utf8.encode('Subject: x\r\n\r\nhi')),
+        searchableText: 'hi',
+      );
+      expect(store.messages.withUnknownFiles(header: header), isEmpty);
+      expect(
+        store.messages
+            .withAttachments(header: header)
+            .firstWhere((r) => r.message.id == photos.id)
+            .downloaded,
+        isTrue,
+      );
+    });
+  });
+
   group('outbox', () {
     late Account account;
     setUp(() => account = temp.addAccount());
@@ -1571,6 +1749,110 @@ void main() {
         'Renewal notice',
         'Your Netflix RECEIPT',
       ]);
+    });
+  });
+
+  group('sender cleanup', () {
+    test(
+      'received mail with its unsubscribe header; who the user wrote to',
+      () {
+        final account = temp.addAccount();
+        final boxes = store.mailboxes.replaceAll(account.id, [
+          folder('INBOX'),
+          folder('Sent', use: 'Sent'),
+          folder('Drafts', use: 'Drafts'),
+          folder('Junk', use: 'Junk'),
+          folder('Archive', use: 'Archive'),
+        ]);
+        int id(String name) =>
+            boxes.firstWhere((b) => b.encodedName == name).id;
+        store.messages.upsertSummaries(id('INBOX'), [
+          MessageSummary(
+            uid: 1,
+            subject: 'Weekly deals',
+            receivedAt: DateTime.utc(2026, 10, 2),
+            from: const MailAddress(localPart: 'news', domain: 'shop.example'),
+            headers: const {
+              'list-unsubscribe': ['<https://shop.example/u/1>'],
+            },
+          ),
+          summary(2, subject: 'Lunch?'),
+          summary(3, subject: 'Too old', at: DateTime.utc(2025, 1)),
+        ]);
+        store.messages.upsertSummaries(id('Archive'), [summary(4)]);
+        store.messages.upsertSummaries(id('Junk'), [summary(5)]);
+        store.messages.upsertSummaries(id('Drafts'), [summary(6)]);
+        store.messages.upsertSummaries(id('Sent'), [
+          MessageSummary(
+            uid: 7,
+            receivedAt: DateTime.utc(2026, 10, 3),
+            from: const MailAddress(localPart: 'me', domain: 'x.example'),
+            to: const [MailAddress(localPart: 'Carol', domain: 'X.example')],
+            cc: const [MailAddress(localPart: 'dave', domain: 'x.example')],
+          ),
+        ]);
+
+        final found = store.messages.receivedSince(DateTime.utc(2026, 9));
+        expect(found.map((f) => f.message.subject), [
+          'Weekly deals',
+          'Message 4',
+          'Lunch?',
+        ]);
+        expect(found.map((f) => f.unsubscribe), [true, false, false]);
+        expect(store.messages.writtenTo(), {
+          'carol@x.example',
+          'dave@x.example',
+        });
+      },
+    );
+  });
+
+  group('privacy report candidates', () {
+    test('received since a date, not own mail, only downloaded listed', () {
+      final account = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+        folder('Sent', use: 'Sent'),
+        folder('Junk', use: 'Junk'),
+      ]);
+      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      store.messages.upsertSummaries(id('INBOX'), [
+        summary(1, subject: 'Weekly deals', at: DateTime.utc(2026, 10, 30)),
+        summary(2, subject: 'Not opened yet', at: DateTime.utc(2026, 10, 31)),
+        summary(3, subject: 'Last year', at: DateTime.utc(2025, 10, 30)),
+        summary(4, subject: 'Newest', at: DateTime.utc(2026, 11, 2)),
+      ]);
+      store.messages.upsertSummaries(id('Junk'), [
+        summary(5, subject: 'You won', at: DateTime.utc(2026, 11, 1)),
+      ]);
+      store.messages.upsertSummaries(id('Sent'), [
+        summary(6, subject: 'My reply', at: DateTime.utc(2026, 11, 1)),
+      ]);
+      void download(String mailbox, int uid) => store.messages.saveBody(
+        store.messages.byUid(id(mailbox), uid)!.id,
+        Uint8List.fromList(utf8.encode('Subject: x\r\n\r\nbody')),
+        searchableText: 'body',
+      );
+      download('INBOX', 1);
+      download('INBOX', 3);
+      download('INBOX', 4);
+      download('Junk', 5);
+      download('Sent', 6);
+
+      final found = store.messages.downloadedSince(DateTime.utc(2026, 10, 1));
+      expect(found.received, 4);
+      expect(found.downloaded.map((m) => m.subject), [
+        'Newest',
+        'You won',
+        'Weekly deals',
+      ]);
+      expect(
+        store.messages
+            .downloadedSince(DateTime.utc(2026, 10, 1), limit: 1)
+            .downloaded
+            .map((m) => m.subject),
+        ['Newest'],
+      );
     });
   });
 

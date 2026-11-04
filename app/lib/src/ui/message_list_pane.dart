@@ -11,6 +11,7 @@ import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../mail/message_list_model.dart';
 import 'citusmail_theme.dart';
+import 'code_cleanup_banner.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
@@ -499,9 +500,18 @@ final class _MessagesState extends State<_Messages> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([_c.list, _c.selection, _c.reader]),
+    listenable: Listenable.merge([
+      _c.list,
+      _c.selection,
+      _c.reader,
+      _c.codesOffer,
+    ]),
     builder: (context, _) {
       final list = _c.list;
+      // Asks once, in the Verification section, before tidying up codes.
+      final codesOffer = _c.codesOffer.value
+          ? SliverToBoxAdapter(child: CodeCleanupBanner(controller: _c))
+          : null;
       if (list.location is OutboxLocation) return _outbox();
       final prototype = MessageTile(
         message: MessageTile.prototype,
@@ -526,6 +536,7 @@ final class _MessagesState extends State<_Messages> {
                       pinned: true,
                       delegate: _SectionHeader(section, _c),
                     ),
+                    if (section.section == SmartSection.codes) ?codesOffer,
                     if (section.expanded) ...[
                       SliverPrototypeExtentList.builder(
                         prototypeItem: prototype,
@@ -572,6 +583,8 @@ final class _MessagesState extends State<_Messages> {
         child: CustomScrollView(
           controller: _scroll,
           slivers: [
+            if (list.location case SectionLocation(section: SmartSection.codes))
+              ?codesOffer,
             SliverPrototypeExtentList.builder(
               prototypeItem: prototype,
               itemCount: messages.length,

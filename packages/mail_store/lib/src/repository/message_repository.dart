@@ -661,6 +661,38 @@ final class MessageRepository {
     [address],
   ).isNotEmpty;
 
+  /// Every address the user has written to (To/Cc/Bcc of mail in a Sent
+  /// folder), lower case.
+  Set<String> writtenTo() => {
+    for (final row in _db.select(
+      'SELECT DISTINCT lower(a.address) AS address FROM message_addresses a '
+      'JOIN messages m ON m.id = a.message_id '
+      'JOIN mailboxes b ON b.id = m.mailbox_id '
+      "WHERE a.kind IN ('to', 'cc', 'bcc') AND b.special_use = 'sent'",
+    ))
+      row['address'] as String,
+  };
+
+  /// Mail others sent the user, received since [since]: not in Sent,
+  /// Drafts, Trash or Junk, each message once across folders, newest
+  /// first, at most [limit]. With each, whether it has a
+  /// `List-Unsubscribe` header. What the Clean up page counts per sender.
+  List<({StoredMessage message, bool unsubscribe})> receivedSince(
+    DateTime since, {
+    int limit = 20000,
+  }) => [
+    for (final row in _db.select(
+      'SELECT $_columns, EXISTS (SELECT 1 FROM message_headers h '
+      "WHERE h.message_id = m.id AND h.name = 'list-unsubscribe') AS unsubscribe "
+      '$_from WHERE m.received_at >= ? AND m.from_address IS NOT NULL '
+      "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts', 'trash', 'junk')) "
+      'AND $_notACopy '
+      'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+      [since.toUtc().millisecondsSinceEpoch, limit.clamp(1, 50000)],
+    ))
+      (message: _fromRow(row), unsubscribe: row['unsubscribe'] == 1),
+  ];
+
   List<SortableMessage> _sortable(
     Iterable<Row> rows,
     Iterable<Row> headerRows,
@@ -804,6 +836,163 @@ final class MessageRepository {
         _fromRow(row),
     ];
   }
+
+  /// Mail received since [since], other than the user's own (Sent,
+  /// Drafts), each message once across folders: how many there are, and
+  /// the newest [limit] of them whose full text is on the device, newest
+  /// first. For the privacy report, which counts only what is stored.
+  ({int received, List<StoredMessage> downloaded}) downloadedSince(
+    DateTime since, {
+    int limit = 3000,
+  }) {
+    const where =
+        'WHERE m.received_at >= ? '
+        "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts')) ";
+    final at = since.toUtc().millisecondsSinceEpoch;
+    final received =
+        _db.select('SELECT COUNT(*) AS n $_from $where AND $_notACopy', [
+              at,
+            ]).first['n']
+            as int;
+    final downloaded = [
+      for (final row in _db.select(
+        'SELECT $_columns $_from $where AND $_notACopy '
+        'AND EXISTS (SELECT 1 FROM message_bodies mb WHERE mb.message_id = m.id) '
+        'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+        [at, limit.clamp(1, 10000)],
+      ))
+        _fromRow(row),
+    ];
+    return (received: received, downloaded: downloaded);
+  }
+
+  /// Folders whose mail is not listed among received files: Trash,
+  /// Junk, Drafts and the app's sync data folder.
+  static final _filesFolders =
+      "(b.special_use IS NULL OR b.special_use NOT IN ('trash', 'junk', 'drafts')) "
+      "AND b.name != '${StoredMailbox.appDataName}' "
+      "AND b.name NOT LIKE '%${StoredMailbox.appDataName}'";
+
+  /// One page of messages with attachments, newest first, for a list of
+  /// files: every account and folder but Trash, Junk and Drafts, each
+  /// message once. [header] is the kept header that lists a message's
+  /// files (one value per file), returned with each message, with
+  /// whether its body is on the device.
+  ///
+  /// [peopleOnly] leaves out newsletters, notifications and codes. Each
+  /// word of [words] must be in the subject, the sender or the [field]
+  /// of one of the file values (a JSON object).
+  List<({StoredMessage message, List<String> files, bool downloaded})>
+  withAttachments({
+    required String header,
+    String field = 'name',
+    bool peopleOnly = false,
+    List<String> words = const [],
+    StoredMessage? before,
+    int limit = 200,
+  }) {
+    final where = ['m.has_attachments = 1', _filesFolders, _notACopy];
+    final args = <Object?>[];
+    if (peopleOnly) {
+      where.add('m.category = ?');
+      args.add(MessageCategory.general.storageName);
+    }
+    for (final word in words) {
+      final like = '%${_escapeLike(word)}%';
+      where.add(
+        r"(m.subject LIKE ? ESCAPE '\' OR m.from_name LIKE ? ESCAPE '\' "
+        r"OR m.from_address LIKE ? ESCAPE '\' OR EXISTS (SELECT 1 FROM message_headers h "
+        'WHERE h.message_id = m.id AND h.name = ? AND json_valid(h.value) '
+        r"AND json_extract(h.value, '$.' || ?) LIKE ? ESCAPE '\'))",
+      );
+      args.addAll([like, like, like, header.toLowerCase(), field, like]);
+    }
+    if (before != null) {
+      where.add('(m.received_at < ? OR (m.received_at = ? AND m.id < ?))');
+      final at = before.receivedAt.millisecondsSinceEpoch;
+      args.addAll([at, at, before.id]);
+    }
+    final messages = _db
+        .select(
+          'SELECT $_columns, EXISTS (SELECT 1 FROM message_bodies x '
+          'WHERE x.message_id = m.id) AS downloaded $_from '
+          'WHERE ${where.join(' AND ')} '
+          'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+          [...args, limit.clamp(1, 1000)],
+        )
+        .map((row) => (_fromRow(row), row['downloaded'] == 1))
+        .toList(growable: false);
+    final files = _headerValues([for (final (m, _) in messages) m.id], header);
+    return [
+      for (final (m, downloaded) in messages)
+        (message: m, files: files[m.id] ?? const [], downloaded: downloaded),
+    ];
+  }
+
+  /// Messages with attachments (in the folders [withAttachments] lists)
+  /// whose files are not known on the device: [header] was never stored
+  /// and the body is not downloaded. Newest first.
+  List<StoredMessage> withUnknownFiles({
+    required String header,
+    int limit = 500,
+  }) => [
+    for (final row in _db.select(
+      'SELECT $_columns $_from WHERE m.has_attachments = 1 '
+      'AND $_filesFolders AND $_notACopy '
+      'AND NOT EXISTS (SELECT 1 FROM message_headers h '
+      'WHERE h.message_id = m.id AND h.name = ?) '
+      'AND NOT EXISTS (SELECT 1 FROM message_bodies x WHERE x.message_id = m.id) '
+      'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+      [header.toLowerCase(), limit.clamp(1, 5000)],
+    ))
+      _fromRow(row),
+  ];
+
+  /// Replaces the values of the kept header [name] of message
+  /// [messageId] (none removes it). For what the app learns about a
+  /// message later, such as the files found in it.
+  void setHeader(
+    int messageId,
+    String name,
+    List<String> values,
+  ) => _db.transaction(() {
+    _db.execute(
+      'DELETE FROM message_headers WHERE message_id = ? AND name = ?',
+      [messageId, name.toLowerCase()],
+    );
+    _db.executeMany(
+      'INSERT INTO message_headers (message_id, name, position, value) '
+      'SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM messages WHERE id = ?)',
+      [
+        for (var i = 0; i < values.length; i++)
+          [messageId, name.toLowerCase(), i, values[i], messageId],
+      ],
+    );
+  });
+
+  /// Values of header [name] of [ids], by message, in order.
+  Map<int, List<String>> _headerValues(List<int> ids, String name) {
+    final result = <int, List<String>>{};
+    for (var i = 0; i < ids.length; i += 500) {
+      final chunk = ids.sublist(i, (i + 500).clamp(0, ids.length));
+      for (final row in _db.select(
+        'SELECT message_id, value FROM message_headers '
+        'WHERE name = ? AND message_id IN (${_placeholders(chunk.length)}) '
+        'ORDER BY message_id, position',
+        [name.toLowerCase(), ...chunk],
+      )) {
+        result
+            .putIfAbsent(row['message_id'] as int, () => [])
+            .add(row['value'] as String);
+      }
+    }
+    return result;
+  }
+
+  static String _escapeLike(String text) => text
+      .replaceAll(r'\', r'\\')
+      .replaceAll('%', r'\%')
+      .replaceAll('_', r'\_');
 
   /// Code mail in [mailboxId] received since [since] whose body was not
   /// looked at for a code yet, at most [maxSize] bytes, newest first.

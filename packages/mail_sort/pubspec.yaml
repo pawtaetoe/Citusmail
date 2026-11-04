@@ -11,6 +11,7 @@ environment:
   sdk: ^3.13.5
 
 dependencies:
+  mail_extract: any
   mail_protocol: any
   mail_store: any
 

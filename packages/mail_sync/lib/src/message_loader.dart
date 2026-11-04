@@ -75,11 +75,63 @@ final class MessageLoader {
       throw const BodyUnavailableException(BodyProblem.tooLarge);
     }
 
+    final view = MessageView.parse(raw);
     _store.messages.saveBody(
       messageId,
       raw,
-      searchableText: MessageView.parse(raw).searchableText,
+      searchableText: view.searchableText,
     );
+    if (message.hasAttachments) {
+      // The reader's list of files, for the attachments page.
+      _store.messages.setHeader(messageId, FilePart.storedHeader, [
+        for (final f in FilePart.listFromView(view)) f.encode(),
+      ]);
+    }
     return raw;
+  }
+}
+
+/// Looks up which files messages have, from the server's BODYSTRUCTURE
+/// (a few hundred bytes a message; nothing is downloaded and nothing is
+/// marked read), for mail synced before the app kept that.
+final class FileLookup {
+  FileLookup(this._store);
+
+  final MailStore _store;
+
+  /// UIDs asked from the server at once.
+  static const _batch = 200;
+
+  /// Records the files of [messageIds] (all of one account) as
+  /// [FilePart.storedHeader]. Messages that are gone are skipped.
+  Future<void> lookUp(ImapClient imap, List<int> messageIds) async {
+    final byFolder = <int, Map<int, StoredMessage>>{};
+    for (final id in messageIds) {
+      final m = _store.messages.byId(id);
+      if (m != null) byFolder.putIfAbsent(m.mailboxId, () => {})[m.uid] = m;
+    }
+    for (final MapEntry(key: mailboxId, value: byUid) in byFolder.entries) {
+      final mailbox = _store.mailboxes.byId(mailboxId);
+      if (mailbox == null) continue;
+      final selected = imap.selected?.name == mailbox.encodedName
+          ? imap.selected!
+          : await imap.select(mailbox.encodedName, readOnly: true);
+      if (selected.uidValidity != mailbox.syncState.uidValidity) continue;
+      final uids = byUid.keys.toList();
+      for (var i = 0; i < uids.length; i += _batch) {
+        final fetched = await imap.uidFetch(
+          SequenceSet.of(uids.sublist(i, (i + _batch).clamp(0, uids.length))),
+          FetchItems(bodyStructure: true),
+        );
+        for (final f in fetched.messages) {
+          final message = byUid[f.uid];
+          final structure = f.bodyStructure;
+          if (message == null || structure == null) continue;
+          _store.messages.setHeader(message.id, FilePart.storedHeader, [
+            for (final file in FilePart.listFromImap(structure)) file.encode(),
+          ]);
+        }
+      }
+    }
   }
 }

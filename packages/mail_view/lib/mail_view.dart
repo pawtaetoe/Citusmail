@@ -6,6 +6,7 @@
 /// that cannot load anything from the network.
 library;
 
+export 'src/attachment_files.dart';
 export 'src/calendar/calendar_invite.dart';
 export 'src/calendar/calendar_reply.dart';
 export 'src/calendar/calendar_text.dart';

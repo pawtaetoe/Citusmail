@@ -146,6 +146,12 @@ final class AttachmentView {
   /// Shown to the user; the same sanitised name.
   String get displayName => fileName;
 
+  /// Content-Disposition: inline (meant to be shown inside the text).
+  bool get inline => _part.disposition?.isInline ?? false;
+
+  /// The Content-ID a `cid:` link in the text could show it by.
+  String? get contentId => _part.contentId;
+
   /// Approximate decoded size, without decoding.
   int get approximateSize => switch (_part.transferEncoding) {
     TransferEncoding.base64 => _part.rawSize * 3 ~/ 4,

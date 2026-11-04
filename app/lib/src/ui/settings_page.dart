@@ -9,14 +9,18 @@ import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
 import '../background/background_mail.dart';
+import '../mail/mail_controller.dart';
 import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
 import '../services/link_safety.dart';
 import '../services/virus_total_checks.dart';
 import 'block_dialog.dart';
+import 'code_cleanup_banner.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
+import 'privacy_report_page.dart';
+import 'sender_cleanup_page.dart';
 
 /// One account's server rules, in words.
 String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
@@ -37,9 +41,21 @@ String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
 /// App settings: notifications, instant mail on Android, and what the app
 /// does with your data.
 final class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.services, this.isAndroid});
+  const SettingsPage({
+    super.key,
+    required this.services,
+    this.controller,
+    this.isAndroid,
+    this.onShowMail,
+  });
 
   final AppServices services;
+
+  /// The mail screen, for pages that act on mail (Clean up).
+  final MailController? controller;
+
+  /// Shows mail matching a search (from the Privacy report's senders).
+  final void Function(String query)? onShowMail;
 
   /// Overrides the platform (tests).
   final bool? isAndroid;
@@ -146,6 +162,34 @@ final class _SettingsPageState extends State<SettingsPage> {
     ];
   }
 
+  /// Old codes leave the inbox. Choosing an age here is the user's OK
+  /// (otherwise the Verification section asks first).
+  Widget _codeCleanupTile() {
+    final cleanup = CodeCleanupSettings(widget.services.store);
+    final age = cleanup.age;
+    final choice = age == CodeCleanupAge.off
+        ? CodeCleanupText.age(age)
+        : '${CodeCleanupText.age(age)}: '
+              '${CodeCleanupText.action(cleanup.action)}';
+    final waiting = age != CodeCleanupAge.off && !cleanup.agreed;
+    return ListTile(
+      leading: const Icon(Icons.auto_delete_outlined),
+      title: const Text('Clean up old codes'),
+      subtitle: Text(
+        '$choice. ${CodeCleanupText.explanation}'
+        '${waiting ? ' Not on yet: the Verification section asks you first.' : ''}',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => _CodeCleanupDialog(settings: cleanup),
+        );
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
   Future<void> _setInstant(bool on) async {
     setState(() => widget.services.settings.instantMail = on);
     try {
@@ -228,6 +272,26 @@ final class _SettingsPageState extends State<SettingsPage> {
             value: settings.notifications,
             onChanged: (on) => setState(() => settings.notifications = on),
           ),
+          SwitchListTile(
+            title: const Text('Bill and trial reminders'),
+            subtitle: const Text(
+              'A few days before a bill is due, a free trial starts charging or '
+              'a yearly subscription renews, found in your mail on this device. '
+              'Also listed under Subscriptions.',
+            ),
+            value: settings.notifications && settings.reminders,
+            onChanged: settings.notifications
+                ? (on) => setState(() => settings.reminders = on)
+                : null,
+          ),
+          SwitchListTile(
+            title: const Text('Also remind me of monthly renewals'),
+            subtitle: const Text(
+              'Subscriptions you pay every month, not just yearly ones.',
+            ),
+            value: settings.monthlyRenewals,
+            onChanged: (on) => setState(() => settings.monthlyRenewals = on),
+          ),
           if (_android) ...[
             SwitchListTile(
               title: const Text('Instant mail'),
@@ -255,6 +319,20 @@ final class _SettingsPageState extends State<SettingsPage> {
           const _Group('Security'),
           ..._lockSettings(),
           const _Group('Senders and devices'),
+          if (widget.controller case final controller?)
+            ListTile(
+              leading: const Icon(Icons.cleaning_services_outlined),
+              title: const Text('Clean up senders'),
+              subtitle: const Text(
+                'Senders you rarely open, and how to stop their mail',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SenderCleanupPage(controller: controller),
+                ),
+              ),
+            ),
           DeviceSyncTile(services: widget.services),
           ListTile(
             leading: const Icon(Icons.image_outlined),
@@ -277,6 +355,8 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          const _Group('Verification codes'),
+          _codeCleanupTile(),
           const _Group('About'),
           ListTile(
             leading: const Icon(Icons.shield_outlined),
@@ -284,8 +364,17 @@ final class _SettingsPageState extends State<SettingsPage> {
             subtitle: Text(
               '$appName has no servers and collects nothing. Mail is stored encrypted on this '
               'device and goes only to your own mail servers. Remote images and trackers are '
-              'blocked.',
+              'blocked. See what was kept from senders in the Privacy report.',
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PrivacyReportPage(
+                  services: widget.services,
+                  onShowMail: widget.onShowMail,
+                ),
+              ),
             ),
           ),
           ListTile(
@@ -442,6 +531,98 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
 }
 
 /// A heading that names a group of settings.
+/// How old codes get before they are cleaned up, and where they go.
+final class _CodeCleanupDialog extends StatefulWidget {
+  const _CodeCleanupDialog({required this.settings});
+
+  final CodeCleanupSettings settings;
+
+  @override
+  State<_CodeCleanupDialog> createState() => _CodeCleanupDialogState();
+}
+
+final class _CodeCleanupDialogState extends State<_CodeCleanupDialog> {
+  CodeCleanupSettings get _settings => widget.settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final age = _settings.age;
+    Widget heading(String text) => Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      child: Text(
+        text,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+    return AlertDialog(
+      title: const Text('Clean up old codes'),
+      contentPadding: const EdgeInsets.only(top: 12, bottom: 8),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                CodeCleanupText.explanation,
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
+            heading('When'),
+            RadioGroup<CodeCleanupAge>(
+              groupValue: age,
+              onChanged: (a) {
+                if (a == null) return;
+                setState(() {
+                  _settings.age = a;
+                  if (a != CodeCleanupAge.off) _settings.agree();
+                });
+              },
+              child: Column(
+                children: [
+                  for (final a in CodeCleanupAge.values)
+                    RadioListTile<CodeCleanupAge>(
+                      value: a,
+                      title: Text(CodeCleanupText.age(a)),
+                    ),
+                ],
+              ),
+            ),
+            if (age != CodeCleanupAge.off) ...[
+              heading('What happens'),
+              RadioGroup<CodeCleanupAction>(
+                groupValue: _settings.action,
+                onChanged: (a) {
+                  if (a != null) setState(() => _settings.action = a);
+                },
+                child: Column(
+                  children: [
+                    for (final a in CodeCleanupAction.values)
+                      RadioListTile<CodeCleanupAction>(
+                        value: a,
+                        title: Text(CodeCleanupText.action(a)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Done'),
+        ),
+      ],
+    );
+  }
+}
+
 final class _Group extends StatelessWidget {
   const _Group(this.text);
 
