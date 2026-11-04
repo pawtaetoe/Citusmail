@@ -93,6 +93,10 @@ are at the bottom of the screen, within reach of one thumb.
 - **Privacy**: images and trackers blocked, read receipts never sent,
   tracking parameters removed from links, one-tap unsubscribe (with the
   unsubscribe address checked too), blocking senders.
+- **Privacy report**: what was kept from senders in the last 7 or 30
+  days (trackers, remote images, tracking tags on links, read receipts,
+  scam warnings) and the senders that track you most, counted on your
+  device.
 - **Writing mail**: drafts, replies, undo send, custom folders and rules
   (also as server-side Sieve rules).
 - **Every message, whole**: save it as an .eml file, see its original

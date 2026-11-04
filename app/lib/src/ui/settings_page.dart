@@ -18,6 +18,7 @@ import '../services/virus_total_checks.dart';
 import 'block_dialog.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
+import 'privacy_report_page.dart';
 import 'sender_cleanup_page.dart';
 
 /// One account's server rules, in words.
@@ -44,12 +45,16 @@ final class SettingsPage extends StatefulWidget {
     required this.services,
     this.controller,
     this.isAndroid,
+    this.onShowMail,
   });
 
   final AppServices services;
 
   /// The mail screen, for pages that act on mail (Clean up).
   final MailController? controller;
+
+  /// Shows mail matching a search (from the Privacy report's senders).
+  final void Function(String query)? onShowMail;
 
   /// Overrides the platform (tests).
   final bool? isAndroid;
@@ -328,8 +333,17 @@ final class _SettingsPageState extends State<SettingsPage> {
             subtitle: Text(
               '$appName has no servers and collects nothing. Mail is stored encrypted on this '
               'device and goes only to your own mail servers. Remote images and trackers are '
-              'blocked.',
+              'blocked. See what was kept from senders in the Privacy report.',
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PrivacyReportPage(
+                  services: widget.services,
+                  onShowMail: widget.onShowMail,
+                ),
+              ),
             ),
           ),
           ListTile(

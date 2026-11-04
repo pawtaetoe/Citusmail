@@ -15,6 +15,7 @@ import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
+import 'privacy_report_page.dart';
 import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
@@ -127,6 +128,7 @@ final class Sidebar extends StatelessWidget {
                                 builder: (_) => SettingsPage(
                                   services: controller.services,
                                   controller: controller,
+                                  onShowMail: controller.search,
                                 ),
                               ),
                             );
@@ -255,6 +257,22 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     SenderCleanupPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.shield_outlined,
+                          label: 'Privacy report',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => PrivacyReportPage(
+                                  services: controller.services,
+                                  onShowMail: controller.search,
+                                ),
                               ),
                             );
                           },
