@@ -5,6 +5,7 @@
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../mail/deliveries_model.dart' show openReturnWindows;
 import '../mail/subscriptions_model.dart';
 import '../ui/subscriptions_page.dart' show Prices;
 import 'app_settings.dart';
@@ -123,6 +124,7 @@ abstract final class ReminderWords {
         if (r.amount case final a?) 'then ${price(a, r.cadence)}',
       ].join(', '),
       ReminderKind.renewal => 'Renews $on',
+      ReminderKind.returnBy => 'Return by $on',
     };
   }
 
@@ -143,6 +145,11 @@ abstract final class ReminderWords {
       ReminderKind.renewal when amount != null =>
         '${r.name} renews $when (${Prices.format(amount)})',
       ReminderKind.renewal => '${r.name} renews $when',
+      ReminderKind.returnBy when when == 'today' =>
+        'Today is the last day to return your ${r.name} order',
+      ReminderKind.returnBy =>
+        'Your ${r.name} order can be returned until ${date(r.date)} '
+            '($when)',
     };
   }
 
@@ -151,6 +158,7 @@ abstract final class ReminderWords {
     ReminderKind.billDue => 'Bill due',
     ReminderKind.trialEnds => 'Free trial ending',
     ReminderKind.renewal => 'Renewal coming up',
+    ReminderKind.returnBy => 'Return window closing',
   };
 }
 
@@ -173,8 +181,10 @@ final class ReminderNotice {
   }
 }
 
-/// After a sync: notifications for bills due, free trials ending and
-/// renewals coming up, from the mail on the device. Each reminder is
+/// After a sync: notifications for bills due, free trials ending,
+/// renewals coming up and return windows closing (orders not marked
+/// "Returned" or "Keeping it" on the Deliveries page), from the mail on
+/// the device. Each reminder is
 /// notified at most once per stage (three days before, and on the day for
 /// bills), never once dismissed, only with the notification settings on,
 /// in the daytime, and at most twice a day.
@@ -220,8 +230,19 @@ abstract final class ReminderCheck {
         monthlyRenewals: settings.monthlyRenewals,
         hidden: hidden,
       );
+      final returns = await openReturnWindows(store, at);
       final notices = due(
-        reminders,
+        [
+          ...reminders,
+          for (final w in returns)
+            Reminder(
+              kind: ReminderKind.returnBy,
+              company: w.shop,
+              name: w.shopName,
+              date: w.deadline,
+              messageId: w.messageId,
+            ),
+        ],
         now: at,
         dismissed: state.dismissed,
         notified: state.notified,

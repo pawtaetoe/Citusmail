@@ -12,6 +12,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'support/return_mail.dart';
 import 'support/test_app.dart';
 
 void main() {
@@ -212,6 +213,21 @@ void main() {
       ]);
     });
 
+    test('return windows closing, unless returned or kept', () async {
+      final at = DateTime(2026, 11, 4, 10);
+      seedReturns(app.store, now: at.toUtc());
+      expect(await check(at), [
+        'Your UNIQLO order can be returned until Fri, 6 Nov (in 2 days)',
+      ]);
+      // Once per stage.
+      expect(await check(at.add(const Duration(days: 1))), isEmpty);
+      // Not once kept (or returned) on the Deliveries page.
+      ReminderState(app.store).lastCheck = null;
+      app.store.settings.write('reminders.notified', '');
+      app.store.settings.write('returns.kept', 'o:uniqlo.com:SG-ONL-5520193');
+      expect(await check(at.add(const Duration(days: 1))), isEmpty);
+    });
+
     test('words', () {
       final bill = Reminder(
         kind: ReminderKind.billDue,
@@ -243,6 +259,18 @@ void main() {
         ReminderWords.notification(spotify, now),
         r'Spotify renews in 3 days (S$11.98)',
       );
+      final uniqlo = Reminder(
+        kind: ReminderKind.returnBy,
+        company: 'uniqlo.com',
+        name: 'UNIQLO',
+        date: DateTime.utc(2026, 11, 14),
+        messageId: 3,
+      );
+      expect(
+        ReminderWords.notification(uniqlo, now),
+        'Today is the last day to return your UNIQLO order',
+      );
+      expect(ReminderWords.title(uniqlo), 'Return window closing');
       // Its own notification id, apart from new mail's.
       final id = ReminderNotice(spotify, '', '').id;
       expect(id & 0xF0000000, 0x20000000);
