@@ -18,7 +18,16 @@ final class FollowUpChoice {
   String toString() => 'FollowUpChoice($label, $at)';
 }
 
-enum FollowUpKind { oneDay, threeDays, oneWeek }
+enum FollowUpKind {
+  oneDay(1),
+  threeDays(3),
+  oneWeek(7);
+
+  const FollowUpKind(this.days);
+
+  /// Days after sending.
+  final int days;
+}
 
 /// The "Remind me if no reply" choices for a message sent at a moment:
 /// in 1 day, in 3 days, in 1 week, at the same time of day. Days are
@@ -31,20 +40,22 @@ abstract final class FollowUpTimes {
   /// A picked date comes back at 8 in the morning.
   static const pickedHour = 8;
 
-  static List<FollowUpChoice> choicesFrom(DateTime sent) {
+  static List<FollowUpChoice> choicesFrom(DateTime sent) => [
+    FollowUpChoice(FollowUpKind.oneDay, 'In 1 day', after(sent, 1)),
+    FollowUpChoice(FollowUpKind.threeDays, 'In 3 days', after(sent, 3)),
+    FollowUpChoice(FollowUpKind.oneWeek, 'In 1 week', after(sent, 7)),
+  ];
+
+  /// [days] calendar days after [sent], at the same time of day (local).
+  static DateTime after(DateTime sent, int days) {
     final local = sent.toLocal();
-    DateTime after(int days) => DateTime(
+    return DateTime(
       local.year,
       local.month,
       local.day + days,
       local.hour,
       local.minute,
     );
-    return [
-      FollowUpChoice(FollowUpKind.oneDay, 'In 1 day', after(1)),
-      FollowUpChoice(FollowUpKind.threeDays, 'In 3 days', after(3)),
-      FollowUpChoice(FollowUpKind.oneWeek, 'In 1 week', after(7)),
-    ];
   }
 
   /// A picked [day], at [pickedHour].

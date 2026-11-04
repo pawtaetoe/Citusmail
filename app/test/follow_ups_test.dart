@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/compose/compose_controller.dart';
+import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/mail/follow_up_times.dart';
+import 'package:citusmail/src/mail/send_later_times.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
@@ -27,9 +30,11 @@ void main() {
   setUp(() async {
     app = await TestApp.create();
     FollowUpTimes.clock = () => _now;
+    SendLaterTimes.clock = () => _now;
   });
   tearDown(() {
     FollowUpTimes.clock = DateTime.now;
+    SendLaterTimes.clock = DateTime.now;
     return app.dispose();
   });
 
@@ -366,5 +371,112 @@ void main() {
     await tester.tap(find.text('In 1 week'));
     await settle(tester);
     expect(followUps().waiting().single.messageId, 'reunion@citusmail.test');
+  });
+
+  group('compose', () {
+    Finder field(String hint) => find.widgetWithText(TextField, hint);
+    Finder toField() => find
+        .descendant(
+          of: find.byType(ComposePage),
+          matching: find.byType(TextField),
+        )
+        .first;
+
+    Future<void> write(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('New message (C)'));
+      await tester.pumpAndSettle();
+      await tester.enterText(toField(), 'ana@buildright.example,');
+      await tester.enterText(field('Subject'), 'Quote for the kitchen');
+      await tester.enterText(field('Write your message'), 'Could you send it?');
+    }
+
+    String queuedId() => const MimeParser()
+        .parse(store().outbox.sends().single.data!)
+        .messageId!;
+
+    testWidgets('a toggle next to Send; Undo takes the reminder back too', (
+      tester,
+    ) async {
+      await show(tester);
+      await write(tester);
+      await tester.tap(find.byTooltip('Remind me if no reply'));
+      await settle(tester);
+      expect(find.text('Remind me if no reply'), findsOneWidget);
+      await tester.tap(find.text('In 3 days'));
+      await settle(tester);
+      expect(
+        find.byTooltip('Reminds you Sat 9:10 AM if no reply (tap to change)'),
+        findsOneWidget,
+      );
+      // Changed my mind, then on again.
+      await tester.tap(find.byKey(const ValueKey('compose-follow-up')));
+      await settle(tester);
+      await tester.tap(find.text('Don\'t remind me'));
+      await settle(tester);
+      expect(find.byTooltip('Remind me if no reply'), findsOneWidget);
+      await tester.tap(find.byTooltip('Remind me if no reply'));
+      await settle(tester);
+      await tester.tap(find.text('In 3 days'));
+      await settle(tester);
+
+      await tester.tap(find.text('Send'));
+      await settle(tester);
+      expect(find.byType(ComposePage), findsNothing);
+      expect(find.textContaining('Sending… Reminds you'), findsOneWidget);
+      final f = followUps().waiting().single;
+      expect(f.messageId, queuedId());
+      expect(f.subject, 'Quote for the kitchen');
+      expect(f.recipients.single.address, 'ana@buildright.example');
+      expect(FollowUpTimes.daysBetween(f.sentAt, f.due), 3);
+      expect(find.text('Waiting for a reply'), findsOneWidget);
+
+      await tester.tap(find.text('Undo'));
+      await settle(tester);
+      expect(followUps().all(), isEmpty);
+      await tester.pump(ComposeController.autosaveDelay);
+    });
+
+    testWidgets('with Send later, it counts from when the email goes out', (
+      tester,
+    ) async {
+      await show(tester);
+      await write(tester);
+      await tester.tap(find.byTooltip('Remind me if no reply'));
+      await settle(tester);
+      await tester.tap(find.text('In 1 day'));
+      await settle(tester);
+      await tester.tap(find.byTooltip('Send later'));
+      await settle(tester);
+      await tester.tap(find.text('Tomorrow morning'));
+      await settle(tester);
+
+      // Thursday 8:00, then a day later.
+      var f = followUps().waiting().single;
+      expect(f.sentAt, DateTime(2026, 11, 5, 8).toUtc());
+      expect(f.due, DateTime(2026, 11, 6, 8).toUtc());
+      expect(f.messageId, queuedId());
+
+      // Moved to Monday in the Outbox: the reminder moves with it.
+      await tester.pump(const Duration(seconds: 6));
+      await tester.tap(find.text('Outbox'));
+      await settle(tester);
+      await tester.tap(find.byTooltip('Scheduled message options'));
+      await settle(tester);
+      await tester.tap(find.text('Change time'));
+      await settle(tester);
+      await tester.tap(find.text('Monday morning'));
+      await settle(tester);
+      f = followUps().waiting().single;
+      expect(f.messageId, queuedId());
+      expect(f.sentAt, DateTime(2026, 11, 9, 8).toUtc());
+      expect(f.due, DateTime(2026, 11, 10, 8).toUtc());
+
+      // Not sent after all: no reminder.
+      await tester.tap(find.byTooltip('Scheduled message options'));
+      await settle(tester);
+      await tester.tap(find.text('Cancel sending'));
+      await settle(tester);
+      expect(followUps().all(), isEmpty);
+    });
   });
 }

@@ -17,10 +17,15 @@ final class PendingSend {
     required this.undoUntil,
     required this.draft,
     required this.answered,
+    required this.messageId,
     this.scheduledFor,
   });
 
   final int accountId;
+
+  /// The Message-ID it goes out with (without brackets): how replies
+  /// name it.
+  final String messageId;
 
   /// When the message goes out, if the user chose a time ("Send later").
   final DateTime? scheduledFor;
@@ -137,6 +142,7 @@ final class Sender {
         undoUntil: undoUntil,
         draft: draft.copyWith(clearId: true),
         answered: answered,
+        messageId: built.messageId,
         scheduledFor: at,
       );
     });

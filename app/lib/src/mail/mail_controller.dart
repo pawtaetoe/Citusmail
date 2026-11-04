@@ -1544,7 +1544,9 @@ final class MailController {
   /// Sends a scheduled message now (with Undo, which puts it back at its
   /// time).
   void sendScheduledNow(ScheduledSend s) {
-    final pending = scheduledSends.sendNow(s, now: SendLaterTimes.clock());
+    final now = SendLaterTimes.clock();
+    final pending = scheduledSends.sendNow(s, now: now);
+    if (pending != null) _followScheduled(s, pending, now);
     refresh();
     if (pending == null) {
       onNotice?.call(_tooLate);
@@ -1557,16 +1559,17 @@ final class MailController {
         // Back to its time, unless it has started to go out.
         final undone =
             services.sender.cancel(pending, now: SendLaterTimes.clock()) &&
-            _rescheduleDraft(pending.draft, s.at);
+            _rescheduleDraft(pending.draft, s.at, from: pending);
         refresh();
         if (!undone) onNotice?.call('Too late: the message is on its way.');
       },
     );
   }
 
-  bool _rescheduleDraft(Draft draft, DateTime at) {
+  bool _rescheduleDraft(Draft draft, DateTime at, {PendingSend? from}) {
+    PendingSend pending;
     try {
-      final pending = services.sender.schedule(
+      pending = services.sender.schedule(
         draft,
         at.toLocal(),
         now: SendLaterTimes.clock(),
@@ -1574,21 +1577,48 @@ final class MailController {
       _armScheduled(pending);
     } on ArgumentError {
       // Its time has come meanwhile: send it.
-      final pending = services.sender.send(draft, now: SendLaterTimes.clock());
+      pending = services.sender.send(draft, now: SendLaterTimes.clock());
       services.worker.syncAt(pending.accountId, pending.undoUntil);
     }
+    if (from != null) {
+      final sentAt = pending.scheduledFor ?? SendLaterTimes.clock();
+      final before = followUps.find(from.messageId)?.sentAt;
+      followUps.move(
+        from.messageId,
+        pending.messageId,
+        shift: before == null ? Duration.zero : sentAt.difference(before),
+      );
+    }
     return true;
+  }
+
+  /// A scheduled message's follow-up goes with it when it goes out under
+  /// a new Message-ID ([pending], sent at its time or [now]), keeping the
+  /// time between sending and the reminder.
+  void _followScheduled(ScheduledSend s, PendingSend pending, DateTime now) {
+    final id = _scheduledId(s);
+    if (id == null) return;
+    final sentAt = pending.scheduledFor ?? now;
+    followUps.move(id, pending.messageId, shift: sentAt.difference(s.at));
+  }
+
+  /// The Message-ID a scheduled message was to go out with.
+  static String? _scheduledId(ScheduledSend s) {
+    final data = s.entry.data;
+    return data == null ? null : const MimeParser().parse(data).messageId;
   }
 
   /// Sends a scheduled message at [at] instead.
   void rescheduleSend(ScheduledSend s, DateTime at, String done) {
     final PendingSend? pending;
+    final now = SendLaterTimes.clock();
     try {
-      pending = scheduledSends.reschedule(s, at, now: SendLaterTimes.clock());
+      pending = scheduledSends.reschedule(s, at, now: now);
     } on ArgumentError {
       sendScheduledNow(s);
       return;
     }
+    if (pending != null) _followScheduled(s, pending, now);
     refresh();
     if (pending == null) {
       onNotice?.call(_tooLate);
@@ -1602,6 +1632,8 @@ final class MailController {
   /// ends; closing the window keeps it as a draft).
   void editScheduled(ScheduledSend s) {
     final draft = scheduledSends.edit(s, now: SendLaterTimes.clock());
+    // Not sent: no reminder for it.
+    if (draft != null) followUps.cancel(_scheduledId(s) ?? '');
     refresh();
     if (draft == null) {
       onNotice?.call(_tooLate);
@@ -1612,7 +1644,9 @@ final class MailController {
 
   /// Doesn't send a scheduled message: it goes to Drafts instead.
   void cancelScheduled(ScheduledSend s) {
+    final id = _scheduledId(s);
     final outcome = scheduledSends.cancel(s, now: SendLaterTimes.clock());
+    if (outcome != null) followUps.cancel(id ?? '');
     refresh();
     if (outcome == null) {
       onNotice?.call(_tooLate);

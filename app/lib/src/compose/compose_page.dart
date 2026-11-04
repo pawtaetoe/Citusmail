@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_compose/mail_compose.dart';
 
 import '../ui/citusmail_theme.dart';
+import '../ui/follow_up_sheet.dart';
 import '../ui/mail_shell.dart';
 import '../ui/mail_text.dart';
 import '../ui/send_later_sheet.dart';
@@ -62,6 +63,13 @@ final class _ComposePageState extends State<ComposePage> {
     if (at == null || !mounted) return;
     final result = _c.send(at: at);
     if (result != null) Navigator.of(context).pop(result);
+  }
+
+  /// "Remind me if no reply": when, or no reminder.
+  Future<void> _chooseFollowUp() async {
+    final picked = await FollowUpSheet.pick(context, current: _c.followUp?.at);
+    if (picked == null || !mounted) return;
+    _c.setFollowUp(picked);
   }
 
   Future<void> _discard() async {
@@ -158,56 +166,88 @@ final class _ComposePageState extends State<ComposePage> {
               // keyboard, within reach of the thumb.
               final phone =
                   MediaQuery.sizeOf(context).width < MailShell.mediumWidth;
+              final width = MediaQuery.sizeOf(context).width;
               final actions = Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 12, 4),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Close (keeps the draft)',
-                      icon: const Icon(Icons.close),
-                      onPressed: _close,
-                    ),
-                    const SizedBox(width: 4),
-                    // Phones: no room for a title next to the buttons
-                    // (the subject field shows it); Send keeps the edge.
-                    if (phone)
-                      const Spacer()
-                    else
-                      Expanded(
-                        child: Text(
-                          draft.subject.trim().isEmpty
-                              ? 'New message'
-                              : draft.subject,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                padding: phone
+                    ? const EdgeInsets.fromLTRB(4, 8, 8, 4)
+                    : const EdgeInsets.fromLTRB(8, 8, 12, 4),
+                child: IconButtonTheme(
+                  // Phones: slightly tighter buttons, so the toggles,
+                  // Attach, Discard and Send fit in one row.
+                  data: IconButtonThemeData(
+                    style: phone
+                        ? IconButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                          )
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Close (keeps the draft)',
+                        icon: const Icon(Icons.close),
+                        onPressed: _close,
+                      ),
+                      const SizedBox(width: 4),
+                      // Phones: no room for a title next to the buttons
+                      // (the subject field shows it); Send keeps the edge.
+                      if (phone)
+                        const Spacer()
+                      else
+                        Expanded(
+                          child: Text(
+                            draft.subject.trim().isEmpty
+                                ? 'New message'
+                                : draft.subject,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
+                      IconButton(
+                        tooltip: draft.requestReceipt
+                            ? 'Read receipt requested (tap to cancel)'
+                            : 'Ask for a read receipt',
+                        isSelected: draft.requestReceipt,
+                        icon: const Icon(Icons.mark_email_read_outlined),
+                        selectedIcon: const Icon(Icons.mark_email_read),
+                        onPressed: () =>
+                            _c.setRequestReceipt(!draft.requestReceipt),
                       ),
-                    IconButton(
-                      tooltip: draft.requestReceipt
-                          ? 'Read receipt requested (tap to cancel)'
-                          : 'Ask for a read receipt',
-                      isSelected: draft.requestReceipt,
-                      icon: const Icon(Icons.mark_email_read_outlined),
-                      selectedIcon: const Icon(Icons.mark_email_read),
-                      onPressed: () =>
-                          _c.setRequestReceipt(!draft.requestReceipt),
-                    ),
-                    IconButton(
-                      tooltip: 'Attach files',
-                      icon: const Icon(Icons.attach_file),
-                      onPressed: _attach,
-                    ),
-                    IconButton(
-                      tooltip: 'Discard',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: _discard,
-                    ),
-                    const SizedBox(width: 8),
-                    _SendButton(onSend: _send, onSendLater: _sendLater),
-                  ],
+                      IconButton(
+                        key: const ValueKey('compose-follow-up'),
+                        tooltip: switch (_c.followUp?.at) {
+                          final at? =>
+                            '${FollowUpSheet.remindsAt(context, at)} '
+                                '(tap to change)',
+                          null => 'Remind me if no reply',
+                        },
+                        isSelected: _c.followUp != null,
+                        icon: const Icon(Icons.alarm_add_outlined),
+                        selectedIcon: const Icon(Icons.alarm_on),
+                        onPressed: _chooseFollowUp,
+                      ),
+                      IconButton(
+                        tooltip: 'Attach files',
+                        icon: const Icon(Icons.attach_file),
+                        onPressed: _attach,
+                      ),
+                      IconButton(
+                        tooltip: 'Discard',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: _discard,
+                      ),
+                      const SizedBox(width: 8),
+                      _SendButton(
+                        onSend: _send,
+                        onSendLater: _sendLater,
+                        // The narrowest phones: the paper plane alone.
+                        iconOnly: width < 380,
+                      ),
+                    ],
+                  ),
                 ),
               );
               return Padding(
@@ -356,10 +396,15 @@ final class _ComposePageState extends State<ComposePage> {
 /// Send, with "Send later" attached on its right (a split button): the
 /// clock, or a long press on Send, offers the times.
 final class _SendButton extends StatelessWidget {
-  const _SendButton({required this.onSend, required this.onSendLater});
+  const _SendButton({
+    required this.onSend,
+    required this.onSendLater,
+    this.iconOnly = false,
+  });
 
   final VoidCallback onSend;
   final VoidCallback onSendLater;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -367,17 +412,34 @@ final class _SendButton extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FilledButton.icon(
-          onPressed: onSend,
-          onLongPress: onSendLater,
-          style: FilledButton.styleFrom(
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.horizontal(left: radius),
+        if (iconOnly)
+          Tooltip(
+            message: 'Send',
+            child: FilledButton(
+              onPressed: onSend,
+              onLongPress: onSendLater,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(52, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.horizontal(left: radius),
+                ),
+              ),
+              child: const Icon(Icons.send, size: 18),
             ),
+          )
+        else
+          FilledButton.icon(
+            onPressed: onSend,
+            onLongPress: onSendLater,
+            style: FilledButton.styleFrom(
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.horizontal(left: radius),
+              ),
+            ),
+            icon: const Icon(Icons.send, size: 18),
+            label: const Text('Send'),
           ),
-          icon: const Icon(Icons.send, size: 18),
-          label: const Text('Send'),
-        ),
         const SizedBox(width: 2),
         Tooltip(
           message: 'Send later',

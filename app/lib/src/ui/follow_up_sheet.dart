@@ -12,9 +12,18 @@ import 'snooze_sheet.dart';
 
 /// What the user chose: a time, or no reminder ([at] null).
 final class FollowUpPick {
-  const FollowUpPick(this.at);
+  const FollowUpPick(this.at, {this.days});
 
   final DateTime? at;
+
+  /// For "In 1 day", "In 3 days" and "In 1 week": the days after sending
+  /// (a message sent later counts from when it goes out). Null for a
+  /// picked date.
+  final int? days;
+
+  /// When it comes back for a message that goes out at [sent].
+  DateTime? dueFor(DateTime sent) =>
+      days == null ? at : FollowUpTimes.after(sent, days!);
 }
 
 /// "Remind me if no reply": in 1 day, 3 days, 1 week (with the date each
@@ -153,7 +162,8 @@ final class _FollowUpPanel extends StatelessWidget {
                 FollowUpSheet.describe(context, c.at, tomorrowWord: false),
                 style: theme.textTheme.bodyMedium?.copyWith(color: muted),
               ),
-              onTap: () => Navigator.pop(context, FollowUpPick(c.at)),
+              onTap: () =>
+                  Navigator.pop(context, FollowUpPick(c.at, days: c.kind.days)),
             ),
         ListTile(
           key: const ValueKey('follow-up-pick'),
