@@ -25,7 +25,7 @@ To work as an email app, Citusmail handles on your device:
 | --- | --- | --- |
 | Your email address, mail server settings, and password or sign-in token | To connect to your mail account | Only to your own mail provider (and its sign-in service, see below). Passwords and tokens are kept in your device's secure keychain |
 | Your email messages, attachments, contacts and folders | To show, search, sort and send your mail | Downloaded from and sent through your own mail provider; stored encrypted on the device |
-| App settings, blocked senders, Screener decisions, folder rules | To remember your choices | On the device; optionally synced between your own devices, end-to-end encrypted (see below) |
+| App settings, blocked senders, Screener decisions, snoozed emails, folder rules | To remember your choices | On the device; optionally synced between your own devices, end-to-end encrypted (see below) |
 
 None of this is sent to Fluminaris or to any third party other than the
 services listed in the next section.
@@ -70,7 +70,7 @@ including the Limited Use requirements.
 ## Sync between your devices (optional)
 
 Off until you turn it on. Then your blocked senders, Screener decisions,
-unsubscribes, folder
+snoozed emails, unsubscribes, folder
 rules and image choices are kept the same on your devices. They travel
 through a folder in **your own mail account**, never through a server of
 ours, and are end-to-end encrypted with a code only your devices hold.
