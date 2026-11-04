@@ -167,6 +167,10 @@ void main() {
   testWidgets('Settings: turn on with a PIN, choose when, turn off with it', (
     tester,
   ) async {
+    // Tall enough for the Security settings below Notifications.
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
     );
