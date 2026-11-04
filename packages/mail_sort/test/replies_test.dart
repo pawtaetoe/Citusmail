@@ -201,8 +201,8 @@ void main() {
         subject: 'Read: Quote for the kitchen',
         headers: {
           'content-type': [
-            'multipart/report; report-type=disposition-notification; '
-                'boundary="b1"',
+            ('multipart/report; report-type=disposition-notification; '
+                'boundary="b1"'),
           ],
         },
       );
