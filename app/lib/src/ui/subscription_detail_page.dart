@@ -29,15 +29,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
   Future<void> _openReceipt(BuildContext context, int messageId) async {
     final message = messageById(messageId);
     if (message == null) return;
-    await controller.open(message);
-    if (!context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _ReceiptPage(controller: controller),
-      ),
-    );
-    // Back in the list: the mail screen behind shows no message.
-    controller.closeMessage();
+    await EmailPage.open(context, controller, message);
   }
 
   @override
@@ -298,17 +290,41 @@ final class _Fact extends StatelessWidget {
   }
 }
 
-/// A receipt, read in place: Back returns to the subscription.
-final class _ReceiptPage extends StatefulWidget {
-  const _ReceiptPage({required this.controller});
+/// A receipt or a bill, read in place: Back returns to where it was
+/// opened from.
+final class EmailPage extends StatefulWidget {
+  const EmailPage({
+    super.key,
+    required this.controller,
+    this.title = 'Receipt',
+  });
 
   final MailController controller;
+  final String title;
+
+  /// Opens [message] on its own page; when it closes, the mail screen
+  /// behind shows no message.
+  static Future<void> open(
+    BuildContext context,
+    MailController controller,
+    StoredMessage message, {
+    String title = 'Receipt',
+  }) async {
+    await controller.open(message);
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => EmailPage(controller: controller, title: title),
+      ),
+    );
+    controller.closeMessage();
+  }
 
   @override
-  State<_ReceiptPage> createState() => _ReceiptPageState();
+  State<EmailPage> createState() => _EmailPageState();
 }
 
-final class _ReceiptPageState extends State<_ReceiptPage> {
+final class _EmailPageState extends State<EmailPage> {
   @override
   void initState() {
     super.initState();
@@ -333,7 +349,7 @@ final class _ReceiptPageState extends State<_ReceiptPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Receipt')),
+    appBar: AppBar(title: Text(widget.title)),
     body: SafeArea(
       top: false,
       child: ReaderPane(controller: widget.controller, toolbarAtBottom: true),

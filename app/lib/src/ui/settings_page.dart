@@ -9,6 +9,7 @@ import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
 import '../background/background_mail.dart';
+import '../mail/mail_controller.dart';
 import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
@@ -18,6 +19,7 @@ import 'block_dialog.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
 import 'privacy_report_page.dart';
+import 'sender_cleanup_page.dart';
 
 /// One account's server rules, in words.
 String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
@@ -41,11 +43,15 @@ final class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     required this.services,
+    this.controller,
     this.isAndroid,
     this.onShowMail,
   });
 
   final AppServices services;
+
+  /// The mail screen, for pages that act on mail (Clean up).
+  final MailController? controller;
 
   /// Shows mail matching a search (from the Privacy report's senders).
   final void Function(String query)? onShowMail;
@@ -237,6 +243,26 @@ final class _SettingsPageState extends State<SettingsPage> {
             value: settings.notifications,
             onChanged: (on) => setState(() => settings.notifications = on),
           ),
+          SwitchListTile(
+            title: const Text('Bill and trial reminders'),
+            subtitle: const Text(
+              'A few days before a bill is due, a free trial starts charging or '
+              'a yearly subscription renews, found in your mail on this device. '
+              'Also listed under Subscriptions.',
+            ),
+            value: settings.notifications && settings.reminders,
+            onChanged: settings.notifications
+                ? (on) => setState(() => settings.reminders = on)
+                : null,
+          ),
+          SwitchListTile(
+            title: const Text('Also remind me of monthly renewals'),
+            subtitle: const Text(
+              'Subscriptions you pay every month, not just yearly ones.',
+            ),
+            value: settings.monthlyRenewals,
+            onChanged: (on) => setState(() => settings.monthlyRenewals = on),
+          ),
           if (_android) ...[
             SwitchListTile(
               title: const Text('Instant mail'),
@@ -264,6 +290,20 @@ final class _SettingsPageState extends State<SettingsPage> {
           const _Group('Security'),
           ..._lockSettings(),
           const _Group('Senders and devices'),
+          if (widget.controller case final controller?)
+            ListTile(
+              leading: const Icon(Icons.cleaning_services_outlined),
+              title: const Text('Clean up senders'),
+              subtitle: const Text(
+                'Senders you rarely open, and how to stop their mail',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SenderCleanupPage(controller: controller),
+                ),
+              ),
+            ),
           DeviceSyncTile(services: widget.services),
           ListTile(
             leading: const Icon(Icons.image_outlined),

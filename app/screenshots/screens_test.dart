@@ -15,9 +15,12 @@ import 'dart:ui' as ui;
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
+import 'package:citusmail/src/ui/accounts_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/deliveries_page.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
+import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +31,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../test/support/delivery_mail.dart';
 import '../test/support/privacy_mail.dart';
 import '../test/support/test_app.dart';
 
@@ -206,6 +210,91 @@ void main() {
     await shoot(tester, 'readme_subscription');
   });
 
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    for (final dark in [false, true]) {
+      testWidgets('deliveries $name${dark ? ' dark' : ''}', (tester) async {
+        seedDeliveries(app.store, now: DateTime.now().toUtc());
+        await show(
+          tester,
+          DeliveriesPage(controller: MailController(app.services)),
+          size: size,
+          dark: dark,
+        );
+        final suffix = dark ? '_dark' : '';
+        await shoot(tester, '${name}_deliveries$suffix');
+        await tester.tap(find.text('Amazon.sg'));
+        await shoot(tester, '${name}_delivery$suffix');
+      });
+    }
+  }
+
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    testWidgets('accounts $name', (tester) async {
+      _seedAccounts(app.store);
+      await show(
+        tester,
+        AccountsPage(controller: MailController(app.services)),
+        size: size,
+      );
+      await shoot(tester, '${name}_accounts');
+      await tester.tap(find.text('GitHub'));
+      await shoot(tester, '${name}_account');
+    });
+  }
+
+  testWidgets('subscriptions coming up', (tester) async {
+    _seedSubscriptions(app.store);
+    _seedReminders(app.store);
+    for (final (name, size, dark) in [
+      ('phone_coming_up', const Size(390, 844), false),
+      ('phone_coming_up_dark', const Size(390, 844), true),
+      ('desktop_coming_up', const Size(1440, 900), false),
+    ]) {
+      await show(
+        tester,
+        SubscriptionsPage(
+          key: ValueKey(name),
+          controller: MailController(app.services),
+        ),
+        size: size,
+        dark: dark,
+      );
+      await shoot(tester, name);
+    }
+  });
+
+  testWidgets('clean up', (tester) async {
+    _seedSenders(app.store);
+    await show(
+      tester,
+      SenderCleanupPage(controller: MailController(app.services)),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'phone_clean_up');
+    await tester.tap(find.text('ShopMart Deals'));
+    await tester.tap(find.text('Daily Digest'));
+    await shoot(tester, 'phone_clean_up_selected');
+    await show(
+      tester,
+      SenderCleanupPage(controller: MailController(app.services)),
+      size: const Size(1440, 900),
+      dark: true,
+    );
+    await shoot(tester, 'desktop_clean_up_selected_dark');
+    await tester.tap(find.byTooltip('Cancel selection'));
+    await tester.tap(find.text('Most mail'));
+    await settle(tester);
+    await tester.tap(find.text('Least opened').last);
+    await settle(tester);
+    await shoot(tester, 'desktop_clean_up_dark');
+  });
+
   for (final dark in [false, true]) {
     final suffix = dark ? '_dark' : '';
     testWidgets('privacy report$suffix', (tester) async {
@@ -252,6 +341,44 @@ void main() {
     await tester.tap(find.byTooltip('New message (C)'));
     await shoot(tester, 'desktop_compose');
   });
+}
+
+/// Made-up bulk mail for the Clean up screen: per sender, how many in
+/// the last weeks and how many of them were read.
+void _seedSenders(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 600;
+  final senders = [
+    ('deals', 'shopmart.example', 'ShopMart Deals', 64, 2, true, false),
+    ('digest', 'dailydigest.example', 'Daily Digest', 45, 3, true, false),
+    ('no-reply', 'cloudco.example', 'CloudCo', 30, 21, false, true),
+    ('notifications', 'cloudco.example', 'CloudCo', 12, 9, true, true),
+    ('hello', 'fitapp.example', 'FitApp', 18, 0, true, false),
+    ('news', 'citylibrary.example', 'City Library', 9, 8, true, false),
+    ('offers', 'airline.example', 'SkyAir Offers', 3, 0, true, false),
+  ];
+  store.messages.upsertSummaries(inbox.id, [
+    for (final (local, domain, name, count, read, unsub, notify) in senders)
+      for (var i = 0; i < count; i++)
+        MessageSummary(
+          uid: uid++,
+          receivedAt: now.subtract(Duration(hours: 6 + i * 30)),
+          subject: '$name update ${i + 1}',
+          from: MailAddress(
+            localPart: local,
+            domain: domain,
+            displayName: name,
+          ),
+          category: notify
+              ? MessageCategory.notifications
+              : MessageCategory.newsletters,
+          flags: MessageFlags.fromImap([if (i < read) r'\Seen']),
+          headers: {
+            if (unsub) 'list-unsubscribe': ['<https://$domain/unsubscribe>'],
+          },
+        ),
+  ]);
 }
 
 /// Made-up receipts for the Subscriptions screen.
@@ -319,6 +446,52 @@ void _seedSubscriptions(MailStore store) {
       'Your membership has been cancelled',
       140,
       '',
+    ),
+  ]);
+}
+
+/// Made-up bills and a free trial for "Coming up".
+void _seedReminders(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now();
+  String date(DateTime d) => '${d.day}/${d.month}/${d.year}';
+  var uid = 450;
+  MessageSummary mail(
+    String domain,
+    String name,
+    String subject,
+    int daysAgo,
+    String snippet,
+  ) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.subtract(Duration(days: daysAgo)).toUtc(),
+    subject: subject,
+    from: MailAddress(localPart: 'billing', domain: domain, displayName: name),
+    snippet: snippet,
+  );
+  store.messages.upsertSummaries(inbox.id, [
+    mail(
+      'myrepublic.example',
+      'MyRepublic',
+      'Your MyRepublic e-Bill is ready!',
+      4,
+      'The outstanding amount for your account is: \$32.99. Please pay your '
+          'bill within 7 days of receiving this email.',
+    ),
+    mail(
+      'citypower.example',
+      'City Power',
+      'Your electricity bill for this month',
+      3,
+      'Total amount due: S\$84.20. Due date: '
+          '${date(now.add(const Duration(days: 9)))}',
+    ),
+    mail(
+      'pandapro.example',
+      'foodpanda',
+      'Your pandapro free trial is ending',
+      1,
+      'Your free trial ends in 2 days, then S\$59.88/year.',
     ),
   ]);
 }
@@ -426,4 +599,134 @@ Future<void> settle(WidgetTester tester) async {
     );
     await tester.pump(const Duration(milliseconds: 300));
   }
+}
+
+/// Made-up account mail for the "Your accounts" screen.
+void _seedAccounts(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 600;
+  MessageSummary mail(
+    String from,
+    String name,
+    String subject,
+    int daysAgo, {
+    String to = 'alice@citusmail.test',
+    String? snippet,
+  }) {
+    final at = from.indexOf('@');
+    final toAt = to.indexOf('@');
+    return MessageSummary(
+      uid: uid++,
+      receivedAt: now.subtract(Duration(days: daysAgo)),
+      subject: subject,
+      from: MailAddress(
+        localPart: from.substring(0, at),
+        domain: from.substring(at + 1),
+        displayName: name,
+      ),
+      to: [
+        MailAddress(
+          localPart: to.substring(0, toAt),
+          domain: to.substring(toAt + 1),
+        ),
+      ],
+      snippet: snippet,
+      flags: MessageFlags.fromImap([r'\Seen']),
+    );
+  }
+
+  store.messages.upsertSummaries(inbox.id, [
+    mail('no-reply@accounts.google.com', 'Google', 'Security alert', 3),
+    mail(
+      'no-reply@accounts.google.com',
+      'Google',
+      'Welcome to your new Google Account',
+      2050,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] Please verify your email address',
+      1700,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] A new SSH key was added to your account',
+      40,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] Please reset your password',
+      300,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      'Your GitHub launch code',
+      12,
+      snippet: 'Here is your GitHub launch code: 48213907',
+    ),
+    mail('info@mailer.netflix.com', 'Netflix', 'Your Netflix sign-in code', 20),
+    mail('info@mailer.netflix.com', 'Netflix', 'Welcome to Netflix!', 1300),
+    for (final d in [25, 55, 85])
+      mail(
+        'info@mailer.netflix.com',
+        'Netflix',
+        'Your Netflix receipt',
+        d,
+        snippet: 'Your membership has been renewed. Total S\$17.98',
+      ),
+    mail(
+      'info@mail.shopee.sg',
+      'Shopee',
+      'Please confirm your Shopee account',
+      1330,
+      to: 'alice+shopee@citusmail.test',
+    ),
+    mail(
+      'info@mail.shopee.sg',
+      'Shopee',
+      'Your OTP for Shopee',
+      60,
+      to: 'alice+shopee@citusmail.test',
+      snippet: 'Your Shopee OTP is 553201. It expires in 5 minutes.',
+    ),
+    mail(
+      'no-reply@grab.com',
+      'Grab',
+      'Welcome to Grab!',
+      1500,
+      snippet: 'Thanks for signing up. Your account is ready.',
+    ),
+    mail('no-reply@grab.com', 'Grab', 'New login to your Grab account', 110),
+    mail(
+      'alerts@northwind.example',
+      'Northwind Bank',
+      'New device registered',
+      200,
+    ),
+    mail(
+      'alerts@northwind.example',
+      'Northwind Bank',
+      'Your account statement for September',
+      34,
+    ),
+    mail('team@oldforum.example', 'OldForum', 'Welcome to OldForum', 3600),
+    mail(
+      'team@oldforum.example',
+      'OldForum',
+      'Your password was changed',
+      2900,
+    ),
+    mail('team@photostash.example', 'PhotoStash', 'Verify your email', 2400),
+    mail(
+      'team@photostash.example',
+      'PhotoStash',
+      'Your account has been deleted',
+      900,
+    ),
+  ]);
 }

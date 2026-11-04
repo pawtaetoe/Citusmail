@@ -31,8 +31,9 @@ None of this is sent to Fluminaris or to any third party other than the
 services listed in the next section.
 
 Features that understand your mail, such as sorting, finding verification
-codes, phishing checks and the list of your paid subscriptions (found in
-receipts and renewal emails), run entirely on the device.
+codes, phishing checks, the list of your paid subscriptions (found in
+receipts and renewal emails) and your deliveries (found in order and
+shipping emails), run entirely on the device.
 
 ## Services the app connects to
 
