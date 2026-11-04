@@ -12,7 +12,113 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import '../services/auto_reader.dart';
 import 'corrections.dart';
+
+/// What [findDeliveries] found: every delivery the rules found ([hidden]
+/// and [learned] ones too, by key), those the user [marked] delivered,
+/// the return windows in purchase mail, and the emails worth downloading
+/// ([toRead]).
+typedef DeliveriesFound = ({
+  List<Delivery> all,
+  Set<String> hidden,
+  Set<String> learned,
+  Set<String> marked,
+  List<ReturnWindow> returns,
+  List<int> toRead,
+});
+
+/// The Deliveries page's findings in [store], reading text and markup off
+/// the UI thread. The page and reading in the background both use it, so
+/// both want the same emails. [toRead] leaves out [skip].
+Future<DeliveriesFound> findDeliveries(
+  MailStore store,
+  DateTime now, {
+  Set<int> skip = const {},
+}) async {
+  Set<String> read(String key) => {
+    ...?store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
+  };
+  final hidden = read(DeliveriesModel.hiddenKey);
+  final marked = read(DeliveriesModel.deliveredKey);
+  final mail = await loadDeliveryMail(store, now);
+  final all = DeliveryFinder.find(
+    mail.shipping,
+    now: now,
+    markedDelivered: marked,
+  );
+  final messages = {for (final m in mail.messages) m.id: m};
+  final learned = await Corrections(store).vetoed(MailKind.delivery, {
+    for (final d in all)
+      if (!hidden.contains(d.key))
+        d.key: deliverySamples(d, (id) => messages[id]),
+  });
+  return (
+    all: all,
+    hidden: hidden,
+    learned: learned,
+    marked: marked,
+    returns: ReturnWindows.find(mail.emails, deliveries: all),
+    toRead: deliveryMailToRead(
+      store,
+      mail.messages,
+      all,
+      left: {...hidden, ...learned},
+      skip: skip,
+    ),
+  );
+}
+
+/// Where something may be missing: shipping mail of [candidates] not
+/// understood yet ([all] are the deliveries found), and that of
+/// deliveries on the way without a tracking number or a date (those in
+/// [left] aside), not on the device. Small ones only, newsletters aside,
+/// at most [DeliveriesModel.readMax]; [skip] left out.
+List<int> deliveryMailToRead(
+  MailStore store,
+  List<StoredMessage> candidates,
+  List<Delivery> all, {
+  required Set<String> left,
+  Set<int> skip = const {},
+}) {
+  final known = {
+    for (final d in all)
+      for (final r in d.records) r.email.messageId: d,
+  };
+  bool worthReading(StoredMessage m) => switch (known[m.id]) {
+    null =>
+      DeliveryFinder.looksLikeShipping(m.subject ?? '') ||
+          ReturnWindows.looksLikeReceipt(m.subject ?? ''),
+    final d =>
+      !left.contains(d.key) &&
+          !d.arrived &&
+          (d.trackingNumber == null || d.expected == null),
+  };
+  return [
+    for (final m in candidates)
+      if (m.size <= DeliveriesModel.maxBytes &&
+          m.category != MessageCategory.newsletters &&
+          !skip.contains(m.id) &&
+          store.messages.body(m.id) == null &&
+          worthReading(m))
+        m.id,
+  ].take(DeliveriesModel.readMax).toList();
+}
+
+/// What the classifier reads of [delivery]'s emails.
+List<MailSample> deliverySamples(
+  Delivery delivery,
+  StoredMessage? Function(int id) message,
+) => [
+  for (final r in delivery.records)
+    mailSample(
+      message(r.email.messageId),
+      domain: r.email.shop,
+      senderName: r.email.senderName,
+      subject: r.email.subject,
+      text: r.email.text,
+    ),
+];
 
 /// The Deliveries page's data: shipped orders found in shop and carrier
 /// mail, on the device. Downloaded emails are read whole, with the
@@ -28,8 +134,8 @@ final class DeliveriesModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const _hiddenKey = 'deliveries.hidden';
-  static const _deliveredKey = 'deliveries.delivered';
+  static const hiddenKey = 'deliveries.hidden';
+  static const deliveredKey = 'deliveries.delivered';
 
   /// Return windows the user said were returned, or that they keep.
   static const returnedKey = 'returns.returned';
@@ -42,8 +148,8 @@ final class DeliveriesModel extends ChangeNotifier {
   static const recent = Duration(days: 30);
 
   /// Shipping emails downloaded at most, small ones only.
-  static const _readMax = 40;
-  static const _maxBytes = 256 * 1024;
+  static const readMax = 40;
+  static const maxBytes = 256 * 1024;
 
   bool loading = true;
 
@@ -151,58 +257,29 @@ final class DeliveriesModel extends ChangeNotifier {
     ...?_store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
   };
 
+  /// Emails given up on: not offered while they are read automatically.
+  Set<int> get _skip =>
+      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
+
   Future<void> load() async {
-    hidden = _readSet(_hiddenKey);
-    marked = _readSet(_deliveredKey);
     returned = _readSet(returnedKey);
     kept = _readSet(keptKey);
-    final mail = await loadDeliveryMail(_store, _now());
-    final candidates = mail.messages;
-    final all = DeliveryFinder.find(
-      mail.shipping,
-      now: _now(),
-      markedDelivered: marked,
-    );
-    returns = ReturnWindows.find(mail.emails, deliveries: all);
-    _all = all;
-    final messages = {for (final m in candidates) m.id: m};
-    learned = await _corrections.vetoed(MailKind.delivery, {
-      for (final d in all)
-        if (!hidden.contains(d.key)) d.key: _samples(d, (id) => messages[id]),
-    });
+    final found = await findDeliveries(_store, _now(), skip: _skip);
+    hidden = found.hidden;
+    marked = found.marked;
+    learned = found.learned;
+    returns = found.returns;
+    _all = found.all;
     final left = {...hidden, ...learned};
     deliveries = [
-      for (final d in all)
+      for (final d in found.all)
         if (!left.contains(d.key)) d,
     ];
     hiddenOnes = [
-      for (final d in all)
+      for (final d in found.all)
         if (left.contains(d.key)) d,
     ];
-    // Where something may be missing: shipping mail not understood yet,
-    // and that of deliveries on the way without a tracking number or a
-    // date.
-    final known = {
-      for (final d in all)
-        for (final r in d.records) r.email.messageId: d,
-    };
-    bool worthReading(StoredMessage m) => switch (known[m.id]) {
-      null =>
-        DeliveryFinder.looksLikeShipping(m.subject ?? '') ||
-            ReturnWindows.looksLikeReceipt(m.subject ?? ''),
-      final d =>
-        !left.contains(d.key) &&
-            !d.arrived &&
-            (d.trackingNumber == null || d.expected == null),
-    };
-    toRead = [
-      for (final m in candidates)
-        if (m.size <= _maxBytes &&
-            m.category != MessageCategory.newsletters &&
-            _store.messages.body(m.id) == null &&
-            worthReading(m))
-          m.id,
-    ].take(_readMax).toList();
+    toRead = found.toRead;
     loading = false;
     notifyListeners();
   }
@@ -241,7 +318,7 @@ final class DeliveriesModel extends ChangeNotifier {
         _samples(d, _store.messages.byId),
       );
     }
-    _write(_hiddenKey, {...hidden, key});
+    _write(hiddenKey, {...hidden, key});
   }
 
   /// Undo, or "List again": listed again (and never left out by
@@ -253,7 +330,7 @@ final class DeliveriesModel extends ChangeNotifier {
         : _samples(d, _store.messages.byId);
     if (hidden.contains(key)) {
       _corrections.rejected(MailKind.delivery, samples, undo: true);
-      _write(_hiddenKey, {...hidden}..remove(key));
+      _write(hiddenKey, {...hidden}..remove(key));
     } else if (learned.contains(key)) {
       _corrections.kept(MailKind.delivery, key, samples);
       unawaited(load());
@@ -269,26 +346,16 @@ final class DeliveriesModel extends ChangeNotifier {
 
   Delivery? _found(String key) => _all.where((d) => d.key == key).firstOrNull;
 
-  /// What the classifier reads of [delivery]'s emails.
   static List<MailSample> _samples(
     Delivery delivery,
     StoredMessage? Function(int id) message,
-  ) => [
-    for (final r in delivery.records)
-      mailSample(
-        message(r.email.messageId),
-        domain: r.email.shop,
-        senderName: r.email.senderName,
-        subject: r.email.subject,
-        text: r.email.text,
-      ),
-  ];
+  ) => deliverySamples(delivery, message);
 
   /// "Mark as delivered", for one stuck on the way (undoable).
-  void markDelivered(String key) => _write(_deliveredKey, {...marked, key});
+  void markDelivered(String key) => _write(deliveredKey, {...marked, key});
 
   void unmarkDelivered(String key) =>
-      _write(_deliveredKey, {...marked}..remove(key));
+      _write(deliveredKey, {...marked}..remove(key));
 
   /// "Returned" and "Keeping it": no longer listed under "Can still be
   /// returned" (undoable).
@@ -370,7 +437,7 @@ Future<List<ReturnWindow>> openReturnWindows(
   final deliveries = DeliveryFinder.find(
     mail.shipping,
     now: now,
-    markedDelivered: read(DeliveriesModel._deliveredKey),
+    markedDelivered: read(DeliveriesModel.deliveredKey),
   );
   return [
     for (final w in ReturnWindows.find(mail.emails, deliveries: deliveries))

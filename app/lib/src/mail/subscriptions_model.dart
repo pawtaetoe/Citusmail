@@ -11,6 +11,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import '../services/auto_reader.dart';
 import '../services/reminders.dart';
 import 'corrections.dart';
 
@@ -93,6 +94,115 @@ List<MailSample> subscriptionSamples(
     ),
 ];
 
+/// What [findSubscriptions] found: every subscription the rules found
+/// ([hidden] and [learned] ones too), what is coming up (those of hidden
+/// and learned companies aside; dismissed ones still in), and the emails
+/// worth downloading ([toRead]).
+typedef SubscriptionsFound = ({
+  List<Subscription> all,
+  Set<String> hidden,
+  Set<String> learned,
+  List<Reminder> reminders,
+  List<int> toRead,
+});
+
+/// The Subscriptions page's findings in [store], reading text off the UI
+/// thread. The page and reading in the background both use it, so both
+/// want the same emails. [toRead] leaves out [skip].
+Future<SubscriptionsFound> findSubscriptions(
+  MailStore store,
+  DateTime now, {
+  required bool monthlyRenewals,
+  Set<int> skip = const {},
+}) async {
+  final hidden = hiddenSubscriptions(store);
+  final mail = await loadSubscriptionMail(store, now);
+  final all = SubscriptionFinder.find(mail.emails, now: now);
+  final learned = await learnedNotSubscriptions(store, mail, all, hidden);
+  final left = {...hidden, ...learned};
+  final reminders = Reminders.find(
+    mail.emails,
+    subscriptions: all,
+    now: now,
+    monthlyRenewals: monthlyRenewals,
+    hidden: left,
+  );
+  return (
+    all: all,
+    hidden: hidden,
+    learned: learned,
+    reminders: reminders,
+    toRead: subscriptionMailToRead(
+      store,
+      mail,
+      now: now,
+      found: all,
+      left: left,
+      reminders: reminders,
+      skip: skip,
+    ),
+  );
+}
+
+/// The emails of [mail] not on the device yet whose whole text may fill
+/// in the Subscriptions page: receipts of subscriptions ([found], those in
+/// [left] aside) whose price or cadence is not known, receipts of
+/// companies not recognised yet, and recent bills and trial emails whose
+/// date is not known ([reminders]). Small ones only, at most a few per
+/// subscription; [skip] left out.
+List<int> subscriptionMailToRead(
+  MailStore store,
+  SubscriptionMail mail, {
+  required DateTime now,
+  required List<Subscription> found,
+  required Set<String> left,
+  required List<Reminder> reminders,
+  Set<int> skip = const {},
+}) {
+  final sizes = {for (final m in mail.messages) m.id: m.size};
+  bool wanted(int id) =>
+      !skip.contains(id) &&
+      store.messages.body(id) == null &&
+      (sizes[id] ?? 0) <= SubscriptionsModel.maxBytes;
+  // Bills and trials whose date is known need nothing more.
+  final dated = {
+    for (final r in reminders)
+      if (r.kind != ReminderKind.renewal) r.company,
+  };
+  // Receipts not on the device, newest first, from companies that are
+  // neither listed nor hidden: their whole text may show a billing period
+  // ("Sep 28, 2026 – Sep 28, 2027").
+  final known = {for (final s in found) s.company};
+  final unknown = [
+    for (final e in mail.emails)
+      if (!known.contains(e.company) &&
+          !left.contains(e.company) &&
+          !SubscriptionFinder.isReplyOrForward(e.subject) &&
+          SubscriptionFinder.eventOf(e) == SubscriptionEvent.charge &&
+          wanted(e.messageId))
+        e,
+  ]..sort((a, b) => b.at.compareTo(a.at));
+  return {
+    // Only where something is missing: no price, or no "how often".
+    for (final s in found)
+      if (!left.contains(s.company) && (s.amount == null || s.cadence == null))
+        for (final r
+            in s.records
+                .where((r) => wanted(r.email.messageId))
+                .take(SubscriptionsModel.perSubscription))
+          r.email.messageId,
+    for (final e in unknown.take(SubscriptionsModel.unknownMax)) e.messageId,
+    // Recent bills and trial emails: their whole text may say when they're
+    // due or end.
+    for (final e in mail.emails)
+      if (now.difference(e.at) < SubscriptionsModel.datesBack &&
+          !dated.contains(e.company) &&
+          (Reminders.mayBeBill(e) || Reminders.isTrial(e)) &&
+          wanted(e.messageId))
+        e.messageId,
+  }.toList();
+}
+
 /// The Subscriptions page's data: paid subscriptions found in receipts and
 /// renewal mail, and what is coming up (bills due, free trials ending,
 /// renewals), on the device. Prices and dates come from the emails' text:
@@ -115,14 +225,14 @@ final class SubscriptionsModel extends ChangeNotifier {
 
   /// Receipts downloaded for prices: the newest few of each subscription,
   /// small ones only.
-  static const _perSubscription = 6;
-  static const _maxBytes = 512 * 1024;
+  static const perSubscription = 6;
+  static const maxBytes = 512 * 1024;
 
   /// Receipts of companies not recognised yet, downloaded at most.
-  static const _unknownMax = 30;
+  static const unknownMax = 30;
 
   /// Bills and trial emails this recent are downloaded for their dates.
-  static const _datesBack = Duration(days: 45);
+  static const datesBack = Duration(days: 45);
 
   bool loading = true;
   List<Subscription> subscriptions = const [];
@@ -169,98 +279,38 @@ final class SubscriptionsModel extends ChangeNotifier {
       if (s.status == SubscriptionStatus.active) s,
   ];
 
+  /// Emails given up on: not offered while they are read automatically.
+  Set<int> get _skip =>
+      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
+
   Future<void> load() async {
-    hidden = hiddenSubscriptions(_store);
     final now = _now();
-    final (messages: candidates, :emails) = await loadSubscriptionMail(
+    final found = await findSubscriptions(
       _store,
       now,
+      monthlyRenewals: _services.settings.monthlyRenewals,
+      skip: _skip,
     );
-    final all = SubscriptionFinder.find(emails, now: now);
-    _all = all;
-    learned = await learnedNotSubscriptions(
-      _store,
-      (messages: candidates, emails: emails),
-      all,
-      hidden,
-    );
+    hidden = found.hidden;
+    learned = found.learned;
+    _all = found.all;
     final left = {...hidden, ...learned};
     final dismissed = ReminderState(_store).dismissed;
-    final reminders = Reminders.find(
-      emails,
-      subscriptions: all,
-      now: now,
-      monthlyRenewals: _services.settings.monthlyRenewals,
-      hidden: left,
-    );
     comingUp = [
-      for (final r in reminders)
+      for (final r in found.reminders)
         if (!dismissed.contains(r.key)) r,
     ];
     subscriptions = [
-      for (final s in all)
+      for (final s in found.all)
         if (!left.contains(s.company)) s,
     ];
     hiddenOnes = [
-      for (final s in all)
+      for (final s in found.all)
         if (left.contains(s.company)) s,
     ];
-    final sizes = {for (final m in candidates) m.id: m.size};
-    // Bills and trials whose date is known need nothing more.
-    final dated = {
-      for (final r in reminders)
-        if (r.kind != ReminderKind.renewal) r.company,
-    };
-    toRead = {
-      // Only where something is missing: no price, or no "how often".
-      for (final s in subscriptions)
-        if (s.amount == null || s.cadence == null)
-          for (final r
-              in s.records
-                  .where(
-                    (r) =>
-                        _store.messages.body(r.email.messageId) == null &&
-                        (sizes[r.email.messageId] ?? 0) <= _maxBytes,
-                  )
-                  .take(_perSubscription))
-            r.email.messageId,
-      // Receipts of companies not recognised yet: their whole text may
-      // show a billing period ("Sep 28, 2026 – Sep 28, 2027").
-      ..._unknownReceipts(emails, all, sizes),
-      // Recent bills and trial emails: their whole text may say when
-      // they're due or end.
-      for (final e in emails)
-        if (now.difference(e.at) < _datesBack &&
-            !dated.contains(e.company) &&
-            (Reminders.mayBeBill(e) || Reminders.isTrial(e)) &&
-            _store.messages.body(e.messageId) == null &&
-            (sizes[e.messageId] ?? 0) <= _maxBytes)
-          e.messageId,
-    }.toList();
+    toRead = found.toRead;
     loading = false;
     notifyListeners();
-  }
-
-  /// Receipts not on the device, newest first, from companies that are
-  /// neither listed nor hidden.
-  Iterable<int> _unknownReceipts(
-    List<SubscriptionEmail> emails,
-    List<Subscription> found,
-    Map<int, int> sizes,
-  ) {
-    final known = {for (final s in found) s.company};
-    final receipts = [
-      for (final e in emails)
-        if (!known.contains(e.company) &&
-            !hidden.contains(e.company) &&
-            !learned.contains(e.company) &&
-            !SubscriptionFinder.isReplyOrForward(e.subject) &&
-            SubscriptionFinder.eventOf(e) == SubscriptionEvent.charge &&
-            _store.messages.body(e.messageId) == null &&
-            (sizes[e.messageId] ?? 0) <= _maxBytes)
-          e,
-    ]..sort((a, b) => b.at.compareTo(a.at));
-    return receipts.take(_unknownMax).map((e) => e.messageId);
   }
 
   /// Downloads the receipts in [toRead] from the user's own mail server

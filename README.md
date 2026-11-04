@@ -153,6 +153,11 @@ are at the bottom of the screen, within reach of one thumb.
   into trips ("Tokyo, 12–18 Dec") with a timeline in local times, on
   your device and offline. Copy the booking reference with a tap, add a
   booking to your calendar, and see cancellations and schedule changes.
+- **Reads receipts and bookings for you**: Subscriptions, Deliveries,
+  Trips and Your accounts fill in by themselves. The receipts, bills and
+  booking emails they need are downloaded quietly from your own mail
+  server ahead of time (they stay unread). You can turn this off in
+  Settings and read them with a button instead.
 - **Return-by dates**: under Deliveries, what you can still return and
   until when, read from the return policy in order confirmations and
   receipts ("30-day returns", "return by 15 Dec"), with a reminder three

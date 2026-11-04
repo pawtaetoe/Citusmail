@@ -17,6 +17,7 @@ import 'package:path_provider/path_provider.dart';
 import '../security/app_lock.dart';
 import '../security/pin_hasher.dart';
 import 'app_settings.dart';
+import 'auto_reader.dart';
 import 'device_sync.dart';
 import 'link_safety.dart';
 import 'remote_images.dart';
@@ -69,7 +70,8 @@ final class AppServices {
       drafts = DraftStore(store),
       sender = Sender(store),
       replies = ReplyBuilder(store),
-      settings = AppSettings(store);
+      settings = AppSettings(store),
+      autoRead = AutoReader(store, worker.loadBody);
 
   final MailStore store;
   final SecretStore secrets;
@@ -105,6 +107,10 @@ final class AppServices {
 
   /// The user's app settings (notifications, instant mail).
   final AppSettings settings;
+
+  /// Receipts, bills and booking emails read ahead of time for the pages
+  /// (started by the mail screen).
+  final AutoReader autoRead;
 
   /// Saves a verified account: settings in the encrypted store, password in
   /// the keychain. If the keychain write fails, the account is removed
@@ -203,6 +209,7 @@ final class AppServices {
   Future<void> dispose() => _disposing ??= _close();
 
   Future<void> _close() async {
+    autoRead.stop();
     lock.dispose();
     await worker.close();
     store.close();

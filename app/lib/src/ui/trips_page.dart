@@ -7,9 +7,11 @@ import 'package:mail_sort/mail_sort.dart';
 
 import '../mail/mail_controller.dart';
 import '../mail/trips_model.dart';
+import '../services/app_services.dart';
 import 'booking_detail_page.dart';
 import 'booking_text.dart';
 import 'citusmail_theme.dart';
+import 'read_ahead.dart';
 
 /// Flights, stays, trains, buses, rental cars, tables and tickets found
 /// in booking mail, put together into trips: what is coming up, each
@@ -27,7 +29,7 @@ final class TripsPage extends StatefulWidget {
   State<TripsPage> createState() => _TripsPageState();
 }
 
-final class _TripsPageState extends State<TripsPage> {
+final class _TripsPageState extends State<TripsPage> with ReadsAhead {
   late final TripsModel _model = TripsModel(
     widget.controller.services,
     now: widget.now,
@@ -36,9 +38,15 @@ final class _TripsPageState extends State<TripsPage> {
   bool _showHidden = false;
 
   @override
+  AppServices get services => widget.controller.services;
+
+  @override
+  Future<void> reload() => _model.load();
+
+  @override
   void initState() {
     super.initState();
-    _model.load();
+    _model.load().then((_) => loadedWith(_model.toRead));
   }
 
   @override
@@ -125,10 +133,15 @@ final class _TripsPageState extends State<TripsPage> {
                       total: r.total,
                       onStop: _model.stopReading,
                     )
-                  else if (_model.toRead.isNotEmpty)
+                  else if (_model.toRead.isNotEmpty && !readsAhead)
                     _ReadOffer(
                       count: _model.toRead.length,
                       onRead: _model.readEmails,
+                    )
+                  else if (_model.toRead.isNotEmpty && readingAhead)
+                    ReadingQuietly(
+                      'Reading ${_model.toRead.length} booking email'
+                      '${_model.toRead.length == 1 ? '' : 's'}…',
                     ),
                   if (upcoming.isNotEmpty) ...[
                     const _SectionTitle('Upcoming'),

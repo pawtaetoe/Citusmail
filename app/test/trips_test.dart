@@ -64,6 +64,8 @@ void main() {
   testWidgets('upcoming trips with their timelines, then past ones', (
     tester,
   ) async {
+    // Reading automatically off: the page offers it, as a card.
+    app.services.settings.autoRead = false;
     final now = DateTime.now().toUtc();
     seedTrips(app.store, now: now);
     await openTrips(tester);

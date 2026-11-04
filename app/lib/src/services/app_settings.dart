@@ -19,6 +19,7 @@ final class AppSettings {
   static const _monthlyRenewals = 'reminders.monthly';
   static const _followUps = 'followUps.notify';
   static const _learn = 'learning.on';
+  static const _autoRead = 'autoRead.on';
 
   /// New-mail notifications (on by default).
   bool get notifications => _store.settings.read(_notifications) != 'off';
@@ -50,6 +51,13 @@ final class AppSettings {
   bool get learnFromCorrections => _store.settings.read(_learn) != 'off';
   set learnFromCorrections(bool on) =>
       _store.settings.write(_learn, on ? 'on' : 'off');
+
+  /// "Read receipts and bookings automatically" (on by default): the
+  /// emails Subscriptions, Deliveries, Trips and Your accounts would read
+  /// are downloaded ahead of time (they stay unread). Off, each page
+  /// offers to read them, as a button.
+  bool get autoRead => _store.settings.read(_autoRead) != 'off';
+  set autoRead(bool on) => _store.settings.write(_autoRead, on ? 'on' : 'off');
 
   /// Monthly (and weekly) renewals are reminded of too (off by default:
   /// they come every month).

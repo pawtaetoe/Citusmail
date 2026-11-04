@@ -12,7 +12,143 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import '../services/auto_reader.dart';
 import 'corrections.dart';
+
+/// What [findOnlineAccounts] found: every account the rules found
+/// ([hidden] and [learned] ones too, by company), the user's own
+/// addresses, and the emails worth downloading ([toRead]).
+typedef AccountsFound = ({
+  List<OnlineAccount> all,
+  Set<String> hidden,
+  Set<String> learned,
+  List<String> ownAddresses,
+  List<int> toRead,
+});
+
+/// The "Your accounts" page's findings in [store], reading text off the
+/// UI thread. The page and reading in the background both use it, so
+/// both want the same emails. [toRead] leaves out [skip].
+Future<AccountsFound> findOnlineAccounts(
+  MailStore store,
+  DateTime now, {
+  Set<int> skip = const {},
+}) async {
+  final hidden = {
+    ...?store.settings
+        .read(AccountsModel.hiddenKey)
+        ?.split(',')
+        .where((s) => s.isNotEmpty),
+  };
+  final mailAccounts = store.accounts.all();
+  final ownAddresses = [for (final a in mailAccounts) a.email.toLowerCase()];
+  final accountAddress = {
+    for (final a in mailAccounts) a.id: a.email.toLowerCase(),
+  };
+  final candidates = store.messages.withSubjectWords(
+    [...AccountFinder.subjectWords, ...SubscriptionFinder.subjectWords],
+    since: now.subtract(AccountsModel.lookBack),
+    limit: 5000,
+  );
+  // Message text off the UI thread: downloaded bodies are parsed.
+  final texts = await compute(_texts, [
+    for (final m in candidates) (store.messages.body(m.id), m.snippet),
+  ]);
+  final people = <String, bool>{};
+  bool person(MailAddress from, String registrable) =>
+      people[from.normalizedAddress] ??=
+          FreeMail.isProvider(registrable) ||
+          (!AutomatedSender.matches(from) &&
+              store.messages.hasWrittenTo(from.address));
+  final emails = <AccountEmail>[
+    for (final (i, m) in candidates.indexed)
+      if (m.from case final from?)
+        () {
+          final registrable =
+              Domains.registrable(from.domain) ?? from.domain.toLowerCase();
+          return AccountEmail(
+            messageId: m.id,
+            company: registrable,
+            senderName: from.displayName,
+            subject: m.subject ?? '',
+            text: texts[i],
+            at: m.receivedAt,
+            recipients: [
+              for (final kind in const ['to', 'cc'])
+                for (final a in store.messages.addresses(m.id, kind))
+                  a.normalizedAddress,
+            ],
+            accountAddress: accountAddress[m.accountId],
+            fromPerson: person(from, registrable),
+            newsletter: m.category == MessageCategory.newsletters,
+            code: m.category == MessageCategory.codes,
+          );
+        }(),
+  ];
+  final all = AccountFinder.find(
+    emails,
+    ownAddresses: ownAddresses.toSet(),
+    freeMailDomains: FreeMail.providers,
+    now: now,
+  );
+  final messages = {for (final m in candidates) m.id: m};
+  final learned = await Corrections(store).vetoed(MailKind.account, {
+    for (final a in all)
+      if (!hidden.contains(a.company))
+        a.company: accountSamples(a, (id) => messages[id]),
+  });
+  return (
+    all: all,
+    hidden: hidden,
+    learned: learned,
+    ownAddresses: ownAddresses,
+    toRead: accountMailToRead(
+      store,
+      candidates,
+      emails,
+      left: {...hidden, ...learned},
+      skip: skip,
+    ),
+  );
+}
+
+/// Account emails of [emails] (read from [candidates]) whose preview says
+/// too little and that are not on the device, of companies not in
+/// [left]. Small ones only, at most [AccountsModel.readMax]; [skip] left
+/// out.
+List<int> accountMailToRead(
+  MailStore store,
+  List<StoredMessage> candidates,
+  List<AccountEmail> emails, {
+  required Set<String> left,
+  Set<int> skip = const {},
+}) {
+  final sizes = {for (final m in candidates) m.id: m.size};
+  return [
+    for (final e in emails)
+      if (!left.contains(AccountFinder.companyOf(e.company)) &&
+          AccountFinder.worthReading(e) &&
+          !skip.contains(e.messageId) &&
+          store.messages.body(e.messageId) == null &&
+          (sizes[e.messageId] ?? 0) <= AccountsModel.maxBytes)
+        e.messageId,
+  ].take(AccountsModel.readMax).toList();
+}
+
+/// What the classifier reads of [account]'s emails (the newest few).
+List<MailSample> accountSamples(
+  OnlineAccount account,
+  StoredMessage? Function(int id) message,
+) => [
+  for (final r in account.records.take(20))
+    mailSample(
+      message(r.email.messageId),
+      domain: r.email.company,
+      senderName: r.email.senderName,
+      subject: r.email.subject,
+      text: r.email.text,
+    ),
+];
 
 /// The "Your accounts" page's data: online services the user has an
 /// account with, found in welcome, sign-in, password and security mail on
@@ -27,7 +163,7 @@ final class AccountsModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const _hiddenKey = 'accounts.hidden';
+  static const hiddenKey = 'accounts.hidden';
 
   /// Accounts are old: everything on the device is looked at.
   static const lookBack = Duration(days: 25 * 366);
@@ -36,8 +172,8 @@ final class AccountsModel extends ChangeNotifier {
   static const quiet = Duration(days: 2 * 365);
 
   /// Emails downloaded at most, small ones only.
-  static const _readMax = 40;
-  static const _maxBytes = 256 * 1024;
+  static const readMax = 40;
+  static const maxBytes = 256 * 1024;
 
   bool loading = true;
   List<OnlineAccount> accounts = const [];
@@ -83,89 +219,26 @@ final class AccountsModel extends ChangeNotifier {
       ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
   }
 
+  /// Emails given up on: not offered while they are read automatically.
+  Set<int> get _skip =>
+      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
+
   Future<void> load() async {
-    hidden = {
-      ...?_store.settings
-          .read(_hiddenKey)
-          ?.split(',')
-          .where((s) => s.isNotEmpty),
-    };
-    final mailAccounts = _store.accounts.all();
-    ownAddresses = [for (final a in mailAccounts) a.email.toLowerCase()];
-    final accountAddress = {
-      for (final a in mailAccounts) a.id: a.email.toLowerCase(),
-    };
-    final candidates = _store.messages.withSubjectWords(
-      [...AccountFinder.subjectWords, ...SubscriptionFinder.subjectWords],
-      since: _now().subtract(lookBack),
-      limit: 5000,
-    );
-    // Message text off the UI thread: downloaded bodies are parsed.
-    final texts = await compute(_texts, [
-      for (final m in candidates) (_store.messages.body(m.id), m.snippet),
-    ]);
-    final people = <String, bool>{};
-    bool person(MailAddress from, String registrable) =>
-        people[from.normalizedAddress] ??=
-            FreeMail.isProvider(registrable) ||
-            (!AutomatedSender.matches(from) &&
-                _store.messages.hasWrittenTo(from.address));
-    final emails = <AccountEmail>[
-      for (final (i, m) in candidates.indexed)
-        if (m.from case final from?)
-          () {
-            final registrable =
-                Domains.registrable(from.domain) ?? from.domain.toLowerCase();
-            return AccountEmail(
-              messageId: m.id,
-              company: registrable,
-              senderName: from.displayName,
-              subject: m.subject ?? '',
-              text: texts[i],
-              at: m.receivedAt,
-              recipients: [
-                for (final kind in const ['to', 'cc'])
-                  for (final a in _store.messages.addresses(m.id, kind))
-                    a.normalizedAddress,
-              ],
-              accountAddress: accountAddress[m.accountId],
-              fromPerson: person(from, registrable),
-              newsletter: m.category == MessageCategory.newsletters,
-              code: m.category == MessageCategory.codes,
-            );
-          }(),
-    ];
-    final all = AccountFinder.find(
-      emails,
-      ownAddresses: ownAddresses.toSet(),
-      freeMailDomains: FreeMail.providers,
-      now: _now(),
-    );
-    _all = all;
-    final messages = {for (final m in candidates) m.id: m};
-    learned = await _corrections.vetoed(MailKind.account, {
-      for (final a in all)
-        if (!hidden.contains(a.company))
-          a.company: _samples(a, (id) => messages[id]),
-    });
+    final found = await findOnlineAccounts(_store, _now(), skip: _skip);
+    hidden = found.hidden;
+    learned = found.learned;
+    ownAddresses = found.ownAddresses;
+    _all = found.all;
     final left = {...hidden, ...learned};
     accounts = [
-      for (final a in all)
+      for (final a in found.all)
         if (!left.contains(a.company)) a,
     ];
     hiddenOnes = [
-      for (final a in all)
+      for (final a in found.all)
         if (left.contains(a.company)) a,
     ];
-    final sizes = {for (final m in candidates) m.id: m.size};
-    toRead = [
-      for (final e in emails)
-        if (!left.contains(AccountFinder.companyOf(e.company)) &&
-            AccountFinder.worthReading(e) &&
-            _store.messages.body(e.messageId) == null &&
-            (sizes[e.messageId] ?? 0) <= _maxBytes)
-          e.messageId,
-    ].take(_readMax).toList();
+    toRead = found.toRead;
     loading = false;
     notifyListeners();
   }
@@ -233,23 +306,13 @@ final class AccountsModel extends ChangeNotifier {
   OnlineAccount? _found(String company) =>
       _all.where((a) => a.company == company).firstOrNull;
 
-  /// What the classifier reads of [account]'s emails (the newest few).
   static List<MailSample> _samples(
     OnlineAccount account,
     StoredMessage? Function(int id) message,
-  ) => [
-    for (final r in account.records.take(20))
-      mailSample(
-        message(r.email.messageId),
-        domain: r.email.company,
-        senderName: r.email.senderName,
-        subject: r.email.subject,
-        text: r.email.text,
-      ),
-  ];
+  ) => accountSamples(account, message);
 
   void _setHidden(Set<String> companies) {
-    _store.settings.write(_hiddenKey, companies.join(','));
+    _store.settings.write(hiddenKey, companies.join(','));
     unawaited(load());
   }
 

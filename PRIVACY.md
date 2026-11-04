@@ -50,25 +50,34 @@ Safe Browsing (see above), which still checks links on the device first.
 
 Subscriptions are found the same way, on the device: receipts and
 renewal emails from the last two years are read for the company, price
-and dates. Where a price or date is missing, "Read receipts" downloads
-those receipts from your own mail server, only when you tap it; they stay
-unread.
+and dates. Where a price or date is missing, those receipts are
+downloaded from your own mail server, as if you had opened them, but they
+stay unread: ahead of time with "Read receipts and bookings
+automatically" (Settings, on by default), or when you tap "Read
+receipts" with it off. Only their text is read; no remote images load
+and no read receipt is sent.
 
 Deliveries are found the same way: order and shipping emails from the
 last year are read on the device for tracking numbers, order numbers,
 status and dates, including the order details some shops and carriers
-add to their emails for mail apps (read as data, never run). "Read
-shipping emails" downloads small ones from your own mail server only
-when you tap it; they stay unread. A carrier's tracking page opens in
+add to their emails for mail apps (read as data, never run). Small ones
+are downloaded from your own mail server the same way (ahead of time,
+or with "Read shipping emails" when that setting is off); they stay
+unread. A carrier's tracking page opens in
 your browser only when you choose "Track", after asking.
 
 Trips are found the same way: booking emails (flights, hotels, trains,
 buses, rental cars, tables and tickets) are read on the device, with the
 booking details airlines and booking sites add for mail apps (read as
-data, never run). "Read booking emails" downloads small ones from your
-own mail server only when you tap it; they stay unread. "Add to
+data, never run). Small ones are downloaded from your own mail server
+the same way (ahead of time, or with "Read booking emails" when that
+setting is off); they stay unread. "Add to
 calendar" hands a calendar file to your own calendar app; "Manage
 booking" opens the booking's page only after asking.
+
+Your accounts are found the same way, from welcome, sign-in, password
+and security emails on the device; welcome emails whose preview says
+too little are downloaded the same way, and stay unread.
 
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail

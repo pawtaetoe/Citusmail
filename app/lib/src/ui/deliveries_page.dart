@@ -8,9 +8,11 @@ import 'package:mail_sort/mail_sort.dart';
 
 import '../mail/deliveries_model.dart';
 import '../mail/mail_controller.dart';
+import '../services/app_services.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
 import 'delivery_detail_page.dart';
+import 'read_ahead.dart';
 import 'returns_section.dart';
 
 /// Shipped orders found in shop and carrier mail: what is on the way and
@@ -27,7 +29,7 @@ final class DeliveriesPage extends StatefulWidget {
   State<DeliveriesPage> createState() => _DeliveriesPageState();
 }
 
-final class _DeliveriesPageState extends State<DeliveriesPage> {
+final class _DeliveriesPageState extends State<DeliveriesPage> with ReadsAhead {
   late final DeliveriesModel _model = DeliveriesModel(
     widget.controller.services,
     now: widget.now,
@@ -36,9 +38,15 @@ final class _DeliveriesPageState extends State<DeliveriesPage> {
   bool _showHidden = false;
 
   @override
+  AppServices get services => widget.controller.services;
+
+  @override
+  Future<void> reload() => _model.load();
+
+  @override
   void initState() {
     super.initState();
-    _model.load();
+    _model.load().then((_) => loadedWith(_model.toRead));
   }
 
   @override
@@ -137,10 +145,15 @@ final class _DeliveriesPageState extends State<DeliveriesPage> {
                       total: r.total,
                       onStop: _model.stopReading,
                     )
-                  else if (_model.toRead.isNotEmpty)
+                  else if (_model.toRead.isNotEmpty && !readsAhead)
                     _ReadOffer(
                       count: _model.toRead.length,
                       onRead: _model.readEmails,
+                    )
+                  else if (_model.toRead.isNotEmpty && readingAhead)
+                    ReadingQuietly(
+                      'Reading ${_model.toRead.length} shipping email'
+                      '${_model.toRead.length == 1 ? '' : 's'}…',
                     ),
                   if (onTheWay.isNotEmpty) ...[
                     const _SectionTitle('On the way'),

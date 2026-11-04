@@ -443,6 +443,20 @@ final class _SettingsPageState extends State<SettingsPage> {
             trailing: const Icon(Icons.chevron_right),
             onTap: _chooseKeepMail,
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.receipt_long_outlined),
+            title: const Text('Read receipts and bookings automatically'),
+            subtitle: const Text(
+              'Downloads receipts, bills and booking emails from your mail '
+              'server so Subscriptions, Deliveries and Trips fill in by '
+              'themselves. They stay unread.',
+            ),
+            value: settings.autoRead,
+            onChanged: (on) {
+              setState(() => settings.autoRead = on);
+              if (on) widget.services.autoRead.request();
+            },
+          ),
           const _Group('Security'),
           ..._lockSettings(),
           const _Group('Senders and devices'),

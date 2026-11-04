@@ -222,6 +222,57 @@ void main() {
     await shoot(tester, 'readme_subscription');
   });
 
+  // Reading receipts automatically: a quiet line while receipts not on
+  // the device yet are read, instead of the "Read receipts" card; the
+  // switch in Settings.
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    testWidgets('read ahead $name', (tester) async {
+      _seedSubscriptions(app.store);
+      final inbox = app.store.mailboxes.inbox(
+        app.store.accounts.all().single.id,
+      )!;
+      app.store.messages.upsertSummaries(inbox.id, [
+        for (final (i, company) in ['PhotoVault', 'NoteCloud'].indexed)
+          MessageSummary(
+            uid: 480 + i,
+            receivedAt: DateTime.now().toUtc().subtract(Duration(days: 3 + i)),
+            subject: 'Your receipt from $company',
+            from: MailAddress(
+              displayName: company,
+              localPart: 'billing',
+              domain: '${company.toLowerCase()}.example',
+            ),
+            snippet: 'Thanks for your payment.',
+          ),
+      ]);
+      await show(
+        tester,
+        SubscriptionsPage(controller: MailController(app.services)),
+        size: size,
+      );
+      // As in the app: reading starts a little after it opens.
+      app.services.autoRead.start(const Stream.empty());
+      await shoot(tester, '${name}_read_ahead');
+      app.services.autoRead.stop();
+    });
+  }
+
+  testWidgets('read ahead setting', (tester) async {
+    await show(
+      tester,
+      SettingsPage(services: app.services, isAndroid: true),
+      size: const Size(390, 844),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Read receipts and bookings automatically'),
+      300,
+    );
+    await shoot(tester, 'phone_read_ahead_setting');
+  });
+
   for (final (name, size) in [
     ('phone', const Size(390, 844)),
     ('desktop', const Size(1440, 900)),

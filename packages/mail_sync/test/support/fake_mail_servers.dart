@@ -52,6 +52,12 @@ final class FakeMailServers {
     'Drafts': [],
   };
 
+  /// IMAP commands received (without their tags), in order.
+  final imapCommands = <String>[];
+
+  /// Messages marked read on the server ("folder/uid").
+  final seen = <String>{};
+
   /// Recipient addresses the SMTP server refuses (550).
   final refuse = <String>{};
 
@@ -102,6 +108,7 @@ final class FakeMailServers {
     ({String line, int length})? literal;
 
     String reply(String tag, String line) {
+      imapCommands.add(line);
       final words = line.split(' ');
       var command = words.first.toUpperCase();
       if (command == 'UID') command = 'UID ${words[1].toUpperCase()}';
@@ -130,6 +137,18 @@ final class FakeMailServers {
           ];
           return '* SEARCH${found.map((n) => ' $n').join()}\r\n'
               '$tag OK done\r\n';
+        case 'UID FETCH':
+          // The whole message, as asked (UIDs are positions here).
+          final uid = int.parse(words[2]);
+          final messages = folders[selected] ?? const <Uint8List>[];
+          if (uid < 1 || uid > messages.length) return '$tag OK done\r\n';
+          final raw = latin1.decode(messages[uid - 1]);
+          // As a real server: BODY[] (not BODY.PEEK[]) marks it read.
+          final peek = line.contains('BODY.PEEK[');
+          if (!peek) seen.add('$selected/$uid');
+          final flags = peek ? '' : r' FLAGS (\Seen)';
+          return '* $uid FETCH (UID $uid$flags BODY[] {${raw.length}}\r\n'
+              '$raw)\r\n$tag OK done\r\n';
         case 'UID STORE' || 'UID EXPUNGE':
           return '$tag OK done\r\n';
         case 'LOGOUT':
