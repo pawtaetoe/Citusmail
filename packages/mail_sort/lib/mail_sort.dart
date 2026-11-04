@@ -15,6 +15,7 @@ export 'src/learned_classifier.dart';
 export 'src/list_id.dart';
 export 'src/reminders.dart';
 export 'src/resorter.dart';
+export 'src/returns.dart';
 export 'src/sender_cleanup.dart';
 export 'src/sender_patterns.dart';
 export 'src/sorting_rules.dart';

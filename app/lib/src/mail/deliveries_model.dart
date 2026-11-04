@@ -30,6 +30,10 @@ final class DeliveriesModel extends ChangeNotifier {
   static const _hiddenKey = 'deliveries.hidden';
   static const _deliveredKey = 'deliveries.delivered';
 
+  /// Return windows the user said were returned, or that they keep.
+  static const returnedKey = 'returns.returned';
+  static const keptKey = 'returns.kept';
+
   /// How far back shipping mail is looked at.
   static const lookBack = Duration(days: 365);
 
@@ -51,6 +55,14 @@ final class DeliveriesModel extends ChangeNotifier {
 
   /// Deliveries the user marked delivered (by key).
   Set<String> marked = const {};
+
+  /// Return windows stated in purchase mail (closed ones too), the
+  /// soonest deadline first.
+  List<ReturnWindow> returns = const [];
+
+  /// Return windows marked "Returned" and "Keeping it" (by key).
+  Set<String> returned = const {};
+  Set<String> kept = const {};
 
   /// Shipping emails not on the device yet, newest first.
   List<int> toRead = const [];
@@ -101,6 +113,28 @@ final class DeliveriesModel extends ChangeNotifier {
 
   static DateTime _arrivedAt(Delivery d) => d.deliveredAt ?? d.lastUpdate;
 
+  /// Orders that can still be returned and that the user has not marked
+  /// "Returned" or "Keeping it", the soonest deadline first.
+  List<ReturnWindow> get canStillReturn => [
+    for (final w in returns)
+      if (w.daysLeft(_now()) >= 0 &&
+          !returned.contains(w.key) &&
+          !kept.contains(w.key))
+        w,
+  ];
+
+  /// Open windows marked "Returned" or "Keeping it", to list again.
+  List<ReturnWindow> get doneReturns => [
+    for (final w in returns)
+      if (w.daysLeft(_now()) >= 0 &&
+          (returned.contains(w.key) || kept.contains(w.key)))
+        w,
+  ];
+
+  /// The return window of the delivery with [key], if its mail states one.
+  ReturnWindow? returnFor(String key) =>
+      returns.where((w) => w.deliveryKey == key).firstOrNull;
+
   Set<String> _readSet(String key) => {
     ...?_store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
   };
@@ -108,34 +142,16 @@ final class DeliveriesModel extends ChangeNotifier {
   Future<void> load() async {
     hidden = _readSet(_hiddenKey);
     marked = _readSet(_deliveredKey);
-    final candidates = _store.messages.withSubjectWords(
-      DeliveryFinder.subjectWords,
-      since: _now().subtract(lookBack),
-    );
-    // Message text and markup off the UI thread.
-    final read = await compute(_read, [
-      for (final m in candidates) (_store.messages.body(m.id), m.snippet),
-    ]);
-    final emails = <DeliveryEmail>[
-      for (final (i, m) in candidates.indexed)
-        if (m.from case final from?)
-          DeliveryEmail(
-            messageId: m.id,
-            shop: Domains.registrable(from.domain) ?? from.domain.toLowerCase(),
-            senderName: from.displayName,
-            subject: m.subject ?? '',
-            text: read[i].text,
-            at: m.receivedAt,
-            parcels: read[i].parcels,
-            orders: read[i].orders,
-            bulk: m.category == MessageCategory.newsletters,
-          ),
-    ];
+    returned = _readSet(returnedKey);
+    kept = _readSet(keptKey);
+    final mail = await loadDeliveryMail(_store, _now());
+    final candidates = mail.messages;
     final all = DeliveryFinder.find(
-      emails,
+      mail.shipping,
       now: _now(),
       markedDelivered: marked,
     );
+    returns = ReturnWindows.find(mail.emails, deliveries: all);
     deliveries = [
       for (final d in all)
         if (!hidden.contains(d.key)) d,
@@ -152,7 +168,9 @@ final class DeliveriesModel extends ChangeNotifier {
         for (final r in d.records) r.email.messageId: d,
     };
     bool worthReading(StoredMessage m) => switch (known[m.id]) {
-      null => DeliveryFinder.looksLikeShipping(m.subject ?? ''),
+      null =>
+        DeliveryFinder.looksLikeShipping(m.subject ?? '') ||
+            ReturnWindows.looksLikeReceipt(m.subject ?? ''),
       final d =>
         !hidden.contains(d.key) &&
             !d.arrived &&
@@ -206,12 +224,92 @@ final class DeliveriesModel extends ChangeNotifier {
   void unmarkDelivered(String key) =>
       _write(_deliveredKey, {...marked}..remove(key));
 
+  /// "Returned" and "Keeping it": no longer listed under "Can still be
+  /// returned" (undoable).
+  void markReturned(String key) => _write(returnedKey, {...returned, key});
+
+  void markKept(String key) => _write(keptKey, {...kept, key});
+
+  /// Listed again as one that can still be returned.
+  void unmarkReturn(String key) {
+    _store.settings.write(returnedKey, ({...returned}..remove(key)).join(','));
+    _write(keptKey, {...kept}..remove(key));
+  }
+
   void _write(String settingsKey, Set<String> keys) {
     _store.settings.write(settingsKey, keys.join(','));
     unawaited(load());
   }
 
   StoredMessage? message(int id) => _store.messages.byId(id);
+}
+
+/// Shop and carrier mail on the device: [messages], read as [emails];
+/// [shipping] are those with shipping words in their subject (for
+/// [DeliveryFinder.find]), the others receipts and invoices (for
+/// [ReturnWindows.find] with them).
+typedef DeliveryMail = ({
+  List<StoredMessage> messages,
+  List<DeliveryEmail> emails,
+  List<DeliveryEmail> shipping,
+});
+
+/// Loads the last year's shop and carrier mail from [store], reading
+/// text and markup off the UI thread.
+Future<DeliveryMail> loadDeliveryMail(MailStore store, DateTime now) async {
+  final candidates = store.messages.withSubjectWords([
+    ...DeliveryFinder.subjectWords,
+    ...ReturnWindows.subjectWords,
+  ], since: now.subtract(DeliveriesModel.lookBack));
+  final read = await compute(_read, [
+    for (final m in candidates) (store.messages.body(m.id), m.snippet),
+  ]);
+  final emails = <DeliveryEmail>[];
+  final shipping = <DeliveryEmail>[];
+  for (final (i, m) in candidates.indexed) {
+    final from = m.from;
+    if (from == null) continue;
+    final email = DeliveryEmail(
+      messageId: m.id,
+      shop: Domains.registrable(from.domain) ?? from.domain.toLowerCase(),
+      senderName: from.displayName,
+      subject: m.subject ?? '',
+      text: read[i].text,
+      at: m.receivedAt,
+      parcels: read[i].parcels,
+      orders: read[i].orders,
+      bulk: m.category == MessageCategory.newsletters,
+    );
+    emails.add(email);
+    final subject = email.subject.toLowerCase();
+    if (DeliveryFinder.subjectWords.any(subject.contains)) shipping.add(email);
+  }
+  return (messages: candidates, emails: emails, shipping: shipping);
+}
+
+/// The return windows still open that the user has not marked "Returned"
+/// or "Keeping it", the soonest first (for reminders).
+Future<List<ReturnWindow>> openReturnWindows(
+  MailStore store,
+  DateTime now,
+) async {
+  Set<String> read(String key) => {
+    ...?store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
+  };
+  final done = {
+    ...read(DeliveriesModel.returnedKey),
+    ...read(DeliveriesModel.keptKey),
+  };
+  final mail = await loadDeliveryMail(store, now);
+  final deliveries = DeliveryFinder.find(
+    mail.shipping,
+    now: now,
+    markedDelivered: read(DeliveriesModel._deliveredKey),
+  );
+  return [
+    for (final w in ReturnWindows.find(mail.emails, deliveries: deliveries))
+      if (w.daysLeft(now) >= 0 && !done.contains(w.key)) w,
+  ];
 }
 
 typedef _Read = ({

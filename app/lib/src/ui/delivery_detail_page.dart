@@ -13,6 +13,7 @@ import 'avatar.dart';
 import 'deliveries_page.dart' show DeliveryText;
 import 'link_opener.dart';
 import 'reader_pane.dart';
+import 'returns_section.dart' show ReturnText;
 
 /// What the user chose on a delivery's page; the list carries it out and
 /// offers Undo.
@@ -27,11 +28,19 @@ final class DeliveryDetailPage extends StatelessWidget {
     required this.delivery,
     required this.controller,
     required this.messageById,
+    this.returnWindow,
+    this.now,
   });
 
   final Delivery delivery;
   final MailController controller;
   final StoredMessage? Function(int id) messageById;
+
+  /// Its return window, when its mail states one.
+  final ReturnWindow? returnWindow;
+
+  /// Today (tests).
+  final DateTime Function()? now;
 
   Future<void> _openEmail(BuildContext context, int messageId) async {
     final message = messageById(messageId);
@@ -153,6 +162,13 @@ final class DeliveryDetailPage extends StatelessWidget {
                         if (d.orderNumber case final o?)
                           _Fact(label: 'Order', value: o),
                         _Fact(label: 'From', value: d.shop),
+                        if (returnWindow case final w?)
+                          _Fact(
+                            label: 'Returns',
+                            value:
+                                '${ReturnText.deadline(w, (now ?? DateTime.now)())}'
+                                '\n${ReturnText.basis(w)}',
+                          ),
                         if (url != null) ...[
                           const SizedBox(height: 14),
                           Align(

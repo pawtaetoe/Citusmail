@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'due_dates.dart';
+import 'returns.dart' show ReturnWindows;
 import 'subscriptions.dart';
 
 /// What a reminder is about.
@@ -15,6 +16,9 @@ enum ReminderKind {
 
   /// A subscription that charges again.
   renewal,
+
+  /// The last day to return an order (see [ReturnWindows]).
+  returnBy,
 }
 
 /// Something coming up that the mail speaks of: a bill due, a free trial

@@ -296,9 +296,10 @@ final class _SettingsPageState extends State<SettingsPage> {
           SwitchListTile(
             title: const Text('Bill and trial reminders'),
             subtitle: const Text(
-              'A few days before a bill is due, a free trial starts charging or '
-              'a yearly subscription renews, found in your mail on this device. '
-              'Also listed under Subscriptions.',
+              'A few days before a bill is due, a free trial starts charging, '
+              'a yearly subscription renews or a return window closes, found '
+              'in your mail on this device. Also listed under Subscriptions '
+              'and Deliveries.',
             ),
             value: settings.notifications && settings.reminders,
             onChanged: settings.notifications
