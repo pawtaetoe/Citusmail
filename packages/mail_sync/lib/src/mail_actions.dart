@@ -58,6 +58,12 @@ final class MailActions {
   /// can be undone (zero: at the next sync).
   final Duration undoWindow;
 
+  /// The account's Archive folder, if it has one. On Gmail, archiving
+  /// means moving to All Mail (the message leaves the inbox, nothing else).
+  static StoredMailbox? archiveFolder(MailStore store, int accountId) =>
+      store.mailboxes.bySpecialUse(accountId, SpecialUse.archive) ??
+      store.mailboxes.bySpecialUse(accountId, SpecialUse.all);
+
   FlagReceipt markRead(List<StoredMessage> messages, {bool read = true}) =>
       _setFlag(messages, r'\Seen', MessageFlags.seenBit, on: read);
 

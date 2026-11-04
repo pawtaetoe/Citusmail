@@ -645,8 +645,7 @@ final class MailController {
   StoredMailbox? archiveFor(StoredMessage m) => _archiveFolder(m.accountId);
 
   StoredMailbox? _archiveFolder(int accountId) =>
-      _store.mailboxes.bySpecialUse(accountId, SpecialUse.archive) ??
-      _store.mailboxes.bySpecialUse(accountId, SpecialUse.all);
+      MailActions.archiveFolder(_store, accountId);
 
   bool isInTrash(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
