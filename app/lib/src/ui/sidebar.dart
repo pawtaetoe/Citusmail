@@ -10,6 +10,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
+import 'attachments_page.dart';
 import 'citusmail_theme.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
@@ -208,6 +209,20 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     SubscriptionsPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.attach_file,
+                          label: 'Attachments',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    AttachmentsPage(controller: controller),
                               ),
                             );
                           },

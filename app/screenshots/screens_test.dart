@@ -15,6 +15,7 @@ import 'dart:ui' as ui;
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
+import 'package:citusmail/src/ui/attachments_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
@@ -27,6 +28,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../test/support/sample_files.dart';
 import '../test/support/test_app.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
@@ -203,6 +205,25 @@ void main() {
     await tester.tap(find.text('StreamFlix').last);
     await shoot(tester, 'readme_subscription');
   });
+
+  for (final (name, size, dark) in [
+    ('phone', const Size(390, 844), false),
+    ('phone_dark', const Size(390, 844), true),
+    ('desktop', const Size(1440, 900), false),
+  ]) {
+    testWidgets('attachments $name', (tester) async {
+      app.seedFiles();
+      await show(
+        tester,
+        AttachmentsPage(controller: MailController(app.services)),
+        size: size,
+        dark: dark,
+      );
+      await shoot(tester, '${name}_attachments');
+      await tester.tap(find.text('Beach.png'));
+      await shoot(tester, '${name}_attachment_email');
+    });
+  }
 
   testWidgets('settings', (tester) async {
     await show(
