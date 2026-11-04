@@ -18,6 +18,7 @@ import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/deliveries_page.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:flutter/material.dart';
@@ -227,6 +228,53 @@ void main() {
     }
   }
 
+  testWidgets('subscriptions coming up', (tester) async {
+    _seedSubscriptions(app.store);
+    _seedReminders(app.store);
+    for (final (name, size, dark) in [
+      ('phone_coming_up', const Size(390, 844), false),
+      ('phone_coming_up_dark', const Size(390, 844), true),
+      ('desktop_coming_up', const Size(1440, 900), false),
+    ]) {
+      await show(
+        tester,
+        SubscriptionsPage(
+          key: ValueKey(name),
+          controller: MailController(app.services),
+        ),
+        size: size,
+        dark: dark,
+      );
+      await shoot(tester, name);
+    }
+  });
+
+  testWidgets('clean up', (tester) async {
+    _seedSenders(app.store);
+    await show(
+      tester,
+      SenderCleanupPage(controller: MailController(app.services)),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'phone_clean_up');
+    await tester.tap(find.text('ShopMart Deals'));
+    await tester.tap(find.text('Daily Digest'));
+    await shoot(tester, 'phone_clean_up_selected');
+    await show(
+      tester,
+      SenderCleanupPage(controller: MailController(app.services)),
+      size: const Size(1440, 900),
+      dark: true,
+    );
+    await shoot(tester, 'desktop_clean_up_selected_dark');
+    await tester.tap(find.byTooltip('Cancel selection'));
+    await tester.tap(find.text('Most mail'));
+    await settle(tester);
+    await tester.tap(find.text('Least opened').last);
+    await settle(tester);
+    await shoot(tester, 'desktop_clean_up_dark');
+  });
+
   testWidgets('settings', (tester) async {
     await show(
       tester,
@@ -258,6 +306,44 @@ void main() {
     await tester.tap(find.byTooltip('New message (C)'));
     await shoot(tester, 'desktop_compose');
   });
+}
+
+/// Made-up bulk mail for the Clean up screen: per sender, how many in
+/// the last weeks and how many of them were read.
+void _seedSenders(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 600;
+  final senders = [
+    ('deals', 'shopmart.example', 'ShopMart Deals', 64, 2, true, false),
+    ('digest', 'dailydigest.example', 'Daily Digest', 45, 3, true, false),
+    ('no-reply', 'cloudco.example', 'CloudCo', 30, 21, false, true),
+    ('notifications', 'cloudco.example', 'CloudCo', 12, 9, true, true),
+    ('hello', 'fitapp.example', 'FitApp', 18, 0, true, false),
+    ('news', 'citylibrary.example', 'City Library', 9, 8, true, false),
+    ('offers', 'airline.example', 'SkyAir Offers', 3, 0, true, false),
+  ];
+  store.messages.upsertSummaries(inbox.id, [
+    for (final (local, domain, name, count, read, unsub, notify) in senders)
+      for (var i = 0; i < count; i++)
+        MessageSummary(
+          uid: uid++,
+          receivedAt: now.subtract(Duration(hours: 6 + i * 30)),
+          subject: '$name update ${i + 1}',
+          from: MailAddress(
+            localPart: local,
+            domain: domain,
+            displayName: name,
+          ),
+          category: notify
+              ? MessageCategory.notifications
+              : MessageCategory.newsletters,
+          flags: MessageFlags.fromImap([if (i < read) r'\Seen']),
+          headers: {
+            if (unsub) 'list-unsubscribe': ['<https://$domain/unsubscribe>'],
+          },
+        ),
+  ]);
 }
 
 /// Made-up receipts for the Subscriptions screen.
@@ -325,6 +411,52 @@ void _seedSubscriptions(MailStore store) {
       'Your membership has been cancelled',
       140,
       '',
+    ),
+  ]);
+}
+
+/// Made-up bills and a free trial for "Coming up".
+void _seedReminders(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now();
+  String date(DateTime d) => '${d.day}/${d.month}/${d.year}';
+  var uid = 450;
+  MessageSummary mail(
+    String domain,
+    String name,
+    String subject,
+    int daysAgo,
+    String snippet,
+  ) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.subtract(Duration(days: daysAgo)).toUtc(),
+    subject: subject,
+    from: MailAddress(localPart: 'billing', domain: domain, displayName: name),
+    snippet: snippet,
+  );
+  store.messages.upsertSummaries(inbox.id, [
+    mail(
+      'myrepublic.example',
+      'MyRepublic',
+      'Your MyRepublic e-Bill is ready!',
+      4,
+      'The outstanding amount for your account is: \$32.99. Please pay your '
+          'bill within 7 days of receiving this email.',
+    ),
+    mail(
+      'citypower.example',
+      'City Power',
+      'Your electricity bill for this month',
+      3,
+      'Total amount due: S\$84.20. Due date: '
+          '${date(now.add(const Duration(days: 9)))}',
+    ),
+    mail(
+      'pandapro.example',
+      'foodpanda',
+      'Your pandapro free trial is ending',
+      1,
+      'Your free trial ends in 2 days, then S\$59.88/year.',
     ),
   ]);
 }

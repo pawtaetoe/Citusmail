@@ -10,6 +10,8 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../app.dart' show appName;
+import '../security/app_lock.dart';
+import 'reminders.dart';
 
 /// Shows new-mail notifications through the system: the sender and the
 /// subject, never the text. On Android the lock screen shows only that
@@ -111,6 +113,66 @@ final class MailNotifier {
       );
     }
   }
+
+  /// Posts reminders (a bill due, a free trial ending, a renewal) on a
+  /// channel of their own, apart from new mail; tapping one opens its
+  /// email. With [hideContent] (the app lock is on), only that there are
+  /// reminders.
+  Future<void> showReminders(
+    List<ReminderNotice> notices, {
+    bool hideContent = false,
+  }) async {
+    if (notices.isEmpty) return;
+    if (hideContent) {
+      await _plugin.show(
+        id: _reminderSummaryId,
+        title: notices.length == 1
+            ? 'A reminder'
+            : '${notices.length} reminders',
+        body: 'Unlock $_appName to see ${notices.length == 1 ? 'it' : 'them'}.',
+        notificationDetails: _reminderDetails,
+      );
+      return;
+    }
+    for (final n in notices) {
+      await _plugin.show(
+        id: n.id,
+        title: n.title,
+        body: n.text,
+        notificationDetails: _reminderDetails,
+        payload: 'message:${n.reminder.messageId}',
+      );
+    }
+  }
+
+  static const _reminderSummaryId = 0x2FFFFFFF;
+
+  /// Checks for reminders to post after a sync ([ReminderCheck] decides
+  /// whether it is time), honouring the app lock.
+  Future<void> remind(MailStore store) async {
+    try {
+      await ReminderCheck.run(
+        store,
+        (notices) =>
+            showReminders(notices, hideContent: AppLock.isEnabledIn(store)),
+      );
+    } on Object catch (e) {
+      debugPrint('reminders: ${e.runtimeType}');
+    }
+  }
+
+  static const _reminderDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'reminders',
+      'Bill and trial reminders',
+      channelDescription:
+          'Bills due, free trials ending and subscriptions renewing',
+      category: AndroidNotificationCategory.reminder,
+      // The lock screen shows only that there is a notification.
+      visibility: NotificationVisibility.private,
+      groupKey: 'reminders',
+    ),
+  );
 
   static NotificationDetails _details(Account account) => NotificationDetails(
     android: AndroidNotificationDetails(

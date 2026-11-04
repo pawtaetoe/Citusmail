@@ -14,11 +14,25 @@ final class AppSettings {
 
   static const _notifications = 'app.notifications';
   static const _instantMail = 'app.instantMail';
+  static const _reminders = 'reminders.on';
+  static const _monthlyRenewals = 'reminders.monthly';
 
   /// New-mail notifications (on by default).
   bool get notifications => _store.settings.read(_notifications) != 'off';
   set notifications(bool on) =>
       _store.settings.write(_notifications, on ? 'on' : 'off');
+
+  /// Notifications before a bill is due, a free trial ends or a yearly
+  /// subscription renews (on by default; only with [notifications]).
+  bool get reminders => _store.settings.read(_reminders) != 'off';
+  set reminders(bool on) =>
+      _store.settings.write(_reminders, on ? 'on' : 'off');
+
+  /// Monthly (and weekly) renewals are reminded of too (off by default:
+  /// they come every month).
+  bool get monthlyRenewals => _store.settings.read(_monthlyRenewals) == 'on';
+  set monthlyRenewals(bool on) =>
+      _store.settings.write(_monthlyRenewals, on ? 'on' : 'off');
 
   /// Android: keep a live connection for instant mail (off by default; it
   /// needs a permanent notification).

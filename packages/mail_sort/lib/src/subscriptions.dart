@@ -340,6 +340,9 @@ abstract final class SubscriptionFinder {
 
   /// Whether [email] itself is about a subscription: its wording, or a
   /// billing period.
+  static bool speaksOfSubscription(SubscriptionEmail email) =>
+      _speaksOfSubscription(email);
+
   static bool _speaksOfSubscription(SubscriptionEmail email) =>
       _subscriptionWords.hasMatch(email.subject) ||
       _subscriptionWords.hasMatch(email.text) ||
@@ -352,6 +355,12 @@ abstract final class SubscriptionFinder {
     r'(?:bank|card|portfolio|securities|monthly|annual) statement)\b',
     caseSensitive: false,
   );
+
+  /// An account statement (bank, card, brokerage, CDP), not a bill: its
+  /// [subject] says statement and not bill or invoice.
+  static bool isAccountStatement(String subject) =>
+      _accountStatement.hasMatch(subject) &&
+      !RegExp(r'\b(?:bill|invoice)', caseSensitive: false).hasMatch(subject);
 
   /// A reminder before a renewal or an expiry.
   static final _reminderWords = RegExp(
@@ -378,13 +387,7 @@ abstract final class SubscriptionFinder {
         !_chargeWords.hasMatch(subject)) {
       return SubscriptionEvent.notice;
     }
-    if (_accountStatement.hasMatch(subject) &&
-        !RegExp(
-          r'\b(?:bill|invoice)',
-          caseSensitive: false,
-        ).hasMatch(subject)) {
-      return SubscriptionEvent.notice;
-    }
+    if (isAccountStatement(subject)) return SubscriptionEvent.notice;
     if (_cancelWords.hasMatch(subject)) {
       // "Your order was cancelled" is about an order.
       return _orderWords.hasMatch(subject) &&
@@ -451,10 +454,11 @@ abstract final class SubscriptionFinder {
     '|$_number\\s?(${_codes.join('|')}(?![A-Za-z])|€|£))',
   );
 
-  /// Words right before the amount actually paid.
+  /// Words right before the amount actually paid (or to pay, on a bill).
   static final _paidWords = RegExp(
     r'\b(?:amount (?:paid|charged)|you paid|total paid|total charged|'
-    r'grand total|total due|amount due)\W*$',
+    r'grand total|total (?:amount )?due|amount due|amount payable|'
+    r'outstanding (?:amount|balance)\b[^\n]{0,40}?)\W*$',
     caseSensitive: false,
   );
 
@@ -500,6 +504,17 @@ abstract final class SubscriptionFinder {
       }
     }
     return total ?? first;
+  }
+
+  /// Every amount in [text], with where it is.
+  static Iterable<({Money money, int start, int end})> amountsIn(
+    String text,
+  ) sync* {
+    for (final m in _amount.allMatches(text)) {
+      if (_money(m) case final money?) {
+        yield (money: money, start: m.start, end: m.end);
+      }
+    }
   }
 
   static Money? _money(RegExpMatch m) {

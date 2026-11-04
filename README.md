@@ -34,6 +34,9 @@ your device** and lists every subscription it finds:
   and when the **price went up**;
 - **cancelled and lapsed** ones kept apart, so you can see what you
   stopped paying for.
+- **coming up**: bills due (read from the bill: "due by 15 Nov", "pay
+  within 7 days"), free trials about to start charging, and yearly
+  renewals, with a reminder notification a few days before.
 
 Nothing leaves your device; receipts you haven't opened are only
 downloaded (from your own mail server, and they stay unread) when you
@@ -101,6 +104,12 @@ are at the bottom of the screen, within reach of one thumb.
   items, carrier, tracking number and latest status, what's on the way
   first with its expected date; "Track" opens the carrier's page after
   asking.
+- **Bill and trial reminders**: a notification a few days before a bill
+  is due, a free trial starts charging or a yearly subscription renews,
+  found in your mail on the device; mark one "Done" and it stays quiet.
+- **Clean up**: the senders who fill your inbox and the ones you rarely
+  open, worked out on your device (not on someone's server), with
+  unsubscribe, archive or delete everything from them, block, or keep.
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.
