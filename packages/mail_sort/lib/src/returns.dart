@@ -241,6 +241,19 @@ abstract final class ReturnWindows {
     r'ship\w*|deliver\w*|dispatch\w*|tax invoice)\b',
   );
 
+  /// Receipts and order confirmations by their subject, worth
+  /// downloading for the return policy in their text.
+  static final _receiptSubject = _re(
+    r'\b(?:e-?receipt|your receipt|receipt (?:from|for)|'
+    r'order confirm\w*|order (?:is |has been )?(?:confirmed|placed|received)|'
+    r'thank(?:s| you) for (?:your )?(?:order|purchase|shopping))\b',
+  );
+
+  /// Whether [subject] reads like a receipt or an order confirmation.
+  static bool looksLikeReceipt(String subject) =>
+      !SubscriptionFinder.isReplyOrForward(subject) &&
+      _receiptSubject.hasMatch(subject);
+
   static int? _number(String word) =>
       int.tryParse(word) ?? _numberWords[word.toLowerCase()];
 

@@ -174,6 +174,24 @@ void main() {
     });
   });
 
+  test('receipts worth reading', () {
+    expect(ReturnWindows.looksLikeReceipt('Your UNIQLO e-receipt'), isTrue);
+    expect(ReturnWindows.looksLikeReceipt('Your receipt from Apple'), isTrue);
+    expect(
+      ReturnWindows.looksLikeReceipt('Order Confirmed: 241020XYZ7788'),
+      isTrue,
+    );
+    expect(
+      ReturnWindows.looksLikeReceipt('Thank you for shopping with us'),
+      isTrue,
+    );
+    expect(
+      ReturnWindows.looksLikeReceipt('Your FedEx invoice is ready'),
+      isFalse,
+    );
+    expect(ReturnWindows.looksLikeReceipt('Re: your receipt'), isFalse);
+  });
+
   group('shops', () {
     test('Amazon: "eligible through" a date, on the delivery', () {
       final w = find([
