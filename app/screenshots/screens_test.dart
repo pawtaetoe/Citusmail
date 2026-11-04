@@ -24,6 +24,7 @@ import 'package:citusmail/src/ui/privacy_report_page.dart';
 import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
+import 'package:citusmail/src/ui/trips_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -36,6 +37,7 @@ import '../test/support/delivery_mail.dart';
 import '../test/support/privacy_mail.dart';
 import '../test/support/sample_files.dart';
 import '../test/support/test_app.dart';
+import '../test/support/trip_mail.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
 Future<void> _loadFonts() async {
@@ -229,6 +231,27 @@ void main() {
         await shoot(tester, '${name}_deliveries$suffix');
         await tester.tap(find.text('Amazon.sg'));
         await shoot(tester, '${name}_delivery$suffix');
+      });
+    }
+  }
+
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    for (final dark in [false, true]) {
+      testWidgets('trips $name${dark ? ' dark' : ''}', (tester) async {
+        seedTrips(app.store, now: DateTime.now().toUtc());
+        await show(
+          tester,
+          TripsPage(controller: MailController(app.services)),
+          size: size,
+          dark: dark,
+        );
+        final suffix = dark ? '_dark' : '';
+        await shoot(tester, '${name}_trips$suffix');
+        await tester.tap(find.text('Flight to Tokyo'));
+        await shoot(tester, '${name}_booking$suffix');
       });
     }
   }

@@ -20,6 +20,7 @@ import 'privacy_report_page.dart';
 import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
+import 'trips_page.dart';
 
 /// The dark navigation column: inboxes, pins, folders and accounts. It
 /// rebuilds only when counts, the place shown or sync status change.
@@ -244,6 +245,20 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     DeliveriesPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.luggage_outlined,
+                          label: 'Trips',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    TripsPage(controller: controller),
                               ),
                             );
                           },
