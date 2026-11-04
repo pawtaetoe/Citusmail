@@ -2,10 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import 'support/test_app.dart';
@@ -292,5 +294,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(KeepMail.read(app.store), KeepMail.everything);
     expect(find.textContaining('Everything.'), findsOneWidget);
+  });
+
+  testWidgets('Advanced: learning on by default; forget after asking', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final corrections = Corrections(app.store);
+    corrections.rejected(MailKind.subscription, [
+      const MailSample(subject: 'Re: [acme/web] Billing (#1)', text: 'Hi'),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(home: AdvancedSettingsPage(services: app.services)),
+    );
+    expect(app.services.settings.learnFromCorrections, isTrue);
+    await tester.tap(find.text('Learn from my corrections'));
+    await tester.pump();
+    expect(app.services.settings.learnFromCorrections, isFalse);
+    await tester.tap(find.text('Learn from my corrections'));
+    await tester.pump();
+    expect(app.services.settings.learnFromCorrections, isTrue);
+
+    await tester.tap(find.text('Forget what it learned'));
+    await tester.pumpAndSettle();
+    expect(find.text('Forget what it learned?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(corrections.learnedAnything, isTrue);
+
+    await tester.tap(find.text('Forget what it learned'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Forget'));
+    await tester.pumpAndSettle();
+    expect(corrections.learnedAnything, isFalse);
+    expect(find.text('Forgot what it learned'), findsOneWidget);
+    expect(
+      tester
+          .widget<ListTile>(
+            find.widgetWithText(ListTile, 'Forget what it learned'),
+          )
+          .enabled,
+      isFalse,
+    );
   });
 }

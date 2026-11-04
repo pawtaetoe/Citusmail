@@ -13,6 +13,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:citusmail/src/compose/compose_page.dart';
+import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/mail/send_later_times.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
@@ -35,6 +36,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
@@ -672,6 +674,98 @@ void main() {
     );
     await shoot(tester, 'phone_follow_ups_list_dark');
   });
+
+  // Learn from my corrections: GitHub notifications marked "Not a
+  // subscription", and one like them from Codeberg left out; the
+  // settings under Advanced.
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    testWidgets('learning $name', (tester) async {
+      _seedSubscriptions(app.store);
+      _seedLearning(app.store);
+      await show(
+        tester,
+        SubscriptionsPage(controller: MailController(app.services)),
+        size: size,
+      );
+      await tester.scrollUntilVisible(
+        find.textContaining('marked "not a subscription"'),
+        300,
+      );
+      await tester.tap(find.textContaining('marked "not a subscription"'));
+      await settle(tester);
+      await tester.scrollUntilVisible(find.text('Jonas W'), 300);
+      await shoot(tester, '${name}_learning_hidden');
+      await show(
+        tester,
+        AdvancedSettingsPage(services: app.services),
+        size: size,
+      );
+      await shoot(tester, '${name}_learning_settings');
+    });
+  }
+}
+
+/// Notifications about billing code: GitHub's marked "Not a
+/// subscription" (and learned from), and one like them from Codeberg.
+void _seedLearning(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  const footer =
+      '\n\nReply to this email directly, view it on GitHub, or '
+      'unsubscribe. You are receiving this because you were mentioned.';
+  final notifications = [
+    (
+      'github.com',
+      'Mei Chen',
+      '[acme/payments] Invoice PDF is missing the tax line (#311)',
+      'The invoice PDF generated for annual subscriptions drops the GST '
+          'line.$footer',
+    ),
+    (
+      'github.com',
+      'Rahul K',
+      '[acme/payments] Receipt emails sent twice after renewal (#318)',
+      'After a subscription renewal the receipt job runs twice.$footer',
+    ),
+    (
+      'codeberg.org',
+      'Jonas W',
+      '[acme/infra] Invoice export job times out (#57)',
+      'The nightly invoice export for subscriptions times out after 30 '
+          'minutes.\n\nReply to this email directly or view it on '
+          'Codeberg. You are receiving this because you were mentioned.',
+    ),
+  ];
+  store.messages.upsertSummaries(inbox.id, [
+    for (final (i, (domain, name, subject, text)) in notifications.indexed)
+      MessageSummary(
+        uid: 700 + i,
+        receivedAt: now.subtract(Duration(days: 6 + 9 * i)),
+        subject: subject,
+        from: MailAddress(
+          displayName: name,
+          localPart: 'notifications',
+          domain: domain,
+        ),
+        snippet: text,
+        flags: MessageFlags.fromImap([r'\Seen']),
+      ),
+  ]);
+  store.settings.write('subscriptions.hidden', 'github.com');
+  Corrections(store).rejected(MailKind.subscription, [
+    for (final (domain, name, subject, text) in notifications)
+      if (domain == 'github.com')
+        MailSample(
+          address: 'notifications@$domain',
+          domain: domain,
+          senderName: name,
+          subject: subject,
+          text: text,
+        ),
+  ]);
 }
 
 /// Four emails Alex sent: two came back with "No reply yet", two are
