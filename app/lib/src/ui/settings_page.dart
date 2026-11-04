@@ -228,6 +228,26 @@ final class _SettingsPageState extends State<SettingsPage> {
             value: settings.notifications,
             onChanged: (on) => setState(() => settings.notifications = on),
           ),
+          SwitchListTile(
+            title: const Text('Bill and trial reminders'),
+            subtitle: const Text(
+              'A few days before a bill is due, a free trial starts charging or '
+              'a yearly subscription renews, found in your mail on this device. '
+              'Also listed under Subscriptions.',
+            ),
+            value: settings.notifications && settings.reminders,
+            onChanged: settings.notifications
+                ? (on) => setState(() => settings.reminders = on)
+                : null,
+          ),
+          SwitchListTile(
+            title: const Text('Also remind me of monthly renewals'),
+            subtitle: const Text(
+              'Subscriptions you pay every month, not just yearly ones.',
+            ),
+            value: settings.monthlyRenewals,
+            onChanged: (on) => setState(() => settings.monthlyRenewals = on),
+          ),
           if (_android) ...[
             SwitchListTile(
               title: const Text('Instant mail'),

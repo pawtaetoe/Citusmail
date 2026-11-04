@@ -73,6 +73,7 @@ abstract final class BackgroundMail {
           hideContent: AppLock.isEnabledIn(store),
         );
       }
+      await notifier?.remind(store);
       return allOk;
     } finally {
       await engine.dispose();
@@ -109,6 +110,7 @@ abstract final class BackgroundMail {
             hideContent: AppLock.isEnabledIn(store),
           ),
         );
+        unawaited(notifier?.remind(store));
       }
     });
     engine.start();
