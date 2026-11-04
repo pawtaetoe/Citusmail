@@ -14,6 +14,108 @@ import 'package:mail_view/mail_view.dart';
 import '../services/app_services.dart';
 import 'corrections.dart';
 
+/// What [findTrips] found: every booking the rules found ([hidden] and
+/// [learned] ones too, by key), and the emails worth downloading
+/// ([toRead]).
+typedef TripsFound = ({
+  List<Booking> all,
+  Set<String> hidden,
+  Set<String> learned,
+  List<int> toRead,
+});
+
+/// The Trips page's findings in [store], reading text and markup off the
+/// UI thread. The page and reading in the background both use it, so
+/// both want the same emails. [toRead] leaves out [skip].
+Future<TripsFound> findTrips(
+  MailStore store,
+  DateTime now, {
+  Set<int> skip = const {},
+}) async {
+  final hidden = {
+    ...?store.settings
+        .read(TripsModel.hiddenKey)
+        ?.split(',')
+        .where((s) => s.isNotEmpty),
+  };
+  final candidates = store.messages.withSubjectWords(
+    TripFinder.subjectWords,
+    since: now.subtract(TripsModel.lookBack),
+  );
+  // Message text and markup off the UI thread.
+  final read = await compute(_read, [
+    for (final m in candidates) (store.messages.body(m.id), m.snippet),
+  ]);
+  final emails = <TripEmail>[
+    for (final (i, m) in candidates.indexed)
+      if (m.from case final from?)
+        TripEmail(
+          messageId: m.id,
+          sender: Domains.registrable(from.domain) ?? from.domain.toLowerCase(),
+          senderName: from.displayName,
+          subject: m.subject ?? '',
+          text: read[i].text,
+          at: m.receivedAt,
+          reservations: read[i].reservations,
+          bulk: m.category == MessageCategory.newsletters,
+        ),
+  ];
+  final all = TripFinder.bookings(emails);
+  final messages = {for (final m in candidates) m.id: m};
+  final learned = await Corrections(store).vetoed(MailKind.booking, {
+    for (final b in all)
+      if (!hidden.contains(b.key))
+        b.key: bookingSamples(b, (id) => messages[id]),
+  });
+  return (
+    all: all,
+    hidden: hidden,
+    learned: learned,
+    toRead: bookingMailToRead(store, candidates, all, skip: skip),
+  );
+}
+
+/// Booking mail of [candidates] not understood yet ([all] are the
+/// bookings found) and not on the device: its body may say more than its
+/// preview. Small ones only, newsletters aside, at most
+/// [TripsModel.readMax]; [skip] left out.
+List<int> bookingMailToRead(
+  MailStore store,
+  List<StoredMessage> candidates,
+  List<Booking> all, {
+  Set<int> skip = const {},
+}) {
+  final known = {
+    for (final b in all)
+      for (final r in b.records) r.email.messageId,
+  };
+  return [
+    for (final m in candidates)
+      if (m.size <= TripsModel.maxBytes &&
+          m.category != MessageCategory.newsletters &&
+          !known.contains(m.id) &&
+          !skip.contains(m.id) &&
+          store.messages.body(m.id) == null &&
+          TripFinder.looksLikeBooking(m.subject ?? ''))
+        m.id,
+  ].take(TripsModel.readMax).toList();
+}
+
+/// What the classifier reads of [booking]'s emails.
+List<MailSample> bookingSamples(
+  Booking booking,
+  StoredMessage? Function(int id) message,
+) => [
+  for (final r in booking.records)
+    mailSample(
+      message(r.email.messageId),
+      domain: r.email.sender,
+      senderName: r.email.senderName,
+      subject: r.email.subject,
+      text: r.email.text,
+    ),
+];
+
 /// The Trips page's data: flights, stays, trains, buses, rental cars,
 /// tables and tickets found in booking mail, on the device, put together
 /// into trips. Downloaded emails are read whole, with the schema.org
@@ -29,15 +131,15 @@ final class TripsModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const _hiddenKey = 'trips.hidden';
+  static const hiddenKey = 'trips.hidden';
 
   /// How far back booking mail is looked at (bookings are made months
   /// ahead).
   static const lookBack = Duration(days: 400);
 
   /// Booking emails downloaded at most, small ones only.
-  static const _readMax = 40;
-  static const _maxBytes = 512 * 1024;
+  static const readMax = 40;
+  static const maxBytes = 512 * 1024;
 
   bool loading = true;
 
@@ -84,66 +186,20 @@ final class TripsModel extends ChangeNotifier {
   ];
 
   Future<void> load() async {
-    hidden = {
-      ...?_store.settings
-          .read(_hiddenKey)
-          ?.split(',')
-          .where((s) => s.isNotEmpty),
-    };
-    final candidates = _store.messages.withSubjectWords(
-      TripFinder.subjectWords,
-      since: _now().subtract(lookBack),
-    );
-    // Message text and markup off the UI thread.
-    final read = await compute(_read, [
-      for (final m in candidates) (_store.messages.body(m.id), m.snippet),
-    ]);
-    final emails = <TripEmail>[
-      for (final (i, m) in candidates.indexed)
-        if (m.from case final from?)
-          TripEmail(
-            messageId: m.id,
-            sender:
-                Domains.registrable(from.domain) ?? from.domain.toLowerCase(),
-            senderName: from.displayName,
-            subject: m.subject ?? '',
-            text: read[i].text,
-            at: m.receivedAt,
-            reservations: read[i].reservations,
-            bulk: m.category == MessageCategory.newsletters,
-          ),
-    ];
-    final all = TripFinder.bookings(emails);
-    _all = all;
-    final messages = {for (final m in candidates) m.id: m};
-    learned = await _corrections.vetoed(MailKind.booking, {
-      for (final b in all)
-        if (!hidden.contains(b.key)) b.key: _samples(b, (id) => messages[id]),
-    });
+    final found = await findTrips(_store, _now());
+    hidden = found.hidden;
+    learned = found.learned;
+    _all = found.all;
     final left = {...hidden, ...learned};
     trips = TripFinder.trips([
-      for (final b in all)
+      for (final b in found.all)
         if (!left.contains(b.key)) b,
     ]);
     hiddenOnes = [
-      for (final b in all)
+      for (final b in found.all)
         if (left.contains(b.key)) b,
     ];
-    // Booking mail not understood yet: its body may say more than its
-    // preview.
-    final known = {
-      for (final b in all)
-        for (final r in b.records) r.email.messageId,
-    };
-    toRead = [
-      for (final m in candidates)
-        if (m.size <= _maxBytes &&
-            m.category != MessageCategory.newsletters &&
-            !known.contains(m.id) &&
-            _store.messages.body(m.id) == null &&
-            TripFinder.looksLikeBooking(m.subject ?? ''))
-          m.id,
-    ].take(_readMax).toList();
+    toRead = found.toRead;
     loading = false;
     notifyListeners();
   }
@@ -210,23 +266,13 @@ final class TripsModel extends ChangeNotifier {
 
   Booking? _found(String key) => _all.where((b) => b.key == key).firstOrNull;
 
-  /// What the classifier reads of [booking]'s emails.
   static List<MailSample> _samples(
     Booking booking,
     StoredMessage? Function(int id) message,
-  ) => [
-    for (final r in booking.records)
-      mailSample(
-        message(r.email.messageId),
-        domain: r.email.sender,
-        senderName: r.email.senderName,
-        subject: r.email.subject,
-        text: r.email.text,
-      ),
-  ];
+  ) => bookingSamples(booking, message);
 
   void _write(Set<String> keys) {
-    _store.settings.write(_hiddenKey, keys.join(','));
+    _store.settings.write(hiddenKey, keys.join(','));
     unawaited(load());
   }
 
