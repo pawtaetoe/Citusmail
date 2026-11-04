@@ -92,6 +92,11 @@ are at the bottom of the screen, within reach of one thumb.
   unsubscribe address checked too), blocking senders.
 - **Writing mail**: drafts, replies, undo send, custom folders and rules
   (also as server-side Sieve rules).
+- **Meeting invitations**: Outlook, Google Calendar, Zoom and other
+  invitations show as a card with the date in your time zone, the
+  place and the meeting link. Accept, Maybe or Decline answers the
+  organizer (and only them), with undo; "Open in calendar app" adds the
+  event to your own calendar.
 - **Every message, whole**: save it as an .eml file, see its original
   headers and source, or forward it as an attachment.
 - **Subscriptions**: the paid subscriptions found in your receipts and
