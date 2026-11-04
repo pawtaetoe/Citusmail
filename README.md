@@ -56,6 +56,11 @@ ask.
 - **Old codes tidy themselves up**: once you agree, codes, sign-in links
   and password resets older than a day (or a week) go to Archive or
   Trash, with Undo. Pinned ones stay.
+- **A Screener for first-time senders** (off until you turn it on):
+  mail from someone who has never written to you waits at the top of
+  the inbox until you let them in or screen them out (to Newsletters,
+  Notifications or Archive, never deleted), without notifications.
+  Codes and replies to you always come straight in.
 - **Phishing checks that read the message**: besides forged senders and
   lookalike links, it warns when an outsider writes in the name of your
   own school or company, or a big brand, especially with hidden

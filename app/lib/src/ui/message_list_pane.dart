@@ -16,6 +16,7 @@ import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
 import 'move_dialog.dart';
+import 'screener_page.dart';
 
 /// The middle pane: search and compose, the view's header (or the bulk
 /// action bar while selecting), then the messages.
@@ -521,7 +522,7 @@ final class _MessagesState extends State<_Messages> {
         selecting: false,
       );
       if (list.showsSections) {
-        if (list.sections.isEmpty) {
+        if (list.sections.isEmpty && list.screenerWaiting == 0) {
           return const _Empty(Icons.inbox_outlined, 'Your inbox is empty.');
         }
         return Scrollbar(
@@ -529,6 +530,21 @@ final class _MessagesState extends State<_Messages> {
           child: CustomScrollView(
             controller: _scroll,
             slivers: [
+              // First-time senders, only while someone is waiting.
+              if (list.screenerWaiting > 0)
+                SliverToBoxAdapter(
+                  child: _ScreenerEntry(
+                    waiting: list.screenerWaiting,
+                    onOpen: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ScreenerPage(
+                          controller: _c,
+                          accountId: list.location.accountId,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               for (final section in list.sections)
                 SliverMainAxisGroup(
                   slivers: [
@@ -760,6 +776,97 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Screener at the top of the Smart Inbox: how many first-time
+/// senders wait for a decision. Shaped like a section header.
+final class _ScreenerEntry extends StatelessWidget {
+  const _ScreenerEntry({required this.waiting, required this.onOpen});
+
+  final int waiting;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final who = waiting == 1
+        ? '1 new sender is waiting'
+        : '$waiting new senders are waiting';
+    return Material(
+      color: ListColors.of(context).background,
+      child: Semantics(
+        button: true,
+        label: 'Screener, $who',
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: onOpen,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 6, 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: Icon(
+                    MailText.sectionIcon(SmartSection.screener),
+                    size: 18,
+                    color: MailText.sectionColor(SmartSection.screener, colors),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Screener', style: theme.textTheme.titleSmall),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$waiting',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: colors.onPrimaryContainer,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '$who for your OK',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(
+                    Icons.chevron_right,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

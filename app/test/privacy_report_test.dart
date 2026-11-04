@@ -178,6 +178,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Privacy'), 200);
     await tester.tap(find.text('Privacy'));
     await settle(tester);
     expect(find.text('Privacy report'), findsOneWidget);

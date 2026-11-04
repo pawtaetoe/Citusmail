@@ -199,6 +199,15 @@ final class MessageRepository {
           SectionSql.refresh(_db, 'in_reply_to = ?', [id]);
         }
       }
+      // Mail waiting in the Screener may refer to these (References).
+      final inboxes = inboxIds();
+      if (inboxes.isNotEmpty) {
+        SectionSql.refresh(
+          _db,
+          "mailbox_id IN (${_placeholders(inboxes.length)}) AND section = 'screener'",
+          inboxes,
+        );
+      }
     } else if (use == 'important') {
       for (final s in summaries) {
         if (s.messageId case final id?) {

@@ -21,7 +21,7 @@ no analytics, no crash reporting and no advertising.
 | The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline on the invitation | An email from your account with your answer (and your note, if you wrote one) and the event's calendar details, through your own mail server; a copy is kept in Sent. No one else on the invitation gets it |
 | Your calendar app | Only when you tap "Open in calendar app" on an invitation | The invitation's .ics file, from the app's temporary folder, handed to the app your system chooses on this device |
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
-| Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, unsubscribes, folder rules and image senders, end-to-end encrypted |
+| Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, Screener decisions, unsubscribes, folder rules and image senders, end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
 | Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
 | VirusTotal (your own API key) | Only with "Ask VirusTotal" turned on, and only when you tap "Check with VirusTotal" on an attachment or link the on-device checks flagged | For a file, its SHA-256 fingerprint only (the file is never uploaded); for a link, the address. Your key goes with it. VirusTotal keeps what it is asked and sees your IP address |
@@ -76,7 +76,8 @@ account and never shown as a notification.
 
 ## Sync between devices
 
-Off until you turn it on. Then your blocked senders, unsubscribes, folder
+Off until you turn it on. Then your blocked senders, Screener decisions,
+unsubscribes, folder
 rules and image senders are kept the same on all your devices. They travel
 through a "Citusmail Sync" folder in your own mail account (one message per
 device), never through a server of ours. Each message is end-to-end

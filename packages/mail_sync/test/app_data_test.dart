@@ -220,6 +220,55 @@ void main() {
     },
   );
 
+  test('Screener decisions follow the user, changes and Undo too', () {
+    phone.store.screener.decide(
+      ScreenerKind.address,
+      'ana@studio.example',
+      ScreenerDecision.letIn,
+      now: DateTime.utc(2026, 10, 1),
+    );
+    phone.store.screener.decide(
+      ScreenerKind.domain,
+      'deals.example',
+      ScreenerDecision.screenOut,
+      now: DateTime.utc(2026, 10, 1),
+    );
+    _exchange(phone, laptop);
+    expect(
+      laptop.store.screener.all().map((s) => (s.kind, s.value, s.decision)),
+      unorderedEquals([
+        (ScreenerKind.address, 'ana@studio.example', ScreenerDecision.letIn),
+        (ScreenerKind.domain, 'deals.example', ScreenerDecision.screenOut),
+      ]),
+    );
+
+    // Changed on the laptop later: the phone follows.
+    laptop.store.screener.decide(
+      ScreenerKind.address,
+      'ana@studio.example',
+      ScreenerDecision.screenOut,
+      now: DateTime.utc(2026, 10, 5),
+    );
+    _exchange(phone, laptop);
+    expect(
+      phone.store.screener.matching('ana@studio.example')!.decision,
+      ScreenerDecision.screenOut,
+    );
+
+    // Removed on the phone (Undo, or changed in Settings): gone on both.
+    final deals = phone.store.screener.find(
+      ScreenerKind.domain,
+      'deals.example',
+    )!;
+    phone.store.screener.remove(deals.id, at: DateTime.utc(2026, 10, 6));
+    _exchange(phone, laptop);
+    expect(
+      laptop.store.screener.find(ScreenerKind.domain, 'deals.example'),
+      isNull,
+    );
+    expect(phone.store.screener.all(), hasLength(1));
+  });
+
   test('deleting a rule on one device removes it on the other', () {
     final rule = phone.store.folderRules.add(
       accountId: phone.account.id,

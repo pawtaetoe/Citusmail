@@ -20,6 +20,7 @@ export 'src/new_mail.dart';
 export 'src/on_demand_connections.dart';
 export 'src/outbox_replayer.dart';
 export 'src/receipt_collector.dart';
+export 'src/screener_archiver.dart';
 export 'src/sender_blocker.dart';
 export 'src/server_rules.dart';
 export 'src/summary_mapper.dart';

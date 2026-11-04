@@ -96,6 +96,17 @@ abstract final class MailNotices {
     bool hideContent = false,
     bool previews = true,
   }) {
+    // Mail waiting in the Screener never notifies (NewMailTracker already
+    // leaves it out; this keeps it so for any other caller).
+    final screened = mail.messages
+        .where((m) => m.section == SmartSection.screener)
+        .length;
+    if (screened > 0) {
+      mail = NewMail(mail.accountId, [
+        for (final m in mail.messages)
+          if (m.section != SmartSection.screener) m,
+      ], total: mail.total - screened);
+    }
     if (mail.isEmpty) return const [];
     if (hideContent) {
       return [

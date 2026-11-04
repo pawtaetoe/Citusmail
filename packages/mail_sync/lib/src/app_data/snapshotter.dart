@@ -76,6 +76,21 @@ final class AppDataSnapshotter {
         ),
       );
     }
+    for (final s in _store.screener.all()) {
+      put(
+        SyncRecord(
+          key: AppDataKeys.screener(s.kind, s.value),
+          kind: RecordKind.screener,
+          changedAt: s.since.millisecondsSinceEpoch,
+          device: me,
+          data: {
+            'kind': s.kind.name,
+            'value': s.value,
+            'decision': s.decision.storageName,
+          },
+        ),
+      );
+    }
     for (final account in _store.accounts.all()) {
       for (final u in _store.unsubscriptions.forAccount(account.id)) {
         put(
@@ -183,6 +198,27 @@ final class AppDataSnapshotter {
         } else if (existing.isEmpty) {
           _store.imageSenders.allow(address, now: at);
           changes.added++;
+        }
+      case RecordKind.screener:
+        final kind = ScreenerKind.values.byName(
+          r.deleted ? _keyPart(r.key, 0) : _text(r, 'kind'),
+        );
+        final value = r.deleted ? _keyPart(r.key, 1) : _text(r, 'value');
+        final existing = _store.screener.find(kind, value);
+        if (r.deleted) {
+          if (existing != null) {
+            _store.screener.remove(existing.id, at: at, device: r.device);
+            changes.removed++;
+          }
+        } else {
+          final decision = ScreenerDecision.fromStorage(_text(r, 'decision'));
+          // A decision changed on another device after this one's.
+          if (existing == null ||
+              (existing.decision != decision &&
+                  existing.since.millisecondsSinceEpoch < r.changedAt)) {
+            _store.screener.decide(kind, value, decision, now: at);
+            changes.added++;
+          }
         }
       case RecordKind.unsubscribe:
         final email = r.deleted ? _keyPart(r.key, 0) : _text(r, 'account');

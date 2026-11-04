@@ -36,14 +36,23 @@ enum CategorySource { rule, provider }
 /// first that applies:
 ///
 /// 1. [pinned]: flagged (`\Flagged`, a star in other mail apps);
-/// 2. [codes], [newsletters] and [notifications]: by category;
-/// 3. [important]: General mail from someone the user has written to, a
+/// 2. [codes]: by category;
+/// 3. while the Screener is on: mail from a screened-out sender goes to
+///    [newsletters] (or [notifications], as the user chose), and mail
+///    from a first-time sender waits in [screener] (see
+///    `ScreenerRepository`);
+/// 4. [newsletters] and [notifications]: by category;
+/// 5. [important]: General mail from someone the user has written to, a
 ///    reply to the user's own mail, or marked important by the server
 ///    (`$Important` keyword or the `\Important` folder);
-/// 4. [general]: everything else.
+/// 6. [general]: everything else.
 enum SmartSection {
   pinned,
   codes,
+
+  /// Not shown as a section: the Smart Inbox shows a "Screener" entry
+  /// that opens the waiting senders.
+  screener,
   important,
   general,
   notifications,
