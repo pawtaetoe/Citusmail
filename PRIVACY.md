@@ -52,6 +52,14 @@ and dates. Where a price or date is missing, "Read receipts" downloads
 those receipts from your own mail server, only when you tap it; they stay
 unread.
 
+Deliveries are found the same way: order and shipping emails from the
+last year are read on the device for tracking numbers, order numbers,
+status and dates, including the order details some shops and carriers
+add to their emails for mail apps (read as data, never run). "Read
+shipping emails" downloads small ones from your own mail server only
+when you tap it; they stay unread. A carrier's tracking page opens in
+your browser only when you choose "Track", after asking.
+
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail
 account and never shown as a notification.

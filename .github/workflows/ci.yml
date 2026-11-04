@@ -96,6 +96,9 @@ jobs:
       - name: Test mail_sort
         working-directory: packages/mail_sort
         run: dart test
+      - name: Test mail_extract
+        working-directory: packages/mail_extract
+        run: dart test
       - name: Test mail_view
         working-directory: packages/mail_view
         run: dart test

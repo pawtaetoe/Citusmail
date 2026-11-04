@@ -11,6 +11,7 @@ import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import 'citusmail_theme.dart';
+import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'sender_cleanup_page.dart';
@@ -211,6 +212,20 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     SubscriptionsPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.local_shipping_outlined,
+                          label: 'Deliveries',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    DeliveriesPage(controller: controller),
                               ),
                             );
                           },

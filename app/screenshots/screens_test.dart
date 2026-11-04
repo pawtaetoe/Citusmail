@@ -16,6 +16,7 @@ import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/deliveries_page.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
@@ -28,6 +29,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../test/support/delivery_mail.dart';
 import '../test/support/test_app.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
@@ -204,6 +206,27 @@ void main() {
     await tester.tap(find.text('StreamFlix').last);
     await shoot(tester, 'readme_subscription');
   });
+
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    for (final dark in [false, true]) {
+      testWidgets('deliveries $name${dark ? ' dark' : ''}', (tester) async {
+        seedDeliveries(app.store, now: DateTime.now().toUtc());
+        await show(
+          tester,
+          DeliveriesPage(controller: MailController(app.services)),
+          size: size,
+          dark: dark,
+        );
+        final suffix = dark ? '_dark' : '';
+        await shoot(tester, '${name}_deliveries$suffix');
+        await tester.tap(find.text('Amazon.sg'));
+        await shoot(tester, '${name}_delivery$suffix');
+      });
+    }
+  }
 
   testWidgets('subscriptions coming up', (tester) async {
     _seedSubscriptions(app.store);
