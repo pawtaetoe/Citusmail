@@ -35,6 +35,7 @@ enum CategorySource { rule, provider }
 /// The Smart Inbox sections. Every inbox message is in exactly one, the
 /// first that applies:
 ///
+/// 0. [snoozed]: put away until later (see `SnoozeRepository`);
 /// 1. [pinned]: flagged (`\Flagged`, a star in other mail apps);
 /// 2. [codes]: by category;
 /// 3. while the Screener is on: mail from a screened-out sender goes to
@@ -53,6 +54,10 @@ enum SmartSection {
   /// Not shown as a section: the Smart Inbox shows a "Screener" entry
   /// that opens the waiting senders.
   screener,
+
+  /// Not shown in the inbox at all: snoozed mail waits in the "Snoozed"
+  /// list until its time (see `SnoozeRepository`).
+  snoozed,
   important,
   general,
   notifications,
@@ -214,7 +219,8 @@ final class StoredMessage {
     this.listId,
     this.section = SmartSection.general,
     this.code,
-  });
+    DateTime? listedAt,
+  }) : listedAt = listedAt ?? receivedAt;
 
   final int id;
   final int mailboxId;
@@ -227,6 +233,13 @@ final class StoredMessage {
   final MailAddress? from;
   final DateTime? sentAt;
   final DateTime receivedAt;
+
+  /// Where lists sort it: [receivedAt], or for mail back from snooze the
+  /// time it came back.
+  final DateTime listedAt;
+
+  /// Whether it came back from snooze (it is listed at that time).
+  bool get backFromSnooze => listedAt.isAfter(receivedAt);
   final int size;
   final MessageFlags flags;
   final int? modSeq;

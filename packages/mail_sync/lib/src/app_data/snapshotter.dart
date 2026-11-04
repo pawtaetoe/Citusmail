@@ -28,9 +28,14 @@ final class AppliedChanges {
 /// local ids differ between devices. Times are kept exactly, so applying
 /// another device's data never makes it look newer than it is.
 final class AppDataSnapshotter {
-  AppDataSnapshotter(this._store);
+  AppDataSnapshotter(this._store, {DateTime Function()? clock})
+    : _clock = clock ?? DateTime.now;
 
   final MailStore _store;
+
+  /// Tells a snooze that came back on another device from one cancelled
+  /// there (see [RecordKind.snooze]).
+  final DateTime Function() _clock;
 
   String get device => _store.appDataSync.deviceId;
 
@@ -87,6 +92,20 @@ final class AppDataSnapshotter {
             'kind': s.kind.name,
             'value': s.value,
             'decision': s.decision.storageName,
+          },
+        ),
+      );
+    }
+    for (final z in _store.snoozes.all()) {
+      put(
+        SyncRecord(
+          key: AppDataKeys.snooze(z.messageId),
+          kind: RecordKind.snooze,
+          changedAt: z.changedAt.millisecondsSinceEpoch,
+          device: me,
+          data: {
+            'messageId': z.messageId,
+            'until': z.until.millisecondsSinceEpoch,
           },
         ),
       );
@@ -219,6 +238,36 @@ final class AppDataSnapshotter {
             _store.screener.decide(kind, value, decision, now: at);
             changes.added++;
           }
+        }
+      case RecordKind.snooze:
+        // An ended snooze is a removal: cancelled, or back at its time.
+        final messageId = r.deleted
+            ? _keyPart(r.key, 0)
+            : _text(r, 'messageId');
+        final existing = _store.snoozes.find(messageId);
+        if (r.deleted) {
+          if (existing == null ||
+              existing.changedAt.millisecondsSinceEpoch > r.changedAt) {
+            return; // snoozed again here since
+          }
+          if (existing.until.isAfter(_clock())) {
+            _store.snoozes.cancel(messageId, at: at, device: r.device);
+          } else {
+            _store.snoozes.wokeElsewhere(existing, at: at, device: r.device);
+          }
+          changes.removed++;
+        } else if (existing == null ||
+            existing.changedAt.millisecondsSinceEpoch < r.changedAt) {
+          final until = r.data['until'];
+          if (until is! int) throw const FormatException('missing until');
+          _store.snoozes.restore(
+            Snooze(
+              messageId: messageId,
+              until: DateTime.fromMillisecondsSinceEpoch(until, isUtc: true),
+              changedAt: at,
+            ),
+          );
+          changes.added++;
         }
       case RecordKind.unsubscribe:
         final email = r.deleted ? _keyPart(r.key, 0) : _text(r, 'account');

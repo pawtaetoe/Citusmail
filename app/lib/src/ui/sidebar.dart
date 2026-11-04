@@ -207,6 +207,14 @@ final class Sidebar extends StatelessWidget {
                           selected: here == const PinsLocation(),
                           onTap: () => go(const PinsLocation()),
                         ),
+                        // While something is snoozed.
+                        if (counts.snoozed > 0)
+                          _Entry(
+                            icon: Icons.snooze,
+                            label: 'Snoozed',
+                            selected: here == const SnoozedLocation(),
+                            onTap: () => go(const SnoozedLocation()),
+                          ),
                         _Entry(
                           icon: Icons.autorenew,
                           label: 'Subscriptions',

@@ -10,7 +10,14 @@ import 'cipher.dart';
 import 'sync_code.dart';
 
 /// The kinds of app data that sync.
-enum RecordKind { block, unsubscribe, imageSender, folderRule, screener }
+enum RecordKind {
+  block,
+  unsubscribe,
+  imageSender,
+  folderRule,
+  screener,
+  snooze,
+}
 
 /// One piece of app data, or the fact that it was removed.
 ///

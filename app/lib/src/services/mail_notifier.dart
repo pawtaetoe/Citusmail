@@ -140,6 +140,32 @@ final class MailNotifier {
     }
   }
 
+  /// Announces snoozed mail that came back, one notification each, as
+  /// the settings in [store] say (previews, the app lock).
+  Future<void> announceBackFromSnooze(
+    MailStore store,
+    BackFromSnooze back,
+  ) async {
+    final hide = AppLock.isEnabledIn(store);
+    final previews = AppSettings(store).notificationPreviews;
+    for (final woken in back.messages) {
+      final account = store.accounts.byId(woken.message.accountId);
+      if (account == null) continue;
+      final notice = MailNotices.backFromSnooze(
+        woken.message,
+        hideContent: hide,
+        previews: previews,
+      );
+      await _plugin.show(
+        id: notice.id,
+        title: notice.title,
+        body: _layout == NoticeLayout.grouped ? notice.body : notice.text,
+        notificationDetails: detailsFor(account, notice),
+        payload: notice.payload,
+      );
+    }
+  }
+
   /// Posts reminders (a bill due, a free trial ending, a renewal) on a
   /// channel of their own, apart from new mail; tapping one opens its
   /// email. With [hideContent] (the app lock is on), only that there are

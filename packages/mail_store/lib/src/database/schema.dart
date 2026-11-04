@@ -398,4 +398,33 @@ const List<Migration> schemaMigrations = [
       UNIQUE (kind, value)
     ) STRICT''',
   ]),
+
+  // Snooze: mail put away until a chosen time, by Message-ID (the same on
+  // every device). While snoozed it is in a section of its own, hidden
+  // from the inbox. Lists are sorted by listed_at, which is received_at
+  // except for mail back from snooze (then the time it came back). The
+  // section is re-created with the new value allowed, as in version 13.
+  Migration(15, [
+    'DROP INDEX messages_by_section',
+    'DROP INDEX messages_unread',
+    'DROP INDEX messages_pinned',
+    'ALTER TABLE messages RENAME COLUMN section TO section_v14',
+    '''
+    ALTER TABLE messages ADD COLUMN section TEXT NOT NULL DEFAULT 'general'
+      CHECK (section IN ('pinned', 'codes', 'screener', 'snoozed', 'important', 'general', 'notifications', 'newsletters'))''',
+    'UPDATE messages SET section = section_v14',
+    'ALTER TABLE messages DROP COLUMN section_v14',
+    'ALTER TABLE messages ADD COLUMN listed_at INTEGER NOT NULL DEFAULT 0',
+    'UPDATE messages SET listed_at = received_at',
+    'CREATE INDEX messages_by_section ON messages (mailbox_id, section, listed_at DESC, id DESC)',
+    'CREATE INDEX messages_unread ON messages (mailbox_id, section) WHERE (flags & 1) = 0',
+    'CREATE INDEX messages_pinned ON messages (listed_at DESC, id DESC) WHERE (flags & 4) != 0',
+    'CREATE INDEX messages_by_mailbox_listed ON messages (mailbox_id, listed_at DESC, id DESC)',
+    '''
+    CREATE TABLE snoozes (
+      message_id TEXT PRIMARY KEY CHECK (length(message_id) BETWEEN 1 AND 998),
+      until INTEGER NOT NULL,
+      changed_at INTEGER NOT NULL
+    ) STRICT''',
+  ]),
 ];

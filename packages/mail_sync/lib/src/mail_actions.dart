@@ -21,11 +21,15 @@ final class RemovalReceipt extends ActionReceipt {
     this.entryIds,
     this.snapshot,
     this.undoUntil,
+    this.snoozes,
   );
 
   final List<int> entryIds;
   final MessageSnapshot snapshot;
   final DateTime undoUntil;
+
+  /// Snoozes the move or delete ended (put back by undoing it).
+  final List<Snooze> snoozes;
 }
 
 /// A flag was set or cleared; undoing sets it back.
@@ -75,11 +79,15 @@ final class MailActions {
   /// Reverses [receipt]. Returns false if it is too late (a move or delete
   /// already started on the server).
   bool undo(ActionReceipt receipt) => switch (receipt) {
-    RemovalReceipt(:final entryIds, :final snapshot) => _store.transaction(() {
-      if (!_store.outbox.cancel(entryIds)) return false;
-      _store.messages.restore(snapshot);
-      return true;
-    }),
+    RemovalReceipt(:final entryIds, :final snapshot, :final snoozes) =>
+      _store.transaction(() {
+        if (!_store.outbox.cancel(entryIds)) return false;
+        _store.messages.restore(snapshot);
+        for (final z in snoozes) {
+          _store.snoozes.snooze(z.messageId, z.until); // snoozed again now
+        }
+        return true;
+      }),
     FlagReceipt(:final changed, :final flag, :final bit, :final on) => () {
       final current = [for (final m in changed) ?_store.messages.byId(m.id)];
       _setFlag(current, flag, bit, on: !on);
@@ -130,6 +138,10 @@ final class MailActions {
         ids.addAll(group.map((m) => m.id));
       }
       final snapshot = _store.messages.snapshot(ids);
+      // Moving, archiving or deleting snoozed mail ends its snooze.
+      final snoozes = _store.snoozes.cancelFor([
+        for (final (_, group) in groups) ...group,
+      ]);
       for (final (mailbox, group) in groups) {
         _store.messages.removeUids(mailbox.id, group.map((m) => m.uid));
         entries.add(
@@ -143,7 +155,7 @@ final class MailActions {
         );
         accounts.add(mailbox.accountId);
       }
-      return RemovalReceipt._(accounts, entries, snapshot, undoUntil);
+      return RemovalReceipt._(accounts, entries, snapshot, undoUntil, snoozes);
     });
   }
 

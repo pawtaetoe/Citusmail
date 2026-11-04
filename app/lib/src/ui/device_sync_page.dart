@@ -94,7 +94,7 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
         title: const Text('Turn off sync on this device?'),
         content: const Text(
           'This device stops sharing its blocked senders, Screener decisions, '
-          'unsubscribes, folder rules and image senders. What it has now stays. Your '
+          'snoozed emails, unsubscribes, folder rules and image senders. What it has now stays. Your '
           'other devices keep syncing with each other.',
         ),
         actions: [
@@ -139,7 +139,8 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
   }
 
   static const _what =
-      'Keeps your blocked senders, Screener decisions, unsubscribes, folder '
+      'Keeps your blocked senders, Screener decisions, snoozed emails, '
+      'unsubscribes, folder '
       'rules and image senders the same on all your devices. They travel through a folder '
       'in your own mail account, encrypted so that only your devices can '
       'read them; not even your mail provider can.';

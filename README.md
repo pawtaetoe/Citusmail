@@ -61,6 +61,11 @@ ask.
   the inbox until you let them in or screen them out (to Newsletters,
   Notifications or Archive, never deleted), without notifications.
   Codes and replies to you always come straight in.
+- **Snooze**: put an email away until later today, tonight, tomorrow,
+  the weekend, next week or a time you pick. It comes back to the top of
+  the inbox, unread, with one notification (or sooner, if someone
+  replies). Snoozed mail waits in its own list, and snoozes follow you to
+  your other devices with sync on. Nothing moves on the mail server.
 - **Phishing checks that read the message**: besides forged senders and
   lookalike links, it warns when an outsider writes in the name of your
   own school or company, or a big brand, especially with hidden

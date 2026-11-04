@@ -25,6 +25,8 @@ abstract final class AppDataKeys {
   static String screener(ScreenerKind kind, String value) =>
       'screener:${jsonEncode([kind.name, value])}';
 
+  static String snooze(String messageId) => 'snooze:${jsonEncode([messageId])}';
+
   static String folderRule(
     String accountEmail,
     String folder,
@@ -45,7 +47,8 @@ final class Tombstone {
 
   final String key;
 
-  /// `block`, `unsubscribe`, `imageSender`, `folderRule` or `screener`.
+  /// `block`, `unsubscribe`, `imageSender`, `folderRule`, `screener` or
+  /// `snooze`.
   final String kind;
   final DateTime deletedAt;
   final String device;

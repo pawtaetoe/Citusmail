@@ -17,6 +17,7 @@ import 'mail_text.dart';
 import 'message_tile.dart';
 import 'move_dialog.dart';
 import 'screener_page.dart';
+import 'snooze_sheet.dart';
 
 /// The middle pane: search and compose, the view's header (or the bulk
 /// action bar while selecting), then the messages.
@@ -258,6 +259,7 @@ final class _ViewHeader extends StatelessWidget {
       },
       PinsLocation() => 'Pins',
       OutboxLocation() => 'Outbox',
+      SnoozedLocation() => 'Snoozed',
       SearchLocation(:final text) => 'Results for "$text"',
       InboxLocation() => '',
     };
@@ -390,6 +392,8 @@ final class _SelectionBar extends StatelessWidget {
     final targets = controller.targets;
     final allRead = targets.every((m) => m.flags.seen);
     final allPinned = targets.every((m) => m.flags.flagged);
+    final snoozed = controller.location.value is SnoozedLocation;
+    final canSnooze = targets.isNotEmpty && targets.every(controller.canSnooze);
     final oneAccount = targets.map((m) => m.accountId).toSet().length == 1;
     return Container(
       color: ListColors.of(context).checked,
@@ -422,6 +426,18 @@ final class _SelectionBar extends StatelessWidget {
             icon: const Icon(Icons.delete_outline),
             onPressed: () => controller.delete(targets),
           ),
+          if (snoozed)
+            IconButton(
+              tooltip: 'Unsnooze',
+              icon: const Icon(Icons.alarm_off),
+              onPressed: () => controller.unsnooze(targets),
+            ),
+          if (canSnooze)
+            IconButton(
+              tooltip: snoozed ? 'Change snooze time (B)' : 'Snooze (B)',
+              icon: const Icon(Icons.snooze),
+              onPressed: () => SnoozeSheet.show(context, controller, targets),
+            ),
           IconButton(
             tooltip: allRead ? 'Mark as unread (U)' : 'Mark as read (U)',
             icon: Icon(
@@ -585,14 +601,18 @@ final class _MessagesState extends State<_Messages> {
       }
       final messages = list.messages;
       if (messages.isEmpty) {
-        return _Empty(
-          list.location is SearchLocation
-              ? Icons.search_off
-              : Icons.mail_outline,
-          list.location is SearchLocation
-              ? 'No messages found.'
-              : 'No messages here.',
-        );
+        return switch (list.location) {
+          SearchLocation() => const _Empty(
+            Icons.search_off,
+            'No messages found.',
+          ),
+          SnoozedLocation() => const _Empty(
+            Icons.snooze,
+            'Nothing is snoozed. Snooze an email to have it come back '
+            'to the top of your inbox later.',
+          ),
+          _ => const _Empty(Icons.mail_outline, 'No messages here.'),
+        };
       }
       return Scrollbar(
         controller: _scroll,
@@ -612,6 +632,17 @@ final class _MessagesState extends State<_Messages> {
                 child: Center(
                   child: list.loadingOlder
                       ? const CircularProgressIndicator()
+                      : list.location is SnoozedLocation
+                      ? Text(
+                          'Each comes back to the top of your inbox at the '
+                          'time shown.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                        )
                       : list.reachedEnd
                       ? Text(
                           'No older messages',

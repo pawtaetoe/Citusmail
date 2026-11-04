@@ -98,7 +98,7 @@ final class MessageRepository {
   static const _columns =
       'm.id, m.mailbox_id, b.account_id, m.uid, m.message_id_header, m.in_reply_to, '
       'm.thread_references, m.subject, m.from_name, m.from_address, m.sent_at, m.received_at, m.size, '
-      'm.flags, m.keywords, m.mod_seq, m.has_attachments, m.category, m.category_source, m.snippet, m.list_id, m.section, m.code';
+      'm.flags, m.keywords, m.mod_seq, m.has_attachments, m.category, m.category_source, m.snippet, m.list_id, m.section, m.code, m.listed_at';
   static const _from =
       'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id';
 
@@ -130,8 +130,8 @@ final class MessageRepository {
                       .select(
                         'INSERT INTO messages (mailbox_id, uid, message_id_header, in_reply_to, thread_references, '
                         'subject, from_name, from_address, sent_at, received_at, size, flags, keywords, mod_seq, '
-                        'has_attachments, category, category_source, list_id, snippet, code) '
-                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                        'has_attachments, category, category_source, list_id, snippet, code, listed_at) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                         'ON CONFLICT (mailbox_id, uid) DO UPDATE SET '
                         'message_id_header = excluded.message_id_header, in_reply_to = excluded.in_reply_to, '
                         'thread_references = excluded.thread_references, subject = excluded.subject, '
@@ -142,7 +142,11 @@ final class MessageRepository {
                         'category = excluded.category, category_source = excluded.category_source, '
                         'list_id = excluded.list_id, '
                         // A code read from the body is kept.
-                        'code = coalesce(excluded.code, messages.code) '
+                        'code = coalesce(excluded.code, messages.code), '
+                        // Mail back from snooze stays where it came back.
+                        'listed_at = CASE WHEN messages.listed_at > messages.received_at '
+                        'THEN max(messages.listed_at, excluded.received_at) '
+                        'ELSE excluded.received_at END '
                         'RETURNING id',
                         [
                           mailboxId,
@@ -165,6 +169,7 @@ final class MessageRepository {
                           s.listId,
                           s.snippet,
                           s.code,
+                          s.receivedAt.toUtc().millisecondsSinceEpoch,
                         ],
                       )
                       .first
@@ -331,7 +336,7 @@ final class MessageRepository {
   }
 
   static int _newestFirst(StoredMessage a, StoredMessage b) {
-    final byDate = b.receivedAt.compareTo(a.receivedAt);
+    final byDate = b.listedAt.compareTo(a.listedAt);
     return byDate != 0 ? byDate : b.id.compareTo(a.id);
   }
 
@@ -355,6 +360,9 @@ final class MessageRepository {
     if (query.section case final section?) {
       where.add('m.section = ?');
       args.add(section.name);
+    } else {
+      // Snoozed mail is only in the Snoozed list until it comes back.
+      where.add("m.section != 'snoozed'");
     }
     if (query.category case final category?) {
       where.add('m.category = ?');
@@ -364,13 +372,14 @@ final class MessageRepository {
     if (query.unreadOnly) where.add('(m.flags & 1) = 0');
     if (query.flaggedOnly) where.add('(m.flags & 4) != 0');
     if (query.before case final before?) {
-      where.add('(m.received_at < ? OR (m.received_at = ? AND m.id < ?))');
-      final at = before.receivedAt.millisecondsSinceEpoch;
+      where.add('(m.listed_at < ? OR (m.listed_at = ? AND m.id < ?))');
+      final at = before.listedAt.millisecondsSinceEpoch;
       args.addAll([at, at, before.id]);
     }
     final sql = StringBuffer('SELECT $_columns $_from');
     if (where.isNotEmpty) sql.write(' WHERE ${where.join(' AND ')}');
-    sql.write(' ORDER BY m.received_at DESC, m.id DESC LIMIT ?');
+    // Mail back from snooze is listed at the time it came back.
+    sql.write(' ORDER BY m.listed_at DESC, m.id DESC LIMIT ?');
     args.add(limit);
     return (sql.toString(), args);
   }
@@ -390,11 +399,12 @@ final class MessageRepository {
     ];
   }
 
-  /// Unread messages in a folder.
+  /// Unread messages in a folder (snoozed mail isn't counted).
   int unreadCount(int mailboxId) =>
       _db
               .select(
-                'SELECT count(*) FROM messages WHERE mailbox_id = ? AND (flags & 1) = 0',
+                'SELECT count(*) FROM messages WHERE mailbox_id = ? AND (flags & 1) = 0 '
+                "AND section != 'snoozed'",
                 [mailboxId],
               )
               .first
@@ -1079,10 +1089,12 @@ final class MessageRepository {
     };
   }
 
-  /// Unread messages per folder, for every folder at once.
+  /// Unread messages per folder, for every folder at once (snoozed mail
+  /// isn't counted).
   Map<int, int> unreadCounts() => {
     for (final row in _db.select(
-      'SELECT mailbox_id, count(*) AS n FROM messages WHERE (flags & 1) = 0 GROUP BY mailbox_id',
+      'SELECT mailbox_id, count(*) AS n FROM messages WHERE (flags & 1) = 0 '
+      "AND section != 'snoozed' GROUP BY mailbox_id",
     ))
       row['mailbox_id'] as int: row['n'] as int,
   };
@@ -1216,6 +1228,10 @@ final class MessageRepository {
       listId: row['list_id'] as String?,
       section: SmartSection.values.byName(row['section'] as String),
       code: row['code'] as String?,
+      listedAt: DateTime.fromMillisecondsSinceEpoch(
+        row['listed_at'] as int,
+        isUtc: true,
+      ),
     );
   }
 }

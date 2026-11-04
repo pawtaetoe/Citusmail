@@ -58,6 +58,9 @@ final class MessageListModel extends ChangeNotifier {
 
   /// Every other view: one list.
   List<StoredMessage> messages = const [];
+
+  /// Snoozed: when each message comes back, by Message-ID.
+  Map<String, DateTime> snoozedUntil = const {};
   bool reachedEnd = false;
   bool loadingOlder = false;
 
@@ -90,8 +93,11 @@ final class MessageListModel extends ChangeNotifier {
       final previous = {for (final s in sections) s.section: s};
       sections = [
         for (final section in SmartSection.values)
-          // Waiting senders have their own entry (Screener), not a section.
-          if (section != SmartSection.screener && counts[section]!.total > 0)
+          // Waiting senders have their own entry (Screener), and snoozed
+          // mail its own list (Snoozed): neither is a section.
+          if (section != SmartSection.screener &&
+              section != SmartSection.snoozed &&
+              counts[section]!.total > 0)
             _loadSection(
               previous[section] ??
                   SectionState(
@@ -103,12 +109,21 @@ final class MessageListModel extends ChangeNotifier {
       ];
     } else {
       final wanted = messages.length < flatPage ? flatPage : messages.length;
+      final snoozed = location is SnoozedLocation
+          ? _store.snoozes.list()
+          : const <SnoozedMessage>[];
+      snoozedUntil = {
+        for (final s in snoozed) s.snooze.messageId: s.snooze.until,
+      };
       messages = switch (location) {
         SearchLocation(:final text) => _store.messages.search(text, limit: 200),
         OutboxLocation() => const [],
+        SnoozedLocation() => [for (final s in snoozed) s.message],
         _ => _store.messages.list(_query(location, limit: wanted)),
       };
-      if (location is SearchLocation) reachedEnd = true;
+      if (location is SearchLocation || location is SnoozedLocation) {
+        reachedEnd = true;
+      }
     }
     notifyListeners();
   }
@@ -207,7 +222,9 @@ final class MessageListModel extends ChangeNotifier {
       before: before,
       limit: limit,
     ),
-    SearchLocation() || OutboxLocation() => throw StateError('not paged'),
+    SearchLocation() ||
+    OutboxLocation() ||
+    SnoozedLocation() => throw StateError('not paged'),
   };
 
   static List<int>? _accounts(int? accountId) =>

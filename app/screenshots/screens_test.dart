@@ -518,6 +518,108 @@ void main() {
     );
     await shoot(tester, 'phone_screener_settings');
   });
+  // Snooze: mail back from snooze on top of the inbox, the snooze choices
+  // (a dialog on the desktop, a bottom sheet on phones), the Snoozed list.
+  testWidgets('snooze', (tester) async {
+    _seedDemo(app.store);
+    _seedSnoozes(app.store);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await shoot(tester, 'desktop_snooze_inbox');
+    await tester.tap(find.text('Quarterly figures for the board'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Snooze (B)'));
+    await shoot(tester, 'desktop_snooze_sheet');
+    await tester.tapAt(const Offset(10, 10));
+    await settle(tester);
+    await tester.tap(find.text('Snoozed').first);
+    await settle(tester);
+    await tester.tap(find.text('Draft contract for review'));
+    await shoot(tester, 'desktop_snoozed');
+
+    await tester.pumpWidget(const SizedBox()); // a fresh start
+    await show(tester, shell(), size: const Size(390, 844));
+    await tester.tap(find.text('Quarterly figures for the board'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Snooze (B)'));
+    await shoot(tester, 'phone_snooze_sheet');
+    await tester.tapAt(const Offset(10, 10));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Back (Esc)'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Folders'));
+    await settle(tester);
+    await tester.tap(
+      find.descendant(of: find.byType(Drawer), matching: find.text('Snoozed')),
+    );
+    await shoot(tester, 'phone_snoozed');
+  });
+}
+
+/// Three snoozed emails, and one back from snooze a moment ago.
+void _seedSnoozes(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now();
+  MailAddress who(String address, String name) => MailAddress(
+    localPart: address.substring(0, address.indexOf('@')),
+    domain: address.substring(address.indexOf('@') + 1),
+    displayName: name,
+  );
+  var uid = 500;
+  MessageSummary mail(
+    int daysAgo,
+    MailAddress from,
+    String subject,
+    String snippet, {
+    bool seen = true,
+  }) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.toUtc().subtract(Duration(days: daysAgo, hours: 3)),
+    subject: subject,
+    from: from,
+    snippet: snippet,
+    messageId: 'snooze$uid@demo.example',
+    flags: MessageFlags.fromImap([if (seen) r'\Seen']),
+  );
+  store.messages.upsertSummaries(inbox.id, [
+    mail(
+      3,
+      who('maria.lopez@studio-north.example', 'Maria Lopez'),
+      'Draft contract for review',
+      'Could you look at clause 4 before Friday? The rest is as we agreed.',
+    ),
+    mail(
+      2,
+      who('tom@harbour-sailing.example', 'Tom Baker'),
+      'Boat trip in the spring?',
+      'We are planning a few days on the water in April. Would you be up '
+          'for it?',
+    ),
+    mail(
+      5,
+      who('bookings@lakeside-dental.example', 'Lakeside Dental'),
+      'Time for your check-up',
+      'It has been six months since your last visit. Book a time online.',
+    ),
+    mail(
+      6,
+      who('j.chen@fieldwork.example', 'Jun Chen'),
+      'Quarterly figures for the board',
+      'Attached are the numbers we talked about. Let me know if anything '
+          'looks off before Thursday.',
+      seen: false,
+    ),
+  ]);
+  DateTime on(int days, int hour) =>
+      DateTime(now.year, now.month, now.day + days, hour);
+  store.snoozes.snooze('snooze501@demo.example', on(1, 8));
+  store.snoozes.snooze('snooze502@demo.example', on(5, 9));
+  store.snoozes.snooze('snooze503@demo.example', on(9, 8));
+  // Came back a few minutes ago.
+  store.snoozes.snooze(
+    'snooze504@demo.example',
+    now.subtract(const Duration(minutes: 4)),
+  );
+  store.snoozes.wake();
 }
 
 /// Turns the Screener on after the demo inbox (whose senders count as
