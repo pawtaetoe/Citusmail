@@ -240,6 +240,16 @@ void main() {
     await shoot(tester, 'phone_settings');
   });
 
+  // The Google Play build (no Instant mail), tall enough for About.
+  testWidgets('settings play', (tester) async {
+    await show(
+      tester,
+      SettingsPage(services: app.services, isAndroid: true, playBuild: true),
+      size: const Size(390, 1700),
+    );
+    await shoot(tester, 'phone_settings_play');
+  });
+
   testWidgets('setup', (tester) async {
     await show(
       tester,
