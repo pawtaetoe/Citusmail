@@ -10,6 +10,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
+import 'accounts_page.dart';
 import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
@@ -212,6 +213,20 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     SubscriptionsPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.badge_outlined,
+                          label: 'Your accounts',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    AccountsPage(controller: controller),
                               ),
                             );
                           },
