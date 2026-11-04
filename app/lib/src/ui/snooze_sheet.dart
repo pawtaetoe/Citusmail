@@ -163,34 +163,48 @@ final class _SnoozePanel extends StatelessWidget {
   }
 
   Future<void> _pickDateTime(BuildContext context) async {
-    final start = current ?? now.add(const Duration(days: 1));
-    final date = await showDatePicker(
-      context: context,
-      initialDate: start.isAfter(now) ? start : now,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: DateTime(now.year + 1, now.month, now.day),
-      helpText: 'Snooze until',
+    final at = await pickDateTime(
+      context,
+      now: now,
+      current: current,
+      dateHelp: 'Snooze until',
+      timeHelp: 'Comes back at',
     );
-    if (date == null || !context.mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 8, minute: 0),
-      helpText: 'Comes back at',
-    );
-    if (time == null || !context.mounted) return;
-    final at = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      time.minute,
-    );
-    if (!at.isAfter(now)) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('Pick a time that is still ahead.')),
-      );
-      return;
-    }
-    Navigator.pop(context, at);
+    if (at != null && context.mounted) Navigator.pop(context, at);
   }
+}
+
+/// "Pick date & time": a date, then a time of day (8:00 to start with),
+/// up to a year ahead. Null if the user closed either, or picked a time
+/// that has passed (then says so). Shared by snoozing and Send later.
+Future<DateTime?> pickDateTime(
+  BuildContext context, {
+  required DateTime now,
+  DateTime? current,
+  required String dateHelp,
+  required String timeHelp,
+}) async {
+  final start = current ?? now.add(const Duration(days: 1));
+  final date = await showDatePicker(
+    context: context,
+    initialDate: start.isAfter(now) ? start : now,
+    firstDate: DateTime(now.year, now.month, now.day),
+    lastDate: DateTime(now.year + 1, now.month, now.day),
+    helpText: dateHelp,
+  );
+  if (date == null || !context.mounted) return null;
+  final time = await showTimePicker(
+    context: context,
+    initialTime: const TimeOfDay(hour: 8, minute: 0),
+    helpText: timeHelp,
+  );
+  if (time == null || !context.mounted) return null;
+  final at = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  if (!at.isAfter(now)) {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text('Pick a time that is still ahead.')),
+    );
+    return null;
+  }
+  return at;
 }

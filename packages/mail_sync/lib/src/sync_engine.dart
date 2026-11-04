@@ -166,6 +166,27 @@ final class SyncEngine {
         unawaited(syncAccount(account.id));
       }
     });
+    _syncWhenDue();
+  }
+
+  /// A sync when each queued change waiting for its time becomes due
+  /// (messages scheduled with "Send later", sends in their undo delay),
+  /// so they go out on time after the app starts again. The periodic
+  /// sync catches them too, a little later, if a timer does not fire
+  /// (for example while the device sleeps).
+  void _syncWhenDue() {
+    final now = DateTime.now();
+    for (final account in _store.accounts.all()) {
+      final times = {
+        for (final entry in _store.outbox.all(account.id))
+          if (entry.state == OutboxState.pending &&
+              entry.notBefore.isAfter(now))
+            entry.notBefore,
+      };
+      for (final at in times) {
+        syncAt(account.id, at);
+      }
+    }
   }
 
   /// Stops watching and waits for running syncs to finish.

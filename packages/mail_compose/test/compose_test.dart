@@ -461,6 +461,220 @@ void main() {
     });
   });
 
+  group('send later', () {
+    late Sender sender;
+    late ScheduledSends scheduled;
+    setUp(() {
+      sender = Sender(store);
+      scheduled = ScheduledSends(store, sender);
+    });
+
+    // Wednesday morning; the message is due Thursday at 8.
+    final now = DateTime(2026, 11, 4, 9, 10);
+    final thursday = DateTime(2026, 11, 5, 8);
+
+    /// A reply with a Bcc and a file, written in the Drafts folder before.
+    Draft reply(StoredMessage message, MessageView view) => ReplyBuilder(store)
+        .reply(message, view)
+        .copyWith(
+          body: 'The numbers are attached.\n\n',
+          bcc: [a('me+archive@citusmail.test')],
+          attachments: [
+            DraftAttachment(
+              fileName: 'q3.csv',
+              mimeType: 'text/csv',
+              bytes: Uint8List.fromList(utf8.encode('month,total\nJul,12\n')),
+            ),
+          ],
+          savedMessageId: 'v1@citusmail.test',
+        );
+
+    ScheduledSend only() => scheduled.all().single;
+
+    test('waits in the outbox until its time, dated then', () {
+      final (message, view) = received();
+      final pending = sender.schedule(reply(message, view), thursday, now: now);
+      expect(pending.scheduledFor, thursday);
+
+      // The undo delay over: only the old Drafts copy goes.
+      expect(
+        store.outbox
+            .due(alice.id, now: pending.undoUntil)
+            .map((e) => e.action.runtimeType),
+        [RemoveDraftAction],
+      );
+      final justBefore = thursday.subtract(const Duration(seconds: 1));
+      expect(
+        store.outbox
+            .due(alice.id, now: justBefore)
+            .whereType<OutboxEntry>()
+            .where((e) => e.action is! RemoveDraftAction),
+        isEmpty,
+        reason: 'never early',
+      );
+      final due = store.outbox.due(alice.id, now: thursday);
+      expect(due.map((e) => e.action.runtimeType), [
+        SendAction,
+        RemoveDraftAction,
+        SetFlagsAction,
+      ]);
+      final send = due.first.action as SendAction;
+      expect(send.schedule!.at, thursday.toUtc());
+      expect(send.schedule!.followUps, [due.last.id]);
+      expect(send.recipients, contains('me+archive@citusmail.test'));
+      final parsed = const MimeParser().parse(due.first.data!);
+      expect(parsed.date!.utc, thursday.toUtc());
+      expect(parsed.headers.all('bcc'), isEmpty);
+      expect(store.messages.byId(message.id)!.flags.answered, isTrue);
+      expect(store.drafts.all(), isEmpty);
+      expect(scheduled.nextDue(now: now), thursday.toUtc());
+      expect(only().waitingAt(now), isTrue);
+      expect(only().waitingAt(thursday), isFalse);
+    });
+
+    test('a time within the undo delay is refused', () {
+      final draft = Draft(accountId: alice.id, to: [a('bob@x.example')]);
+      expect(
+        () => sender.schedule(
+          draft,
+          now.add(const Duration(seconds: 3)),
+          now: now,
+        ),
+        throwsArgumentError,
+      );
+      expect(store.outbox.all(alice.id), isEmpty);
+    });
+
+    test('Change time: one message, at the new time', () {
+      final (message, view) = received();
+      sender.schedule(reply(message, view), thursday, now: now);
+      final friday = DateTime(2026, 11, 6, 13);
+      final pending = scheduled.reschedule(only(), friday, now: now);
+      expect(pending, isNotNull);
+      final s = only();
+      expect(s.at, friday.toUtc());
+      expect(s.entry.notBefore, friday.toUtc());
+      expect(const MimeParser().parse(s.entry.data!).date!.utc, friday.toUtc());
+      expect(
+        store.outbox.due(alice.id, now: thursday).map((e) => e.action),
+        everyElement(isA<RemoveDraftAction>()),
+      );
+      expect(
+        store.outbox
+            .all(alice.id)
+            .where((e) => e.action is SetFlagsAction)
+            .single
+            .notBefore,
+        friday.toUtc(),
+        reason: 'answered when it goes out, once',
+      );
+      expect(store.messages.byId(message.id)!.flags.answered, isTrue);
+      expect(
+        () => scheduled.reschedule(only(), now, now: now),
+        throwsArgumentError,
+      );
+    });
+
+    test('Send now: an ordinary send, with the usual undo delay', () {
+      final (message, view) = received();
+      sender.schedule(reply(message, view), thursday, now: now);
+      final pending = scheduled.sendNow(only(), now: now)!;
+      expect(pending.scheduledFor, isNull);
+      expect(scheduled.all(), isEmpty);
+      final send = store.outbox.sends().single;
+      expect(send.notBefore, pending.undoUntil.toUtc());
+      expect(
+        store.outbox
+            .due(alice.id, now: pending.undoUntil)
+            .map((e) => e.action.runtimeType),
+        containsAll([SendAction, SetFlagsAction]),
+      );
+      expect(const MimeParser().parse(send.data!).subject, 'Re: Plans');
+    });
+
+    test('Edit: back to a draft, everything kept, the schedule ends', () {
+      final (message, view) = received();
+      sender.schedule(reply(message, view), thursday, now: now);
+      final draft = scheduled.edit(only(), now: now)!;
+      expect(draft.id, isNotNull, reason: 'saved on the device');
+      expect(draft.subject, 'Re: Plans');
+      expect(draft.body, 'The numbers are attached.\n\n');
+      expect(draft.bcc.single.address, 'me+archive@citusmail.test');
+      expect(draft.answeredMessageId, message.id);
+      expect(draft.attachments.single.fileName, 'q3.csv');
+      expect(
+        utf8.decode(draft.attachments.single.bytes),
+        'month,total\nJul,12\n',
+      );
+      expect(scheduled.all(), isEmpty);
+      expect(
+        store.outbox.all(alice.id).map((e) => e.action),
+        everyElement(isA<RemoveDraftAction>()),
+      );
+      expect(store.messages.byId(message.id)!.flags.answered, isFalse);
+    });
+
+    test('Cancel: goes to Drafts instead, never sent', () {
+      final (message, view) = received();
+      sender.schedule(reply(message, view), thursday, now: now);
+      expect(scheduled.cancel(only(), now: now), DraftOutcome.savedToServer);
+      expect(store.outbox.sends(), isEmpty);
+      final append = store.outbox
+          .all(alice.id)
+          .firstWhere((e) => e.action is AppendAction);
+      expect((append.action as AppendAction).mailboxId, drafts.id);
+      final copy = const MimeParser().parse(append.data!);
+      expect(copy.subject, 'Re: Plans');
+      expect(store.messages.byId(message.id)!.flags.answered, isFalse);
+    });
+
+    test('too late once its time came: nothing changes', () {
+      sender.schedule(
+        Draft(accountId: alice.id, to: [a('bob@x.example')], body: 'x'),
+        thursday,
+        now: now,
+      );
+      final s = only();
+      expect(scheduled.edit(s, now: thursday), isNull);
+      expect(scheduled.cancel(s, now: thursday), isNull);
+      expect(scheduled.sendNow(s, now: thursday), isNull);
+      expect(
+        scheduled.reschedule(
+          s,
+          thursday.add(const Duration(days: 1)),
+          now: thursday,
+        ),
+        isNull,
+      );
+      expect(only().entry.id, s.entry.id);
+
+      // Also once a try has been made (the server was unreachable).
+      store.outbox.retryLater(s.entry.id, 'offline', thursday);
+      expect(scheduled.edit(only(), now: now), isNull);
+      expect(scheduled.nextDue(now: now), isNull);
+    });
+
+    test('a failure is reported once', () {
+      sender.schedule(
+        Draft(accountId: alice.id, to: [a('bob@x.example')], body: 'x'),
+        thursday,
+        now: now,
+      );
+      sender.send(
+        Draft(accountId: alice.id, to: [a('carol@x.example')], body: 'y'),
+        now: now,
+      );
+      expect(scheduled.claimFailures(), isEmpty);
+      for (final e in store.outbox.sends()) {
+        store.outbox.markFailed(e.id, '550 mailbox unavailable');
+      }
+      final claimed = scheduled.claimFailures();
+      expect(claimed, hasLength(1), reason: 'only the scheduled one');
+      expect(claimed.single.entry.lastError, '550 mailbox unavailable');
+      expect(scheduled.claimFailures(), isEmpty);
+    });
+  });
+
   group('answering invitations', () {
     late Sender sender;
     setUp(() => sender = Sender(store));

@@ -12,7 +12,9 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
+import 'package:citusmail/src/mail/send_later_times.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/accounts_page.dart';
@@ -25,10 +27,12 @@ import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:citusmail/src/ui/trips_page.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
@@ -553,6 +557,115 @@ void main() {
     );
     await shoot(tester, 'phone_snoozed');
   });
+
+  // Send later: the times next to Send (a dialog on the desktop, a bottom
+  // sheet on phones), and scheduled messages waiting in the Outbox with
+  // their actions and the note on when they really go.
+  testWidgets('send later', (tester) async {
+    final now = DateTime(2026, 11, 4, 9, 10); // a Wednesday morning
+    SendLaterTimes.clock = () => now;
+    addTearDown(() => SendLaterTimes.clock = DateTime.now);
+    _seedDemo(app.store);
+    _seedScheduledSends(app.store, app.services.sender, now);
+
+    Future<void> writeOne({bool phoneShot = false}) async {
+      await tester.tap(find.byTooltip('New message (C)'));
+      await settle(tester);
+      final fields = find.descendant(
+        of: find.byType(ComposePage),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(
+        fields.first,
+        'Priya Shah <priya@studio.example>,',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Subject'),
+        'Notes from Tuesday',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Write your message'),
+        'Hi Priya,\n\nHere are my notes from Tuesday. Talk Monday!\n\nAlex',
+      );
+      if (phoneShot) await shoot(tester, 'phone_send_later_compose');
+      await tester.tap(find.byTooltip('Send later'));
+    }
+
+    // The desktop notes, as on a computer.
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    await show(tester, shell(), size: const Size(1440, 900));
+    await writeOne();
+    await shoot(tester, 'desktop_send_later_menu');
+
+    await tester.pumpWidget(const SizedBox()); // a fresh start
+    await show(tester, shell(), size: const Size(1440, 900));
+    await tester.tap(find.text('Outbox'));
+    await settle(tester);
+    await shoot(tester, 'desktop_send_later_outbox');
+    await tester.tap(find.byTooltip('Scheduled message options').first);
+    await shoot(tester, 'desktop_send_later_actions');
+    debugDefaultTargetPlatformOverride = null;
+
+    await tester.pumpWidget(const SizedBox());
+    await show(tester, shell(), size: const Size(390, 844));
+    await writeOne(phoneShot: true);
+    await shoot(tester, 'phone_send_later_sheet');
+    await tester.pump(const Duration(seconds: 3)); // the draft's autosave
+
+    await tester.pumpWidget(const SizedBox());
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await tester.tap(find.byTooltip('Folders'));
+    await settle(tester);
+    await tester.tap(
+      find.descendant(of: find.byType(Drawer), matching: find.text('Outbox')),
+    );
+    await shoot(tester, 'phone_send_later_outbox');
+  });
+}
+
+/// Two messages scheduled with Send later, and one that failed.
+void _seedScheduledSends(MailStore store, Sender sender, DateTime now) {
+  final accountId = store.accounts.all().single.id;
+  MailAddress a(String address, String name) => MailAddress(
+    displayName: name,
+    localPart: address.split('@').first,
+    domain: address.split('@').last,
+  );
+  sender.schedule(
+    Draft(
+      accountId: accountId,
+      to: [a('maria@studio.example', 'Maria Lopez')],
+      subject: 'Contract: my comments on clause 4',
+      body: 'Hi Maria,\n\nMy comments are below.',
+    ),
+    DateTime(2026, 11, 5, 8),
+    now: now,
+  );
+  sender.schedule(
+    Draft(
+      accountId: accountId,
+      to: [a('team@studio.example', 'Studio team')],
+      subject: 'Weekly plan',
+      body: 'Good morning all,\n\nHere is the plan for the week.',
+    ),
+    DateTime(2026, 11, 9, 8),
+    now: now,
+  );
+  sender.schedule(
+    Draft(
+      accountId: accountId,
+      to: [a('tom@old-domain.example', 'Tom Baker')],
+      subject: 'Birthday surprise',
+      body: 'Shh!',
+    ),
+    DateTime(2026, 11, 4, 8),
+    now: now.subtract(const Duration(days: 1)),
+  );
+  final failed = store.outbox.sends().last;
+  store.outbox.markFailed(
+    failed.id,
+    '550 5.1.1 tom@old-domain.example: mailbox unavailable',
+  );
 }
 
 /// Three snoozed emails, and one back from snooze a moment ago.

@@ -13,10 +13,12 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_view/mail_view.dart';
 
+import '../background/background_mail.dart';
 import '../services/app_services.dart';
 import 'invitation_answers.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
+import 'send_later_times.dart';
 
 /// How a sender can be blocked.
 final class BlockChoice {
@@ -202,6 +204,8 @@ final class MailController {
     _refreshCounts();
     _refreshCodesOffer();
     wakeSnoozes();
+    // Android: a background check when the next scheduled message is due.
+    unawaited(BackgroundMail.checkWhenDue(_store));
   }
 
   final AppServices services;
@@ -1430,6 +1434,108 @@ final class MailController {
   void discardSend(OutboxEntry entry) {
     _store.outbox.discardFailed(entry.id);
     refresh();
+  }
+
+  // ---------------------------------------------------------- send later
+
+  /// Messages scheduled with "Send later".
+  late final scheduledSends = ScheduledSends(_store, services.sender);
+
+  static const _tooLate =
+      'Too late to change: the message is already on its way.';
+
+  /// Sends a scheduled message now (with Undo, which puts it back at its
+  /// time).
+  void sendScheduledNow(ScheduledSend s) {
+    final pending = scheduledSends.sendNow(s, now: SendLaterTimes.clock());
+    refresh();
+    if (pending == null) {
+      onNotice?.call(_tooLate);
+      return;
+    }
+    services.worker.syncAt(pending.accountId, pending.undoUntil);
+    onNotice?.call(
+      'Sending…',
+      undo: () {
+        // Back to its time, unless it has started to go out.
+        final undone =
+            services.sender.cancel(pending, now: SendLaterTimes.clock()) &&
+            _rescheduleDraft(pending.draft, s.at);
+        refresh();
+        if (!undone) onNotice?.call('Too late: the message is on its way.');
+      },
+    );
+  }
+
+  bool _rescheduleDraft(Draft draft, DateTime at) {
+    try {
+      final pending = services.sender.schedule(
+        draft,
+        at.toLocal(),
+        now: SendLaterTimes.clock(),
+      );
+      _armScheduled(pending);
+    } on ArgumentError {
+      // Its time has come meanwhile: send it.
+      final pending = services.sender.send(draft, now: SendLaterTimes.clock());
+      services.worker.syncAt(pending.accountId, pending.undoUntil);
+    }
+    return true;
+  }
+
+  /// Sends a scheduled message at [at] instead.
+  void rescheduleSend(ScheduledSend s, DateTime at, String done) {
+    final PendingSend? pending;
+    try {
+      pending = scheduledSends.reschedule(s, at, now: SendLaterTimes.clock());
+    } on ArgumentError {
+      sendScheduledNow(s);
+      return;
+    }
+    refresh();
+    if (pending == null) {
+      onNotice?.call(_tooLate);
+      return;
+    }
+    _armScheduled(pending);
+    onNotice?.call(done);
+  }
+
+  /// Takes a scheduled message back to keep writing it (the schedule
+  /// ends; closing the window keeps it as a draft).
+  void editScheduled(ScheduledSend s) {
+    final draft = scheduledSends.edit(s, now: SendLaterTimes.clock());
+    refresh();
+    if (draft == null) {
+      onNotice?.call(_tooLate);
+      return;
+    }
+    onCompose?.call(draft);
+  }
+
+  /// Doesn't send a scheduled message: it goes to Drafts instead.
+  void cancelScheduled(ScheduledSend s) {
+    final outcome = scheduledSends.cancel(s, now: SendLaterTimes.clock());
+    refresh();
+    if (outcome == null) {
+      onNotice?.call(_tooLate);
+      return;
+    }
+    services.worker.requestSync(s.entry.accountId);
+    onNotice?.call(
+      outcome == DraftOutcome.savedToServer
+          ? 'It won\'t be sent. It\'s in Drafts.'
+          : 'It won\'t be sent. It\'s kept as a draft on this device.',
+    );
+  }
+
+  /// A sync at the scheduled time (and on Android, a background check).
+  void _armScheduled(PendingSend pending) {
+    services.worker.syncAt(pending.accountId, pending.undoUntil);
+    if (pending.scheduledFor case final at?) {
+      services.worker.syncAt(pending.accountId, at);
+    }
+    unawaited(BackgroundMail.checkWhenDue(_store));
   }
 
   // ---------------------------------------------------------------- sync

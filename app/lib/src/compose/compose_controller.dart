@@ -9,6 +9,8 @@ import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../background/background_mail.dart';
+import '../mail/send_later_times.dart';
 import '../services/app_services.dart';
 
 /// Addresses in one recipient field, plus text typed but not yet turned
@@ -168,9 +170,10 @@ final class ComposeController extends ChangeNotifier {
     _draft = services.drafts.save(_draft);
   }
 
-  /// Sends, after turning typed text into recipients. Returns null (and
-  /// sets [problems]) if the message cannot be sent yet.
-  ComposeResult? send() {
+  /// Sends, after turning typed text into recipients; with [at], at that
+  /// time ("Send later"; it waits in the Outbox until then). Returns null
+  /// (and sets [problems]) if the message cannot be sent yet.
+  ComposeResult? send({DateTime? at}) {
     final typedOk = [to, cc, bcc].map((l) => l.commit()).every((ok) => ok);
     _draft = _withRecipients(_draft);
     if (!typedOk) {
@@ -179,15 +182,48 @@ final class ComposeController extends ChangeNotifier {
       return null;
     }
     try {
-      final pending = services.sender.send(_draft);
+      final pending = _sendOrSchedule(at);
       _finish();
       services.worker.syncAt(pending.accountId, pending.undoUntil);
+      if (pending.scheduledFor case final due?) {
+        services.worker.syncAt(pending.accountId, due);
+        unawaited(BackgroundMail.checkWhenDue(services.store));
+      }
       return ComposeSent(pending);
     } on ComposeException catch (e) {
       problems = e.problems;
       notifyListeners();
       return null;
     }
+  }
+
+  /// Whether the message could be sent as it is (asked before choosing a
+  /// time for it); if not, sets [problems] to say why.
+  bool readyToSend() {
+    final typedOk = [to, cc, bcc].map((l) => l.commit()).every((ok) => ok);
+    _draft = _withRecipients(_draft);
+    problems = typedOk
+        ? services.sender.messages.problems(_draft, account)
+        : {ComposeProblem.invalidRecipient};
+    notifyListeners();
+    return problems.isEmpty;
+  }
+
+  /// A time only seconds away (picked for the current minute) is just a
+  /// send.
+  PendingSend _sendOrSchedule(DateTime? at) {
+    if (at != null) {
+      try {
+        return services.sender.schedule(
+          _draft,
+          at,
+          now: SendLaterTimes.clock(),
+        );
+      } on ArgumentError {
+        // Too soon to schedule: send it now.
+      }
+    }
+    return services.sender.send(_draft);
   }
 
   /// The window closes without sending: the draft goes to the server's

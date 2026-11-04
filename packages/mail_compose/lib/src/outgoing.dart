@@ -56,11 +56,13 @@ final class OutgoingMessages {
   };
 
   /// The message to send. Throws [ComposeException] if it cannot be sent.
-  BuiltMessage forSending(Draft draft, Account? account) {
+  /// [date] is the Date it carries (now if not given; a scheduled message
+  /// carries the time it is due to go out).
+  BuiltMessage forSending(Draft draft, Account? account, {DateTime? date}) {
     final problems = this.problems(draft, account);
     if (problems.isNotEmpty) throw ComposeException(problems);
     try {
-      return MessageBuilder().build(_outgoing(draft, account!));
+      return MessageBuilder().build(_outgoing(draft, account!, date: date));
     } on MessageBuildException {
       throw const ComposeException({ComposeProblem.invalidRecipient});
     }
@@ -71,27 +73,31 @@ final class OutgoingMessages {
   BuiltMessage forDraftsFolder(Draft draft, Account account) =>
       MessageBuilder().build(_outgoing(draft, account), draft: true);
 
-  static OutgoingMessage _outgoing(Draft draft, Account account) =>
-      OutgoingMessage(
-        from: sender(account),
-        to: draft.to,
-        cc: draft.cc,
-        bcc: draft.bcc,
-        subject: draft.subject.trim(),
-        textBody: draft.body,
-        attachments: [
-          for (final a in draft.attachments)
-            OutgoingAttachment(
-              filename: a.fileName,
-              mimeType: a.mimeType,
-              bytes: a.bytes,
-            ),
-        ],
-        inReplyTo: draft.inReplyTo,
-        references: draft.references,
-        receiptTo: draft.requestReceipt ? sender(account) : null,
-        calendar: draft.calendar,
-      );
+  static OutgoingMessage _outgoing(
+    Draft draft,
+    Account account, {
+    DateTime? date,
+  }) => OutgoingMessage(
+    date: date,
+    from: sender(account),
+    to: draft.to,
+    cc: draft.cc,
+    bcc: draft.bcc,
+    subject: draft.subject.trim(),
+    textBody: draft.body,
+    attachments: [
+      for (final a in draft.attachments)
+        OutgoingAttachment(
+          filename: a.fileName,
+          mimeType: a.mimeType,
+          bytes: a.bytes,
+        ),
+    ],
+    inReplyTo: draft.inReplyTo,
+    references: draft.references,
+    receiptTo: draft.requestReceipt ? sender(account) : null,
+    calendar: draft.calendar,
+  );
 
   /// A deliverable address: something@domain.with.dot, no spaces or
   /// control characters.

@@ -9,6 +9,7 @@ import 'package:mail_compose/mail_compose.dart';
 import '../ui/citusmail_theme.dart';
 import '../ui/mail_shell.dart';
 import '../ui/mail_text.dart';
+import '../ui/send_later_sheet.dart';
 import 'compose_controller.dart';
 import 'recipient_field.dart';
 
@@ -51,6 +52,15 @@ final class _ComposePageState extends State<ComposePage> {
 
   void _send() {
     final result = _c.send();
+    if (result != null) Navigator.of(context).pop(result);
+  }
+
+  /// "Send later": choose a time, then it waits in the Outbox.
+  Future<void> _sendLater() async {
+    if (!_c.readyToSend()) return;
+    final at = await SendLaterSheet.pick(context);
+    if (at == null || !mounted) return;
+    final result = _c.send(at: at);
     if (result != null) Navigator.of(context).pop(result);
   }
 
@@ -196,11 +206,7 @@ final class _ComposePageState extends State<ComposePage> {
                       onPressed: _discard,
                     ),
                     const SizedBox(width: 8),
-                    FilledButton.icon(
-                      onPressed: _send,
-                      icon: const Icon(Icons.send, size: 18),
-                      label: const Text('Send'),
-                    ),
+                    _SendButton(onSend: _send, onSendLater: _sendLater),
                   ],
                 ),
               );
@@ -343,6 +349,53 @@ final class _ComposePageState extends State<ComposePage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Send, with "Send later" attached on its right (a split button): the
+/// clock, or a long press on Send, offers the times.
+final class _SendButton extends StatelessWidget {
+  const _SendButton({required this.onSend, required this.onSendLater});
+
+  final VoidCallback onSend;
+  final VoidCallback onSendLater;
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = Radius.circular(10);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FilledButton.icon(
+          onPressed: onSend,
+          onLongPress: onSendLater,
+          style: FilledButton.styleFrom(
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.horizontal(left: radius),
+            ),
+          ),
+          icon: const Icon(Icons.send, size: 18),
+          label: const Text('Send'),
+        ),
+        const SizedBox(width: 2),
+        Tooltip(
+          message: 'Send later',
+          child: FilledButton(
+            key: const ValueKey('send-later'),
+            onPressed: onSendLater,
+            style: FilledButton.styleFrom(
+              // As tall as Send (the theme's 44), narrower.
+              minimumSize: const Size(44, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.horizontal(right: radius),
+              ),
+            ),
+            child: const Icon(Icons.schedule_send, size: 20),
+          ),
+        ),
+      ],
     );
   }
 }

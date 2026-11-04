@@ -96,6 +96,31 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) :
             WorkManager.getInstance(context).enqueueUniqueWork(NEXT_NAME, policy, request)
         }
 
+        /** The one check set for a scheduled message's time. */
+        private const val DUE_NAME = "citusmail-send-later"
+
+        /**
+         * One extra check at [epochMillis], when a message scheduled with
+         * "Send later" is due, so it goes out on time rather than with the
+         * next 5-minute check. Ordinary WorkManager work: no exact-alarm
+         * permission, so Android may run it a little later in battery
+         * saving. From the app it replaces the one set before; from a
+         * background check ([fromCheck]) it is queued after the running one,
+         * which replacing would cancel.
+         */
+        fun checkAt(context: Context, epochMillis: Long, fromCheck: Boolean = false) {
+            val delay = (epochMillis - System.currentTimeMillis()).coerceAtLeast(0L)
+            val request = OneTimeWorkRequestBuilder<BackgroundSyncWorker>()
+                .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+                .setConstraints(network)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                DUE_NAME,
+                if (fromCheck) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE,
+                request,
+            )
+        }
+
         /** Schedules the checks (keeps existing schedules). */
         fun schedule(context: Context) {
             scheduleNext(context, ExistingWorkPolicy.KEEP)

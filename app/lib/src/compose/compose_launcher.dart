@@ -7,7 +7,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mail_compose/mail_compose.dart';
 
+import '../mail/send_later_times.dart';
 import '../services/app_services.dart';
+import '../ui/send_later_sheet.dart';
 import 'compose_controller.dart';
 import 'compose_page.dart';
 
@@ -73,12 +75,21 @@ abstract final class ComposeLauncher {
     PendingSend pending,
   ) {
     final messenger = ScaffoldMessenger.of(context);
-    final left = pending.undoUntil.difference(DateTime.now());
+    final scheduled = pending.scheduledFor;
+    // A scheduled message was queued on the send-later clock.
+    final left = pending.undoUntil.difference(
+      scheduled == null ? DateTime.now() : SendLaterTimes.clock(),
+    );
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: const Text('Sending…'),
+          content: Text(
+            scheduled == null
+                ? 'Sending…'
+                : '${SendLaterSheet.sendsAt(context, scheduled)}. '
+                      'It waits in your Outbox.',
+          ),
           duration: left.isNegative ? Duration.zero : left,
           persist: false,
           action: SnackBarAction(

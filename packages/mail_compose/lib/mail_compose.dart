@@ -10,4 +10,5 @@ export 'src/draft_store.dart';
 export 'src/invitation_reply.dart';
 export 'src/outgoing.dart';
 export 'src/reply_builder.dart';
+export 'src/scheduled_sends.dart';
 export 'src/sender.dart';

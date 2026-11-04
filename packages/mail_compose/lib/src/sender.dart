@@ -17,9 +17,13 @@ final class PendingSend {
     required this.undoUntil,
     required this.draft,
     required this.answered,
+    this.scheduledFor,
   });
 
   final int accountId;
+
+  /// When the message goes out, if the user chose a time ("Send later").
+  final DateTime? scheduledFor;
 
   /// The queued send and its follow-ups (answered flag, old draft copy).
   final List<int> entryIds;
@@ -49,10 +53,27 @@ final class Sender {
 
   /// Queues [draft] for sending. Throws [ComposeException] if it cannot be
   /// sent (no recipients, bad address, too large...).
-  PendingSend send(Draft draft, {DateTime? now}) {
-    final account = _store.accounts.byId(draft.accountId);
-    final built = messages.forSending(draft, account);
+  PendingSend send(Draft draft, {DateTime? now}) => _queue(draft, now: now);
+
+  /// Queues [draft] to go out at [at] ("Send later"). It waits in the
+  /// outbox on this device until then; it can be undone like a send for
+  /// [undoDelay], and taken back later with [ScheduledSends]. Throws
+  /// [ComposeException] like [send], or [ArgumentError] if [at] is not
+  /// after the undo delay.
+  PendingSend schedule(Draft draft, DateTime at, {DateTime? now}) {
     final undoUntil = (now ?? DateTime.now()).add(undoDelay);
+    if (!at.isAfter(undoUntil)) {
+      throw ArgumentError.value(at, 'at', 'must be later');
+    }
+    return _queue(draft, now: now, at: at);
+  }
+
+  PendingSend _queue(Draft draft, {DateTime? now, DateTime? at}) {
+    final account = _store.accounts.byId(draft.accountId);
+    // A scheduled message is dated when it is due to go out.
+    final built = messages.forSending(draft, account, date: at);
+    final undoUntil = (now ?? DateTime.now()).add(undoDelay);
+    final sendAt = at ?? undoUntil;
     final sentFolder = _store.mailboxes.bySpecialUse(
       account!.id,
       SpecialUse.sent,
@@ -63,20 +84,21 @@ final class Sender {
     );
 
     return _store.transaction(() {
-      final ids = <int>[
-        _store.outbox
-            .enqueue(
-              account.id,
-              SendAction(
-                from: account.email,
-                recipients: [for (final r in built.recipients) r.address],
-                sentMailboxId: sentFolder?.id,
-              ),
-              data: built.bytes,
-              notBefore: undoUntil,
-            )
-            .id,
-      ];
+      final send = SendAction(
+        from: account.email,
+        recipients: [for (final r in built.recipients) r.address],
+        sentMailboxId: sentFolder?.id,
+        schedule: at == null
+            ? null
+            : SendSchedule(at: at, draft: draft.encodeContent()),
+      );
+      final sendId = _store.outbox
+          .enqueue(account.id, send, data: built.bytes, notBefore: sendAt)
+          .id;
+      final ids = <int>[sendId];
+      // The older copy in the Drafts folder goes once the undo delay is
+      // over, also for a scheduled message: until it is sent, it waits in
+      // the Outbox (and comes back to Drafts if cancelled).
       if (draft.savedMessageId case final saved? when draftsFolder != null) {
         try {
           ids.add(
@@ -98,7 +120,16 @@ final class Sender {
       if (draft.requestReceipt) {
         _store.receipts.requested(account.id, built.messageId);
       }
-      final answered = _markAnswered(draft.answeredMessageId, undoUntil, ids);
+      // Marked answered when it goes out.
+      final before = ids.length;
+      final answered = _markAnswered(draft.answeredMessageId, sendAt, ids);
+      if (send.schedule case final schedule? when ids.length > before) {
+        // Taken back with the message, if it is cancelled.
+        _store.outbox.updateAction(
+          sendId,
+          send.withSchedule(schedule.copyWith(followUps: ids.sublist(before))),
+        );
+      }
       if (draft.id case final id?) _store.drafts.delete(id);
       return PendingSend._(
         accountId: account.id,
@@ -106,6 +137,7 @@ final class Sender {
         undoUntil: undoUntil,
         draft: draft.copyWith(clearId: true),
         answered: answered,
+        scheduledFor: at,
       );
     });
   }

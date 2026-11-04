@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
+import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
@@ -10,6 +11,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../mail/message_list_model.dart';
+import '../mail/send_later_times.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
 import 'folder_dialogs.dart';
@@ -17,6 +19,7 @@ import 'mail_text.dart';
 import 'message_tile.dart';
 import 'move_dialog.dart';
 import 'screener_page.dart';
+import 'send_later_sheet.dart';
 import 'snooze_sheet.dart';
 
 /// The middle pane: search and compose, the view's header (or the bulk
@@ -670,11 +673,16 @@ final class _MessagesState extends State<_Messages> {
     if (entries.isEmpty) {
       return const _Empty(Icons.outbox_outlined, 'Everything has been sent.');
     }
+    // Scheduled messages ("Send later"): a word on when they really go.
+    final note = entries.any((e) => ScheduledSend.of(e) != null);
     return ListView.separated(
-      itemCount: entries.length,
-      separatorBuilder: (_, _) => const Divider(indent: 16),
-      itemBuilder: (context, i) =>
-          _OutboxTile(entry: entries[i], controller: _c),
+      itemCount: entries.length + (note ? 1 : 0),
+      separatorBuilder: (_, i) =>
+          note && i == 0 ? const SizedBox.shrink() : const Divider(indent: 16),
+      itemBuilder: (context, i) {
+        if (note && i == 0) return const _SendLaterNote();
+        return _OutboxTile(entry: entries[i - (note ? 1 : 0)], controller: _c);
+      },
     );
   }
 }
@@ -948,16 +956,28 @@ final class _OutboxTile extends StatelessWidget {
         ? null
         : const MimeParser().parse(entry.data!);
     final failed = entry.state == OutboxState.failed;
+    final scheduled = ScheduledSend.of(entry);
+    final now = SendLaterTimes.clock();
+    final waiting = scheduled != null && scheduled.waitingAt(now);
     final status = switch (entry) {
       _ when failed =>
         'Not sent: ${entry.lastError ?? 'the server refused it'}',
       _ when entry.lastError != null => 'Will try again: ${entry.lastError}',
-      _ when entry.notBefore.isAfter(DateTime.now()) => 'Sending shortly…',
+      _ when waiting => SendLaterSheet.sendsAt(context, scheduled.at),
+      _ when scheduled != null =>
+        'Was due ${SendLaterSheet.describe(context, scheduled.at)}, '
+            'sending now…',
+      _ when entry.notBefore.isAfter(now) => 'Sending shortly…',
       _ => 'Waiting to send…',
     };
     return ListTile(
+      key: ValueKey('outbox-${entry.id}'),
       leading: Icon(
-        failed ? Icons.error_outline : Icons.schedule_send,
+        failed
+            ? Icons.error_outline
+            : waiting
+            ? Icons.schedule
+            : Icons.schedule_send,
         color: failed ? theme.colorScheme.error : theme.colorScheme.primary,
       ),
       title: Text(
@@ -991,7 +1011,112 @@ final class _OutboxTile extends StatelessWidget {
                 ),
               ],
             )
+          : waiting
+          ? _ScheduledMenu(scheduled: scheduled, controller: controller)
           : null,
+    );
+  }
+}
+
+enum _ScheduledAction { sendNow, changeTime, edit, cancel }
+
+/// What can be done with a message waiting for its time.
+final class _ScheduledMenu extends StatelessWidget {
+  const _ScheduledMenu({required this.scheduled, required this.controller});
+
+  final ScheduledSend scheduled;
+  final MailController controller;
+
+  Future<void> _act(BuildContext context, _ScheduledAction action) async {
+    switch (action) {
+      case _ScheduledAction.sendNow:
+        controller.sendScheduledNow(scheduled);
+      case _ScheduledAction.changeTime:
+        final at = await SendLaterSheet.pick(context, current: scheduled.at);
+        if (at == null || !context.mounted) return;
+        controller.rescheduleSend(
+          scheduled,
+          at,
+          SendLaterSheet.sendsAt(context, at),
+        );
+      case _ScheduledAction.edit:
+        controller.editScheduled(scheduled);
+      case _ScheduledAction.cancel:
+        controller.cancelScheduled(scheduled);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<_ScheduledAction>(
+    tooltip: 'Scheduled message options',
+    icon: const Icon(Icons.more_vert),
+    onSelected: (action) => _act(context, action),
+    itemBuilder: (_) => const [
+      PopupMenuItem(
+        value: _ScheduledAction.sendNow,
+        child: ListTile(leading: Icon(Icons.send), title: Text('Send now')),
+      ),
+      PopupMenuItem(
+        value: _ScheduledAction.changeTime,
+        child: ListTile(
+          leading: Icon(Icons.schedule),
+          title: Text('Change time'),
+        ),
+      ),
+      PopupMenuItem(
+        value: _ScheduledAction.edit,
+        child: ListTile(
+          leading: Icon(Icons.edit_outlined),
+          title: Text('Edit'),
+          subtitle: Text('Back to a draft; not sent until you send it'),
+        ),
+      ),
+      PopupMenuItem(
+        value: _ScheduledAction.cancel,
+        child: ListTile(
+          leading: Icon(Icons.cancel_schedule_send_outlined),
+          title: Text('Cancel sending'),
+          subtitle: Text('Moves it to Drafts'),
+        ),
+      ),
+    ],
+  );
+}
+
+/// Above the Outbox list while it holds scheduled messages: what it takes
+/// for them to go out, and that they stay on this device.
+final class _SendLaterNote extends StatelessWidget {
+  const _SendLaterNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              SendLaterSheet.outboxNote,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

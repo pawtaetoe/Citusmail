@@ -5,7 +5,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:mail_compose/mail_compose.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../services/app_services.dart';
@@ -41,6 +44,28 @@ abstract final class BackgroundMail {
   static Future<void> setInstant(bool on) async {
     if (!instantAvailable) return;
     await _app.invokeMethod<void>('setInstant', on);
+  }
+
+  /// Android: one more background check when the next message scheduled
+  /// with "Send later" is due, so it goes out on time while the app is
+  /// closed (ordinary WorkManager work, no exact alarms: Android may hold
+  /// it a few minutes). [fromCheck] when called from a background check.
+  /// Elsewhere the running app's sync sends it.
+  static Future<void> checkWhenDue(
+    MailStore store, {
+    bool fromCheck = false,
+  }) async {
+    if (!Platform.isAndroid) return;
+    try {
+      final next = ScheduledSends(store, Sender(store)).nextDue();
+      if (next == null) return;
+      await (fromCheck ? _task : _app).invokeMethod<void>(
+        'checkAt',
+        next.millisecondsSinceEpoch,
+      );
+    } on Object catch (e) {
+      debugPrint('send later: ${e.runtimeType}');
+    }
   }
 
   /// One check of every account; tells Android when done.
@@ -96,6 +121,11 @@ abstract final class BackgroundMail {
         await engine.syncAccount(accountId);
       }
       await notifier?.remind(store);
+      // Scheduled messages ("Send later") went out with the syncs above;
+      // a quiet note for any that failed, and a check when the next one
+      // is due.
+      await notifier?.announceFailedSends(store);
+      await checkWhenDue(store, fromCheck: true);
       return allOk;
     } finally {
       await engine.dispose();
@@ -138,6 +168,7 @@ abstract final class BackgroundMail {
         unawaited(notifier?.announce(store, account, mail));
         unawaited(notifier?.announceBackFromSnooze(store, back));
         unawaited(notifier?.remind(store));
+        unawaited(notifier?.announceFailedSends(store));
       }
     });
     engine.start();

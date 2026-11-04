@@ -866,6 +866,94 @@ void main() {
         );
       }
     });
+
+    group('scheduled sends', () {
+      final at = DateTime.utc(2026, 11, 5, 7); // Thu 8:00 in Berlin
+      SendAction scheduled({bool noticed = false}) => SendAction(
+        from: 'alice@citusmail.test',
+        recipients: ['bob@x.example'],
+        sentMailboxId: 3,
+        schedule: SendSchedule(
+          at: at,
+          draft: '{"v":1,"subject":"Quarterly numbers"}',
+          followUps: const [7],
+          failureNoticed: noticed,
+        ),
+      );
+
+      test('the schedule round-trips, and survives SMTP acceptance', () {
+        final entry = store.outbox.enqueue(
+          account.id,
+          scheduled(),
+          data: Uint8List.fromList([1]),
+          notBefore: at,
+        );
+        final action = store.outbox.byId(entry.id)!.action as SendAction;
+        expect(action.schedule!.at, at);
+        expect(action.schedule!.draft, contains('Quarterly numbers'));
+        expect(action.schedule!.followUps, [7]);
+        expect(action.schedule!.failureNoticed, isFalse);
+        expect(action.encode(), scheduled().encode());
+
+        final accepted = action.markAccepted();
+        expect(accepted.smtpAccepted, isTrue);
+        expect(accepted.schedule!.at, at);
+        expect(
+          accepted
+              .withSchedule(action.schedule!.copyWith(failureNoticed: true))
+              .schedule!
+              .failureNoticed,
+          isTrue,
+        );
+      });
+
+      test('a plain send stays as it was stored before', () {
+        final plain = SendAction(from: 'a@x.example', recipients: ['b@x']);
+        expect(plain.toJson().containsKey('schedule'), isFalse);
+        expect(
+          (OutboxAction.decode(
+            '{"type":"send","from":"a@x.example","recipients":["b@x"],'
+            '"sentMailboxId":null,"smtpAccepted":false}',
+          ) as SendAction).schedule,
+          isNull,
+        );
+      });
+
+      test('is not due before its time, also after a restart', () {
+        store.outbox.enqueue(
+          account.id,
+          scheduled(),
+          data: Uint8List.fromList([1]),
+          notBefore: at,
+        );
+        final before = at.subtract(const Duration(seconds: 1));
+        expect(store.outbox.due(account.id, now: before), isEmpty);
+        temp.reopen();
+        store = temp.store;
+        expect(store.outbox.due(account.id, now: before), isEmpty);
+        final due = store.outbox.due(account.id, now: at).single;
+        expect((due.action as SendAction).schedule!.at, at);
+        expect(store.outbox.sends(), hasLength(1));
+      });
+
+      test('a damaged schedule makes the entry fail, never send early', () {
+        for (final bad in [
+          '{"type":"send","from":"a@x","recipients":["b@x"],"schedule":1}',
+          ('{"type":"send","from":"a@x","recipients":["b@x"],'
+              '"schedule":{"at":"soon","draft":"","followUps":[]}}'),
+          ('{"type":"send","from":"a@x","recipients":["b@x"],'
+              '"schedule":{"at":1,"draft":"","followUps":[]}}'),
+          ('{"type":"send","from":"a@x","recipients":["b@x"],'
+              '"schedule":{"at":1790000000000,"draft":"","followUps":[0]}}'),
+        ]) {
+          expect(
+            () => OutboxAction.decode(bad),
+            throwsFormatException,
+            reason: bad,
+          );
+        }
+      });
+    });
   });
 
   group('smart inbox', () {
