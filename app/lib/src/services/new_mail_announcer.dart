@@ -33,6 +33,11 @@ final class NewMailAnnouncer {
     final notifier = _notifier;
     if (notifier == null) return;
     unawaited(notifier.remind(_services.store));
+    // A message scheduled with "Send later" that failed: a quiet note,
+    // also while the app is in front (the Outbox shows it too).
+    if (_services.settings.notifications) {
+      unawaited(notifier.announceFailedSends(_services.store));
+    }
     if (mail.isEmpty) return;
     if (!_services.settings.notifications) return;
     if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {

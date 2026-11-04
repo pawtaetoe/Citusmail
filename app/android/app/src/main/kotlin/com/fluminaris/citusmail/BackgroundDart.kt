@@ -26,11 +26,23 @@ object BackgroundDart {
         // Plugins (keychain, folders, notifications) are registered as for the app.
         val engine = FlutterEngine(context.applicationContext)
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            if (call.method == "done") {
-                result.success(null)
-                onDone(call.arguments as? Boolean ?: false)
-            } else {
-                result.notImplemented()
+            when (call.method) {
+                "done" -> {
+                    result.success(null)
+                    onDone(call.arguments as? Boolean ?: false)
+                }
+                // The next scheduled message's time ("Send later").
+                "checkAt" -> {
+                    (call.arguments as? Number)?.let {
+                        BackgroundSyncWorker.checkAt(
+                            context.applicationContext,
+                            it.toLong(),
+                            fromCheck = true,
+                        )
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
             }
         }
         engine.dartExecutor.executeDartEntrypoint(

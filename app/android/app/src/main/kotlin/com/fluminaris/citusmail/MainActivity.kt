@@ -46,6 +46,13 @@ class MainActivity : FlutterFragmentActivity() {
                         InstantMailService.setEnabled(this, call.arguments as? Boolean ?: false)
                         result.success(null)
                     }
+                    // A message scheduled with "Send later" is due then.
+                    "checkAt" -> {
+                        (call.arguments as? Number)?.let {
+                            BackgroundSyncWorker.checkAt(this, it.toLong())
+                        }
+                        result.success(null)
+                    }
                     // App lock on: the app switcher shows no picture of the
                     // mail (Android 13+; older versions show the app's own
                     // cover).

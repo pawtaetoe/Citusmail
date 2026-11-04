@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:background_clipboard/background_clipboard.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:mail_compose/mail_compose.dart';
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
@@ -198,6 +200,52 @@ final class MailNotifier {
   }
 
   static const _reminderSummaryId = 0x2FFFFFFF;
+
+  /// Tells the user, quietly and once, about each message scheduled with
+  /// "Send later" that could not be sent (it waits in the Outbox, with
+  /// Try again). With the app lock on, only that one was not sent.
+  Future<void> announceFailedSends(MailStore store) async {
+    final List<ScheduledSend> failed;
+    try {
+      failed = ScheduledSends(store, Sender(store)).claimFailures();
+    } on Object catch (e) {
+      debugPrint('send later: ${e.runtimeType}');
+      return;
+    }
+    final hide = AppLock.isEnabledIn(store);
+    for (final s in failed) {
+      final data = s.entry.data;
+      final subject = data == null
+          ? null
+          : const MimeParser().parse(data).subject?.trim();
+      await _plugin.show(
+        id: _failedSendBase | (s.entry.id & 0x0FFFFFFF),
+        title: 'A scheduled email wasn\'t sent',
+        body: hide
+            ? 'Unlock $_appName to see it in the Outbox.'
+            : '“${subject == null || subject.isEmpty ? '(no subject)' : subject}” '
+                  'is in your Outbox. Open it to try again.',
+        notificationDetails: _failedSendDetails,
+      );
+    }
+  }
+
+  /// Notification ids of failed scheduled sends, apart from mail's.
+  static const _failedSendBase = 0x30000000;
+
+  static const _failedSendDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'send_failures',
+      'Scheduled emails not sent',
+      channelDescription:
+          'A message scheduled with Send later could not be sent',
+      // Quiet: no sound, no pop-up.
+      importance: Importance.low,
+      priority: Priority.low,
+      category: AndroidNotificationCategory.error,
+      visibility: NotificationVisibility.private,
+    ),
+  );
 
   /// Checks for reminders to post after a sync ([ReminderCheck] decides
   /// whether it is time), honouring the app lock.
