@@ -1,0 +1,28 @@
+name: background_clipboard
+description: >-
+  Puts text on the clipboard from any Flutter engine, including the headless
+  one Android starts for a notification button (Flutter's own Clipboard only
+  works while an app window is open). Marks codes as sensitive so Android
+  hides them in its clipboard preview. No network, no permissions.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.fluminaris.citusmail.background_clipboard
+        pluginClass: BackgroundClipboardPlugin

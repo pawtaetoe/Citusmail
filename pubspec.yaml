@@ -8,6 +8,7 @@ environment:
 
 workspace:
   - app
+  - packages/background_clipboard
   - packages/mail_appsync
   - packages/mail_compose
   - packages/mail_lookup
