@@ -12,6 +12,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import '../services/auto_reader.dart';
 import 'corrections.dart';
 
 /// What [findOnlineAccounts] found: every account the rules found
@@ -218,8 +219,12 @@ final class AccountsModel extends ChangeNotifier {
       ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
   }
 
+  /// Emails given up on: not offered while they are read automatically.
+  Set<int> get _skip =>
+      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
+
   Future<void> load() async {
-    final found = await findOnlineAccounts(_store, _now());
+    final found = await findOnlineAccounts(_store, _now(), skip: _skip);
     hidden = found.hidden;
     learned = found.learned;
     ownAddresses = found.ownAddresses;

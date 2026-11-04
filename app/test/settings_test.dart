@@ -64,6 +64,33 @@ void main() {
     );
   });
 
+  testWidgets('reading receipts and bookings automatically: on by default', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    final settings = app.services.settings;
+    expect(settings.autoRead, isTrue);
+    expect(
+      find.text(
+        'Downloads receipts, bills and booking emails from your mail server '
+        'so Subscriptions, Deliveries and Trips fill in by themselves. They '
+        'stay unread.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Read receipts and bookings automatically'));
+    await tester.pump();
+    expect(settings.autoRead, isFalse);
+    await tester.tap(find.text('Read receipts and bookings automatically'));
+    await tester.pump();
+    expect(settings.autoRead, isTrue);
+  });
+
   testWidgets('follow-up reminders: on by default, only with notifications', (
     tester,
   ) async {

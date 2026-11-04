@@ -11,6 +11,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import '../services/auto_reader.dart';
 import '../services/reminders.dart';
 import 'corrections.dart';
 
@@ -278,12 +279,17 @@ final class SubscriptionsModel extends ChangeNotifier {
       if (s.status == SubscriptionStatus.active) s,
   ];
 
+  /// Emails given up on: not offered while they are read automatically.
+  Set<int> get _skip =>
+      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
+
   Future<void> load() async {
     final now = _now();
     final found = await findSubscriptions(
       _store,
       now,
       monthlyRenewals: _services.settings.monthlyRenewals,
+      skip: _skip,
     );
     hidden = found.hidden;
     learned = found.learned;

@@ -49,6 +49,8 @@ void main() {
   }
 
   testWidgets('shipped orders: on the way, delivered, older', (tester) async {
+    // Reading automatically off: the page offers it, as a card.
+    app.services.settings.autoRead = false;
     seedDeliveries(app.store, now: DateTime.now().toUtc());
     await openDeliveries(tester);
 

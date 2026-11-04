@@ -7,8 +7,10 @@ import 'package:mail_sort/mail_sort.dart';
 
 import '../mail/accounts_model.dart';
 import '../mail/mail_controller.dart';
+import '../services/app_services.dart';
 import 'account_detail_page.dart';
 import 'avatar.dart';
+import 'read_ahead.dart';
 
 /// Online services the user has an account with, found in welcome,
 /// sign-in, password and security mail on the device: useful after a
@@ -27,7 +29,7 @@ final class AccountsPage extends StatefulWidget {
 
 enum _Sort { recent, name }
 
-final class _AccountsPageState extends State<AccountsPage> {
+final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
   late final AccountsModel _model = AccountsModel(
     widget.controller.services,
     now: widget.now,
@@ -39,9 +41,15 @@ final class _AccountsPageState extends State<AccountsPage> {
   bool _showHidden = false;
 
   @override
+  AppServices get services => widget.controller.services;
+
+  @override
+  Future<void> reload() => _model.load();
+
+  @override
   void initState() {
     super.initState();
-    _model.load();
+    _model.load().then((_) => loadedWith(_model.toRead));
     _search.addListener(() => setState(() {}));
   }
 
@@ -149,10 +157,15 @@ final class _AccountsPageState extends State<AccountsPage> {
                       total: r.total,
                       onStop: _model.stopReading,
                     )
-                  else if (_model.toRead.isNotEmpty)
+                  else if (_model.toRead.isNotEmpty && !readsAhead)
                     _ReadOffer(
                       count: _model.toRead.length,
                       onRead: _model.readEmails,
+                    )
+                  else if (_model.toRead.isNotEmpty && readingAhead)
+                    ReadingQuietly(
+                      'Reading ${_model.toRead.length} account email'
+                      '${_model.toRead.length == 1 ? '' : 's'}…',
                     ),
                   if (all.isNotEmpty) ...[
                     const SizedBox(height: 8),

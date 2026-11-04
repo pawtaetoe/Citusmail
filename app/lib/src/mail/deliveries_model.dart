@@ -12,6 +12,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import '../services/auto_reader.dart';
 import 'corrections.dart';
 
 /// What [findDeliveries] found: every delivery the rules found ([hidden]
@@ -256,10 +257,14 @@ final class DeliveriesModel extends ChangeNotifier {
     ...?_store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
   };
 
+  /// Emails given up on: not offered while they are read automatically.
+  Set<int> get _skip =>
+      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
+
   Future<void> load() async {
     returned = _readSet(returnedKey);
     kept = _readSet(keptKey);
-    final found = await findDeliveries(_store, _now());
+    final found = await findDeliveries(_store, _now(), skip: _skip);
     hidden = found.hidden;
     marked = found.marked;
     learned = found.learned;

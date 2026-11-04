@@ -29,6 +29,8 @@ void main() {
   testWidgets('receipts become a subscription with its price and dates', (
     tester,
   ) async {
+    // Reading automatically off: the page offers it, as a card.
+    app.services.settings.autoRead = false;
     final inbox = app.store.mailboxes.inbox(
       app.store.accounts.all().single.id,
     )!;

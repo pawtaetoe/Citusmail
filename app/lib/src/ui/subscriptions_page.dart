@@ -7,9 +7,11 @@ import 'package:mail_sort/mail_sort.dart';
 
 import '../mail/mail_controller.dart';
 import '../mail/subscriptions_model.dart';
+import '../services/app_services.dart';
 import '../services/reminders.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
+import 'read_ahead.dart';
 import 'subscription_detail_page.dart';
 
 /// Paid subscriptions found in the user's receipts and renewal mail: what
@@ -27,7 +29,8 @@ final class SubscriptionsPage extends StatefulWidget {
   State<SubscriptionsPage> createState() => _SubscriptionsPageState();
 }
 
-final class _SubscriptionsPageState extends State<SubscriptionsPage> {
+final class _SubscriptionsPageState extends State<SubscriptionsPage>
+    with ReadsAhead {
   late final SubscriptionsModel _model = SubscriptionsModel(
     widget.controller.services,
     now: widget.now,
@@ -37,9 +40,15 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
   DateTime get _today => (widget.now ?? DateTime.now)();
 
   @override
+  AppServices get services => widget.controller.services;
+
+  @override
+  Future<void> reload() => _model.load();
+
+  @override
   void initState() {
     super.initState();
-    _model.load();
+    _model.load().then((_) => loadedWith(_model.toRead));
   }
 
   @override
@@ -178,10 +187,15 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage> {
                       total: r.total,
                       onStop: _model.stopReading,
                     )
-                  else if (_model.toRead.isNotEmpty)
+                  else if (_model.toRead.isNotEmpty && !readsAhead)
                     _ReadOffer(
                       count: _model.toRead.length,
                       onRead: _model.readReceipts,
+                    )
+                  else if (_model.toRead.isNotEmpty && readingAhead)
+                    ReadingQuietly(
+                      'Reading ${_model.toRead.length} receipt'
+                      '${_model.toRead.length == 1 ? '' : 's'}…',
                     ),
                   if (active.isNotEmpty) ...[
                     const _SectionTitle('Active'),
