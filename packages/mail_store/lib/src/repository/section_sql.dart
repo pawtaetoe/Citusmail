@@ -49,6 +49,7 @@ abstract final class SectionSql {
   /// mail and codes are never screened.
   static final expression =
       'CASE '
+      "WHEN $snoozed THEN 'snoozed' "
       "WHEN (messages.flags & 4) != 0 THEN 'pinned' "
       "WHEN messages.category = 'codes' THEN 'codes' "
       'WHEN $screenedOut THEN $_outSection '
@@ -57,6 +58,14 @@ abstract final class SectionSql {
       "WHEN messages.category = 'notifications' THEN 'notifications' "
       "WHEN $_important THEN 'important' "
       "ELSE 'general' END";
+
+  /// Inbox mail the user snoozed (by Message-ID, see `SnoozeRepository`),
+  /// until it comes back. Copies in other folders aren't hidden.
+  static const snoozed =
+      '(messages.message_id_header IS NOT NULL '
+      'AND EXISTS (SELECT 1 FROM snoozes z WHERE z.message_id = messages.message_id_header) '
+      'AND EXISTS (SELECT 1 FROM mailboxes ib WHERE ib.id = messages.mailbox_id '
+      "AND upper(ib.encoded_name) = 'INBOX'))";
 
   // ----------------------------------------------------------- Screener
 

@@ -16,6 +16,7 @@ import 'repository/outbox_repository.dart';
 import 'repository/receipt_repository.dart';
 import 'repository/screener_repository.dart';
 import 'repository/settings_repository.dart';
+import 'repository/snooze_repository.dart';
 import 'repository/unsubscribe_repository.dart';
 
 /// The app's local mail storage: one encrypted database with a repository
@@ -34,7 +35,8 @@ final class MailStore {
       imageSenders = ImageSenderRepository(database),
       appDataSync = AppDataSyncRepository(database),
       receipts = ReceiptRepository(database),
-      screener = ScreenerRepository(database);
+      screener = ScreenerRepository(database),
+      snoozes = SnoozeRepository(database);
 
   /// Opens (or creates) the store at [path], encrypted with [key].
   /// See [MailDatabase.open] for the errors it can raise.
@@ -55,6 +57,7 @@ final class MailStore {
   final AppDataSyncRepository appDataSync;
   final ReceiptRepository receipts;
   final ScreenerRepository screener;
+  final SnoozeRepository snoozes;
 
   /// Runs [action] atomically across repositories.
   T transaction<T>(T Function() action) => database.transaction(action);

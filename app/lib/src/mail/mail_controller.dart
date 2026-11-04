@@ -137,12 +137,14 @@ final class MailCounts {
   final int outbox;
 
   /// Unread mail in the Smart Inbox (mail waiting in the Screener isn't
-  /// counted until its sender is let in).
+  /// counted until its sender is let in, nor snoozed mail until it comes
+  /// back).
   int get inboxUnread => unreadIn(sections);
 
   static int unreadIn(Map<SmartSection, SectionCount> sections) => [
     for (final MapEntry(:key, :value) in sections.entries)
-      if (key != SmartSection.screener) value.unread,
+      if (key != SmartSection.screener && key != SmartSection.snoozed)
+        value.unread,
   ].fold(0, (sum, n) => sum + n);
 }
 

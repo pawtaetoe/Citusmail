@@ -330,6 +330,45 @@ void main() {
       expect(temp.store.screener.all(), isEmpty);
     });
 
+    test('version 14 mail keeps its section and order; snoozing fits', () {
+      openAt(14)
+        ..execute(
+          'INSERT INTO messages (id, mailbox_id, uid, received_at, message_id_header, section, flags) VALUES '
+          "(1, 1, 1, 1000, 'a@x', 'screener', 0), (2, 1, 2, 2000, 'b@x', 'pinned', 4), "
+          "(3, 1, 3, 3000, 'c@x', 'general', 0)",
+        )
+        ..close();
+      temp.store = MailStore.open(temp.path, temp.key);
+      final db = temp.store.database;
+      expect(
+        db
+            .select('SELECT section, listed_at FROM messages ORDER BY id')
+            .map((r) => (r['section'], r['listed_at'])),
+        [('screener', 1000), ('pinned', 2000), ('general', 3000)],
+      );
+      expect(
+        temp.store.messages.list(const MessageQuery.inbox()).map((m) => m.uid),
+        [3, 2, 1],
+      );
+      expect(
+        () => db.execute("UPDATE messages SET section = 'other' WHERE id = 1"),
+        throwsA(anything),
+      );
+      expect(
+        db.select(
+          "SELECT name FROM sqlite_master WHERE name IN ('messages_by_section', "
+          "'messages_unread', 'messages_pinned', 'messages_by_mailbox_listed', 'snoozes')",
+        ),
+        hasLength(5),
+      );
+      temp.store.snoozes.snooze('c@x', DateTime.utc(2030));
+      expect(temp.store.messages.byId(3)!.section, SmartSection.snoozed);
+      expect(
+        temp.store.messages.list(const MessageQuery.inbox()).map((m) => m.uid),
+        [2, 1],
+      );
+    });
+
     test('a failing migration rolls back completely', () {
       temp.store.close();
       final broken = [
