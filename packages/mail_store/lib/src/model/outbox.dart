@@ -62,6 +62,9 @@ sealed class OutboxAction {
               ? null
               : _int(json, 'sentMailboxId'),
           smtpAccepted: json['smtpAccepted'] == true,
+          schedule: json['schedule'] == null
+              ? null
+              : SendSchedule._fromJson(json['schedule']),
         ),
         _ => throw FormatException('unknown action type ${json['type']}'),
       };
@@ -238,6 +241,7 @@ final class SendAction extends OutboxAction {
     required List<String> recipients,
     this.sentMailboxId,
     this.smtpAccepted = false,
+    this.schedule,
   }) : recipients = List.unmodifiable(recipients) {
     if (this.recipients.isEmpty) throw ArgumentError('no recipients');
   }
@@ -253,11 +257,20 @@ final class SendAction extends OutboxAction {
   /// Sent, so a crash in between never sends the message twice.
   final bool smtpAccepted;
 
-  SendAction markAccepted() => SendAction(
+  /// Set when the user chose a time to send it ("Send later").
+  final SendSchedule? schedule;
+
+  SendAction markAccepted() => _copy(smtpAccepted: true);
+
+  /// The same send with [schedule] in place of the current one.
+  SendAction withSchedule(SendSchedule schedule) => _copy(schedule: schedule);
+
+  SendAction _copy({bool? smtpAccepted, SendSchedule? schedule}) => SendAction(
     from: from,
     recipients: recipients,
     sentMailboxId: sentMailboxId,
-    smtpAccepted: true,
+    smtpAccepted: smtpAccepted ?? this.smtpAccepted,
+    schedule: schedule ?? this.schedule,
   );
 
   @override
@@ -267,7 +280,83 @@ final class SendAction extends OutboxAction {
     'recipients': recipients,
     'sentMailboxId': sentMailboxId,
     'smtpAccepted': smtpAccepted,
+    if (schedule case final s?) 'schedule': s._toJson(),
   };
+}
+
+/// When a scheduled message goes out, and what is needed to take it back
+/// as a draft until then. The entry's not-before time is the send time;
+/// this keeps the chosen time after a retry moves that, and marks the
+/// entry as one the user scheduled (not one waiting out the undo delay).
+///
+/// Scheduled messages stay on this device (the outbox is never synced),
+/// so only this device sends them, once.
+final class SendSchedule {
+  SendSchedule({
+    required DateTime at,
+    required this.draft,
+    List<int> followUps = const [],
+    this.failureNoticed = false,
+  }) : at = at.toUtc(),
+       followUps = List.unmodifiable(followUps) {
+    if (this.at.isBefore(DateTime.utc(2000))) {
+      throw ArgumentError.value(at, 'at');
+    }
+    if (this.followUps.any((id) => id < 1)) {
+      throw ArgumentError('follow-up ids must be at least 1');
+    }
+  }
+
+  /// The chosen time (UTC).
+  final DateTime at;
+
+  /// The draft's content as the compose window stores it, to bring it
+  /// back for editing (attachments are read from the message itself).
+  final String draft;
+
+  /// Outbox entries that go with the send and are taken back with it
+  /// (such as marking the replied-to message answered).
+  final List<int> followUps;
+
+  /// The user was told that sending failed (so it is told once).
+  final bool failureNoticed;
+
+  SendSchedule copyWith({List<int>? followUps, bool? failureNoticed}) =>
+      SendSchedule(
+        at: at,
+        draft: draft,
+        followUps: followUps ?? this.followUps,
+        failureNoticed: failureNoticed ?? this.failureNoticed,
+      );
+
+  Map<String, Object?> _toJson() => {
+    'at': at.millisecondsSinceEpoch,
+    'draft': draft,
+    'followUps': followUps,
+    if (failureNoticed) 'failureNoticed': true,
+  };
+
+  static SendSchedule _fromJson(Object? json) {
+    if (json is! Map<String, Object?>) {
+      throw const FormatException('schedule must be an object');
+    }
+    final at = json['at'];
+    final draft = json['draft'];
+    final followUps = json['followUps'];
+    if (at is! int) throw const FormatException('schedule.at must be a time');
+    if (draft is! String) {
+      throw const FormatException('schedule.draft must be a string');
+    }
+    if (followUps is! List || followUps.any((v) => v is! int)) {
+      throw const FormatException('schedule.followUps must be entry ids');
+    }
+    return SendSchedule(
+      at: DateTime.fromMillisecondsSinceEpoch(at, isUtc: true),
+      draft: draft,
+      followUps: followUps.cast<int>(),
+      failureNoticed: json['failureNoticed'] == true,
+    );
+  }
 }
 
 /// Whether the entry is waiting or has given up.
