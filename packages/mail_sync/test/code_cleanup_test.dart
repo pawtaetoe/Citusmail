@@ -163,6 +163,13 @@ void main() {
       expect(picked, isNot(contains('Code from 23 hours ago')));
     });
 
+    test('the message being read is left for later', () {
+      final open = store.messages.byUid(boxes['INBOX']!.id, 3)!;
+      expect(subjects(cleaner.candidates(now, except: {open.id})), [
+        'Sign in to Shop: your magic link',
+      ]);
+    });
+
     test('an account without an Archive (or Trash) keeps its codes', () {
       folders([('INBOX', {})]);
       expect(cleaner.candidates(now), isEmpty);

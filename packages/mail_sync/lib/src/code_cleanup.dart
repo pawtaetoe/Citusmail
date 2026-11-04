@@ -189,8 +189,13 @@ final class CodeCleaner {
     }
   }
 
-  /// The messages a run at [now] would move, oldest first.
-  List<StoredMessage> candidates(DateTime now, {int limit = batchSize}) {
+  /// The messages a run at [now] would move, oldest first. [except]: ids
+  /// left alone this time (the message the user is reading).
+  List<StoredMessage> candidates(
+    DateTime now, {
+    int limit = batchSize,
+    Set<int> except = const {},
+  }) {
     final age = settings.age.age;
     if (age == null) return const [];
     final cutoff = now.subtract(age);
@@ -213,6 +218,7 @@ final class CodeCleaner {
               !m.flags.draft &&
               !m.flags.answered &&
               !m.flags.deleted &&
+              !except.contains(m.id) &&
               !undone.contains(keyOf(m))) {
             found.add(m);
             if (found.length >= limit) break;
@@ -228,11 +234,11 @@ final class CodeCleaner {
   }
 
   /// Cleans up, if it is on, agreed to, and the last run was over an hour
-  /// ago. Null when nothing moved.
-  CodeCleanup? run(DateTime now) {
+  /// ago. Null when nothing moved. [except]: ids left alone this time.
+  CodeCleanup? run(DateTime now, {Set<int> except = const {}}) {
     if (settings.age == CodeCleanupAge.off || !settings.agreed) return null;
     if (!_claim(now)) return null;
-    final messages = candidates(now);
+    final messages = candidates(now, except: except);
     if (messages.isEmpty) return null;
     final byAccount = <int, List<StoredMessage>>{};
     for (final m in messages) {

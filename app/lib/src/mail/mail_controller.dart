@@ -180,10 +180,13 @@ final class SyncProblem extends SyncStatus {
 /// - [selection]: messages picked for a bulk action;
 /// - [status]: sync status.
 final class MailController {
-  MailController(this.services) : list = MessageListModel(services.store) {
+  MailController(this.services)
+    : list = MessageListModel(services.store),
+      codeCleaner = CodeCleaner(services.store, services.actions) {
     _events = services.worker.events.listen(_onSyncEvent);
     list.show(location.value);
     _refreshCounts();
+    _refreshCodesOffer();
   }
 
   final AppServices services;
@@ -193,6 +196,12 @@ final class MailController {
   final reader = ValueNotifier<ReaderState>(const ReaderEmpty());
   final selection = ValueNotifier<Set<int>>(const {});
   final status = ValueNotifier<SyncStatus>(const SyncIdle(null));
+
+  /// Moves old verification codes out of the inbox, once agreed.
+  final CodeCleaner codeCleaner;
+
+  /// Whether the Verification section asks to tidy up old codes.
+  final codesOffer = ValueNotifier<bool>(false);
 
   late final StreamSubscription<SyncEvent> _events;
   final Map<int, SyncEvent> _lastEvent = {};
@@ -284,6 +293,7 @@ final class MailController {
     list.refresh();
     _refreshCounts();
     _refreshSelected();
+    _refreshCodesOffer();
   }
 
   void _refreshCounts() {
@@ -300,6 +310,57 @@ final class MailController {
       folderUnread: _store.messages.unreadCounts(),
       outbox: _store.outbox.sends().length,
     );
+  }
+
+  // ---------------------------------------------------------- old codes
+
+  void _refreshCodesOffer() =>
+      codesOffer.value = codeCleaner.shouldAsk(DateTime.now().toUtc());
+
+  /// After a sync: moves old codes out of the inbox (at most once an hour,
+  /// once the user agreed), and says so with Undo. The open message and
+  /// selected ones stay.
+  void tidyCodes([DateTime? now]) {
+    if (_disposed) return;
+    final done = codeCleaner.run(
+      now ?? DateTime.now().toUtc(),
+      except: {?selected?.id, ...selection.value},
+    );
+    if (done == null) {
+      _refreshCodesOffer();
+      return;
+    }
+    for (final receipt in done.receipts) {
+      for (final id in receipt.accountIds) {
+        services.worker.syncAt(id, receipt.undoUntil);
+      }
+    }
+    refresh();
+    onNotice?.call(
+      done.count == 1
+          ? 'Tidied up 1 old code'
+          : 'Tidied up ${done.count} old codes',
+      undo: () {
+        final undone = codeCleaner.undo(done);
+        refresh();
+        if (!undone) {
+          onNotice?.call('Too late to undo: the change reached the server.');
+        }
+      },
+    );
+  }
+
+  /// "Turn on" in the Verification section: agrees, and tidies up now.
+  void agreeToTidyCodes() {
+    codeCleaner.settings.agree();
+    codesOffer.value = false;
+    tidyCodes();
+  }
+
+  /// "Not now": asked again in a month.
+  void declineTidyCodes() {
+    codeCleaner.settings.decline(DateTime.now().toUtc());
+    codesOffer.value = false;
   }
 
   // -------------------------------------------------------------- reader
@@ -1039,6 +1100,7 @@ final class MailController {
   void _onSyncEvent(SyncEvent event) {
     _lastEvent[event.accountId] = event;
     status.value = _computeStatus();
+    if (event is AccountSynced) tidyCodes();
     // Several events arrive close together: refresh once.
     _refreshSoon?.cancel();
     _refreshSoon = Timer(const Duration(milliseconds: 250), refresh);
@@ -1072,6 +1134,7 @@ final class MailController {
     reader.dispose();
     selection.dispose();
     status.dispose();
+    codesOffer.dispose();
   }
 }
 
