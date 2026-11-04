@@ -12,6 +12,7 @@ export 'src/code_cleanup.dart';
 export 'src/code_reader.dart';
 export 'src/connector.dart';
 export 'src/folder_rules.dart';
+export 'src/follow_ups.dart';
 export 'src/idle_watcher.dart';
 export 'src/mail_actions.dart';
 export 'src/mailbox_synchronizer.dart';
