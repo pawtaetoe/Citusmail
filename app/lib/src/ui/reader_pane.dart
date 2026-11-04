@@ -16,6 +16,7 @@ import 'package:mail_view/mail_view.dart';
 
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
+import 'attachment_save_flow.dart';
 import 'attachment_saver.dart';
 import 'avatar.dart';
 import 'block_dialog.dart';
@@ -26,7 +27,6 @@ import 'move_dialog.dart';
 import 'rich_document_view.dart';
 import 'trust_banner.dart';
 import 'unsubscribe_dialog.dart';
-import 'virus_total_check.dart';
 
 /// The right pane: actions, the message header, its body (built lazily,
 /// block by block) and attachments, in a column of comfortable reading
@@ -944,71 +944,13 @@ final class _Attachments extends StatelessWidget {
     BuildContext context,
     AttachmentView attachment,
     AttachmentVerdict? verdict,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    if (verdict != null &&
-        !await _confirm(context, verdict, attachment, virusTotal)) {
-      return;
-    }
-    try {
-      final file = await AttachmentSaver.save(attachment);
-      messenger.showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
-    } on Object {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Couldn\'t save ${attachment.displayName}.')),
-      );
-    }
-  }
-
-  /// Asks before saving a risky file; "Don't save" is the main button.
-  static Future<bool> _confirm(
-    BuildContext context,
-    AttachmentVerdict verdict,
-    AttachmentView attachment,
-    Future<VirusTotalReport> Function(List<int> bytes)? virusTotal,
-  ) async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Save this file anyway?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                verdict.fileName,
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
-              TrustReasons(level: verdict.level, reasons: [verdict.reason]),
-              const SizedBox(height: 12),
-              const Text(
-                'Only open it if you were expecting it from someone you know.',
-              ),
-              if (virusTotal != null) ...[
-                const SizedBox(height: 8),
-                VirusTotalCheck(
-                  what: 'file',
-                  lookup: () => virusTotal(attachment.bytes()),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save anyway'),
-            ),
-            FilledButton(
-              autofocus: true,
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Don\'t save'),
-            ),
-          ],
-        ),
-      ) ??
-      false;
+  ) => AttachmentSaveFlow.save(
+    context,
+    fileName: attachment.fileName,
+    bytes: attachment.bytes,
+    verdict: verdict,
+    virusTotal: virusTotal,
+  );
 }
 
 /// Reply, Reply all and Forward, pinned under the message so they are
