@@ -661,6 +661,38 @@ final class MessageRepository {
     [address],
   ).isNotEmpty;
 
+  /// Every address the user has written to (To/Cc/Bcc of mail in a Sent
+  /// folder), lower case.
+  Set<String> writtenTo() => {
+    for (final row in _db.select(
+      'SELECT DISTINCT lower(a.address) AS address FROM message_addresses a '
+      'JOIN messages m ON m.id = a.message_id '
+      'JOIN mailboxes b ON b.id = m.mailbox_id '
+      "WHERE a.kind IN ('to', 'cc', 'bcc') AND b.special_use = 'sent'",
+    ))
+      row['address'] as String,
+  };
+
+  /// Mail others sent the user, received since [since]: not in Sent,
+  /// Drafts, Trash or Junk, each message once across folders, newest
+  /// first, at most [limit]. With each, whether it has a
+  /// `List-Unsubscribe` header. What the Clean up page counts per sender.
+  List<({StoredMessage message, bool unsubscribe})> receivedSince(
+    DateTime since, {
+    int limit = 20000,
+  }) => [
+    for (final row in _db.select(
+      'SELECT $_columns, EXISTS (SELECT 1 FROM message_headers h '
+      "WHERE h.message_id = m.id AND h.name = 'list-unsubscribe') AS unsubscribe "
+      '$_from WHERE m.received_at >= ? AND m.from_address IS NOT NULL '
+      "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts', 'trash', 'junk')) "
+      'AND $_notACopy '
+      'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+      [since.toUtc().millisecondsSinceEpoch, limit.clamp(1, 50000)],
+    ))
+      (message: _fromRow(row), unsubscribe: row['unsubscribe'] == 1),
+  ];
+
   List<SortableMessage> _sortable(
     Iterable<Row> rows,
     Iterable<Row> headerRows,

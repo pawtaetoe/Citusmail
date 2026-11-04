@@ -103,6 +103,9 @@ are at the bottom of the screen, within reach of one thumb.
 - **Bill and trial reminders**: a notification a few days before a bill
   is due, a free trial starts charging or a yearly subscription renews,
   found in your mail on the device; mark one "Done" and it stays quiet.
+- **Clean up**: the senders who fill your inbox and the ones you rarely
+  open, worked out on your device (not on someone's server), with
+  unsubscribe, archive or delete everything from them, block, or keep.
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.

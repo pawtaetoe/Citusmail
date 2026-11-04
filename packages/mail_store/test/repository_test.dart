@@ -1574,6 +1574,61 @@ void main() {
     });
   });
 
+  group('sender cleanup', () {
+    test(
+      'received mail with its unsubscribe header; who the user wrote to',
+      () {
+        final account = temp.addAccount();
+        final boxes = store.mailboxes.replaceAll(account.id, [
+          folder('INBOX'),
+          folder('Sent', use: 'Sent'),
+          folder('Drafts', use: 'Drafts'),
+          folder('Junk', use: 'Junk'),
+          folder('Archive', use: 'Archive'),
+        ]);
+        int id(String name) =>
+            boxes.firstWhere((b) => b.encodedName == name).id;
+        store.messages.upsertSummaries(id('INBOX'), [
+          MessageSummary(
+            uid: 1,
+            subject: 'Weekly deals',
+            receivedAt: DateTime.utc(2026, 10, 2),
+            from: const MailAddress(localPart: 'news', domain: 'shop.example'),
+            headers: const {
+              'list-unsubscribe': ['<https://shop.example/u/1>'],
+            },
+          ),
+          summary(2, subject: 'Lunch?'),
+          summary(3, subject: 'Too old', at: DateTime.utc(2025, 1)),
+        ]);
+        store.messages.upsertSummaries(id('Archive'), [summary(4)]);
+        store.messages.upsertSummaries(id('Junk'), [summary(5)]);
+        store.messages.upsertSummaries(id('Drafts'), [summary(6)]);
+        store.messages.upsertSummaries(id('Sent'), [
+          MessageSummary(
+            uid: 7,
+            receivedAt: DateTime.utc(2026, 10, 3),
+            from: const MailAddress(localPart: 'me', domain: 'x.example'),
+            to: const [MailAddress(localPart: 'Carol', domain: 'X.example')],
+            cc: const [MailAddress(localPart: 'dave', domain: 'x.example')],
+          ),
+        ]);
+
+        final found = store.messages.receivedSince(DateTime.utc(2026, 9));
+        expect(found.map((f) => f.message.subject), [
+          'Weekly deals',
+          'Message 4',
+          'Lunch?',
+        ]);
+        expect(found.map((f) => f.unsubscribe), [true, false, false]);
+        expect(store.messages.writtenTo(), {
+          'carol@x.example',
+          'dave@x.example',
+        });
+      },
+    );
+  });
+
   group('settings', () {
     test('read, write, overwrite, delete, and persist', () {
       expect(store.settings.read('k'), isNull);
