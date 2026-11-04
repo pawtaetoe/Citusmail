@@ -6,7 +6,9 @@
 /// device.
 library;
 
+export 'src/accounts.dart';
 export 'src/classification.dart';
+export 'src/deliveries.dart';
 export 'src/due_dates.dart';
 export 'src/header_rule_classifier.dart';
 export 'src/learned_classifier.dart';

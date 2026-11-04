@@ -13,6 +13,10 @@ import '../services/app_settings.dart';
 import '../services/mail_notifier.dart';
 import '../services/secret_store.dart';
 
+/// Whether this is the Google Play build (`flutter build appbundle
+/// --flavor play`; Flutter passes the flavor to the app).
+const bool playBuild = appFlavor == 'play';
+
 /// Mail checks while the app is closed (Android). The Kotlin side runs the
 /// entry points in main.dart in a background Flutter engine:
 ///
@@ -21,14 +25,20 @@ import '../services/secret_store.dart';
 ///   service.
 ///
 /// Both use the same sync code and the same exactly-once new-mail marks as
-/// the app, so nothing is announced twice.
+/// the app, so nothing is announced twice, and tidy up old codes the same
+/// way (at most once an hour between them, silently).
 abstract final class BackgroundMail {
   static const _task = MethodChannel('citusmail/background-task');
   static const _app = MethodChannel('citusmail/background');
 
+  /// Whether this build offers Instant mail: Android, except the Google
+  /// Play build (`--flavor play`), which leaves its foreground service out
+  /// (see packaging/README.md).
+  static bool get instantAvailable => Platform.isAndroid && !playBuild;
+
   /// Turns the instant-mail service on or off.
   static Future<void> setInstant(bool on) async {
-    if (!Platform.isAndroid) return;
+    if (!instantAvailable) return;
     await _app.invokeMethod<void>('setInstant', on);
   }
 
@@ -68,6 +78,15 @@ abstract final class BackgroundMail {
         final mail = tracker.claim(account.id);
         await notifier?.announce(store, account, mail);
       }
+      // Old codes leave the inbox (once agreed); the moves go to the
+      // server right away.
+      final tidied = CodeCleaner(
+        store,
+        MailActions(store),
+      ).run(DateTime.now().toUtc());
+      for (final accountId in tidied?.accountIds ?? const <int>{}) {
+        await engine.syncAccount(accountId);
+      }
       await notifier?.remind(store);
       return allOk;
     } finally {
@@ -92,9 +111,14 @@ abstract final class BackgroundMail {
       syncCodes: KeychainSyncCodes(secrets),
     );
     final tracker = NewMailTracker(store);
+    final cleaner = CodeCleaner(store, MailActions(store));
     final notifier = await MailNotifier.create();
     engine.events.listen((event) {
       if (event is! AccountSynced) return;
+      final tidied = cleaner.run(DateTime.now().toUtc());
+      for (final accountId in tidied?.accountIds ?? const <int>{}) {
+        engine.requestSync(accountId);
+      }
       final mail = tracker.claim(event.accountId);
       final account = store.accounts.byId(event.accountId);
       if (account != null && settings.notifications) {

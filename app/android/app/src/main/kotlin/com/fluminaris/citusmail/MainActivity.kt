@@ -4,14 +4,17 @@
 
 package com.fluminaris.citusmail
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
+import androidx.core.content.FileProvider
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 // A FragmentActivity, as the system's fingerprint dialog (local_auth) needs.
 class MainActivity : FlutterFragmentActivity() {
@@ -55,6 +58,41 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "citusmail/files")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "openCalendar" -> {
+                        val name = call.argument<String>("name") ?: "event.ics"
+                        val bytes = call.argument<ByteArray>("bytes")
+                        result.success(bytes != null && openCalendar(name, bytes))
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    // A meeting invitation handed to the user's calendar app: the .ics
+    // file goes to the app's cache (only the latest is kept) and is
+    // offered through FileProvider to whichever app views text/calendar,
+    // with read access to that one file only. False if no app took it.
+    private fun openCalendar(name: String, bytes: ByteArray): Boolean {
+        val directory = File(cacheDir, "events")
+        directory.deleteRecursively()
+        directory.mkdirs()
+        val safeName = name.replace(Regex("""[/\\\x00-\x1f]"""), "_").ifBlank { "event.ics" }
+        val file = File(directory, safeName)
+        if (file.canonicalFile.parentFile != directory.canonicalFile) return false
+        file.writeBytes(bytes)
+        val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+        val view = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "text/calendar")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return try {
+            startActivity(view)
+            true
+        } catch (e: ActivityNotFoundException) {
+            false
+        }
     }
 
     // The browser hands back the answer to a sign-in (singleTop: this same

@@ -15,8 +15,12 @@ import 'dart:ui' as ui;
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
+import 'package:citusmail/src/ui/accounts_page.dart';
+import 'package:citusmail/src/ui/attachments_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/deliveries_page.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/ui/privacy_report_page.dart';
 import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
@@ -28,6 +32,9 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../test/support/delivery_mail.dart';
+import '../test/support/privacy_mail.dart';
+import '../test/support/sample_files.dart';
 import '../test/support/test_app.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
@@ -205,6 +212,44 @@ void main() {
     await shoot(tester, 'readme_subscription');
   });
 
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    for (final dark in [false, true]) {
+      testWidgets('deliveries $name${dark ? ' dark' : ''}', (tester) async {
+        seedDeliveries(app.store, now: DateTime.now().toUtc());
+        await show(
+          tester,
+          DeliveriesPage(controller: MailController(app.services)),
+          size: size,
+          dark: dark,
+        );
+        final suffix = dark ? '_dark' : '';
+        await shoot(tester, '${name}_deliveries$suffix');
+        await tester.tap(find.text('Amazon.sg'));
+        await shoot(tester, '${name}_delivery$suffix');
+      });
+    }
+  }
+
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    testWidgets('accounts $name', (tester) async {
+      _seedAccounts(app.store);
+      await show(
+        tester,
+        AccountsPage(controller: MailController(app.services)),
+        size: size,
+      );
+      await shoot(tester, '${name}_accounts');
+      await tester.tap(find.text('GitHub'));
+      await shoot(tester, '${name}_account');
+    });
+  }
+
   testWidgets('subscriptions coming up', (tester) async {
     _seedSubscriptions(app.store);
     _seedReminders(app.store);
@@ -252,6 +297,76 @@ void main() {
     await shoot(tester, 'desktop_clean_up_dark');
   });
 
+  for (final dark in [false, true]) {
+    final suffix = dark ? '_dark' : '';
+    testWidgets('privacy report$suffix', (tester) async {
+      seedPrivacyMail(app, DateTime.now().toUtc());
+      Widget page() =>
+          PrivacyReportPage(services: app.services, onShowMail: (_) {});
+      await show(tester, page(), size: const Size(390, 844), dark: dark);
+      await shoot(tester, 'phone_privacy_report$suffix');
+      await tester.drag(find.byType(ListView), const Offset(0, -3000));
+      await shoot(tester, 'phone_privacy_report_end$suffix');
+      await show(tester, page(), size: const Size(1200, 860), dark: dark);
+      await shoot(tester, 'desktop_privacy_report$suffix');
+    });
+  }
+
+  for (final (name, size, dark) in [
+    ('phone', const Size(390, 844), false),
+    ('phone_dark', const Size(390, 844), true),
+    ('desktop', const Size(1440, 900), false),
+  ]) {
+    testWidgets('attachments $name', (tester) async {
+      app.seedFiles();
+      await show(
+        tester,
+        AttachmentsPage(controller: MailController(app.services)),
+        size: size,
+        dark: dark,
+      );
+      await shoot(tester, '${name}_attachments');
+      await tester.tap(find.text('Beach.png'));
+      await shoot(tester, '${name}_attachment_email');
+    });
+  }
+
+  // Meeting invitations (samples in test-data/invites).
+  testWidgets('invitation', (tester) async {
+    app.seedFixture(
+      '../invites/outlook-teams-request.eml',
+      subject: 'Q4 roadmap review',
+      uid: 95,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(hours: 1)),
+    );
+    app.seedFixture(
+      '../invites/google-weekly-request.eml',
+      subject: 'Invitation: Launch stand-up',
+      uid: 96,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+    );
+    app.seedFixture(
+      '../invites/outlook-cancel.eml',
+      subject: 'Canceled: Budget planning',
+      uid: 97,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(hours: 3)),
+    );
+    await show(tester, shell(), size: const Size(1440, 900));
+    await tester.tap(find.text('Q4 roadmap review').first);
+    await shoot(tester, 'desktop_invitation');
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Accept'));
+    await shoot(tester, 'desktop_invitation_accepted');
+    await tester.tap(find.text('Canceled: Budget planning').first);
+    await shoot(tester, 'desktop_invitation_cancelled');
+
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    // The same shell, still showing the cancelled event: back to the list.
+    await tester.tap(find.byTooltip('Back (Esc)'));
+    await settle(tester);
+    await tester.tap(find.text('Invitation: Launch stand-up').first);
+    await shoot(tester, 'phone_invitation');
+  });
+
   testWidgets('settings', (tester) async {
     await show(
       tester,
@@ -259,6 +374,16 @@ void main() {
       size: const Size(390, 844),
     );
     await shoot(tester, 'phone_settings');
+  });
+
+  // The Google Play build (no Instant mail), tall enough for About.
+  testWidgets('settings play', (tester) async {
+    await show(
+      tester,
+      SettingsPage(services: app.services, isAndroid: true, playBuild: true),
+      size: const Size(390, 1700),
+    );
+    await shoot(tester, 'phone_settings_play');
   });
 
   testWidgets('setup', (tester) async {
@@ -276,6 +401,29 @@ void main() {
       size: const Size(1440, 900),
     );
     await shoot(tester, 'desktop_setup');
+  });
+
+  // Old verification codes: the question in the Verification section,
+  // the notice after tidying up, and the setting.
+  testWidgets('code cleanup', (tester) async {
+    _seedDemo(app.store);
+    _seedOldCodes(app.store);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await shoot(tester, 'desktop_code_cleanup');
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await shoot(tester, 'phone_code_cleanup');
+    await tester.tap(find.text('Turn on'));
+    await tester.pump();
+    await shoot(tester, 'phone_code_cleanup_done');
+    await show(
+      tester,
+      SettingsPage(services: app.services, isAndroid: true),
+      size: const Size(390, 844),
+    );
+    await tester.scrollUntilVisible(find.text('Clean up old codes'), 300);
+    await shoot(tester, 'phone_code_cleanup_settings');
+    await tester.tap(find.text('Clean up old codes'));
+    await shoot(tester, 'phone_code_cleanup_dialog');
   });
 
   testWidgets('compose', (tester) async {
@@ -320,6 +468,33 @@ void _seedSenders(MailStore store) {
             if (unsub) 'list-unsubscribe': ['<https://$domain/unsubscribe>'],
           },
         ),
+  ]);
+}
+
+/// Made-up verification codes from earlier in the week.
+void _seedOldCodes(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 500;
+  MessageSummary code(String domain, String name, String subject, int hours) =>
+      MessageSummary(
+        uid: uid++,
+        receivedAt: now.subtract(Duration(hours: hours)),
+        subject: subject,
+        from: MailAddress(
+          localPart: 'no-reply',
+          domain: domain,
+          displayName: name,
+        ),
+        category: MessageCategory.codes,
+        code: '${730000 + hours}',
+        flags: MessageFlags.fromImap([r'\Seen']),
+      );
+  store.messages.upsertSummaries(inbox.id, [
+    code('northwind.example', 'Northwind Bank', 'Your sign-in code', 30),
+    code('tailspin.example', 'Tailspin', 'Confirm your email', 52),
+    code('wingtip.example', 'Wingtip Toys', 'Your one-time code', 75),
+    code('northwind.example', 'Northwind Bank', 'Your sign-in code', 98),
   ]);
 }
 
@@ -541,4 +716,134 @@ Future<void> settle(WidgetTester tester) async {
     );
     await tester.pump(const Duration(milliseconds: 300));
   }
+}
+
+/// Made-up account mail for the "Your accounts" screen.
+void _seedAccounts(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 600;
+  MessageSummary mail(
+    String from,
+    String name,
+    String subject,
+    int daysAgo, {
+    String to = 'alice@citusmail.test',
+    String? snippet,
+  }) {
+    final at = from.indexOf('@');
+    final toAt = to.indexOf('@');
+    return MessageSummary(
+      uid: uid++,
+      receivedAt: now.subtract(Duration(days: daysAgo)),
+      subject: subject,
+      from: MailAddress(
+        localPart: from.substring(0, at),
+        domain: from.substring(at + 1),
+        displayName: name,
+      ),
+      to: [
+        MailAddress(
+          localPart: to.substring(0, toAt),
+          domain: to.substring(toAt + 1),
+        ),
+      ],
+      snippet: snippet,
+      flags: MessageFlags.fromImap([r'\Seen']),
+    );
+  }
+
+  store.messages.upsertSummaries(inbox.id, [
+    mail('no-reply@accounts.google.com', 'Google', 'Security alert', 3),
+    mail(
+      'no-reply@accounts.google.com',
+      'Google',
+      'Welcome to your new Google Account',
+      2050,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] Please verify your email address',
+      1700,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] A new SSH key was added to your account',
+      40,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] Please reset your password',
+      300,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      'Your GitHub launch code',
+      12,
+      snippet: 'Here is your GitHub launch code: 48213907',
+    ),
+    mail('info@mailer.netflix.com', 'Netflix', 'Your Netflix sign-in code', 20),
+    mail('info@mailer.netflix.com', 'Netflix', 'Welcome to Netflix!', 1300),
+    for (final d in [25, 55, 85])
+      mail(
+        'info@mailer.netflix.com',
+        'Netflix',
+        'Your Netflix receipt',
+        d,
+        snippet: 'Your membership has been renewed. Total S\$17.98',
+      ),
+    mail(
+      'info@mail.shopee.sg',
+      'Shopee',
+      'Please confirm your Shopee account',
+      1330,
+      to: 'alice+shopee@citusmail.test',
+    ),
+    mail(
+      'info@mail.shopee.sg',
+      'Shopee',
+      'Your OTP for Shopee',
+      60,
+      to: 'alice+shopee@citusmail.test',
+      snippet: 'Your Shopee OTP is 553201. It expires in 5 minutes.',
+    ),
+    mail(
+      'no-reply@grab.com',
+      'Grab',
+      'Welcome to Grab!',
+      1500,
+      snippet: 'Thanks for signing up. Your account is ready.',
+    ),
+    mail('no-reply@grab.com', 'Grab', 'New login to your Grab account', 110),
+    mail(
+      'alerts@northwind.example',
+      'Northwind Bank',
+      'New device registered',
+      200,
+    ),
+    mail(
+      'alerts@northwind.example',
+      'Northwind Bank',
+      'Your account statement for September',
+      34,
+    ),
+    mail('team@oldforum.example', 'OldForum', 'Welcome to OldForum', 3600),
+    mail(
+      'team@oldforum.example',
+      'OldForum',
+      'Your password was changed',
+      2900,
+    ),
+    mail('team@photostash.example', 'PhotoStash', 'Verify your email', 2400),
+    mail(
+      'team@photostash.example',
+      'PhotoStash',
+      'Your account has been deleted',
+      900,
+    ),
+  ]);
 }

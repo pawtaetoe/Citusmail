@@ -10,9 +10,13 @@ import 'package:mail_sync/mail_sync.dart';
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
+import 'accounts_page.dart';
+import 'attachments_page.dart';
 import 'citusmail_theme.dart';
+import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
+import 'privacy_report_page.dart';
 import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
@@ -125,6 +129,7 @@ final class Sidebar extends StatelessWidget {
                                 builder: (_) => SettingsPage(
                                   services: controller.services,
                                   controller: controller,
+                                  onShowMail: controller.search,
                                 ),
                               ),
                             );
@@ -216,6 +221,34 @@ final class Sidebar extends StatelessWidget {
                           },
                         ),
                         _Entry(
+                          icon: Icons.badge_outlined,
+                          label: 'Your accounts',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    AccountsPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.local_shipping_outlined,
+                          label: 'Deliveries',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    DeliveriesPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
                           icon: Icons.cleaning_services_outlined,
                           label: 'Clean up',
                           selected: false,
@@ -225,6 +258,36 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     SenderCleanupPage(controller: controller),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.shield_outlined,
+                          label: 'Privacy report',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => PrivacyReportPage(
+                                  services: controller.services,
+                                  onShowMail: controller.search,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.attach_file,
+                          label: 'Attachments',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    AttachmentsPage(controller: controller),
                               ),
                             );
                           },

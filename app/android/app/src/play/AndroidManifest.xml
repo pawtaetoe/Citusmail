@@ -1,0 +1,19 @@
+<!-- The Google Play build ("play" flavor) leaves Instant mail out: Play
+     reviews foreground services of type specialUse by hand. This removes
+     that service, its permission and the receiver that only restarts it
+     after a reboot. The periodic check (WorkManager) stays, with
+     WorkManager's own boot receiver and permissions. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+        tools:node="remove"/>
+    <application>
+        <service
+            android:name="com.fluminaris.citusmail.InstantMailService"
+            tools:node="remove"/>
+        <receiver
+            android:name="com.fluminaris.citusmail.BootReceiver"
+            tools:node="remove"/>
+    </application>
+</manifest>

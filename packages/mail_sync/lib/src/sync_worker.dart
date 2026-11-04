@@ -124,6 +124,11 @@ final class SyncWorker {
   /// [BodyUnavailableException] or [SyncWorkerException].
   Future<void> loadBody(int messageId) => _request(_LoadBody(messageId));
 
+  /// Looks up which files messages have, without downloading them (see
+  /// [SyncEngine.lookUpFiles]). Throws [SyncWorkerException].
+  Future<void> lookUpFiles(List<int> messageIds) =>
+      _request(_LookUpFiles(List.unmodifiable(messageIds)));
+
   /// Loads older mail of a folder; returns how many messages were added.
   Future<int> fetchOlder(int mailboxId, {int count = 100}) async =>
       await _request(_FetchOlder(mailboxId, count)) as int;
@@ -323,6 +328,8 @@ Future<void> _workerMain(_Boot boot) async {
         engine.syncAt(accountId, at);
       case _LoadBody(:final messageId):
         await engine.loadBody(messageId);
+      case _LookUpFiles(:final messageIds):
+        await engine.lookUpFiles(messageIds);
       case _FetchOlder(:final mailboxId, :final count):
         return engine.fetchOlder(mailboxId, count: count);
       case _CreateFolder(:final accountId, :final name):
@@ -541,6 +548,12 @@ final class _LoadBody extends _Command {
   const _LoadBody(this.messageId);
 
   final int messageId;
+}
+
+final class _LookUpFiles extends _Command {
+  const _LookUpFiles(this.messageIds);
+
+  final List<int> messageIds;
 }
 
 final class _FetchOlder extends _Command {

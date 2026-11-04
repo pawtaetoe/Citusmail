@@ -16,8 +16,11 @@ import '../services/app_services.dart';
 import '../services/link_safety.dart';
 import '../services/virus_total_checks.dart';
 import 'block_dialog.dart';
+import 'code_cleanup_banner.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
+import 'link_opener.dart';
+import 'privacy_report_page.dart';
 import 'sender_cleanup_page.dart';
 
 /// One account's server rules, in words.
@@ -42,8 +45,10 @@ final class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     required this.services,
+    this.playBuild,
     this.controller,
     this.isAndroid,
+    this.onShowMail,
   });
 
   final AppServices services;
@@ -51,8 +56,15 @@ final class SettingsPage extends StatefulWidget {
   /// The mail screen, for pages that act on mail (Clean up).
   final MailController? controller;
 
+  /// Shows mail matching a search (from the Privacy report's senders).
+  final void Function(String query)? onShowMail;
+
   /// Overrides the platform (tests).
   final bool? isAndroid;
+
+  /// Overrides whether this is the Google Play build, which has no Instant
+  /// mail (tests).
+  final bool? playBuild;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -60,6 +72,9 @@ final class SettingsPage extends StatefulWidget {
 
 final class _SettingsPageState extends State<SettingsPage> {
   bool get _android => widget.isAndroid ?? Platform.isAndroid;
+
+  /// Instant mail is in every Android build except the Google Play one.
+  bool get _instantMail => _android && !(widget.playBuild ?? playBuild);
 
   AppLock get _lock => widget.services.lock;
   bool _biometricsAvailable = false;
@@ -154,6 +169,34 @@ final class _SettingsPageState extends State<SettingsPage> {
         ListTile(title: const Text('Change PIN'), onTap: _changePin),
       ],
     ];
+  }
+
+  /// Old codes leave the inbox. Choosing an age here is the user's OK
+  /// (otherwise the Verification section asks first).
+  Widget _codeCleanupTile() {
+    final cleanup = CodeCleanupSettings(widget.services.store);
+    final age = cleanup.age;
+    final choice = age == CodeCleanupAge.off
+        ? CodeCleanupText.age(age)
+        : '${CodeCleanupText.age(age)}: '
+              '${CodeCleanupText.action(cleanup.action)}';
+    final waiting = age != CodeCleanupAge.off && !cleanup.agreed;
+    return ListTile(
+      leading: const Icon(Icons.auto_delete_outlined),
+      title: const Text('Clean up old codes'),
+      subtitle: Text(
+        '$choice. ${CodeCleanupText.explanation}'
+        '${waiting ? ' Not on yet: the Verification section asks you first.' : ''}',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => _CodeCleanupDialog(settings: cleanup),
+        );
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   Future<void> _setInstant(bool on) async {
@@ -270,7 +313,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             value: settings.monthlyRenewals,
             onChanged: (on) => setState(() => settings.monthlyRenewals = on),
           ),
-          if (_android) ...[
+          if (_instantMail)
             SwitchListTile(
               title: const Text('Instant mail'),
               subtitle: const Text(
@@ -280,8 +323,17 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
               value: settings.instantMail,
               onChanged: _setInstant,
+            )
+          else if (_android)
+            ListTile(
+              title: const Text('Checking for new mail'),
+              subtitle: Text(
+                'While the app is closed, $appName checks for new mail about every '
+                '5 minutes when there is a network. Android may wait longer to save '
+                'battery.',
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+              ),
             ),
-          ],
           const _Group('Mail on this device'),
           ListTile(
             leading: const Icon(Icons.history),
@@ -333,6 +385,8 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          const _Group('Verification codes'),
+          _codeCleanupTile(),
           const _Group('About'),
           ListTile(
             leading: const Icon(Icons.shield_outlined),
@@ -340,9 +394,28 @@ final class _SettingsPageState extends State<SettingsPage> {
             subtitle: Text(
               '$appName has no servers and collects nothing. Mail is stored encrypted on this '
               'device and goes only to your own mail servers. Remote images and trackers are '
-              'blocked.',
+              'blocked. See what was kept from senders in the Privacy report.',
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PrivacyReportPage(
+                  services: widget.services,
+                  onShowMail: widget.onShowMail,
+                ),
+              ),
+            ),
+          ),
+          _WebPageTile(
+            icon: Icons.policy_outlined,
+            title: 'Privacy policy',
+            page: privacyPolicyUrl,
+          ),
+          _WebPageTile(
+            icon: Icons.description_outlined,
+            title: 'Terms of service',
+            page: termsOfServiceUrl,
           ),
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -498,6 +571,98 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
 }
 
 /// A heading that names a group of settings.
+/// How old codes get before they are cleaned up, and where they go.
+final class _CodeCleanupDialog extends StatefulWidget {
+  const _CodeCleanupDialog({required this.settings});
+
+  final CodeCleanupSettings settings;
+
+  @override
+  State<_CodeCleanupDialog> createState() => _CodeCleanupDialogState();
+}
+
+final class _CodeCleanupDialogState extends State<_CodeCleanupDialog> {
+  CodeCleanupSettings get _settings => widget.settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final age = _settings.age;
+    Widget heading(String text) => Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      child: Text(
+        text,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+    return AlertDialog(
+      title: const Text('Clean up old codes'),
+      contentPadding: const EdgeInsets.only(top: 12, bottom: 8),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                CodeCleanupText.explanation,
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
+            heading('When'),
+            RadioGroup<CodeCleanupAge>(
+              groupValue: age,
+              onChanged: (a) {
+                if (a == null) return;
+                setState(() {
+                  _settings.age = a;
+                  if (a != CodeCleanupAge.off) _settings.agree();
+                });
+              },
+              child: Column(
+                children: [
+                  for (final a in CodeCleanupAge.values)
+                    RadioListTile<CodeCleanupAge>(
+                      value: a,
+                      title: Text(CodeCleanupText.age(a)),
+                    ),
+                ],
+              ),
+            ),
+            if (age != CodeCleanupAge.off) ...[
+              heading('What happens'),
+              RadioGroup<CodeCleanupAction>(
+                groupValue: _settings.action,
+                onChanged: (a) {
+                  if (a != null) setState(() => _settings.action = a);
+                },
+                child: Column(
+                  children: [
+                    for (final a in CodeCleanupAction.values)
+                      RadioListTile<CodeCleanupAction>(
+                        value: a,
+                        title: Text(CodeCleanupText.action(a)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Done'),
+        ),
+      ],
+    );
+  }
+}
+
 final class _Group extends StatelessWidget {
   const _Group(this.text);
 
@@ -519,6 +684,42 @@ final class _Group extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The privacy policy on the app's website (also in docs/privacy-policy.md).
+final privacyPolicyUrl = Uri.parse(
+  'https://citusmail.fluminaris.com/privacy-policy',
+);
+
+/// The terms of service on the app's website (docs/terms-of-service.md).
+final termsOfServiceUrl = Uri.parse(
+  'https://citusmail.fluminaris.com/terms-of-service',
+);
+
+/// A page on the app's website, opened in the browser after the usual
+/// "Open this link?" question.
+final class _WebPageTile extends StatelessWidget {
+  const _WebPageTile({
+    required this.icon,
+    required this.title,
+    required this.page,
+  });
+
+  final IconData icon;
+  final String title;
+  final Uri page;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    leading: Icon(icon),
+    title: Text(title),
+    subtitle: Text(
+      '${page.host}${page.path}',
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+    ),
+    trailing: const Icon(Icons.open_in_new),
+    onTap: () => LinkOpener.open(context, page, onMailto: (_) {}),
+  );
 }
 
 /// Asks before Google Safe Browsing is turned on: what it does, what is

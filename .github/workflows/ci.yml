@@ -96,6 +96,9 @@ jobs:
       - name: Test mail_sort
         working-directory: packages/mail_sort
         run: dart test
+      - name: Test mail_extract
+        working-directory: packages/mail_extract
+        run: dart test
       - name: Test mail_view
         working-directory: packages/mail_view
         run: dart test
@@ -229,7 +232,9 @@ jobs:
             libsecret-1-dev liblzma-dev libsqlcipher-dev flatpak shellcheck \
             librsvg2-common
       - name: Shellcheck packaging scripts
-        run: shellcheck packaging/linux/build-deb.sh packaging/flatpak/build-flatpak.sh packaging/android/build-aab.sh
+        run: >-
+          shellcheck packaging/linux/build-deb.sh packaging/flatpak/build-flatpak.sh
+          packaging/android/build-aab.sh packaging/android/check-play-bundle.sh
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       - working-directory: app
@@ -277,7 +282,10 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       # Signed with the debug key: fine for testing, never for release.
-      - working-directory: app
+      # Two flavors (packaging/README.md): the APK for GitHub ("github",
+      # with Instant mail) and the bundle for Google Play ("play", without).
+      - name: APK (github flavor)
+        working-directory: app
         env:
           # Public client IDs (repository variables) and keys (secrets). Empty
           # values leave the app asking users for their own (see
@@ -287,20 +295,47 @@ jobs:
           CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
           CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
         run: >-
-          flutter build apk --release
+          flutter build apk --release --flavor github
           --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
           --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
-      - name: Name the APK
+      - name: App bundle for Google Play (play flavor)
+        working-directory: app
+        env:
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
+        run: >-
+          flutter build appbundle --release --flavor play
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
+      - name: Name the APK and the bundle
         run: |
           version="$(sed -n 's/^version: *//p' app/pubspec.yaml | cut -d+ -f1)"
           mkdir -p build/packages
-          cp app/build/app/outputs/flutter-apk/app-release.apk "build/packages/citusmail-$version.apk"
+          cp app/build/app/outputs/flutter-apk/app-github-release.apk "build/packages/citusmail-$version.apk"
+          cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
+      - name: The Play bundle has no Instant mail
+        run: packaging/android/check-play-bundle.sh build/packages/*.aab
+      - name: The GitHub APK keeps Instant mail
+        run: |
+          aapt2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)"
+          "$aapt2" dump xmltree --file AndroidManifest.xml build/packages/*.apk > "$RUNNER_TEMP/manifest.txt"
+          grep -F com.fluminaris.citusmail.InstantMailService "$RUNNER_TEMP/manifest.txt"
+          grep -F android.permission.FOREGROUND_SERVICE_SPECIAL_USE "$RUNNER_TEMP/manifest.txt"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-package
-          path: build/packages/*.apk
+          path: |
+            build/packages/*.apk
+            build/packages/*.aab
           if-no-files-found: error
 
   build-android-release:
@@ -331,7 +366,11 @@ jobs:
           fi
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "CITUSMAIL_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-      - working-directory: app
+      # The same key and the same build settings for both flavors
+      # (packaging/README.md): the APK for GitHub ("github", with Instant
+      # mail) and the bundle for Google Play ("play", without).
+      - name: APK (github flavor)
+        working-directory: app
         env:
           # Public client IDs (repository variables) and keys (secrets). Empty
           # values leave the app asking users for their own (see
@@ -344,7 +383,26 @@ jobs:
           CITUSMAIL_KEY_ALIAS: ${{ secrets.CITUSMAIL_KEY_ALIAS || secrets.FMAIL_KEY_ALIAS }}
           CITUSMAIL_KEY_PASSWORD: ${{ secrets.CITUSMAIL_KEY_PASSWORD || secrets.FMAIL_KEY_PASSWORD }}
         run: >-
-          flutter build apk --release
+          flutter build apk --release --flavor github
+          --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
+          --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
+          --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
+      - name: App bundle for Google Play (play flavor)
+        working-directory: app
+        env:
+          # Public client IDs (repository variables) and keys (secrets). Empty
+          # values leave the app asking users for their own (see
+          # packaging/README.md).
+          CITUSMAIL_MS_CLIENT_ID: ${{ vars.CITUSMAIL_MS_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_ID: ${{ vars.CITUSMAIL_GOOGLE_CLIENT_ID }}
+          CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
+          CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
+          CITUSMAIL_KEYSTORE_PASSWORD: ${{ secrets.CITUSMAIL_KEYSTORE_PASSWORD || secrets.FMAIL_KEYSTORE_PASSWORD }}
+          CITUSMAIL_KEY_ALIAS: ${{ secrets.CITUSMAIL_KEY_ALIAS || secrets.FMAIL_KEY_ALIAS }}
+          CITUSMAIL_KEY_PASSWORD: ${{ secrets.CITUSMAIL_KEY_PASSWORD || secrets.FMAIL_KEY_PASSWORD }}
+        run: >-
+          flutter build appbundle --release --flavor play
           --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
@@ -352,15 +410,26 @@ jobs:
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
-      - name: Name the APK
+      - name: Name the APK and the bundle
         run: |
           version="$(sed -n 's/^version: *//p' app/pubspec.yaml | cut -d+ -f1)"
           mkdir -p build/packages
-          cp app/build/app/outputs/flutter-apk/app-release.apk "build/packages/citusmail-$version.apk"
+          cp app/build/app/outputs/flutter-apk/app-github-release.apk "build/packages/citusmail-$version.apk"
+          cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
+      - name: The Play bundle has no Instant mail
+        run: packaging/android/check-play-bundle.sh build/packages/*.aab
+      - name: The GitHub APK keeps Instant mail
+        run: |
+          aapt2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)"
+          "$aapt2" dump xmltree --file AndroidManifest.xml build/packages/*.apk > "$RUNNER_TEMP/manifest.txt"
+          grep -F com.fluminaris.citusmail.InstantMailService "$RUNNER_TEMP/manifest.txt"
+          grep -F android.permission.FOREGROUND_SERVICE_SPECIAL_USE "$RUNNER_TEMP/manifest.txt"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-package
-          path: build/packages/*.apk
+          path: |
+            build/packages/*.apk
+            build/packages/*.aab
           if-no-files-found: error
 
   build-windows:

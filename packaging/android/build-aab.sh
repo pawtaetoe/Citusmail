@@ -1,5 +1,6 @@
 #!/bin/bash
-# Builds the signed Android App Bundle for Google Play.
+# Builds the signed Android App Bundle for Google Play: the "play" flavor,
+# without Instant mail (see packaging/README.md).
 #
 #   packaging/android/build-aab.sh     # writes build/packages/citusmail-<version>.aab
 #
@@ -31,10 +32,11 @@ CITUSMAIL_KEYSTORE_PATH="$keystore" \
 CITUSMAIL_KEY_ALIAS=upload \
 CITUSMAIL_KEYSTORE_PASSWORD="$password" \
 CITUSMAIL_KEY_PASSWORD="$password" \
-  flutter build appbundle --release "${defines[@]}"
+  flutter build appbundle --release --flavor play "${defines[@]}"
 unset password
 
 mkdir -p "$root/build/packages"
 out="$root/build/packages/citusmail-$version.aab"
-cp build/app/outputs/bundle/release/app-release.aab "$out"
+cp build/app/outputs/bundle/playRelease/app-play-release.aab "$out"
+"$root/packaging/android/check-play-bundle.sh" "$out"
 echo "wrote $out"

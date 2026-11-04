@@ -88,6 +88,8 @@ class InstantMailService : Service() {
 
         /** Turns instant mail on or off; remembered for restarts after reboot. */
         fun setEnabled(context: Context, on: Boolean) {
+            // The Google Play build has no such service (src/play).
+            if (!BuildConfig.INSTANT_MAIL) return
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putBoolean(KEY_INSTANT, on).apply()
             val intent = Intent(context, InstantMailService::class.java)
@@ -103,6 +105,7 @@ class InstantMailService : Service() {
         }
 
         fun isEnabled(context: Context): Boolean {
+            if (!BuildConfig.INSTANT_MAIL) return false
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             if (!prefs.contains(KEY_INSTANT)) {
                 // Carry the choice over from before the rename, once.

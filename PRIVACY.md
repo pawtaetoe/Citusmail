@@ -18,6 +18,8 @@ no analytics, no crash reporting and no advertising.
 | Mozilla's mail server database | Only if you allow it during setup | Your email domain, never the full address |
 | A newsletter's one-click unsubscribe address | Only when you tap Unsubscribe and confirm | One request with the fixed text `List-Unsubscribe=One-Click` and a generic user agent. No cookies, no referrer, no language. Like any connection, it shows your IP address |
 | A newsletter's unsubscribe email address | Only when you tap Unsubscribe and confirm | An email from your account saying "unsubscribe" (a copy is kept in Sent) |
+| The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline on the invitation | An email from your account with your answer (and your note, if you wrote one) and the event's calendar details, through your own mail server; a copy is kept in Sent. No one else on the invitation gets it |
+| Your calendar app | Only when you tap "Open in calendar app" on an invitation | The invitation's .ics file, from the app's temporary folder, handed to the app your system chooses on this device |
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
 | Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, unsubscribes, folder rules and image senders, end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
@@ -52,6 +54,14 @@ and dates. Where a price or date is missing, "Read receipts" downloads
 those receipts from your own mail server, only when you tap it; they stay
 unread.
 
+Deliveries are found the same way: order and shipping emails from the
+last year are read on the device for tracking numbers, order numbers,
+status and dates, including the order details some shops and carriers
+add to their emails for mail apps (read as data, never run). "Read
+shipping emails" downloads small ones from your own mail server only
+when you tap it; they stay unread. A carrier's tracking page opens in
+your browser only when you choose "Track", after asking.
+
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail
 account and never shown as a notification.
@@ -79,7 +89,8 @@ preview). On Android the lock screen shows only that there is new mail;
 with the app lock on, so do the notifications themselves. They are created
 on your device; no push service is involved. On Android, Citusmail checks for mail about every 5
 minutes in the background (Android may wait longer to save battery), or keeps a live connection if you turn on
-"Instant mail" (which shows a permanent notification, as Android requires).
+"Instant mail" (which shows a permanent notification, as Android requires;
+the Google Play version leaves Instant mail out).
 
 ## Mail you send
 

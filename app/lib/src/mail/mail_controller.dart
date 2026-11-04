@@ -14,6 +14,7 @@ import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import 'invitation_answers.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
 
@@ -180,10 +181,13 @@ final class SyncProblem extends SyncStatus {
 /// - [selection]: messages picked for a bulk action;
 /// - [status]: sync status.
 final class MailController {
-  MailController(this.services) : list = MessageListModel(services.store) {
+  MailController(this.services)
+    : list = MessageListModel(services.store),
+      codeCleaner = CodeCleaner(services.store, services.actions) {
     _events = services.worker.events.listen(_onSyncEvent);
     list.show(location.value);
     _refreshCounts();
+    _refreshCodesOffer();
   }
 
   final AppServices services;
@@ -193,6 +197,12 @@ final class MailController {
   final reader = ValueNotifier<ReaderState>(const ReaderEmpty());
   final selection = ValueNotifier<Set<int>>(const {});
   final status = ValueNotifier<SyncStatus>(const SyncIdle(null));
+
+  /// Moves old verification codes out of the inbox, once agreed.
+  final CodeCleaner codeCleaner;
+
+  /// Whether the Verification section asks to tidy up old codes.
+  final codesOffer = ValueNotifier<bool>(false);
 
   late final StreamSubscription<SyncEvent> _events;
   final Map<int, SyncEvent> _lastEvent = {};
@@ -284,6 +294,7 @@ final class MailController {
     list.refresh();
     _refreshCounts();
     _refreshSelected();
+    _refreshCodesOffer();
   }
 
   void _refreshCounts() {
@@ -300,6 +311,57 @@ final class MailController {
       folderUnread: _store.messages.unreadCounts(),
       outbox: _store.outbox.sends().length,
     );
+  }
+
+  // ---------------------------------------------------------- old codes
+
+  void _refreshCodesOffer() =>
+      codesOffer.value = codeCleaner.shouldAsk(DateTime.now().toUtc());
+
+  /// After a sync: moves old codes out of the inbox (at most once an hour,
+  /// once the user agreed), and says so with Undo. The open message and
+  /// selected ones stay.
+  void tidyCodes([DateTime? now]) {
+    if (_disposed) return;
+    final done = codeCleaner.run(
+      now ?? DateTime.now().toUtc(),
+      except: {?selected?.id, ...selection.value},
+    );
+    if (done == null) {
+      _refreshCodesOffer();
+      return;
+    }
+    for (final receipt in done.receipts) {
+      for (final id in receipt.accountIds) {
+        services.worker.syncAt(id, receipt.undoUntil);
+      }
+    }
+    refresh();
+    onNotice?.call(
+      done.count == 1
+          ? 'Tidied up 1 old code'
+          : 'Tidied up ${done.count} old codes',
+      undo: () {
+        final undone = codeCleaner.undo(done);
+        refresh();
+        if (!undone) {
+          onNotice?.call('Too late to undo: the change reached the server.');
+        }
+      },
+    );
+  }
+
+  /// "Turn on" in the Verification section: agrees, and tidies up now.
+  void agreeToTidyCodes() {
+    codeCleaner.settings.agree();
+    codesOffer.value = false;
+    tidyCodes();
+  }
+
+  /// "Not now": asked again in a month.
+  void declineTidyCodes() {
+    codeCleaner.settings.decline(DateTime.now().toUtc());
+    codesOffer.value = false;
   }
 
   // -------------------------------------------------------------- reader
@@ -657,8 +719,7 @@ final class MailController {
   StoredMailbox? archiveFor(StoredMessage m) => _archiveFolder(m.accountId);
 
   StoredMailbox? _archiveFolder(int accountId) =>
-      _store.mailboxes.bySpecialUse(accountId, SpecialUse.archive) ??
-      _store.mailboxes.bySpecialUse(accountId, SpecialUse.all);
+      MailActions.archiveFolder(_store, accountId);
 
   bool isInTrash(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
@@ -760,6 +821,85 @@ final class MailController {
         }
       },
     );
+  }
+
+  // --------------------------------------------------------- invitations
+
+  /// The user's answers to invitations, remembered on the device.
+  late final invitationAnswers = InvitationAnswers(_store);
+
+  /// Changes when an answer is sent or undone, so the card updates.
+  final invitationsChanged = ValueNotifier<int>(0);
+
+  /// Every address of the user's accounts.
+  List<String> get ownAddresses => [
+    for (final a in _store.accounts.all()) a.email,
+  ];
+
+  /// The user among [invite]'s guests: the account it came to first,
+  /// else any of their addresses. Null if they aren't on the list.
+  CalendarPerson? ownAttendee(StoredMessage message, CalendarInvite invite) {
+    final account = _store.accounts.byId(message.accountId);
+    return (account == null ? null : invite.attendeeFor([account.email])) ??
+        invite.attendeeFor(ownAddresses);
+  }
+
+  /// Sends the answer to the open invitation to its organizer (and no one
+  /// else), through the outbox with Undo, and remembers it. Returns null
+  /// on success, or why it couldn't be sent.
+  String? answerInvitation(
+    ReaderReady r,
+    CalendarAnswer answer, {
+    String? note,
+  }) {
+    final invite = r.view.invite;
+    final account = _store.accounts.byId(r.message.accountId);
+    if (invite == null || account == null || !invite.answerable) {
+      return 'This invitation can\'t be answered.';
+    }
+    final attendee = ownAttendee(r.message, invite);
+    if (attendee == null) {
+      return 'You\'re not on this invitation\'s guest list, so there is '
+          'nothing to answer.';
+    }
+    final draft = InvitationReplies.draft(
+      message: r.message,
+      account: account,
+      invite: invite,
+      attendee: attendee,
+      answer: answer,
+      note: note,
+    );
+    if (draft == null) return 'This invitation can\'t be answered.';
+    final PendingSend pending;
+    try {
+      pending = services.sender.send(draft);
+    } on ComposeException {
+      return 'The organizer\'s address isn\'t usable, so no answer was sent.';
+    }
+    services.worker.syncAt(pending.accountId, pending.undoUntil);
+    final previous = invitationAnswers.of(invite);
+    invitationAnswers.remember(invite, answer);
+    invitationsChanged.value++;
+    refresh();
+    final organizer = invite.organizer!.label;
+    onNotice?.call(
+      switch (answer) {
+        CalendarAnswer.accepted => 'Accepted. Telling $organizer…',
+        CalendarAnswer.tentative => 'Answered maybe. Telling $organizer…',
+        _ => 'Declined. Telling $organizer…',
+      },
+      undo: () {
+        if (services.sender.cancel(pending)) {
+          invitationAnswers.forget(invite, previous: previous);
+          invitationsChanged.value++;
+          refresh();
+        } else {
+          onNotice?.call('Too late to undo: your answer is on its way.');
+        }
+      },
+    );
+    return null;
   }
 
   // -------------------------------------------------------- read receipts
@@ -1052,6 +1192,7 @@ final class MailController {
   void _onSyncEvent(SyncEvent event) {
     _lastEvent[event.accountId] = event;
     status.value = _computeStatus();
+    if (event is AccountSynced) tidyCodes();
     // Several events arrive close together: refresh once.
     _refreshSoon?.cancel();
     _refreshSoon = Timer(const Duration(milliseconds: 250), refresh);
@@ -1084,7 +1225,9 @@ final class MailController {
     counts.dispose();
     reader.dispose();
     selection.dispose();
+    invitationsChanged.dispose();
     status.dispose();
+    codesOffer.dispose();
   }
 }
 
