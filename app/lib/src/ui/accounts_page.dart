@@ -170,42 +170,45 @@ final class _AccountsPageState extends State<AccountsPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SegmentedButton<_Sort>(
-                          showSelectedIcon: false,
-                          segments: const [
-                            ButtonSegment(
-                              value: _Sort.recent,
-                              label: Text('Recent'),
-                            ),
-                            ButtonSegment(
-                              value: _Sort.name,
-                              label: Text('A–Z'),
-                            ),
-                          ],
-                          selected: {_sort},
-                          onSelectionChanged: (s) =>
-                              setState(() => _sort = s.single),
-                        ),
-                        FilterChip(
-                          label: const Text('Not heard from in 2+ years'),
-                          selected: _quietOnly,
-                          onSelected: (on) => setState(() => _quietOnly = on),
-                        ),
-                        if (addresses.length > 1)
-                          for (final address in addresses)
-                            FilterChip(
-                              label: Text(address),
-                              selected: _address == address,
-                              onSelected: (on) => setState(
-                                () => _address = on ? address : null,
+                    // One row that scrolls sideways: the list stays in view
+                    // on a phone.
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        spacing: 8,
+                        children: [
+                          SegmentedButton<_Sort>(
+                            showSelectedIcon: false,
+                            segments: const [
+                              ButtonSegment(
+                                value: _Sort.recent,
+                                label: Text('Recent'),
                               ),
-                            ),
-                      ],
+                              ButtonSegment(
+                                value: _Sort.name,
+                                label: Text('A–Z'),
+                              ),
+                            ],
+                            selected: {_sort},
+                            onSelectionChanged: (s) =>
+                                setState(() => _sort = s.single),
+                          ),
+                          FilterChip(
+                            label: const Text('Not heard from in 2+ years'),
+                            selected: _quietOnly,
+                            onSelected: (on) => setState(() => _quietOnly = on),
+                          ),
+                          if (addresses.length > 1)
+                            for (final address in addresses)
+                              FilterChip(
+                                label: Text(address),
+                                selected: _address == address,
+                                onSelected: (on) => setState(
+                                  () => _address = on ? address : null,
+                                ),
+                              ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 8),
                     if (shown.isEmpty)
@@ -570,6 +573,12 @@ abstract final class AccountWords {
     'Nov',
     'Dec',
   ];
+
+  /// "Mar 10, 2021".
+  static String day(DateTime d) {
+    final local = d.toLocal();
+    return '${_months[local.month - 1]} ${local.day}, ${local.year}';
+  }
 
   /// "Mar 2021".
   static String month(DateTime d) {

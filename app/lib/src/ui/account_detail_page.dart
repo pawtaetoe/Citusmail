@@ -52,8 +52,7 @@ final class AccountDetailPage extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final a = account;
-    final material = MaterialLocalizations.of(context);
-    String date(DateTime d) => material.formatMediumDate(d.toLocal());
+    const date = AccountWords.day;
     final muted = theme.textTheme.bodyMedium?.copyWith(
       color: colors.onSurfaceVariant,
     );
@@ -142,6 +141,7 @@ final class AccountDetailPage extends StatelessWidget {
                       for (final (i, (kind, span)) in kinds.indexed) ...[
                         if (i > 0) const Divider(height: 1, indent: 56),
                         ListTile(
+                          dense: true,
                           leading: Icon(AccountWords.icon(kind)),
                           title: Text(AccountWords.kind(kind)),
                           subtitle: Text(

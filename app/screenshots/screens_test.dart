@@ -15,6 +15,7 @@ import 'dart:ui' as ui;
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
+import 'package:citusmail/src/ui/accounts_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
@@ -204,6 +205,23 @@ void main() {
     await shoot(tester, 'readme_subscription');
   });
 
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    testWidgets('accounts $name', (tester) async {
+      _seedAccounts(app.store);
+      await show(
+        tester,
+        AccountsPage(controller: MailController(app.services)),
+        size: size,
+      );
+      await shoot(tester, '${name}_accounts');
+      await tester.tap(find.text('GitHub'));
+      await shoot(tester, '${name}_account');
+    });
+  }
+
   testWidgets('settings', (tester) async {
     await show(
       tester,
@@ -302,6 +320,136 @@ void _seedSubscriptions(MailStore store) {
       'Your membership has been cancelled',
       140,
       '',
+    ),
+  ]);
+}
+
+/// Made-up account mail for the "Your accounts" screen.
+void _seedAccounts(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 600;
+  MessageSummary mail(
+    String from,
+    String name,
+    String subject,
+    int daysAgo, {
+    String to = 'alice@citusmail.test',
+    String? snippet,
+  }) {
+    final at = from.indexOf('@');
+    final toAt = to.indexOf('@');
+    return MessageSummary(
+      uid: uid++,
+      receivedAt: now.subtract(Duration(days: daysAgo)),
+      subject: subject,
+      from: MailAddress(
+        localPart: from.substring(0, at),
+        domain: from.substring(at + 1),
+        displayName: name,
+      ),
+      to: [
+        MailAddress(
+          localPart: to.substring(0, toAt),
+          domain: to.substring(toAt + 1),
+        ),
+      ],
+      snippet: snippet,
+      flags: MessageFlags.fromImap([r'\Seen']),
+    );
+  }
+
+  store.messages.upsertSummaries(inbox.id, [
+    mail('no-reply@accounts.google.com', 'Google', 'Security alert', 3),
+    mail(
+      'no-reply@accounts.google.com',
+      'Google',
+      'Welcome to your new Google Account',
+      2050,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] Please verify your email address',
+      1700,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] A new SSH key was added to your account',
+      40,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      '[GitHub] Please reset your password',
+      300,
+    ),
+    mail(
+      'noreply@github.com',
+      'GitHub',
+      'Your GitHub launch code',
+      12,
+      snippet: 'Here is your GitHub launch code: 48213907',
+    ),
+    mail('info@mailer.netflix.com', 'Netflix', 'Your Netflix sign-in code', 20),
+    mail('info@mailer.netflix.com', 'Netflix', 'Welcome to Netflix!', 1300),
+    for (final d in [25, 55, 85])
+      mail(
+        'info@mailer.netflix.com',
+        'Netflix',
+        'Your Netflix receipt',
+        d,
+        snippet: 'Your membership has been renewed. Total S\$17.98',
+      ),
+    mail(
+      'info@mail.shopee.sg',
+      'Shopee',
+      'Please confirm your Shopee account',
+      1330,
+      to: 'alice+shopee@citusmail.test',
+    ),
+    mail(
+      'info@mail.shopee.sg',
+      'Shopee',
+      'Your OTP for Shopee',
+      60,
+      to: 'alice+shopee@citusmail.test',
+      snippet: 'Your Shopee OTP is 553201. It expires in 5 minutes.',
+    ),
+    mail(
+      'no-reply@grab.com',
+      'Grab',
+      'Welcome to Grab!',
+      1500,
+      snippet: 'Thanks for signing up. Your account is ready.',
+    ),
+    mail('no-reply@grab.com', 'Grab', 'New login to your Grab account', 110),
+    mail(
+      'alerts@northwind.example',
+      'Northwind Bank',
+      'New device registered',
+      200,
+    ),
+    mail(
+      'alerts@northwind.example',
+      'Northwind Bank',
+      'Your account statement for September',
+      34,
+    ),
+    mail('team@oldforum.example', 'OldForum', 'Welcome to OldForum', 3600),
+    mail(
+      'team@oldforum.example',
+      'OldForum',
+      'Your password was changed',
+      2900,
+    ),
+    mail('team@photostash.example', 'PhotoStash', 'Verify your email', 2400),
+    mail(
+      'team@photostash.example',
+      'PhotoStash',
+      'Your account has been deleted',
+      900,
     ),
   ]);
 }
