@@ -92,6 +92,12 @@ void main() {
     });
   });
 
+  test('a whole message is fetched with BODY.PEEK: it stays unread', () {
+    final syntax = FetchItems(fullMessage: true).toSyntax();
+    expect(syntax, contains('BODY.PEEK[]'));
+    expect(syntax, isNot(contains('BODY[')), reason: 'BODY[] sets \\Seen');
+  });
+
   group('SummaryMapper', () {
     const mapper = SummaryMapper(HeaderRuleClassifier());
 
