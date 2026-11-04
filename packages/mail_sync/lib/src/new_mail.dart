@@ -13,7 +13,8 @@ import 'package:mail_store/mail_store.dart';
 ///
 /// Only unread mail in the Pinned, Codes, Important and General sections
 /// counts (codes are waited for);
-/// newsletters, notifications and blocked senders never interrupt. The first claim of an
+/// newsletters, notifications, blocked senders and mail waiting in the
+/// Screener (or screened out) never interrupt. The first claim of an
 /// account (or after its inbox was reset) only sets the mark, so adding an
 /// account does not announce its whole inbox.
 final class NewMailTracker {

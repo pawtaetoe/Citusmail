@@ -27,8 +27,10 @@ enum ScreenerDecision {
 
   final String storageName;
 
-  static ScreenerDecision fromStorage(String value) =>
-      values.firstWhere((d) => d.storageName == value);
+  static ScreenerDecision fromStorage(String value) => values.firstWhere(
+    (d) => d.storageName == value,
+    orElse: () => throw FormatException('unknown decision: $value'),
+  );
 }
 
 /// Where mail from screened-out senders goes. Never deleted, never the

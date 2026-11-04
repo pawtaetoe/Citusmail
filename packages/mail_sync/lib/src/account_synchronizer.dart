@@ -15,6 +15,7 @@ import 'folder_rules.dart';
 import 'mailbox_synchronizer.dart';
 import 'outbox_replayer.dart';
 import 'receipt_collector.dart';
+import 'screener_archiver.dart';
 import 'sender_blocker.dart';
 import 'server_rules.dart';
 import 'sync_worker.dart';
@@ -114,6 +115,7 @@ final class AccountSynchronizer {
     this._replayer, {
     this._rules,
     this._blocker,
+    this._screener,
     this._appData,
     this._serverRules,
   });
@@ -124,6 +126,7 @@ final class AccountSynchronizer {
   final OutboxReplayer _replayer;
   final FolderRuleApplier? _rules;
   final SenderBlocker? _blocker;
+  final ScreenerArchiver? _screener;
   final AppDataSync? _appData;
   final ServerRules? _serverRules;
 
@@ -149,13 +152,16 @@ final class AccountSynchronizer {
         imap,
         foldersToSync(_store.mailboxes.forAccount(account.id), mailboxIds),
       );
-      // 4. Blocked senders, then the user's folder rules, on new inbox
-      // mail; their moves go to the server right away, in this session.
+      // 4. Blocked senders, then the user's folder rules, then screened-out
+      // senders (when they go to Archive), on new inbox mail; their moves
+      // go to the server right away, in this session.
       var movedByRules = 0;
       final inbox = _store.mailboxes.inbox(account.id);
       if (inbox != null && results.containsKey(inbox.id)) {
         movedByRules =
-            (_blocker?.apply(account) ?? 0) + (_rules?.apply(account) ?? 0);
+            (_blocker?.apply(account) ?? 0) +
+            (_rules?.apply(account) ?? 0) +
+            (_screener?.apply(account) ?? 0);
         if (movedByRules > 0) {
           await _replayer.replay(
             imap,

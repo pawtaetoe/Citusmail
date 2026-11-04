@@ -18,6 +18,7 @@ import 'mailbox_synchronizer.dart';
 import 'message_loader.dart';
 import 'on_demand_connections.dart';
 import 'outbox_replayer.dart';
+import 'screener_archiver.dart';
 import 'sender_blocker.dart';
 import 'server_rules.dart';
 import 'summary_mapper.dart';
@@ -80,6 +81,7 @@ final class SyncEngine {
       OutboxReplayer(_store),
       rules: FolderRuleApplier(_store),
       blocker: SenderBlocker(_store),
+      screener: ScreenerArchiver(_store),
       appData: appData,
       serverRules: ServerRules(_store, _connector.sieve),
     );
