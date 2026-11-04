@@ -90,6 +90,7 @@ final class OutgoingMessages {
         inReplyTo: draft.inReplyTo,
         references: draft.references,
         receiptTo: draft.requestReceipt ? sender(account) : null,
+        calendar: draft.calendar,
       );
 
   /// A deliverable address: something@domain.with.dot, no spaces or

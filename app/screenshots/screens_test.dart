@@ -16,6 +16,7 @@ import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/accounts_page.dart';
+import 'package:citusmail/src/ui/attachments_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/deliveries_page.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
@@ -33,6 +34,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../test/support/delivery_mail.dart';
 import '../test/support/privacy_mail.dart';
+import '../test/support/sample_files.dart';
 import '../test/support/test_app.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
@@ -310,6 +312,61 @@ void main() {
     });
   }
 
+  for (final (name, size, dark) in [
+    ('phone', const Size(390, 844), false),
+    ('phone_dark', const Size(390, 844), true),
+    ('desktop', const Size(1440, 900), false),
+  ]) {
+    testWidgets('attachments $name', (tester) async {
+      app.seedFiles();
+      await show(
+        tester,
+        AttachmentsPage(controller: MailController(app.services)),
+        size: size,
+        dark: dark,
+      );
+      await shoot(tester, '${name}_attachments');
+      await tester.tap(find.text('Beach.png'));
+      await shoot(tester, '${name}_attachment_email');
+    });
+  }
+
+  // Meeting invitations (samples in test-data/invites).
+  testWidgets('invitation', (tester) async {
+    app.seedFixture(
+      '../invites/outlook-teams-request.eml',
+      subject: 'Q4 roadmap review',
+      uid: 95,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(hours: 1)),
+    );
+    app.seedFixture(
+      '../invites/google-weekly-request.eml',
+      subject: 'Invitation: Launch stand-up',
+      uid: 96,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+    );
+    app.seedFixture(
+      '../invites/outlook-cancel.eml',
+      subject: 'Canceled: Budget planning',
+      uid: 97,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(hours: 3)),
+    );
+    await show(tester, shell(), size: const Size(1440, 900));
+    await tester.tap(find.text('Q4 roadmap review').first);
+    await shoot(tester, 'desktop_invitation');
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Accept'));
+    await shoot(tester, 'desktop_invitation_accepted');
+    await tester.tap(find.text('Canceled: Budget planning').first);
+    await shoot(tester, 'desktop_invitation_cancelled');
+
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    // The same shell, still showing the cancelled event: back to the list.
+    await tester.tap(find.byTooltip('Back (Esc)'));
+    await settle(tester);
+    await tester.tap(find.text('Invitation: Launch stand-up').first);
+    await shoot(tester, 'phone_invitation');
+  });
+
   testWidgets('settings', (tester) async {
     await show(
       tester,
@@ -317,6 +374,16 @@ void main() {
       size: const Size(390, 844),
     );
     await shoot(tester, 'phone_settings');
+  });
+
+  // The Google Play build (no Instant mail), tall enough for About.
+  testWidgets('settings play', (tester) async {
+    await show(
+      tester,
+      SettingsPage(services: app.services, isAndroid: true, playBuild: true),
+      size: const Size(390, 1700),
+    );
+    await shoot(tester, 'phone_settings_play');
   });
 
   testWidgets('setup', (tester) async {

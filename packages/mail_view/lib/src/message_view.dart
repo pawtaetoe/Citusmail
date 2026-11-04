@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
 
+import 'calendar/calendar_invite.dart';
 import 'document.dart';
 import 'html_converter.dart';
 import 'plain_text_converter.dart';
@@ -14,7 +15,13 @@ import 'safe_file_name.dart';
 /// A downloaded message, ready to show: its body as a safe document and
 /// its attachments with safe names.
 final class MessageView {
-  MessageView._(this.message, this.body, this.isHtml, this.attachments);
+  MessageView._(
+    this.message,
+    this.body,
+    this.isHtml,
+    this.attachments,
+    this.invite,
+  );
 
   /// Parses [raw] (the full message). Never throws on malformed mail.
   factory MessageView.parse(
@@ -58,8 +65,43 @@ final class MessageView {
       body,
       htmlPart != null,
       List.unmodifiable(attachments),
+      _invite(message),
     );
   }
+
+  /// The calendar event the message carries (an invitation, a
+  /// cancellation or an answer), from its text/calendar part, else an
+  /// attached .ics file.
+  static CalendarInvite? _invite(MimeMessage message) {
+    MimePart? best;
+    for (final part in message.root.allParts) {
+      if (part.children.isNotEmpty || part.rawSize > maxCalendarSize) {
+        continue;
+      }
+      final type = part.contentType.mimeType;
+      final name = part.filename?.toLowerCase() ?? '';
+      final calendar =
+          type == 'text/calendar' ||
+          type == 'application/ics' ||
+          name.endsWith('.ics');
+      if (!calendar) continue;
+      // The part that says what it is for wins (Outlook adds the same
+      // event again as an attachment).
+      if (best == null ||
+          (best.contentType.parameters['method'] == null &&
+              part.contentType.parameters['method'] != null)) {
+        best = part;
+      }
+    }
+    if (best == null) return null;
+    return CalendarInvite.parse(
+      best.decodeText().text,
+      methodHint: best.contentType.parameters['method'],
+    );
+  }
+
+  /// Larger calendar parts are not read (exports, not invitations).
+  static const maxCalendarSize = 3 * 1024 * 1024;
 
   final MimeMessage message;
   final RichDocument body;
@@ -67,6 +109,9 @@ final class MessageView {
   /// Whether [body] came from the HTML version.
   final bool isHtml;
   final List<AttachmentView> attachments;
+
+  /// The calendar event in the message, if it has one.
+  final CalendarInvite? invite;
 
   /// Text for the search index: the body text, capped.
   String get searchableText {
@@ -100,6 +145,12 @@ final class AttachmentView {
 
   /// Shown to the user; the same sanitised name.
   String get displayName => fileName;
+
+  /// Content-Disposition: inline (meant to be shown inside the text).
+  bool get inline => _part.disposition?.isInline ?? false;
+
+  /// The Content-ID a `cid:` link in the text could show it by.
+  String? get contentId => _part.contentId;
 
   /// Approximate decoded size, without decoding.
   int get approximateSize => switch (_part.transferEncoding) {

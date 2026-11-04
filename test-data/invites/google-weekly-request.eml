@@ -1,0 +1,115 @@
+From: Sam Rivera <sam.rivera@gmail.example>
+To: alice@citusmail.test, priya@startup.example
+Reply-To: Sam Rivera <sam.rivera@gmail.example>
+Subject: Invitation: Launch stand-up @ Weekly from 9:30am to 9:45am on Monday
+ and Wednesday (EST) (alice@citusmail.test)
+Date: Wed, 04 Nov 2026 12:03:01 +0000
+Message-ID: <calendar-6f1d2a3b-77c4-4e2a-9d1b-0a1b2c3d4e5f@google.com>
+Sender: Google Calendar <calendar-notification@google.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="000000000000a1b2c3d4e5f60718"
+
+--000000000000a1b2c3d4e5f60718
+Content-Type: multipart/alternative; boundary="000000000000a1b2c3d4e5f60717"
+
+--000000000000a1b2c3d4e5f60717
+Content-Type: text/plain; charset="UTF-8"; format=flowed; delsp=yes
+Content-Transfer-Encoding: base64
+
+WW91IGhhdmUgYmVlbiBpbnZpdGVkIHRvIHRoZSBmb2xsb3dpbmcgZXZlbnQuCgpMYXVuY2ggc3Rh
+bmQtdXAKV2Vla2x5IGZyb20gOTozMGFtIHRvIDk6NDVhbSBvbiBNb25kYXkgYW5kIFdlZG5lc2Rh
+eQpFYXN0ZXJuIFRpbWUgLSBOZXcgWW9yawoKSm9pbiB3aXRoIEdvb2dsZSBNZWV0OiBodHRwczov
+L21lZXQuZ29vZ2xlLmNvbS9hYmMtZGVmZy1oaWoKCk9yZ2FuaXplcjogU2FtIFJpdmVyYQpHdWVz
+dHM6IGFsaWNlQGNpdHVzbWFpbC50ZXN0LCBQcml5YSBTaGFoCg==
+
+--000000000000a1b2c3d4e5f60717
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<p>You have been invited to the following event.</p><h2>Launch stand-up</h2=
+><p>Weekly from 9:30am to 9:45am on Monday and Wednesday</p>
+
+--000000000000a1b2c3d4e5f60717
+Content-Type: text/calendar; charset="UTF-8"; method=REQUEST
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:REQUEST
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20261116T093000
+DTEND;TZID=America/New_York:20261116T094500
+RRULE:FREQ=WEEKLY;WKST=SU;BYDAY=MO,WE
+DTSTAMP:20261104T120301Z
+ORGANIZER;CN=Sam Rivera:mailto:sam.rivera@gmail.example
+UID:5k2f8m1q7v3c9d0h4j6n8p2r1t@google.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE
+ ;CN=Sam Rivera;X-NUM-GUESTS=0:mailto:sam.rivera@gmail.example
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=
+ TRUE;CN=alice@citusmail.test;X-NUM-GUESTS=0:mailto:alice@citusmail.test
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=TENTATIVE;RSVP=TRU
+ E;CN=Priya Shah;X-NUM-GUESTS=0:mailto:priya@startup.example
+X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij
+X-MICROSOFT-CDO-OWNERAPPTID:-1424242424
+CREATED:20261104T120259Z
+DESCRIPTION:Quick sync on the launch\, twice a week.\n\nAgenda:\n- blocker
+ s\n- next steps\n\n-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:
+ ~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-\nJoin with Google Meet: https://meet.goog
+ le.com/abc-defg-hij\n\nLearn more about Meet at: https://support.google.c
+ om/a/users/answer/9282720\n\nPlease do not edit this section.\n-::~:~::~:
+ ~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-
+LAST-MODIFIED:20261104T120259Z
+LOCATION:
+SEQUENCE:0
+STATUS:CONFIRMED
+SUMMARY:Launch stand-up
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:This is an event reminder
+TRIGGER:-P0DT0H10M0S
+END:VALARM
+END:VEVENT
+END:VCALENDAR
+
+--000000000000a1b2c3d4e5f60717--
+
+--000000000000a1b2c3d4e5f60718
+Content-Type: application/ics; name="invite.ics"
+Content-Disposition: attachment; filename="invite.ics"
+Content-Transfer-Encoding: base64
+
+QkVHSU46VkNBTEVOREFSDQpQUk9ESUQ6LS8vR29vZ2xlIEluYy8vR29vZ2xlIENhbGVuZGFyIDcw
+LjkwNTQvL0VODQpWRVJTSU9OOjIuMA0KQ0FMU0NBTEU6R1JFR09SSUFODQpNRVRIT0Q6UkVRVUVT
+VA0KQkVHSU46VkVWRU5UDQpEVFNUQVJUO1RaSUQ9QW1lcmljYS9OZXdfWW9yazoyMDI2MTExNlQw
+OTMwMDANCkRURU5EO1RaSUQ9QW1lcmljYS9OZXdfWW9yazoyMDI2MTExNlQwOTQ1MDANClJSVUxF
+OkZSRVE9V0VFS0xZO1dLU1Q9U1U7QllEQVk9TU8sV0UNCkRUU1RBTVA6MjAyNjExMDRUMTIwMzAx
+Wg0KT1JHQU5JWkVSO0NOPVNhbSBSaXZlcmE6bWFpbHRvOnNhbS5yaXZlcmFAZ21haWwuZXhhbXBs
+ZQ0KVUlEOjVrMmY4bTFxN3YzYzlkMGg0ajZuOHAycjF0QGdvb2dsZS5jb20NCkFUVEVOREVFO0NV
+VFlQRT1JTkRJVklEVUFMO1JPTEU9UkVRLVBBUlRJQ0lQQU5UO1BBUlRTVEFUPUFDQ0VQVEVEO1JT
+VlA9VFJVRQ0KIDtDTj1TYW0gUml2ZXJhO1gtTlVNLUdVRVNUUz0wOm1haWx0bzpzYW0ucml2ZXJh
+QGdtYWlsLmV4YW1wbGUNCkFUVEVOREVFO0NVVFlQRT1JTkRJVklEVUFMO1JPTEU9UkVRLVBBUlRJ
+Q0lQQU5UO1BBUlRTVEFUPU5FRURTLUFDVElPTjtSU1ZQPQ0KIFRSVUU7Q049YWxpY2VAY2l0dXNt
+YWlsLnRlc3Q7WC1OVU0tR1VFU1RTPTA6bWFpbHRvOmFsaWNlQGNpdHVzbWFpbC50ZXN0DQpBVFRF
+TkRFRTtDVVRZUEU9SU5ESVZJRFVBTDtST0xFPVJFUS1QQVJUSUNJUEFOVDtQQVJUU1RBVD1URU5U
+QVRJVkU7UlNWUD1UUlUNCiBFO0NOPVByaXlhIFNoYWg7WC1OVU0tR1VFU1RTPTA6bWFpbHRvOnBy
+aXlhQHN0YXJ0dXAuZXhhbXBsZQ0KWC1HT09HTEUtQ09ORkVSRU5DRTpodHRwczovL21lZXQuZ29v
+Z2xlLmNvbS9hYmMtZGVmZy1oaWoNClgtTUlDUk9TT0ZULUNETy1PV05FUkFQUFRJRDotMTQyNDI0
+MjQyNA0KQ1JFQVRFRDoyMDI2MTEwNFQxMjAyNTlaDQpERVNDUklQVElPTjpRdWljayBzeW5jIG9u
+IHRoZSBsYXVuY2hcLCB0d2ljZSBhIHdlZWsuXG5cbkFnZW5kYTpcbi0gYmxvY2tlcg0KIHNcbi0g
+bmV4dCBzdGVwc1xuXG4tOjp+On46On46fjp+On46fjp+On46fjp+On46fjp+On46fjp+On46fjp+
+On46fjp+On46fjp+On46DQogfjp+On46fjp+On46fjp+On46fjp+On46fjo6fjp+OjotXG5Kb2lu
+IHdpdGggR29vZ2xlIE1lZXQ6IGh0dHBzOi8vbWVldC5nb29nDQogbGUuY29tL2FiYy1kZWZnLWhp
+alxuXG5MZWFybiBtb3JlIGFib3V0IE1lZXQgYXQ6IGh0dHBzOi8vc3VwcG9ydC5nb29nbGUuYw0K
+IG9tL2EvdXNlcnMvYW5zd2VyLzkyODI3MjBcblxuUGxlYXNlIGRvIG5vdCBlZGl0IHRoaXMgc2Vj
+dGlvbi5cbi06On46fjo6fjoNCiB+On46fjp+On46fjp+On46fjp+On46fjp+On46fjp+On46fjp+
+On46fjp+On46fjp+On46fjp+On46fjp+On46fjp+On46fjp+Ojp+On46Oi0NCkxBU1QtTU9ESUZJ
+RUQ6MjAyNjExMDRUMTIwMjU5Wg0KTE9DQVRJT046DQpTRVFVRU5DRTowDQpTVEFUVVM6Q09ORklS
+TUVEDQpTVU1NQVJZOkxhdW5jaCBzdGFuZC11cA0KVFJBTlNQOk9QQVFVRQ0KQkVHSU46VkFMQVJN
+DQpBQ1RJT046RElTUExBWQ0KREVTQ1JJUFRJT046VGhpcyBpcyBhbiBldmVudCByZW1pbmRlcg0K
+VFJJR0dFUjotUDBEVDBIMTBNMFMNCkVORDpWQUxBUk0NCkVORDpWRVZFTlQNCkVORDpWQ0FMRU5E
+QVINCg==
+
+--000000000000a1b2c3d4e5f60718--

@@ -11,6 +11,7 @@ import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import 'accounts_page.dart';
+import 'attachments_page.dart';
 import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
@@ -273,6 +274,20 @@ final class Sidebar extends StatelessWidget {
                                   services: controller.services,
                                   onShowMail: controller.search,
                                 ),
+                              ),
+                            );
+                          },
+                        ),
+                        _Entry(
+                          icon: Icons.attach_file,
+                          label: 'Attachments',
+                          selected: false,
+                          onTap: () {
+                            onNavigated?.call();
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    AttachmentsPage(controller: controller),
                               ),
                             );
                           },

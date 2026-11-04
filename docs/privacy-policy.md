@@ -48,6 +48,7 @@ shipping emails), run entirely on the device.
 | Google Safe Browsing | Only if you turn on "Check links with Google Safe Browsing" (Settings > Advanced) | Lists of dangerous sites are downloaded; to confirm a match, only a 4-byte part of a link's fingerprint is sent, never the link itself |
 | VirusTotal | Only if you turn it on with your own API key (Settings > Advanced), and only when you tap "Check with VirusTotal" | A file's SHA-256 fingerprint (the file is never uploaded) or a link's address |
 | Newsletter senders | Only when you tap Unsubscribe and confirm | The unsubscribe request the newsletter asked for |
+| The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline | An email from your own account with your answer and any note you add, sent through your own mail server |
 | Images and links in an email | Only when you choose to load images or open a link | A request for the image or page, without cookies; like any connection, it shows your IP address |
 
 Each of these services handles data under its own privacy policy.
@@ -78,7 +79,7 @@ ours, and are end-to-end encrypted with a code only your devices hold.
 | --- | --- |
 | Internet, network state | To connect to your mail provider |
 | Notifications | To tell you about new mail (sender and subject only; on the lock screen only that there is new mail) |
-| Foreground service, start at boot | To check for new mail in the background, or keep a live connection if you turn on "Instant mail" |
+| Foreground service, start at boot | To check for new mail in the background, or keep a live connection if you turn on "Instant mail" (not in the Google Play version, which only checks in the background) |
 | Fingerprint or face unlock | Only if you turn on the app lock; checked by Android, the app only learns "yes" or "no" |
 
 The app does not use your location, camera, microphone, contacts list or

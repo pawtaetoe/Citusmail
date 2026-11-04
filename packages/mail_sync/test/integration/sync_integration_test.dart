@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
+import 'package:mail_view/mail_view.dart';
 import 'package:test/test.dart';
 
 import '../support/test_env.dart';
@@ -90,6 +91,38 @@ void main() {
       final again = await alice.sync(['INBOX']);
       expect(again.mailboxes.values.single.method, SyncMethod.qresync);
       expect(again.mailboxes.values.single.hasChanges, isFalse);
+    },
+  );
+
+  test(
+    'file names come with the summary, from a lookup, or from the body',
+    () async {
+      final alice = device('alice');
+      await alice.sync(['INBOX']);
+      final invoice = alice
+          .messages('INBOX')
+          .firstWhere((m) => m.messageId == 'overdue@invoices.example');
+      List<String>? names() => alice.store.messages
+          .headers(invoice.id)[FilePart.storedHeader]
+          ?.map((v) => FilePart.decode(v)!.name)
+          .toList();
+      const expected = ['invoice.html', 'invoice.pdf.exe', 'terms.docm'];
+      expect(names(), expected);
+
+      // Mail synced before names were kept: looked up without
+      // downloading it or marking it read.
+      alice.store.messages.setHeader(invoice.id, FilePart.storedHeader, []);
+      final engine = SyncEngine(alice.store, alice.connector);
+      await engine.lookUpFiles([invoice.id]);
+      expect(names(), expected);
+      expect(alice.store.messages.body(invoice.id), isNull);
+      expect(alice.store.messages.byId(invoice.id)!.flags, invoice.flags);
+
+      // Opening it keeps the reader's list.
+      alice.store.messages.setHeader(invoice.id, FilePart.storedHeader, []);
+      await engine.loadBody(invoice.id);
+      expect(names(), expected);
+      await engine.dispose();
     },
   );
 

@@ -100,8 +100,17 @@ are at the bottom of the screen, within reach of one thumb.
   days (trackers, remote images, tracking tags on links, read receipts,
   scam warnings) and the senders that track you most, counted on your
   device.
+- **Attachments**: every file people sent you in one searchable list
+  (PDFs, photos, documents, spreadsheets), from all accounts and
+  folders, without downloading your mail. Tap one to open its email or
+  save it.
 - **Writing mail**: drafts, replies, undo send, custom folders and rules
   (also as server-side Sieve rules).
+- **Meeting invitations**: Outlook, Google Calendar, Zoom and other
+  invitations show as a card with the date in your time zone, the
+  place and the meeting link. Accept, Maybe or Decline answers the
+  organizer (and only them), with undo; "Open in calendar app" adds the
+  event to your own calendar.
 - **Every message, whole**: save it as an .eml file, see its original
   headers and source, or forward it as an attachment.
 - **Subscriptions**: the paid subscriptions found in your receipts and
@@ -122,6 +131,9 @@ are at the bottom of the screen, within reach of one thumb.
 - **Clean up**: the senders who fill your inbox and the ones you rarely
   open, worked out on your device (not on someone's server), with
   unsubscribe, archive or delete everything from them, block, or keep.
+- **New mail on Android** checked about every 5 minutes in the background,
+  or at once with Instant mail (in the APK from the GitHub releases; the
+  Google Play version leaves Instant mail out).
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.
@@ -224,13 +236,15 @@ flutter analyze                               # static analysis
 (cd tool && dart test)                        # repository tool tests
 (cd app && flutter test)                      # app tests
 (cd app && flutter run -d linux)              # run on Linux
+(cd app && flutter run --flavor github)       # run on Android (or --flavor play)
 ```
 
 The demo screens above are rendered from made-up mail:
 `cd app && SCREEN_OUT=../docs/screenshots flutter test screenshots/screens_test.dart --plain-name readme`.
 
 Windows builds need a Windows machine; CI builds them on every push.
-Packages (.apk, .deb, Flatpak, Windows installer) and release signing:
+Packages (.apk, Google Play .aab, .deb, Flatpak, Windows installer) and
+release signing:
 see [packaging/README.md](packaging/README.md).
 
 Integration tests use local test mail servers; see

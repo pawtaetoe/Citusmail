@@ -18,6 +18,8 @@ no analytics, no crash reporting and no advertising.
 | Mozilla's mail server database | Only if you allow it during setup | Your email domain, never the full address |
 | A newsletter's one-click unsubscribe address | Only when you tap Unsubscribe and confirm | One request with the fixed text `List-Unsubscribe=One-Click` and a generic user agent. No cookies, no referrer, no language. Like any connection, it shows your IP address |
 | A newsletter's unsubscribe email address | Only when you tap Unsubscribe and confirm | An email from your account saying "unsubscribe" (a copy is kept in Sent) |
+| The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline on the invitation | An email from your account with your answer (and your note, if you wrote one) and the event's calendar details, through your own mail server; a copy is kept in Sent. No one else on the invitation gets it |
+| Your calendar app | Only when you tap "Open in calendar app" on an invitation | The invitation's .ics file, from the app's temporary folder, handed to the app your system chooses on this device |
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
 | Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, unsubscribes, folder rules and image senders, end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
@@ -83,7 +85,8 @@ text, and only for Verification, Important and General mail (and pins).
 On Android the lock screen shows only that there is new mail. They are created on your device; no
 push service is involved. On Android, Citusmail checks for mail about every 5
 minutes in the background (Android may wait longer to save battery), or keeps a live connection if you turn on
-"Instant mail" (which shows a permanent notification, as Android requires).
+"Instant mail" (which shows a permanent notification, as Android requires;
+the Google Play version leaves Instant mail out).
 
 ## Mail you send
 

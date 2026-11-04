@@ -14,6 +14,7 @@ import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import 'invitation_answers.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
 
@@ -822,6 +823,85 @@ final class MailController {
     );
   }
 
+  // --------------------------------------------------------- invitations
+
+  /// The user's answers to invitations, remembered on the device.
+  late final invitationAnswers = InvitationAnswers(_store);
+
+  /// Changes when an answer is sent or undone, so the card updates.
+  final invitationsChanged = ValueNotifier<int>(0);
+
+  /// Every address of the user's accounts.
+  List<String> get ownAddresses => [
+    for (final a in _store.accounts.all()) a.email,
+  ];
+
+  /// The user among [invite]'s guests: the account it came to first,
+  /// else any of their addresses. Null if they aren't on the list.
+  CalendarPerson? ownAttendee(StoredMessage message, CalendarInvite invite) {
+    final account = _store.accounts.byId(message.accountId);
+    return (account == null ? null : invite.attendeeFor([account.email])) ??
+        invite.attendeeFor(ownAddresses);
+  }
+
+  /// Sends the answer to the open invitation to its organizer (and no one
+  /// else), through the outbox with Undo, and remembers it. Returns null
+  /// on success, or why it couldn't be sent.
+  String? answerInvitation(
+    ReaderReady r,
+    CalendarAnswer answer, {
+    String? note,
+  }) {
+    final invite = r.view.invite;
+    final account = _store.accounts.byId(r.message.accountId);
+    if (invite == null || account == null || !invite.answerable) {
+      return 'This invitation can\'t be answered.';
+    }
+    final attendee = ownAttendee(r.message, invite);
+    if (attendee == null) {
+      return 'You\'re not on this invitation\'s guest list, so there is '
+          'nothing to answer.';
+    }
+    final draft = InvitationReplies.draft(
+      message: r.message,
+      account: account,
+      invite: invite,
+      attendee: attendee,
+      answer: answer,
+      note: note,
+    );
+    if (draft == null) return 'This invitation can\'t be answered.';
+    final PendingSend pending;
+    try {
+      pending = services.sender.send(draft);
+    } on ComposeException {
+      return 'The organizer\'s address isn\'t usable, so no answer was sent.';
+    }
+    services.worker.syncAt(pending.accountId, pending.undoUntil);
+    final previous = invitationAnswers.of(invite);
+    invitationAnswers.remember(invite, answer);
+    invitationsChanged.value++;
+    refresh();
+    final organizer = invite.organizer!.label;
+    onNotice?.call(
+      switch (answer) {
+        CalendarAnswer.accepted => 'Accepted. Telling $organizer…',
+        CalendarAnswer.tentative => 'Answered maybe. Telling $organizer…',
+        _ => 'Declined. Telling $organizer…',
+      },
+      undo: () {
+        if (services.sender.cancel(pending)) {
+          invitationAnswers.forget(invite, previous: previous);
+          invitationsChanged.value++;
+          refresh();
+        } else {
+          onNotice?.call('Too late to undo: your answer is on its way.');
+        }
+      },
+    );
+    return null;
+  }
+
   // -------------------------------------------------------- read receipts
 
   /// For the user's own mail that asked for read receipts: the receipts
@@ -1145,6 +1225,7 @@ final class MailController {
     counts.dispose();
     reader.dispose();
     selection.dispose();
+    invitationsChanged.dispose();
     status.dispose();
     codesOffer.dispose();
   }

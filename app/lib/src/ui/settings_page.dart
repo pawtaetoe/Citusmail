@@ -19,6 +19,7 @@ import 'block_dialog.dart';
 import 'code_cleanup_banner.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
+import 'link_opener.dart';
 import 'privacy_report_page.dart';
 import 'sender_cleanup_page.dart';
 
@@ -44,6 +45,7 @@ final class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     required this.services,
+    this.playBuild,
     this.controller,
     this.isAndroid,
     this.onShowMail,
@@ -60,12 +62,19 @@ final class SettingsPage extends StatefulWidget {
   /// Overrides the platform (tests).
   final bool? isAndroid;
 
+  /// Overrides whether this is the Google Play build, which has no Instant
+  /// mail (tests).
+  final bool? playBuild;
+
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
 final class _SettingsPageState extends State<SettingsPage> {
   bool get _android => widget.isAndroid ?? Platform.isAndroid;
+
+  /// Instant mail is in every Android build except the Google Play one.
+  bool get _instantMail => _android && !(widget.playBuild ?? playBuild);
 
   AppLock get _lock => widget.services.lock;
   bool _biometricsAvailable = false;
@@ -292,7 +301,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             value: settings.monthlyRenewals,
             onChanged: (on) => setState(() => settings.monthlyRenewals = on),
           ),
-          if (_android) ...[
+          if (_instantMail)
             SwitchListTile(
               title: const Text('Instant mail'),
               subtitle: const Text(
@@ -302,8 +311,17 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
               value: settings.instantMail,
               onChanged: _setInstant,
+            )
+          else if (_android)
+            ListTile(
+              title: const Text('Checking for new mail'),
+              subtitle: Text(
+                'While the app is closed, $appName checks for new mail about every '
+                '5 minutes when there is a network. Android may wait longer to save '
+                'battery.',
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+              ),
             ),
-          ],
           const _Group('Mail on this device'),
           ListTile(
             leading: const Icon(Icons.history),
@@ -376,6 +394,16 @@ final class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
             ),
+          ),
+          _WebPageTile(
+            icon: Icons.policy_outlined,
+            title: 'Privacy policy',
+            page: privacyPolicyUrl,
+          ),
+          _WebPageTile(
+            icon: Icons.description_outlined,
+            title: 'Terms of service',
+            page: termsOfServiceUrl,
           ),
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -644,6 +672,42 @@ final class _Group extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The privacy policy on the app's website (also in docs/privacy-policy.md).
+final privacyPolicyUrl = Uri.parse(
+  'https://citusmail.fluminaris.com/privacy-policy',
+);
+
+/// The terms of service on the app's website (docs/terms-of-service.md).
+final termsOfServiceUrl = Uri.parse(
+  'https://citusmail.fluminaris.com/terms-of-service',
+);
+
+/// A page on the app's website, opened in the browser after the usual
+/// "Open this link?" question.
+final class _WebPageTile extends StatelessWidget {
+  const _WebPageTile({
+    required this.icon,
+    required this.title,
+    required this.page,
+  });
+
+  final IconData icon;
+  final String title;
+  final Uri page;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    leading: Icon(icon),
+    title: Text(title),
+    subtitle: Text(
+      '${page.host}${page.path}',
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+    ),
+    trailing: const Icon(Icons.open_in_new),
+    onTap: () => LinkOpener.open(context, page, onMailto: (_) {}),
+  );
 }
 
 /// Asks before Google Safe Browsing is turned on: what it does, what is

@@ -81,6 +81,67 @@ void main() {
     expect(app.services.settings.instantMail, isTrue);
   });
 
+  testWidgets('Google Play build: no instant mail, only the 5-minute check', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('citusmail/background'),
+      (call) async {
+        calls.add(call);
+        return null;
+      },
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          services: app.services,
+          isAndroid: true,
+          playBuild: true,
+        ),
+      ),
+    );
+    expect(find.text('Instant mail'), findsNothing);
+    expect(find.textContaining('live connection'), findsNothing);
+    expect(find.text('Checking for new mail'), findsOneWidget);
+    expect(find.textContaining('about every 5 minutes'), findsOneWidget);
+    await tester.tap(find.text('Checking for new mail'));
+    await tester.pump();
+    expect(calls, isEmpty, reason: 'never asks for the service');
+  });
+
+  testWidgets('desktop: no background mail settings', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    expect(find.text('Instant mail'), findsNothing);
+    expect(find.text('Checking for new mail'), findsNothing);
+  });
+
+  testWidgets('About: privacy policy and terms open after asking', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    for (final (title, url) in [
+      ('Privacy policy', 'https://citusmail.fluminaris.com/privacy-policy'),
+      ('Terms of service', 'https://citusmail.fluminaris.com/terms-of-service'),
+    ]) {
+      await tester.scrollUntilVisible(find.text(title), 200);
+      await tester.tap(find.text(title));
+      await tester.pumpAndSettle();
+      expect(find.text('Open this link?'), findsOneWidget, reason: title);
+      expect(find.text(url), findsOneWidget, reason: title);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Open this link?'), findsNothing);
+    }
+  });
+
   testWidgets('rules on the mail server: off by default; status per account', (
     tester,
   ) async {
