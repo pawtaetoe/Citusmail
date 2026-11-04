@@ -29,12 +29,16 @@ final class SyncWorkerConfig {
     required this.key,
     this.connector = _defaultConnector,
     this.fullSyncInterval = const Duration(minutes: 5),
+    this.inboxCheckInterval = const Duration(minutes: 1),
   });
 
   final String databasePath;
   final DatabaseKey key;
   final ConnectorFactory connector;
   final Duration fullSyncInterval;
+
+  /// How often inboxes are checked besides IDLE, while the app runs.
+  final Duration? inboxCheckInterval;
 }
 
 /// A request the worker could not complete.
@@ -114,6 +118,15 @@ final class SyncWorker {
   void requestSync(int accountId) => unawaited(
     _request(_RequestSync(accountId)).catchError((Object _) => null),
   );
+
+  /// A quick look at every inbox for new mail.
+  void checkInboxes() =>
+      unawaited(_request(const _CheckInboxes()).catchError((Object _) => null));
+
+  /// The app is back after a while: syncs now and opens fresh IDLE
+  /// connections (the old ones may have died in the background).
+  void reconnect() =>
+      unawaited(_request(const _Reconnect()).catchError((Object _) => null));
 
   /// Syncs the account at [at] (a delayed send becomes due then).
   void syncAt(int accountId, DateTime at) => unawaited(
@@ -299,6 +312,7 @@ Future<void> _workerMain(_Boot boot) async {
     store,
     boot.config.connector(credentials),
     fullSyncInterval: boot.config.fullSyncInterval,
+    inboxCheckInterval: boot.config.inboxCheckInterval,
     syncCodes: syncCodes,
   );
   final events = engine.events.listen((e) => reply.send(_Event(e)));
@@ -324,6 +338,10 @@ Future<void> _workerMain(_Boot boot) async {
         }
       case _RequestSync(:final accountId):
         engine.requestSync(accountId);
+      case _CheckInboxes():
+        engine.checkInboxes();
+      case _Reconnect():
+        engine.reconnect();
       case _SyncAt(:final accountId, :final at):
         engine.syncAt(accountId, at);
       case _LoadBody(:final messageId):
@@ -535,6 +553,14 @@ final class _RequestSync extends _Command {
   const _RequestSync(this.accountId);
 
   final int accountId;
+}
+
+final class _CheckInboxes extends _Command {
+  const _CheckInboxes();
+}
+
+final class _Reconnect extends _Command {
+  const _Reconnect();
 }
 
 final class _SyncAt extends _Command {
