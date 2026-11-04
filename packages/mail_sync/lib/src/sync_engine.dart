@@ -71,6 +71,7 @@ final class SyncEngine {
          settings: settings,
        ),
        _loader = MessageLoader(_store),
+       _files = FileLookup(_store),
        _onDemand = OnDemandConnections(_connector) {
     _synchronizer = AccountSynchronizer(
       _store,
@@ -91,6 +92,7 @@ final class SyncEngine {
   final AppDataSync? appData;
   final MailboxSynchronizer _mailboxSync;
   final MessageLoader _loader;
+  final FileLookup _files;
   final OnDemandConnections _onDemand;
   late final AccountSynchronizer _synchronizer;
 
@@ -203,6 +205,24 @@ final class SyncEngine {
       // The cache is out of date: let a sync catch up.
       if (e.problem != BodyProblem.tooLarge) requestSync(account.id);
       rethrow;
+    }
+  }
+
+  /// Looks up which files [messageIds] have (names, types and sizes from
+  /// the server's BODYSTRUCTURE; nothing is downloaded or marked read),
+  /// for mail synced before the app kept that. Throws a [MailException]
+  /// when a server cannot be reached.
+  Future<void> lookUpFiles(List<int> messageIds) async {
+    final byAccount = <int, List<int>>{};
+    for (final id in messageIds) {
+      if (_store.messages.byId(id) case final m?) {
+        byAccount.putIfAbsent(m.accountId, () => []).add(id);
+      }
+    }
+    for (final MapEntry(key: accountId, value: ids) in byAccount.entries) {
+      final account = _store.accounts.byId(accountId);
+      if (account == null) continue;
+      await _onDemand.run(account, (imap) => _files.lookUp(imap, ids));
     }
   }
 

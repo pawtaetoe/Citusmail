@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_view/mail_view.dart';
 
 /// Turns FETCH results into summaries for the store.
 final class SummaryMapper {
@@ -54,6 +55,7 @@ final class SummaryMapper {
     if (uid == null || received == null) return null;
 
     final headers = _headers(message.headerFields);
+    final structure = message.bodyStructure;
     final from = envelope?.from.firstOrNull;
     final snippet = _snippet(message.preview);
     final decision = classifier.classify(
@@ -81,13 +83,20 @@ final class SummaryMapper {
       size: message.size ?? 0,
       flags: MessageFlags.fromImap(message.flags ?? const {}),
       modSeq: message.modSeq,
-      hasAttachments:
-          message.bodyStructure?.allParts.any((p) => p.isAttachment) ?? false,
+      hasAttachments: structure?.allParts.any((p) => p.isAttachment) ?? false,
       category: decision.category,
       categorySource: decision.source,
       listId: ListId.fromHeaders(headers),
       snippet: snippet,
-      headers: headers,
+      headers: {
+        ...headers,
+        // The attachments' names, types and sizes, for the list of files
+        // without downloading anything.
+        if (structure != null)
+          if (FilePart.listFromImap(structure) case final files
+              when files.isNotEmpty)
+            FilePart.storedHeader: [for (final f in files) f.encode()],
+      },
       code: decision.category == MessageCategory.codes
           ? VerificationCodes.inMessage(envelope?.subject, snippet)
           : null,
@@ -99,6 +108,8 @@ final class SummaryMapper {
     final parsed = const HeaderParser().parse(raw);
     final result = <String, List<String>>{};
     for (final field in parsed.headers.fields) {
+      // Only the app writes this one (see [FilePart.storedHeader]).
+      if (field.name.toLowerCase() == FilePart.storedHeader) continue;
       result.putIfAbsent(field.name.toLowerCase(), () => []).add(field.value);
     }
     return result;
