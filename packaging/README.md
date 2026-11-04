@@ -8,12 +8,15 @@ publishes the GitHub release with them. Nothing to tag by hand.
 
 | Platform | Package | Built by |
 | --- | --- | --- |
-| Android | `citusmail-<version>.apk` | `flutter build apk --release` |
+| Android (GitHub) | `citusmail-<version>.apk` | `flutter build apk --release --flavor github` |
+| Android (Google Play) | `citusmail-<version>.aab` | `flutter build appbundle --release --flavor play` |
 | Linux | `citusmail_<version>-<build>_amd64.deb` | `packaging/linux/build-deb.sh` |
 | Linux | `citusmail-<version>.flatpak` | `packaging/flatpak/build-flatpak.sh` |
 | Windows | `citusmail-setup-<version>.exe` | `packaging/windows/citusmail.iss` (Inno Setup) |
 
-The release also has `SHA256SUMS`.
+The release also has `SHA256SUMS`. Both Android files are signed with the
+same key and built with the same `--dart-define`s; the `.aab` is the one
+to upload to Google Play (see [Google Play](#google-play) below).
 
 To release:
 
@@ -44,10 +47,13 @@ upload key. Back up the `.jks` file and its password somewhere safe and
 offline. If it is lost, Google support can reset the upload key, but
 that takes days.
 
-**Google Play bundle**: `packaging/android/build-aab.sh` writes
-`build/packages/citusmail-<version>.aab`, signed with the upload key.
-Raise the build number (`version: x.y.z+N` in `app/pubspec.yaml`) before
-each upload: Play refuses a version code it has seen.
+**Google Play bundle**: every release has `citusmail-<version>.aab`,
+built by CI with the same key. To build one locally,
+`packaging/android/build-aab.sh` writes
+`build/packages/citusmail-<version>.aab` (the `play` flavor), signed with
+the upload key. Raise the build number (`version: x.y.z+N` in
+`app/pubspec.yaml`) before each upload: Play refuses a version code it
+has seen.
 
 **Outlook sign-in** needs the app's registration with Microsoft (free):
 in the [Microsoft Entra admin center](https://entra.microsoft.com), App
@@ -139,20 +145,100 @@ for testing, never for distribution.
 
 ## Android background mail
 
-- **Periodic check** (default): WorkManager runs the app's Dart sync code
-  in a background engine about every 15 minutes when online.
-- **Instant mail** (Settings, off by default): a foreground service keeps
+- **Periodic check** (default, both flavors): WorkManager runs the app's
+  Dart sync code in a background engine about every 5 minutes when online
+  (a chain of one-off checks, with a 15-minute periodic check as a safety
+  net).
+- **Instant mail** (Settings, off by default; `github` flavor only): a
+  foreground service keeps
   an IMAP IDLE connection; Android requires its permanent "Citusmail is
   connected" notification. Type `specialUse` (no other type fits a mail
   push connection; `dataSync` is limited to 6 hours a day on Android 15).
   It restarts after a reboot when on.
 
-Debug builds accept two test switches (release builds ignore them):
+Debug builds accept two test switches (release builds ignore them; the
+`play` flavor has no Instant mail, so it ignores the second):
 
 ```bash
 adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez citusmail.checkNow true
 adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez citusmail.instant true
 ```
+
+## Android flavors: GitHub and Google Play
+
+The Android app has two product flavors (`app/android/app/build.gradle.kts`),
+so every Android build needs `--flavor`:
+
+| Flavor | Built as | Goes to | Instant mail |
+| --- | --- | --- | --- |
+| `github` (default in Android Studio) | `citusmail-<version>.apk` | GitHub releases | yes |
+| `play` | `citusmail-<version>.aab` | Google Play | no |
+
+Google Play reviews foreground services of type `specialUse` by hand, so
+the Play build leaves Instant mail out entirely:
+`app/android/app/src/play/AndroidManifest.xml` removes the
+`InstantMailService`, the `FOREGROUND_SERVICE_SPECIAL_USE` permission and
+the boot receiver that only restarted it. The app reads the flavor
+(Flutter passes `--flavor` to Dart as `appFlavor`) and shows a line about
+the 5-minute check instead of the Instant mail switch; the Kotlin side
+(`BuildConfig.INSTANT_MAIL`) never starts the service either. The periodic
+check is the same in both.
+
+`packaging/android/check-play-bundle.sh <file.aab>` reads the bundle's
+manifest and fails if the special-use service or permission is still in
+it, or if WorkManager's check is missing. CI runs it on every Android
+build, and checks that the GitHub APK still has Instant mail.
+
+Outputs of a flavored build: `app/build/app/outputs/flutter-apk/app-github-release.apk`
+and `app/build/app/outputs/bundle/playRelease/app-play-release.aab`.
+
+## Google Play
+
+Upload `citusmail-<version>.aab` from the GitHub release (or from
+`build-aab.sh`), never the APK. Play App Signing re-signs it with Google's
+key, so the Play app and the GitHub APK cannot update each other:
+switching between them means uninstalling first.
+
+Play Console checklist (closed or open testing):
+
+- **App signing**: Play App Signing on; the key in the CI secrets is the
+  upload key (above).
+- **Privacy policy**: `https://citusmail.fluminaris.com/privacy-policy`
+  (also in the app: Settings > About > Privacy policy).
+- **Data safety**: no data collected, no data shared. Data is encrypted
+  in transit (TLS to the user's own mail servers) and stored encrypted on
+  the device; users can delete it (remove an account, or uninstall). Mail
+  goes only to the mail servers the user sets up. The optional outside
+  checks (Google Safe Browsing, VirusTotal, under Settings > Advanced) are
+  off until the user turns them on and send only what the privacy policy
+  lists; read Play's data safety help on user-initiated transfers to
+  confirm "not shared" still fits before submitting.
+- **Content rating**: fill in the questionnaire. It is an email app, so
+  users can exchange messages with other people (with addresses they
+  choose); no ads, no purchases, no location.
+- **Target audience**: 13 and over. Not designed for children.
+- **Ads**: no ads.
+- **App access** (sign-in for reviewers): give a test mail account the
+  reviewers can add with an **app password** (for example a Gmail or
+  Fastmail test account with an app password, or a mailbox on your own
+  server), with the steps: Add account > enter the address > enter the
+  app password. Don't give a password that opens anything else.
+- **Foreground service declaration**: not needed for the Play build (it
+  has no `FOREGROUND_SERVICE_*` type permission). If Play asks, check that
+  the `.aab` came from the `play` flavor (`check-play-bundle.sh`).
+- **Store listing**:
+  - App icon (512 × 512): `assets/icon/png/512.png`.
+  - Feature graphic (1024 × 500): `packaging/android/play/feature-graphic.png`,
+    rendered from `feature-graphic.svg` next to it (IBM Plex Sans from
+    `app/assets/fonts`).
+  - Phone screenshots: `docs/screenshots/readme_phone*.png` and
+    `readme_subscriptions.png` (the settings screenshot shows the GitHub
+    build's Instant mail switch; leave it out or render the Play build
+    with the `settings play` scene in `app/screenshots/screens_test.dart`).
+  - Short description, for example "Fast, private email that stays yours".
+- **Testers**: a closed test needs a list of testers (email addresses or
+  a Google group); new personal developer accounts must run a closed
+  test with enough testers for the required time before production.
 
 ## Linux
 

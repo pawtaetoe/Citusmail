@@ -75,7 +75,8 @@ text, and only for Verification, Important and General mail (and pins).
 On Android the lock screen shows only that there is new mail. They are created on your device; no
 push service is involved. On Android, Citusmail checks for mail about every 5
 minutes in the background (Android may wait longer to save battery), or keeps a live connection if you turn on
-"Instant mail" (which shows a permanent notification, as Android requires).
+"Instant mail" (which shows a permanent notification, as Android requires;
+the Google Play version leaves Instant mail out).
 
 ## Mail you send
 

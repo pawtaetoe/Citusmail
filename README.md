@@ -100,6 +100,9 @@ are at the bottom of the screen, within reach of one thumb.
 - **Clean up**: the senders who fill your inbox and the ones you rarely
   open, worked out on your device (not on someone's server), with
   unsubscribe, archive or delete everything from them, block, or keep.
+- **New mail on Android** checked about every 5 minutes in the background,
+  or at once with Instant mail (in the APK from the GitHub releases; the
+  Google Play version leaves Instant mail out).
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.
@@ -199,13 +202,15 @@ flutter analyze                               # static analysis
 (cd tool && dart test)                        # repository tool tests
 (cd app && flutter test)                      # app tests
 (cd app && flutter run -d linux)              # run on Linux
+(cd app && flutter run --flavor github)       # run on Android (or --flavor play)
 ```
 
 The demo screens above are rendered from made-up mail:
 `cd app && SCREEN_OUT=../docs/screenshots flutter test screenshots/screens_test.dart --plain-name readme`.
 
 Windows builds need a Windows machine; CI builds them on every push.
-Packages (.apk, .deb, Flatpak, Windows installer) and release signing:
+Packages (.apk, Google Play .aab, .deb, Flatpak, Windows installer) and
+release signing:
 see [packaging/README.md](packaging/README.md).
 
 Integration tests use local test mail servers; see
