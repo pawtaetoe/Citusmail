@@ -72,6 +72,13 @@ ask.
   cancel it, and goes out once at its time, while Citusmail (or, on
   Android, its background check) runs; otherwise when Citusmail next
   runs.
+- **Remind me if no reply**: on an email you send (or one already in
+  Sent), choose in 1 day, 3 days, 1 week or a date. If nobody has answered
+  by then, it comes back to the top of your inbox marked "No reply yet",
+  with one notification in the daytime; a reply ends the reminder by
+  itself (your own replies and out-of-office answers don't count). All
+  reminders wait in "Waiting for a reply", where each can be cancelled.
+  It stays on this device.
 - **Phishing checks that read the message**: besides forged senders and
   lookalike links, it warns when an outsider writes in the name of your
   own school or company, or a big brand, especially with hidden
