@@ -97,6 +97,10 @@ are at the bottom of the screen, within reach of one thumb.
 - **Subscriptions**: the paid subscriptions found in your receipts and
   renewal mail, with what each costs, how often, the next charge and
   every past receipt (see above).
+- **Attachments**: every file people sent you in one searchable list
+  (PDFs, photos, documents, spreadsheets), from all accounts and
+  folders, without downloading your mail. Tap one to open its email or
+  save it.
 - **Encrypted everywhere**: local database, passwords in the system
   keychain, end-to-end encrypted sync of settings between your devices,
   app lock with PIN or fingerprint.
