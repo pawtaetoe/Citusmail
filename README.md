@@ -125,6 +125,8 @@ are at the bottom of the screen, within reach of one thumb.
 │   ├── mail_appsync/         App data shared between your devices, end-to-end
 │                             encrypted (ChaCha20-Poly1305, sync code)
 │   ├── mail_compose/         Writing mail: drafts, replies, sending with undo
+│   ├── mail_extract/         schema.org data in shop and carrier mail (JSON-LD,
+│                             microdata): parcels and orders, never run
 │   ├── mail_lookup/          Optional outside checks, off until turned on: Google
 │                             Safe Browsing (lists on the device, prefixes only)
 │                             and VirusTotal (your key; file hashes, no uploads)
@@ -186,6 +188,7 @@ flutter analyze                               # static analysis
 (cd packages/mail_sync && dart test)          # sync engine unit tests
 (cd packages/mail_setup && dart test)         # account setup unit tests
 (cd packages/mail_sort && dart test)          # sorting rules
+(cd packages/mail_extract && dart test)       # schema.org data in mail
 (cd packages/mail_view && dart test)          # safe mail display
 (cd packages/mail_trust && dart test)         # phishing checks
 (cd packages/mail_web && dart test)           # hardened HTTPS for one-click unsubscribe
