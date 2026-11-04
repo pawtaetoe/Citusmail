@@ -13,6 +13,7 @@ import 'package:mail_sync/mail_sync.dart';
 
 import '../services/app_services.dart';
 import '../services/app_settings.dart';
+import '../services/auto_reader.dart';
 import '../services/mail_notifier.dart';
 import '../services/secret_store.dart';
 
@@ -98,12 +99,16 @@ abstract final class BackgroundMail {
           : null;
       final tracker = NewMailTracker(store);
       var allOk = true;
+      var newMail = false;
       for (final account in store.accounts.all()) {
         final report = await engine.syncAccount(account.id);
         if (report == null) {
           allOk = false;
           continue;
         }
+        newMail |= report.mailboxes.values.any(
+          (r) => r.added + r.backfilled > 0,
+        );
         final mail = tracker.claim(account.id);
         await notifier?.announce(store, account, mail);
       }
@@ -138,10 +143,44 @@ abstract final class BackgroundMail {
       // is due.
       await notifier?.announceFailedSends(store);
       await checkWhenDue(store, fromCheck: true);
+      // Last, once the news is out: receipts, bills and booking emails for
+      // the pages, a few at a time (they stay unread).
+      await readAhead(store, engine.loadBody, newMail: newMail);
       return allOk;
     } finally {
       await engine.dispose();
       store.close();
+    }
+  }
+
+  /// When the background check last read emails ahead of time.
+  static const _readAheadKey = 'autoRead.background';
+
+  /// Reads ahead ([AutoReader], at most [AutoReader.backgroundCap]) after
+  /// new mail came, and otherwise at most hourly, so what is left from
+  /// earlier gets read too without parsing the pages' mail every check.
+  @visibleForTesting
+  static Future<int> readAhead(
+    MailStore store,
+    BodyLoader load, {
+    required bool newMail,
+    DateTime? now,
+  }) async {
+    if (!AppSettings(store).autoRead) return 0;
+    now ??= DateTime.now();
+    final last = int.tryParse(store.settings.read(_readAheadKey) ?? '');
+    if (!newMail &&
+        last != null &&
+        now.difference(DateTime.fromMillisecondsSinceEpoch(last)) <
+            const Duration(hours: 1)) {
+      return 0;
+    }
+    store.settings.write(_readAheadKey, '${now.millisecondsSinceEpoch}');
+    try {
+      return await AutoReader.readOnce(store, load);
+    } on Object catch (e) {
+      debugPrint('read ahead: ${e.runtimeType}');
+      return 0;
     }
   }
 

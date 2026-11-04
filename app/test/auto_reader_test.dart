@@ -10,6 +10,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:citusmail/src/background/background_mail.dart';
 import 'package:citusmail/src/services/auto_reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
@@ -199,6 +200,36 @@ void main() {
     // Waiting (once), running, done.
     expect(runs, 3);
   });
+
+  test(
+    'the Android background check: fewer, after new mail or hourly',
+    () async {
+      final ids = bookings(20);
+      final at = DateTime(2026, 11, 4, 9);
+      Future<int> check(DateTime now, {bool newMail = false}) =>
+          BackgroundMail.readAhead(
+            app.store,
+            download,
+            newMail: newMail,
+            now: now,
+          );
+
+      expect(await check(at), AutoReader.backgroundCap, reason: 'the first');
+      expect(loaded, ids.take(AutoReader.backgroundCap));
+      expect(await check(at.add(const Duration(minutes: 5))), 0);
+      expect(
+        await check(at.add(const Duration(minutes: 10)), newMail: true),
+        5,
+      );
+      bookings(2);
+      expect(await check(at.add(const Duration(minutes: 30))), 0);
+      expect(await check(at.add(const Duration(minutes: 71))), 2);
+
+      bookings(2);
+      app.services.settings.autoRead = false;
+      expect(await check(at.add(const Duration(hours: 3)), newMail: true), 0);
+    },
+  );
 
   test('stopping ends a run after the message it is on', () async {
     bookings(5);
