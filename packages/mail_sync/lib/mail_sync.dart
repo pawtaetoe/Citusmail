@@ -8,6 +8,7 @@ library;
 export 'src/account_synchronizer.dart';
 export 'src/app_data/app_data_sync.dart';
 export 'src/app_data/snapshotter.dart';
+export 'src/code_cleanup.dart';
 export 'src/code_reader.dart';
 export 'src/connector.dart';
 export 'src/folder_rules.dart';
