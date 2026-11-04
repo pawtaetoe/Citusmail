@@ -62,6 +62,31 @@ void main() {
     );
   });
 
+  testWidgets('message previews: on by default, only with notifications', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
+    );
+    final settings = app.services.settings;
+    expect(settings.notificationPreviews, isTrue);
+    await tester.tap(find.text('Show message previews'));
+    await tester.pump();
+    expect(settings.notificationPreviews, isFalse);
+    await tester.tap(find.text('Show message previews'));
+    await tester.tap(find.text('New mail notifications'));
+    await tester.pump();
+    expect(settings.notificationPreviews, isTrue);
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Show message previews'),
+          )
+          .onChanged,
+      isNull,
+    );
+  });
+
   testWidgets('Android: instant mail asks the system to start the service', (
     tester,
   ) async {
