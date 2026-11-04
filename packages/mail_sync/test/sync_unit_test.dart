@@ -405,6 +405,105 @@ void main() {
     expect(started, 2, reason: 'one more when it was due');
     await engine.dispose();
   });
+  group('checking for new mail', () {
+    late Directory directory;
+    late MailStore store;
+
+    setUp(() {
+      directory = Directory.systemTemp.createTempSync('engine_checks_test');
+      store = MailStore.open(
+        '${directory.path}/mail.db',
+        DatabaseKey.generate(),
+      );
+      final account = store.accounts.add(
+        NewAccount(
+          email: 'alice@citusmail.test',
+          username: 'alice',
+          imap: ServerSettings(
+            host: 'h.example',
+            port: 993,
+            security: ConnectionSecurity.implicitTls,
+          ),
+          smtp: ServerSettings(
+            host: 'h.example',
+            port: 465,
+            security: ConnectionSecurity.implicitTls,
+          ),
+        ),
+      );
+      store.mailboxes.replaceAll(account.id, [
+        ImapMailboxInfo(encodedName: 'INBOX', delimiter: '/', attributes: {}),
+      ]);
+    });
+
+    tearDown(() {
+      store.close();
+      directory.deleteSync(recursive: true);
+    });
+
+    (SyncEngine, List<int>) engineWith({Duration? inboxCheckInterval}) {
+      final engine = SyncEngine(
+        store,
+        const _OfflineConnector(),
+        fullSyncInterval: const Duration(hours: 1),
+        inboxCheckInterval: inboxCheckInterval,
+        changeDelay: Duration.zero,
+      );
+      final started = <int>[];
+      engine.events.listen((e) {
+        if (e is AccountSyncStarted) started.add(e.accountId);
+      });
+      return (engine, started);
+    }
+
+    test('the inbox is checked on its own schedule, besides IDLE', () async {
+      final (engine, started) = engineWith(
+        inboxCheckInterval: const Duration(milliseconds: 150),
+      );
+      engine.start();
+      await Future<void>.delayed(const Duration(milliseconds: 520));
+      expect(started.length, greaterThanOrEqualTo(3), reason: '1 + checks');
+      await engine.stop();
+      final after = started.length;
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(started.length, after, reason: 'no checks once stopped');
+      await engine.dispose();
+    });
+
+    test('without an interval only the full sync runs', () async {
+      final (engine, started) = engineWith();
+      engine.start();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(started.length, 1);
+      await engine.dispose();
+    });
+
+    test('checkInboxes looks right away', () async {
+      final (engine, started) = engineWith();
+      engine.start();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      engine.checkInboxes();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(started.length, 2);
+      await engine.dispose();
+    });
+
+    test(
+      'reconnect syncs again with fresh connections, only while running',
+      () async {
+        final (engine, started) = engineWith();
+        engine.reconnect();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(started, isEmpty, reason: 'not running');
+        engine.start();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        engine.reconnect();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(started.length, 2);
+        await engine.dispose();
+      },
+    );
+  });
 }
 
 /// No server is reachable.

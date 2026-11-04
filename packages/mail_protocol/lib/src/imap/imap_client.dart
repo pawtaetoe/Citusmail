@@ -59,7 +59,7 @@ final class ImapTimeouts {
   const ImapTimeouts({
     this.connect = const Duration(seconds: 30),
     this.command = const Duration(seconds: 60),
-    this.idle = const Duration(minutes: 25),
+    this.idle = const Duration(minutes: 9),
   });
 
   final Duration connect;
@@ -68,7 +68,9 @@ final class ImapTimeouts {
   final Duration command;
 
   /// Longest IDLE before it is renewed. RFC 9051 asks clients to re-issue
-  /// IDLE at least every 29 minutes; 25 leaves margin for slow networks.
+  /// IDLE at least every 29 minutes; renewing within 10 keeps phone
+  /// networks and routers from dropping the quiet connection, and a dead
+  /// one is noticed within minutes instead of half an hour.
   final Duration idle;
 }
 

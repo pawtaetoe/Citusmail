@@ -55,6 +55,7 @@ final class SyncEngine {
     MessageClassifier? classifier,
     SyncSettings settings = const SyncSettings(),
     this.fullSyncInterval = const Duration(minutes: 5),
+    this.inboxCheckInterval,
     this.changeDelay = const Duration(milliseconds: 500),
     SyncCodeProvider? syncCodes,
   }) : appData = syncCodes == null ? null : AppDataSync(_store, syncCodes),
@@ -101,6 +102,12 @@ final class SyncEngine {
   /// How often every folder is synced while running.
   final Duration fullSyncInterval;
 
+  /// How often each inbox is checked while running, besides IDLE; null
+  /// for none. IDLE delivers new mail at once, but a connection can die
+  /// without notice (a phone network drops it, the device slept), and a
+  /// sign-in code should never wait for the next full sync.
+  final Duration? inboxCheckInterval;
+
   /// Changes arriving close together are handled in one sync.
   final Duration changeDelay;
 
@@ -111,7 +118,9 @@ final class SyncEngine {
   final Map<int, Timer> _pendingRequests = {};
   final List<Timer> _scheduled = [];
   Completer<void>? _stop;
+  Completer<void>? _stopWatching;
   Timer? _periodic;
+  Timer? _inboxChecks;
 
   Stream<SyncEvent> get events => _events.stream;
 
@@ -157,16 +166,44 @@ final class SyncEngine {
   /// Starts syncing every account, watching each inbox with IDLE.
   void start() {
     if (_stop != null) return;
-    final stop = _stop = Completer<void>();
-    for (final account in _store.accounts.all()) {
-      unawaited(_runAccount(account, stop.future));
-    }
+    _stop = Completer<void>();
+    _watch();
     _periodic = Timer.periodic(fullSyncInterval, (_) {
       for (final account in _store.accounts.all()) {
         unawaited(syncAccount(account.id));
       }
     });
+    if (inboxCheckInterval case final interval?) {
+      _inboxChecks = Timer.periodic(interval, (_) => checkInboxes());
+    }
     _syncWhenDue();
+  }
+
+  /// A sync of every account, then IDLE on each inbox until [stop] or
+  /// [reconnect].
+  void _watch() {
+    final stop = _stopWatching = Completer<void>();
+    for (final account in _store.accounts.all()) {
+      unawaited(_runAccount(account, stop.future));
+    }
+  }
+
+  /// A quick look at every inbox for new mail.
+  void checkInboxes() {
+    for (final account in _store.accounts.all()) {
+      final inbox = _store.mailboxes.inbox(account.id);
+      if (inbox != null) requestSync(account.id, mailboxIds: {inbox.id});
+    }
+  }
+
+  /// Syncs every account now and opens fresh IDLE connections, for when
+  /// the app comes back after a while: the old connections may have died
+  /// silently while it was in the background. Nothing while not running.
+  void reconnect() {
+    if (_stop == null) return;
+    final old = _stopWatching;
+    if (old != null && !old.isCompleted) old.complete();
+    _watch();
   }
 
   /// A sync when each queued change waiting for its time becomes due
@@ -192,6 +229,11 @@ final class SyncEngine {
   /// Stops watching and waits for running syncs to finish.
   Future<void> stop() async {
     _periodic?.cancel();
+    _inboxChecks?.cancel();
+    _inboxChecks = null;
+    final watching = _stopWatching;
+    _stopWatching = null;
+    if (watching != null && !watching.isCompleted) watching.complete();
     for (final timer in _pendingRequests.values) {
       timer.cancel();
     }

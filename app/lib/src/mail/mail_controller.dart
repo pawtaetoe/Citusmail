@@ -982,11 +982,37 @@ final class MailController {
     _scheduleWake();
   }
 
-  /// Coming back to the app: snoozed mail and follow-ups that are due.
+  /// When the app was last hidden (another app in front, or minimized).
+  DateTime? _hiddenAt;
+
+  /// The app went to the background.
+  void onHide() => _hiddenAt ??= DateTime.now();
+
+  /// Coming back to the app: a look for new mail at once (a sign-in code
+  /// is often why someone switches back), then snoozed mail and
+  /// follow-ups that are due. After a minute away the mail connections
+  /// may have died quietly, so they are opened afresh.
   void onResume() {
+    final hiddenAt = _hiddenAt;
+    _hiddenAt = null;
+    if (hiddenAt != null) {
+      if (DateTime.now().difference(hiddenAt) > awayBeforeReconnect) {
+        services.worker.reconnect();
+      } else {
+        services.worker.checkInboxes();
+      }
+    }
+    _wakeDue();
+  }
+
+  /// Snoozed mail and follow-ups whose time came.
+  void _wakeDue() {
     wakeSnoozes();
     checkFollowUps();
   }
+
+  /// How long the app can be away before [onResume] reconnects.
+  static const awayBeforeReconnect = Duration(minutes: 1);
 
   /// A timer for the next snooze or follow-up due. Checked at least
   /// hourly: timers may stop while the device sleeps (coming back to the
@@ -1003,7 +1029,7 @@ final class MailController {
     var delay = next.difference(DateTime.now());
     if (delay > const Duration(hours: 1)) delay = const Duration(hours: 1);
     if (delay < const Duration(seconds: 1)) delay = const Duration(seconds: 1);
-    _wakeTimer = Timer(delay, onResume);
+    _wakeTimer = Timer(delay, _wakeDue);
   }
 
   // ---------------------------------------------------------- follow-ups
