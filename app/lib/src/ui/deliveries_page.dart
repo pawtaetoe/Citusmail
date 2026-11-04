@@ -11,6 +11,7 @@ import '../mail/mail_controller.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
 import 'delivery_detail_page.dart';
+import 'returns_section.dart';
 
 /// Shipped orders found in shop and carrier mail: what is on the way and
 /// when it should arrive, then what arrived lately. Found on the device.
@@ -56,6 +57,8 @@ final class _DeliveriesPageState extends State<DeliveriesPage> {
           delivery: d,
           controller: widget.controller,
           messageById: _model.message,
+          returnWindow: _model.returnFor(d.key),
+          now: widget.now,
         ),
       ),
     );
@@ -119,10 +122,14 @@ final class _DeliveriesPageState extends State<DeliveriesPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                 children: [
-                  if (_model.deliveries.isEmpty)
-                    const _Empty()
-                  else
-                    _Overview(onTheWay: onTheWay, delivered: delivered),
+                  if (_model.deliveries.isNotEmpty)
+                    _Overview(
+                      onTheWay: onTheWay,
+                      delivered: delivered,
+                      returnable: _model.canStillReturn.length,
+                    )
+                  else if (_model.returns.isEmpty)
+                    const _Empty(),
                   if (_model.reading case final r?)
                     _Reading(
                       done: r.done,
@@ -138,6 +145,11 @@ final class _DeliveriesPageState extends State<DeliveriesPage> {
                     const _SectionTitle('On the way'),
                     for (final d in onTheWay) tile(d),
                   ],
+                  ReturnsSection(
+                    model: _model,
+                    controller: widget.controller,
+                    now: widget.now ?? DateTime.now,
+                  ),
                   if (delivered.isNotEmpty) ...[
                     const _SectionTitle('Delivered'),
                     for (final d in delivered) tile(d),
@@ -257,10 +269,17 @@ abstract final class DeliveryText {
 
 /// A summary: how many are on the way, out today, and arrived lately.
 final class _Overview extends StatelessWidget {
-  const _Overview({required this.onTheWay, required this.delivered});
+  const _Overview({
+    required this.onTheWay,
+    required this.delivered,
+    this.returnable = 0,
+  });
 
   final List<Delivery> onTheWay;
   final List<Delivery> delivered;
+
+  /// Orders that can still be returned.
+  final int returnable;
 
   @override
   Widget build(BuildContext context) {
@@ -299,6 +318,7 @@ final class _Overview extends StatelessWidget {
                       if (today > 0) '$today out for delivery',
                       if (collect > 0) '$collect ready to collect',
                       '${delivered.length} delivered in the last 30 days',
+                      if (returnable > 0) '$returnable can still be returned',
                     ].join(' · '),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
@@ -559,7 +579,12 @@ final class _HowDialog extends StatelessWidget {
       'moved to Delivered as "probably delivered". Nothing is sent '
       'anywhere: tracking pages open only when you choose "Track", after '
       'asking. If something listed is not a delivery, open it and choose '
-      '"Not a delivery".',
+      '"Not a delivery".\n\n'
+      'Return deadlines come from the return policy an order confirmation, '
+      'receipt or delivery email states, such as "return within 30 days of '
+      'delivery" or "free returns until 15 Dec". None is guessed when the '
+      'email doesn\'t say. Orders marked final sale, and those returned or '
+      'refunded, are left out.',
     ),
     actions: [
       TextButton(
