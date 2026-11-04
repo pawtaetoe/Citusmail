@@ -267,7 +267,7 @@ void main() {
     });
   });
 
-  test('reservations read as generic items for later', () {
+  test('reservations read as generic items too', () {
     const source = '''
 <script type="application/ld+json">
 {"@type": "FlightReservation", "reservationNumber": "RXJ34P",
