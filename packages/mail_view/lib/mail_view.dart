@@ -6,6 +6,7 @@
 /// that cannot load anything from the network.
 library;
 
+export 'src/attachment_files.dart';
 export 'src/document.dart';
 export 'src/html_converter.dart';
 export 'src/image_header.dart';
