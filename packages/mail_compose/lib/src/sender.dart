@@ -114,13 +114,21 @@ final class Sender {
   /// draft (saved on the device again) to keep editing, or null if it was
   /// too late.
   Draft? undo(PendingSend pending, {DateTime? now}) => _store.transaction(() {
-    if (!_store.outbox.cancel(pending.entryIds, now: now)) return null;
+    if (!cancel(pending, now: now)) return null;
+    return _drafts.save(pending.draft);
+  });
+
+  /// Takes the message back without keeping it as a draft (for messages
+  /// the app wrote itself, such as an answer to an invitation). Returns
+  /// whether it was in time.
+  bool cancel(PendingSend pending, {DateTime? now}) => _store.transaction(() {
+    if (!_store.outbox.cancel(pending.entryIds, now: now)) return false;
     if (pending.answered case final original?) {
       _store.messages.updateFlags(original.mailboxId, [
         (uid: original.uid, flags: original.flags, modSeq: null),
       ]);
     }
-    return _drafts.save(pending.draft);
+    return true;
   });
 
   /// Sets \Answered on the replied-to message (locally now, on the server

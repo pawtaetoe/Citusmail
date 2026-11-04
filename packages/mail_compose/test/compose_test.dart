@@ -460,4 +460,123 @@ void main() {
       expect(store.outbox.all(alice.id), hasLength(1));
     });
   });
+
+  group('answering invitations', () {
+    late Sender sender;
+    setUp(() => sender = Sender(store));
+
+    (StoredMessage, CalendarInvite) invitation(String fixture) {
+      final raw = File('../../test-data/invites/$fixture').readAsBytesSync();
+      final parsed = const MimeParser().parse(raw);
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 9,
+          receivedAt: DateTime.utc(2026, 11, 3, 9),
+          messageId: parsed.messageId,
+          subject: parsed.subject,
+          from: parsed.from.single,
+        ),
+      ]);
+      return (
+        store.messages.byUid(inbox.id, 9)!,
+        MessageView.parse(raw).invite!,
+      );
+    }
+
+    test('accepting goes to the organizer only, through the outbox', () {
+      final (message, invite) = invitation('outlook-teams-request.eml');
+      final now = DateTime.now();
+      final draft = InvitationReplies.draft(
+        message: message,
+        account: alice,
+        invite: invite,
+        attendee: invite.attendeeFor([alice.email])!,
+        answer: CalendarAnswer.accepted,
+        now: DateTime.utc(2026, 11, 4, 10),
+      )!;
+      final pending = sender.send(draft, now: now);
+      expect(store.outbox.due(alice.id, now: now), isEmpty, reason: 'undo');
+      final queued = store.outbox.due(alice.id, now: pending.undoUntil).single;
+      final action = queued.action as SendAction;
+      expect(action.recipients, ['ana.lima@contoso.example']);
+
+      final sent = const MimeParser().parse(queued.data!);
+      expect(sent.to.single.address, 'ana.lima@contoso.example');
+      expect(sent.to.single.displayName, 'Ana Lima');
+      expect(sent.cc, isEmpty);
+      expect(sent.subject, 'Accepted: Q4 roadmap review');
+      expect(sent.inReplyTo, [message.messageId]);
+      expect(sent.root.contentType.mimeType, 'multipart/alternative');
+      expect(
+        sent.textBody!.decodeText().text.trim(),
+        'Alice has accepted this invitation.',
+      );
+      final part = sent.root.children.last;
+      expect(part.contentType.mimeType, 'text/calendar');
+      expect(part.contentType.parameters['method'], 'REPLY');
+      final reply = CalendarInvite.parse(part.decodeText().text)!;
+      expect(reply.method, CalendarMethod.reply);
+      expect(reply.uid, invite.uid);
+      expect(reply.sequence, 2);
+      expect(reply.attendees.single.email, 'alice@citusmail.test');
+      expect(reply.attendees.single.answer, CalendarAnswer.accepted);
+      expect(sent.allDefects, isEmpty);
+    });
+
+    test('declining with a note; cancelling keeps no draft', () {
+      final (message, invite) = invitation('all-day-request.eml');
+      final now = DateTime.now();
+      final pending = sender.send(
+        InvitationReplies.draft(
+          message: message,
+          account: alice,
+          invite: invite,
+          attendee: invite.attendeeFor([alice.email])!,
+          answer: CalendarAnswer.declined,
+          note: 'Sorry, I\'m away that week.',
+        )!,
+        now: now,
+      );
+      final sent = const MimeParser().parse(
+        store.outbox.due(alice.id, now: pending.undoUntil).single.data!,
+      );
+      expect(sent.subject, 'Declined: Team offsite – Sintra');
+      expect(
+        sent.textBody!.decodeText().text,
+        contains('Sorry, I\'m away that week.'),
+      );
+      final reply = CalendarInvite.parse(
+        sent.root.children.last.decodeText().text,
+      )!;
+      expect(
+        reply.event.property('COMMENT')!.text,
+        'Sorry, I\'m away that week.',
+      );
+
+      expect(sender.cancel(pending, now: now), isTrue);
+      expect(store.outbox.all(alice.id), isEmpty);
+      expect(store.drafts.all(), isEmpty);
+    });
+
+    test('cancelled events and publications have nothing to answer', () {
+      for (final fixture in ['outlook-cancel.eml', 'zoom-webinar.eml']) {
+        final (message, invite) = invitation(fixture);
+        expect(
+          InvitationReplies.draft(
+            message: message,
+            account: alice,
+            invite: invite,
+            attendee:
+                invite.attendeeFor([alice.email]) ??
+                CalendarPerson.read(
+                  ICalProperty('ATTENDEE', 'mailto:alice@citusmail.test'),
+                )!,
+            answer: CalendarAnswer.accepted,
+          ),
+          isNull,
+          reason: fixture,
+        );
+      }
+    });
+  });
 }
