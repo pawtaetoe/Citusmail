@@ -177,6 +177,48 @@ void main() {
       expect(notices.last.payload, 'message:${mum.id}');
     });
 
+    test('mail waiting in the Screener is left out', () {
+      final mum = _mum();
+      final stranger = _message(
+        'Ana Ruiz',
+        'ana@studio.example',
+        'Portfolio review?',
+        'Hi! I saw your talk last week…',
+      );
+      final waiting = StoredMessage(
+        id: stranger.id,
+        mailboxId: stranger.mailboxId,
+        accountId: stranger.accountId,
+        uid: stranger.uid,
+        receivedAt: stranger.receivedAt,
+        size: stranger.size,
+        flags: stranger.flags,
+        hasAttachments: false,
+        category: MessageCategory.general,
+        categorySource: CategorySource.rule,
+        subject: stranger.subject,
+        from: stranger.from,
+        snippet: stranger.snippet,
+        section: SmartSection.screener,
+      );
+      final notices = MailNotices.build(
+        _account,
+        _mail([waiting, mum]),
+        layout: NoticeLayout.grouped,
+      );
+      expect(notices.map((n) => n.title), ['Mum']);
+      expect(
+        MailNotices.build(
+          _account,
+          _mail([waiting]),
+          layout: NoticeLayout.grouped,
+          hideContent: true,
+        ),
+        isEmpty,
+        reason: 'not even "New mail"',
+      );
+    });
+
     test('a code: in the title, with a Copy code button', () {
       final bank = _bank();
       final notice = MailNotices.build(
