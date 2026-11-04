@@ -7,7 +7,8 @@
     <!-- Background checks only when there is a network (WorkManager). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- Optional "Instant mail": a foreground service with a permanent
-         notification, restarted after a reboot if it was on. -->
+         notification, restarted after a reboot if it was on. The Google
+         Play build leaves it out (src/play/AndroidManifest.xml). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
