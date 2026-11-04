@@ -11,12 +11,61 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
+import '../services/reminders.dart';
+
+/// The mail subscriptions and reminders are read from: receipts, bills,
+/// renewal and trial emails of the last two years.
+typedef SubscriptionMail = ({
+  List<StoredMessage> messages,
+  List<SubscriptionEmail> emails,
+});
+
+/// Picks the mail [SubscriptionFinder] and [Reminders] look at from
+/// [store], and reads its text off the UI thread (downloaded bodies are
+/// parsed; else the preview).
+Future<SubscriptionMail> loadSubscriptionMail(
+  MailStore store,
+  DateTime now,
+) async {
+  final candidates = store.messages.withSubjectWords(
+    SubscriptionFinder.subjectWords,
+    since: now.subtract(SubscriptionsModel.lookBack),
+  );
+  final texts = await compute(_texts, [
+    for (final m in candidates) (store.messages.body(m.id), m.snippet),
+  ]);
+  return (
+    messages: candidates,
+    emails: <SubscriptionEmail>[
+      for (final (i, m) in candidates.indexed)
+        if (m.from case final from?)
+          SubscriptionEmail(
+            messageId: m.id,
+            company:
+                Domains.registrable(from.domain) ?? from.domain.toLowerCase(),
+            senderName: from.displayName,
+            subject: m.subject ?? '',
+            text: texts[i],
+            at: m.receivedAt,
+          ),
+    ],
+  );
+}
+
+/// The companies the user said are not subscriptions.
+Set<String> hiddenSubscriptions(MailStore store) => {
+  ...?store.settings
+      .read(SubscriptionsModel.hiddenKey)
+      ?.split(',')
+      .where((s) => s.isNotEmpty),
+};
 
 /// The Subscriptions page's data: paid subscriptions found in receipts and
-/// renewal mail, on the device. Prices come from the receipts' text: the
-/// preview, or the whole message once downloaded. [readReceipts]
-/// downloads the receipts that are not on the device yet, only when the
-/// user asks.
+/// renewal mail, and what is coming up (bills due, free trials ending,
+/// renewals), on the device. Prices and dates come from the emails' text:
+/// the preview, or the whole message once downloaded. [readReceipts]
+/// downloads the receipts and bills that are not on the device yet, only
+/// when the user asks.
 final class SubscriptionsModel extends ChangeNotifier {
   SubscriptionsModel(this._services, {DateTime Function()? now})
     : _now = now ?? DateTime.now;
@@ -26,7 +75,7 @@ final class SubscriptionsModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const _hiddenKey = 'subscriptions.hidden';
+  static const hiddenKey = 'subscriptions.hidden';
 
   /// How far back receipts are looked at.
   static const lookBack = Duration(days: 2 * 366);
@@ -39,6 +88,9 @@ final class SubscriptionsModel extends ChangeNotifier {
   /// Receipts of companies not recognised yet, downloaded at most.
   static const _unknownMax = 30;
 
+  /// Bills and trial emails this recent are downloaded for their dates.
+  static const _datesBack = Duration(days: 45);
+
   bool loading = true;
   List<Subscription> subscriptions = const [];
 
@@ -46,8 +98,13 @@ final class SubscriptionsModel extends ChangeNotifier {
   Set<String> hidden = const {};
   List<Subscription> hiddenOnes = const [];
 
+  /// Bills due, free trials ending and renewals in the next days, soonest
+  /// first, except those the user dismissed.
+  List<Reminder> comingUp = const [];
+
   /// Receipts not on the device yet, of subscriptions whose price or
-  /// cadence is not known.
+  /// cadence is not known, and recent bills and trial emails whose date
+  /// is not known.
   List<int> toRead = const [];
 
   /// While reading receipts: how many are done, of how many.
@@ -69,34 +126,25 @@ final class SubscriptionsModel extends ChangeNotifier {
   ];
 
   Future<void> load() async {
-    hidden = {
-      ...?_store.settings
-          .read(_hiddenKey)
-          ?.split(',')
-          .where((s) => s.isNotEmpty),
-    };
-    final candidates = _store.messages.withSubjectWords(
-      SubscriptionFinder.subjectWords,
-      since: _now().subtract(lookBack),
+    hidden = hiddenSubscriptions(_store);
+    final now = _now();
+    final (messages: candidates, :emails) = await loadSubscriptionMail(
+      _store,
+      now,
     );
-    // Message text off the UI thread: downloaded bodies are parsed.
-    final texts = await compute(_texts, [
-      for (final m in candidates) (_store.messages.body(m.id), m.snippet),
-    ]);
-    final emails = <SubscriptionEmail>[
-      for (final (i, m) in candidates.indexed)
-        if (m.from case final from?)
-          SubscriptionEmail(
-            messageId: m.id,
-            company:
-                Domains.registrable(from.domain) ?? from.domain.toLowerCase(),
-            senderName: from.displayName,
-            subject: m.subject ?? '',
-            text: texts[i],
-            at: m.receivedAt,
-          ),
+    final all = SubscriptionFinder.find(emails, now: now);
+    final dismissed = ReminderState(_store).dismissed;
+    final reminders = Reminders.find(
+      emails,
+      subscriptions: all,
+      now: now,
+      monthlyRenewals: _services.settings.monthlyRenewals,
+      hidden: hidden,
+    );
+    comingUp = [
+      for (final r in reminders)
+        if (!dismissed.contains(r.key)) r,
     ];
-    final all = SubscriptionFinder.find(emails, now: _now());
     subscriptions = [
       for (final s in all)
         if (!hidden.contains(s.company)) s,
@@ -106,8 +154,13 @@ final class SubscriptionsModel extends ChangeNotifier {
         if (hidden.contains(s.company)) s,
     ];
     final sizes = {for (final m in candidates) m.id: m.size};
-    // Only where something is missing: no price, or no "how often".
-    toRead = [
+    // Bills and trials whose date is known need nothing more.
+    final dated = {
+      for (final r in reminders)
+        if (r.kind != ReminderKind.renewal) r.company,
+    };
+    toRead = {
+      // Only where something is missing: no price, or no "how often".
       for (final s in subscriptions)
         if (s.amount == null || s.cadence == null)
           for (final r
@@ -122,7 +175,16 @@ final class SubscriptionsModel extends ChangeNotifier {
       // Receipts of companies not recognised yet: their whole text may
       // show a billing period ("Sep 28, 2026 – Sep 28, 2027").
       ..._unknownReceipts(emails, all, sizes),
-    ];
+      // Recent bills and trial emails: their whole text may say when
+      // they're due or end.
+      for (final e in emails)
+        if (now.difference(e.at) < _datesBack &&
+            !dated.contains(e.company) &&
+            (Reminders.mayBeBill(e) || Reminders.isTrial(e)) &&
+            _store.messages.body(e.messageId) == null &&
+            (sizes[e.messageId] ?? 0) <= _maxBytes)
+          e.messageId,
+    }.toList();
     loading = false;
     notifyListeners();
   }
@@ -179,7 +241,23 @@ final class SubscriptionsModel extends ChangeNotifier {
   void unhide(String company) => _setHidden({...hidden}..remove(company));
 
   void _setHidden(Set<String> companies) {
-    _store.settings.write(_hiddenKey, companies.join(','));
+    _store.settings.write(hiddenKey, companies.join(','));
+    unawaited(load());
+  }
+
+  /// "Done" or "Not needed": [reminder] is no longer shown or notified
+  /// (undoable).
+  void dismiss(Reminder reminder) {
+    ReminderState(_store).dismiss(reminder.key);
+    comingUp = [
+      for (final r in comingUp)
+        if (r.key != reminder.key) r,
+    ];
+    notifyListeners();
+  }
+
+  void undismiss(Reminder reminder) {
+    ReminderState(_store).undismiss(reminder.key);
     unawaited(load());
   }
 
