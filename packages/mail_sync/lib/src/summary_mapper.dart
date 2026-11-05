@@ -32,10 +32,6 @@ final class SummaryMapper {
     'Feedback-ID',
     // Read receipts (RFC 8098 reports) are recognised by their type.
     'Content-Type',
-    // Why GitHub or GitLab sent it: about the user (their thread, a
-    // mention, a review request) or only something they watch.
-    'X-GitHub-Reason',
-    'X-GitLab-NotificationReason',
   ];
 
   static const _maxSnippet = 200;

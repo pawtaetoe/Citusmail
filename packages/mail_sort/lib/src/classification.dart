@@ -52,10 +52,6 @@ final class ClassificationInput {
 /// decision to the user; not stored.
 enum SortingReason {
   ownMail,
-
-  /// A service (GitHub...) wrote to the user about their own thread, a
-  /// mention, a review request or an assignment.
-  addressedToYou,
   knownService,
   autoReply,
   readReceipt,

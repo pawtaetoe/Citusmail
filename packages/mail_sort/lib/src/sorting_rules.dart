@@ -54,52 +54,6 @@ final class VerificationRule implements SortingRule {
   }
 }
 
-/// Mail from a service such as GitHub that is about the user: a reply on
-/// their own pull request or issue, a mention, a review request, an
-/// assignment. The service says why it sent each email
-/// (`X-GitHub-Reason`, `X-GitLab-NotificationReason`); for these reasons it
-/// goes to General, which notifies, instead of the quiet Notifications.
-final class AddressedToYouRule implements SortingRule {
-  const AddressedToYouRule();
-
-  /// GitHub reasons that are about the user. Left out: `subscribed`
-  /// (watching), `push`, `ci_activity`, `state_change`, `your_activity`.
-  static const githubReasons = {
-    'author',
-    'comment',
-    'mention',
-    'team_mention',
-    'review_requested',
-    'assign',
-    'invitation',
-    'security_alert',
-  };
-
-  /// GitLab reasons that are about the user (not `own_activity`).
-  static const gitlabReasons = {
-    'assigned',
-    'mentioned',
-    'review_requested',
-    'approval_required',
-  };
-
-  @override
-  Classification? apply(ClassificationInput input) {
-    if (KnownServices.match(input.from) == null) return null;
-    final github = input.token('x-github-reason');
-    final gitlab = input.token('x-gitlab-notificationreason');
-    final personal =
-        (github != null && githubReasons.contains(github)) ||
-        (gitlab != null && gitlabReasons.contains(gitlab));
-    return personal
-        ? const Classification(
-            MessageCategory.general,
-            SortingReason.addressedToYou,
-          )
-        : null;
-  }
-}
-
 /// Services such as GitHub are notifications, even though their mail has
 /// mailing-list and unsubscribe headers.
 final class KnownServiceRule implements SortingRule {
