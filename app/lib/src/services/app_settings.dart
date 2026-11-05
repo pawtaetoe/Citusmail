@@ -54,7 +54,7 @@ final class AppSettings {
       _store.settings.write(_learn, on ? 'on' : 'off');
 
   /// "Read receipts and bookings automatically" (on by default): the
-  /// emails Subscriptions, Deliveries, Trips and Your accounts would read
+  /// emails Subscriptions, Deliveries, Trips and Online accounts would read
   /// are downloaded ahead of time (they stay unread). Off, each page
   /// offers to read them, as a button.
   bool get autoRead => _store.settings.read(_autoRead) != 'off';

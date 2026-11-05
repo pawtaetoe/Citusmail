@@ -1384,7 +1384,7 @@ Future<void> settle(WidgetTester tester) async {
   }
 }
 
-/// Made-up account mail for the "Your accounts" screen.
+/// Made-up account mail for the "Online accounts" screen.
 void _seedAccounts(MailStore store) {
   final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
   final now = DateTime.now().toUtc();

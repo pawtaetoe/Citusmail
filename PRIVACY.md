@@ -75,7 +75,7 @@ setting is off); they stay unread. "Add to
 calendar" hands a calendar file to your own calendar app; "Manage
 booking" opens the booking's page only after asking.
 
-Your accounts are found the same way, from welcome, sign-in, password
+Online accounts are found the same way, from welcome, sign-in, password
 and security emails on the device; welcome emails whose preview says
 too little are downloaded the same way, and stay unread.
 

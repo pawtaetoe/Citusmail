@@ -127,7 +127,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.text('Your accounts'));
+    await tester.tap(find.text('Online accounts'));
     await tester.pump();
     await settle(tester);
     await tester.pumpAndSettle();
@@ -218,7 +218,7 @@ void main() {
     await tester.tap(find.text('Search all mail from Google'));
     await settle(tester);
     await tester.pumpAndSettle();
-    expect(find.text('Your accounts'), findsOneWidget, reason: 'sidebar');
+    expect(find.text('Online accounts'), findsOneWidget, reason: 'sidebar');
     expect(find.text('Security alert'), findsOneWidget);
     expect(find.text('Please confirm your Shopee account'), findsNothing);
   });

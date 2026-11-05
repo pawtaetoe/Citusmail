@@ -153,7 +153,7 @@ void main() {
         'Subscriptions',
         'Deliveries',
         'Trips',
-        'Your accounts',
+        'Online accounts',
       ];
       for (final label in order) {
         expect(find.text(label), findsWidgets, reason: label);

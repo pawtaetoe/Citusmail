@@ -267,7 +267,7 @@ final class Sidebar extends StatelessWidget {
                         ),
                         _Entry(
                           icon: Icons.badge_outlined,
-                          label: 'Your accounts',
+                          label: 'Online accounts',
                           selected: false,
                           onTap: () {
                             onNavigated?.call();
