@@ -101,7 +101,7 @@ void main() {
       'Reading 2 shipping emails…',
     ),
     (
-      'Your accounts',
+      'Online accounts',
       () => add(
         'Welcome!',
         'hello@paperboard.example',

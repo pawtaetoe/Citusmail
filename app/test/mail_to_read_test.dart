@@ -188,7 +188,7 @@ void main() {
     });
   });
 
-  group('Your accounts', () {
+  group('Online accounts', () {
     test('a welcome email that says too little in its preview', () async {
       final welcome = add(
         'Welcome!',

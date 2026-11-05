@@ -114,7 +114,7 @@ final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Your accounts'),
+      title: const Text('Online accounts'),
       actions: [
         IconButton(
           tooltip: 'How is this found?',

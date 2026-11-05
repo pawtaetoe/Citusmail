@@ -55,15 +55,63 @@ void main() {
       ),
     );
     await tester.pump();
-    if (size.width < 600) {
-      await tester.tap(find.byTooltip('Folders'));
-      await tester.pumpAndSettle();
-    }
-    await tester.tap(find.text('Attachments'));
+    // From search: "Files" shows while the search field is in use.
+    await tester.tap(find.widgetWithText(TextField, 'Search mail'));
+    await tester.pump();
+    await tester.tap(find.text('Files'));
     await tester.pump();
     await settle(tester);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('search offers Files; not in the sidebar', (tester) async {
+    for (final size in [const Size(1400, 900), const Size(400, 860)]) {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: CitusmailTheme.light(),
+          home: MailShell(
+            notifications: false,
+            services: app.services,
+            onAddAccount: () {},
+            onAccountsChanged: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Attachments'), findsNothing, reason: 'sidebar');
+      expect(find.text('Files'), findsNothing, reason: 'until searching');
+
+      final field = find.widgetWithText(TextField, 'Search mail');
+      await tester.tap(field);
+      await tester.pump();
+      expect(find.text('Files'), findsOneWidget, reason: 'focused');
+
+      // Still there with the results, next to Clear search.
+      await tester.enterText(field, 'photos');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      expect(find.byTooltip('Clear search'), findsOneWidget);
+      expect(find.text('Files'), findsOneWidget, reason: 'results');
+
+      await tester.tap(find.text('Files'));
+      await tester.pump();
+      await settle(tester);
+      await tester.pumpAndSettle();
+      expect(find.byType(AttachmentsPage), findsOneWidget);
+      expect(find.text('Beach.png'), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(AttachmentsPage), findsNothing);
+      // A fresh mail screen for the next size.
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
 
   /// File names in the list, top to bottom.
   List<String> listed(WidgetTester tester) => [

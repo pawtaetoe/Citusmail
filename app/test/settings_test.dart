@@ -4,6 +4,9 @@
 
 import 'package:citusmail/src/background/background_mail.dart';
 import 'package:citusmail/src/mail/corrections.dart';
+import 'package:citusmail/src/mail/mail_controller.dart';
+import 'package:citusmail/src/ui/privacy_report_page.dart';
+import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +20,46 @@ void main() {
   late TestApp app;
   setUp(() async => app = await TestApp.create());
   tearDown(() => app.dispose());
+
+  testWidgets('Your mail: Clean up and the Privacy report open from here', (
+    tester,
+  ) async {
+    final controller = MailController(app.services);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          services: app.services,
+          controller: controller,
+          onShowMail: controller.search,
+          isAndroid: false,
+        ),
+      ),
+    );
+    // First on the page, easy to find.
+    expect(find.text('Your mail'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Your mail')).dy <
+          tester.getTopLeft(find.text('Notifications')).dy,
+      isTrue,
+    );
+
+    // The pages count in the background; only the way there matters here.
+    Future<void> open() async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    await tester.tap(find.text('Clean up senders'));
+    await open();
+    expect(find.byType(SenderCleanupPage), findsOneWidget);
+    await tester.pageBack();
+    await open();
+
+    await tester.tap(find.text('Privacy report'));
+    await open();
+    expect(find.byType(PrivacyReportPage), findsOneWidget);
+  });
 
   testWidgets('notifications can be turned off; it is remembered', (
     tester,

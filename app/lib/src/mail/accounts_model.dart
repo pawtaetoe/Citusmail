@@ -26,7 +26,7 @@ typedef AccountsFound = ({
   List<int> toRead,
 });
 
-/// The "Your accounts" page's findings in [store], reading text off the
+/// The "Online accounts" page's findings in [store], reading text off the
 /// UI thread. The page and reading in the background both use it, so
 /// both want the same emails. [toRead] leaves out [skip].
 Future<AccountsFound> findOnlineAccounts(
@@ -150,7 +150,7 @@ List<MailSample> accountSamples(
     ),
 ];
 
-/// The "Your accounts" page's data: online services the user has an
+/// The "Online accounts" page's data: online services the user has an
 /// account with, found in welcome, sign-in, password and security mail on
 /// the device. [readEmails] downloads account emails whose preview says
 /// too little, only when the user asks.

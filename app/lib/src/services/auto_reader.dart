@@ -20,7 +20,7 @@ typedef BodyLoader = Future<void> Function(int messageId);
 
 /// "Read receipts and bookings automatically" (on by default): the
 /// receipts, bills, shipping, booking and account emails that
-/// Subscriptions, Deliveries, Trips and Your accounts would read are
+/// Subscriptions, Deliveries, Trips and Online accounts would read are
 /// downloaded ahead of time, quietly, so the pages are filled in when
 /// opened.
 ///
