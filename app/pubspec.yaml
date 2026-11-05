@@ -1,7 +1,7 @@
 name: citusmail
 description: A free, open source, privacy-first mail client.
 publish_to: none
-version: 0.5.4+17
+version: 0.5.5+18
 resolution: workspace
 
 environment:
