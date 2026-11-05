@@ -169,7 +169,7 @@ void main() {
     tester,
   ) async {
     // Tall enough for the Security settings below Notifications.
-    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.physicalSize = const Size(800, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(

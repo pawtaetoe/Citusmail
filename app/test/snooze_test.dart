@@ -41,8 +41,20 @@ final class _FakePlugin implements FlutterLocalNotificationsPlugin {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// Wednesday 4 November 2026, 9:10 in the morning.
-final _now = DateTime(2026, 11, 4, 9, 10);
+/// The first Wednesday after today, 9:10 in the morning. The labels below
+/// ("Thu", "Sat", "Mon") assume a Wednesday, and snooze times must lie
+/// ahead of the real clock, which brings snoozed mail back.
+final _now = () {
+  final today = DateTime.now();
+  var day = DateTime(today.year, today.month, today.day + 1);
+  while (day.weekday != DateTime.wednesday) {
+    day = DateTime(day.year, day.month, day.day + 1);
+  }
+  return DateTime(day.year, day.month, day.day, 9, 10);
+}();
+
+/// "Tomorrow" from [_now]: Thursday, 8:00.
+final _tomorrowMorning = DateTime(_now.year, _now.month, _now.day + 1, 8);
 
 void main() {
   late TestApp app;
@@ -170,7 +182,7 @@ void main() {
     expect(find.text('Draft contract for review'), findsNothing);
     expect(
       store().snoozes.find('contract@studio.example')!.until,
-      DateTime(2026, 11, 5, 8).toUtc(),
+      _tomorrowMorning.toUtc(),
     );
     // Nothing moves on the server (the next message opened, so it is
     // marked read there).
@@ -203,7 +215,7 @@ void main() {
     tester,
   ) async {
     seed();
-    store().snoozes.snooze('contract@studio.example', DateTime(2026, 11, 5, 8));
+    store().snoozes.snooze('contract@studio.example', _tomorrowMorning);
     await show(tester);
     await tester.tap(find.text('Snoozed'));
     await settle(tester);

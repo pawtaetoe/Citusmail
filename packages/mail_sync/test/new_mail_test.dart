@@ -79,11 +79,25 @@ void main() {
     arrive(6, category: MessageCategory.notifications);
     arrive(7);
     final first = tracker.claim(account.id);
-    expect(first.messages.map((m) => m.subject), ['m3', 'm7']);
-    expect(first.total, 2);
+    expect(first.messages.map((m) => m.subject), ['m3', 'm6', 'm7']);
+    expect(first.total, 3);
 
     // Another process claiming at the same time gets nothing.
     expect(NewMailTracker(store).claim(account.id).isEmpty, isTrue);
+  });
+
+  test('notifications are announced unless turned off; newsletters never', () {
+    final tracker = NewMailTracker(store);
+    arrive(1);
+    tracker.claim(account.id);
+    arrive(2, category: MessageCategory.notifications);
+    arrive(3, category: MessageCategory.newsletters);
+    expect(tracker.claim(account.id).messages.map((m) => m.subject), ['m2']);
+
+    store.settings.write(NewMailTracker.notificationsKey, 'off');
+    arrive(4, category: MessageCategory.notifications);
+    arrive(5);
+    expect(tracker.claim(account.id).messages.map((m) => m.subject), ['m5']);
   });
 
   test('a reset inbox starts over without announcing everything', () {

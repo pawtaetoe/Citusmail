@@ -38,6 +38,10 @@ void main() {
   testWidgets('bill and trial reminders: on by default, monthly ones off', (
     tester,
   ) async {
+    // Tall enough for the notification settings.
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
     );
@@ -95,6 +99,10 @@ void main() {
   testWidgets('follow-up reminders: on by default, only with notifications', (
     tester,
   ) async {
+    // Tall enough for the notification settings.
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
     );
@@ -139,6 +147,24 @@ void main() {
           )
           .onChanged,
       isNull,
+    );
+  });
+
+  testWidgets('Notifications section: notified by default, can be turned off', (
+    tester,
+  ) async {
+    expect(app.services.settings.notifyNotificationsSection, isTrue);
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(services: app.services)),
+    );
+    await tester.scrollUntilVisible(find.text('Also for Notifications'), 200);
+    await tester.tap(find.text('Also for Notifications'));
+    await tester.pump();
+    expect(app.services.settings.notifyNotificationsSection, isFalse);
+    expect(
+      app.store.settings.read(NewMailTracker.notificationsKey),
+      'off',
+      reason: 'the new-mail tracker reads the same key',
     );
   });
 

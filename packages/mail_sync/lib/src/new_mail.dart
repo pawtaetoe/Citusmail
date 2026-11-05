@@ -12,9 +12,10 @@ import 'package:mail_store/mail_store.dart';
 /// message is announced by only one of them.
 ///
 /// Only unread mail in the Pinned, Codes, Important and General sections
-/// counts (codes are waited for);
-/// newsletters, notifications, blocked senders and mail waiting in the
-/// Screener (or screened out) never interrupt. The first claim of an
+/// counts (codes are waited for), and Notifications (service mail such as
+/// GitHub, a bank or a delivery) unless the user turned that off
+/// ([notificationsKey]); newsletters, blocked senders and mail waiting in
+/// the Screener (or screened out) never interrupt. The first claim of an
 /// account (or after its inbox was reset) only sets the mark, so adding an
 /// account does not announce its whole inbox.
 final class NewMailTracker {
@@ -27,6 +28,16 @@ final class NewMailTracker {
     SmartSection.codes,
     SmartSection.important,
     SmartSection.general,
+  ];
+
+  /// Settings key: 'off' leaves the Notifications section out (on by
+  /// default).
+  static const notificationsKey = 'notify.notificationsSection';
+
+  List<SmartSection> get _announced => [
+    ..._sections,
+    if (_store.settings.read(notificationsKey) != 'off')
+      SmartSection.notifications,
   ];
 
   /// At most this many are returned (the rest are counted in [NewMail]).
@@ -45,7 +56,7 @@ final class NewMailTracker {
       return NewMail.none;
     }
     final fresh = <StoredMessage>[
-      for (final section in _sections)
+      for (final section in _announced)
         for (final m in _store.messages.list(
           MessageQuery.smart(section, accountIds: [accountId], limit: 200),
         ))
