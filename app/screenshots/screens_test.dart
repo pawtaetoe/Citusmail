@@ -204,7 +204,11 @@ void main() {
   testWidgets('readme settings', (tester) async {
     await show(
       tester,
-      SettingsPage(services: app.services, isAndroid: true),
+      SettingsPage(
+        services: app.services,
+        controller: MailController(app.services),
+        isAndroid: true,
+      ),
       size: const Size(390, 844),
       dark: true,
     );
@@ -265,7 +269,11 @@ void main() {
   testWidgets('read ahead setting', (tester) async {
     await show(
       tester,
-      SettingsPage(services: app.services, isAndroid: true),
+      SettingsPage(
+        services: app.services,
+        controller: MailController(app.services),
+        isAndroid: true,
+      ),
       size: const Size(390, 844),
     );
     await tester.scrollUntilVisible(
@@ -446,6 +454,25 @@ void main() {
     });
   }
 
+  // The sidebar's groups, and Files in search (where Attachments went).
+  for (final dark in [false, true]) {
+    final suffix = dark ? '_dark' : '';
+    testWidgets('sidebar$suffix', (tester) async {
+      app.seedFiles();
+      await show(tester, shell(), size: const Size(1440, 900), dark: dark);
+      await tester.tap(find.widgetWithText(TextField, 'Search mail'));
+      await shoot(tester, 'desktop_search_files$suffix');
+
+      await show(tester, shell(), size: const Size(390, 844), dark: dark);
+      await tester.tap(find.widgetWithText(TextField, 'Search mail'));
+      await shoot(tester, 'phone_search_files$suffix');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.tap(find.byTooltip('Folders'));
+      await tester.pumpAndSettle();
+      await shoot(tester, 'phone_sidebar$suffix');
+    });
+  }
+
   // Meeting invitations (samples in test-data/invites).
   testWidgets('invitation', (tester) async {
     app.seedFixture(
@@ -485,7 +512,11 @@ void main() {
   testWidgets('settings', (tester) async {
     await show(
       tester,
-      SettingsPage(services: app.services, isAndroid: true),
+      SettingsPage(
+        services: app.services,
+        controller: MailController(app.services),
+        isAndroid: true,
+      ),
       size: const Size(390, 844),
     );
     await shoot(tester, 'phone_settings');
@@ -522,7 +553,11 @@ void main() {
     await shoot(tester, 'phone_code_cleanup_done');
     await show(
       tester,
-      SettingsPage(services: app.services, isAndroid: true),
+      SettingsPage(
+        services: app.services,
+        controller: MailController(app.services),
+        isAndroid: true,
+      ),
       size: const Size(390, 844),
     );
     await tester.scrollUntilVisible(find.text('Clean up old codes'), 300);
@@ -558,7 +593,11 @@ void main() {
     await tester.pageBack();
     await show(
       tester,
-      SettingsPage(services: app.services, isAndroid: true),
+      SettingsPage(
+        services: app.services,
+        controller: MailController(app.services),
+        isAndroid: true,
+      ),
       size: const Size(390, 844),
     );
     await tester.scrollUntilVisible(
@@ -741,7 +780,11 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await show(
         tester,
-        SettingsPage(services: app.services, isAndroid: true),
+        SettingsPage(
+          services: app.services,
+          controller: MailController(app.services),
+          isAndroid: true,
+        ),
         size: size,
       );
       // The Inbox group, just under the notification settings.
