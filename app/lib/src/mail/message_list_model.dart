@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import 'mail_location.dart';
+import 'new_since_away.dart';
 
 /// One Smart Inbox section in the accordion.
 final class SectionState {
@@ -35,11 +36,14 @@ final class FollowUpRow {
 /// an index, so the cost depends on what is on screen, not on the size of
 /// the mailbox.
 final class MessageListModel extends ChangeNotifier {
-  MessageListModel(this._store) {
+  MessageListModel(this._store) : away = NewSinceAway(_store) {
     _collapsed = _readCollapsed();
   }
 
   final MailStore _store;
+
+  /// When the user was away, for "New since you were away".
+  final NewSinceAway away;
 
   /// First page of an expanded section, and each "Show more".
   static const sectionPage = 5;
@@ -65,6 +69,29 @@ final class MessageListModel extends ChangeNotifier {
   /// Smart Inbox: first-time senders waiting in the Screener.
   int screenerWaiting = 0;
 
+  /// Smart Inbox: "New since you were away", at the very top. While it is
+  /// there, its messages are not in their usual sections.
+  AwayMail newSinceAway = AwayMail.none;
+  Set<int> _awayIds = const {};
+
+  /// How many of [newSinceAway] show before "Show all".
+  static const awayPage = 8;
+  bool _awayShowAll = false;
+
+  /// The messages of [newSinceAway] on screen.
+  List<StoredMessage> get awayShown =>
+      _awayShowAll || newSinceAway.messages.length <= awayPage
+      ? newSinceAway.messages
+      : newSinceAway.messages.sublist(0, awayPage);
+
+  void showAllAway() {
+    _awayShowAll = true;
+    notifyListeners();
+  }
+
+  /// Whether [m] is in "New since you were away" (not its usual section).
+  bool isAway(StoredMessage m) => _awayIds.contains(m.id);
+
   /// Smart Inbox: sent mail back with "No reply yet", at the top. Waiting
   /// for a reply: every follow-up, those back first.
   List<FollowUpRow> followUps = const [];
@@ -81,6 +108,7 @@ final class MessageListModel extends ChangeNotifier {
   /// next message after one is archived).
   List<StoredMessage> get visible => showsSections
       ? [
+          ...awayShown,
           for (final f in followUps) ?f.message,
           for (final s in sections)
             if (s.expanded) ...s.messages,
@@ -107,9 +135,16 @@ final class MessageListModel extends ChangeNotifier {
       FollowUpsLocation() => _followUps(),
       _ => const [],
     };
+    newSinceAway = showsSections
+        ? away.mail(accountIds: _accounts(location.accountId))
+        : AwayMail.none;
+    _awayIds = newSinceAway.ids;
+    if (newSinceAway.isEmpty) _awayShowAll = false;
     if (showsSections) {
-      final counts = _store.messages.sectionCounts(
-        accountIds: _accounts(location.accountId),
+      final counts = _withoutAway(
+        _store.messages.sectionCounts(
+          accountIds: _accounts(location.accountId),
+        ),
       );
       screenerWaiting = _store.screener.waitingCount(
         accountIds: _accounts(location.accountId),
@@ -160,14 +195,50 @@ final class MessageListModel extends ChangeNotifier {
     final wanted = !state.expanded
         ? collapsedPreview
         : (loaded < sectionPage ? sectionPage : loaded);
-    state.messages = _store.messages.list(
+    state.messages = _listSection(state.section, limit: wanted);
+    return state;
+  }
+
+  /// A page of [section], without the messages in "New since you were
+  /// away".
+  List<StoredMessage> _listSection(
+    SmartSection section, {
+    StoredMessage? before,
+    required int limit,
+  }) {
+    final away = newSinceAway.messages.where((m) => m.section == section);
+    final page = _store.messages.list(
       MessageQuery.smart(
-        state.section,
+        section,
         accountIds: _accounts(_location.accountId),
-        limit: wanted,
+        before: before,
+        limit: limit + away.length,
       ),
     );
-    return state;
+    if (away.isEmpty) return page;
+    return page.where((m) => !_awayIds.contains(m.id)).take(limit).toList();
+  }
+
+  /// Section counts without the messages in "New since you were away".
+  Map<SmartSection, SectionCount> _withoutAway(
+    Map<SmartSection, SectionCount> counts,
+  ) {
+    if (newSinceAway.isEmpty) return counts;
+    SectionCount without(SmartSection section, SectionCount count) {
+      final moved = [
+        for (final m in newSinceAway.messages)
+          if (m.section == section) m,
+      ];
+      return SectionCount(
+        count.total - moved.length,
+        count.unread - moved.where((m) => !m.flags.seen).length,
+      );
+    }
+
+    return {
+      for (final MapEntry(key: section, value: count) in counts.entries)
+        section: without(section, count),
+    };
   }
 
   /// Opens or closes a section; remembered across restarts.
@@ -193,13 +264,10 @@ final class MessageListModel extends ChangeNotifier {
   void showMoreInSection(SmartSection section) {
     final state = sections.where((s) => s.section == section).firstOrNull;
     if (state == null || !state.hasMore) return;
-    final more = _store.messages.list(
-      MessageQuery.smart(
-        section,
-        accountIds: _accounts(_location.accountId),
-        before: state.messages.lastOrNull,
-        limit: sectionMore,
-      ),
+    final more = _listSection(
+      section,
+      before: state.messages.lastOrNull,
+      limit: sectionMore,
     );
     state.messages = [...state.messages, ...more];
     notifyListeners();

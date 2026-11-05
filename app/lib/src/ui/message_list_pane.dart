@@ -19,6 +19,7 @@ import 'follow_ups_list.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
 import 'move_dialog.dart';
+import 'new_since_away_section.dart';
 import 'screener_page.dart';
 import 'send_later_sheet.dart';
 import 'snooze_sheet.dart';
@@ -548,7 +549,8 @@ final class _MessagesState extends State<_Messages> {
       if (list.showsSections) {
         if (list.sections.isEmpty &&
             list.screenerWaiting == 0 &&
-            list.followUps.isEmpty) {
+            list.followUps.isEmpty &&
+            list.newSinceAway.isEmpty) {
           return const _Empty(Icons.inbox_outlined, 'Your inbox is empty.');
         }
         return Scrollbar(
@@ -556,6 +558,30 @@ final class _MessagesState extends State<_Messages> {
           child: CustomScrollView(
             controller: _scroll,
             slivers: [
+              // What arrived while the user was away, at the very top.
+              if (!list.newSinceAway.isEmpty)
+                SliverMainAxisGroup(
+                  slivers: [
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: NewSinceAwayHeader(list.newSinceAway, _c),
+                    ),
+                    SliverPrototypeExtentList.builder(
+                      prototypeItem: prototype,
+                      itemCount: list.awayShown.length,
+                      itemBuilder: (_, i) => _tile(list.awayShown[i]),
+                    ),
+                    SliverToBoxAdapter(
+                      child: NewSinceAwayFooter(
+                        mail: list.newSinceAway,
+                        hidden:
+                            list.newSinceAway.messages.length -
+                            list.awayShown.length,
+                        onShowAll: list.showAllAway,
+                      ),
+                    ),
+                  ],
+                ),
               // Sent mail that got no reply in time, on top.
               if (list.followUps.isNotEmpty)
                 SliverToBoxAdapter(

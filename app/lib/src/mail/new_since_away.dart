@@ -21,15 +21,15 @@ final class AwayWindow {
 /// What "New since you were away" shows: inbox mail from people that
 /// arrived while the user was away, newest first, and how many
 /// newsletters and notifications came too (those stay in their sections).
-final class NewMail {
-  const NewMail({
+final class AwayMail {
+  const AwayMail({
     this.messages = const [],
     this.since,
     this.newsletters = 0,
     this.notifications = 0,
   });
 
-  static const none = NewMail();
+  static const none = AwayMail();
 
   final List<StoredMessage> messages;
 
@@ -106,10 +106,10 @@ final class NewSinceAway {
   /// account): read through the inbox list index, newest first, only as
   /// far back as the user went away.
   /// Nothing while the setting is off.
-  NewMail mail({List<int>? accountIds}) {
+  AwayMail mail({List<int>? accountIds}) {
     final window = this.window;
     if (window == null || !AppSettings(_store).newSinceAway) {
-      return NewMail.none;
+      return AwayMail.none;
     }
     final candidates = <StoredMessage>[];
     StoredMessage? before;
@@ -138,7 +138,7 @@ final class NewSinceAway {
   /// while away, from someone else, not blocked or waiting in the
   /// Screener. Newsletters and notifications are only counted; Pinned and
   /// Verification keep theirs (a sign-in code is for right now).
-  static NewMail select(
+  static AwayMail select(
     Iterable<StoredMessage> inbox,
     AwayWindow window, {
     required Set<String> ownAddresses,
@@ -167,8 +167,8 @@ final class NewSinceAway {
           break;
       }
     }
-    if (messages.isEmpty) return NewMail.none;
-    return NewMail(
+    if (messages.isEmpty) return AwayMail.none;
+    return AwayMail(
       messages: messages,
       since: window.since,
       newsletters: newsletters,

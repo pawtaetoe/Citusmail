@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'support/away_mail.dart';
 import 'support/test_app.dart';
 
 MailAddress _address(String a, [String? name]) => MailAddress(
@@ -33,120 +34,13 @@ void main() {
   StoredMailbox inbox() =>
       store().mailboxes.inbox(store().accounts.all().single.id)!;
   NewSinceAway away() => NewSinceAway(store());
-  List<String> subjects(NewMail mail) => [
+  List<String> subjects(AwayMail mail) => [
     for (final m in mail.messages) m.subject ?? '',
   ];
 
-  /// What came in overnight, and around it.
-  void seedNight() {
-    var uid = 30;
-    MessageSummary mail(
-      DateTime at,
-      String from,
-      String name,
-      String subject, {
-      MessageCategory category = MessageCategory.general,
-      String? code,
-      bool seen = false,
-    }) => MessageSummary(
-      uid: uid++,
-      receivedAt: at,
-      subject: subject,
-      from: _address(from, name),
-      category: category,
-      code: code,
-      messageId: 'night$uid@x.example',
-      flags: MessageFlags.fromImap([if (seen) r'\Seen']),
-    );
-    store().messages.upsertSummaries(inbox().id, [
-      // Exactly when she left: she had seen it come in.
-      mail(_left, 'carol@x.example', 'Carol', 'Before you go'),
-      mail(
-        _left.add(const Duration(minutes: 1)),
-        'carol@x.example',
-        'Carol',
-        'Dinner on Friday?',
-      ),
-      mail(
-        DateTime.utc(2026, 11, 3, 22, 15),
-        'priya@fabrikam.example',
-        'Priya Shah',
-        'Contract draft, v3',
-        seen: true, // read on her phone
-      ),
-      // A note she mailed herself from her phone.
-      mail(
-        DateTime.utc(2026, 11, 4, 2),
-        'alice@citusmail.test',
-        'Alice',
-        'Passport number for the booking',
-      ),
-      mail(
-        DateTime.utc(2026, 11, 4, 3),
-        'digest@medium.example',
-        'Medium Daily Digest',
-        'Stories picked for you',
-        category: MessageCategory.newsletters,
-      ),
-      mail(
-        DateTime.utc(2026, 11, 4, 4),
-        'news@shop.example',
-        'Shop',
-        'Last chance: 40% off boots',
-        category: MessageCategory.newsletters,
-      ),
-      mail(
-        DateTime.utc(2026, 11, 4, 4, 30),
-        'shipping@parcel.example',
-        'Parcel Co',
-        'Your order has shipped',
-        category: MessageCategory.notifications,
-      ),
-      mail(
-        DateTime.utc(2026, 11, 4, 5),
-        'winner@cheap-pills.example',
-        'Pharmacy',
-        'You have been selected!!!',
-      ),
-      mail(
-        DateTime.utc(2026, 11, 4, 6),
-        'no-reply@northwind.example',
-        'Northwind Bank',
-        'Your sign-in code',
-        category: MessageCategory.codes,
-        code: '482913',
-      ),
-    ]);
-    store().blocks.block(BlockKind.domain, 'cheap-pills.example');
-    // The Screener holds back someone writing for the first time.
-    store().screener.enable(now: DateTime.utc(2026, 11, 4, 6, 30));
-    store().messages.upsertSummaries(inbox().id, [
-      mail(
-        DateTime.utc(2026, 11, 4, 7),
-        'recruiter@talent.example',
-        'Jordan at Talent',
-        'Quick question about your next move',
-      ),
-      // Right as she opened the app.
-      mail(_back, 'dave@x.example', 'Dave', 'Standup moved to 10'),
-      // While she was reading: goes to General as usual.
-      mail(
-        _back.add(const Duration(minutes: 1)),
-        'dave@x.example',
-        'Dave',
-        'Never mind, 9:30',
-      ),
-    ]);
-    expect(
-      store().messages
-          .list(const MessageQuery.inbox(limit: 100))
-          .firstWhere((m) => m.subject!.startsWith('Quick question'))
-          .section,
-      SmartSection.screener,
-    );
-  }
+  void seedNight() => seedAwayMail(store(), left: _left, back: _back);
 
-  NewMail backAt(DateTime at) {
+  AwayMail backAt(DateTime at) {
     final a = away()..wentAway(_left);
     expect(a.cameBack(at), isTrue);
     return a.mail();
@@ -168,6 +62,13 @@ void main() {
 
     test('not her own mail, blocked senders, the Screener or codes', () {
       seedNight();
+      expect(
+        store().messages
+            .list(const MessageQuery.inbox(limit: 100))
+            .firstWhere((m) => m.subject!.startsWith('Quick question'))
+            .section,
+        SmartSection.screener,
+      );
       final mail = backAt(_back);
       for (final left in [
         'Passport number for the booking',
