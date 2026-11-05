@@ -23,7 +23,8 @@ Website: **https://citusmail.fluminaris.com** · Download:
 ## What it does
 
 - **Smart Inbox**: mail sorted into Pinned, Verification, Important,
-  General, Notifications and Newsletters. Sign-in codes show in the list,
+  General, Notifications and Newsletters, with what came while you were
+  away on top. Sign-in codes show in the list,
   copied with a tap, and in the notification.
 - **Finds things in your mail for you**: subscriptions and what they cost,
   bills and trials coming up, deliveries, return-by dates, trips and the
