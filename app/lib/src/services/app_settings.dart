@@ -20,6 +20,7 @@ final class AppSettings {
   static const _followUps = 'followUps.notify';
   static const _learn = 'learning.on';
   static const _autoRead = 'autoRead.on';
+  static const _newSinceAway = 'inbox.newSinceAway';
 
   /// New-mail notifications (on by default).
   bool get notifications => _store.settings.read(_notifications) != 'off';
@@ -58,6 +59,11 @@ final class AppSettings {
   /// offers to read them, as a button.
   bool get autoRead => _store.settings.read(_autoRead) != 'off';
   set autoRead(bool on) => _store.settings.write(_autoRead, on ? 'on' : 'off');
+
+  /// "New since you were away" at the top of the inbox (on by default).
+  bool get newSinceAway => _store.settings.read(_newSinceAway) != 'off';
+  set newSinceAway(bool on) =>
+      _store.settings.write(_newSinceAway, on ? 'on' : 'off');
 
   /// Monthly (and weekly) renewals are reminded of too (off by default:
   /// they come every month).
