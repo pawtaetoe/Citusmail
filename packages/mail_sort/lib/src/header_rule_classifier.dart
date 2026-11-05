@@ -14,7 +14,8 @@ import 'sorting_rules.dart';
 /// | 1 | Sent or Drafts folder | General |
 /// | 2 | Read receipt (RFC 8098 report) | Notifications |
 /// | 3 | Verification code, sign-in link, password reset (subject or preview) | Codes |
-/// | 4 | Known service (GitHub...) | Notifications |
+/// | 4 | Known service mail about the user (`X-GitHub-Reason: author`, mention, review request...) | General |
+/// | 4 | Other known service mail (GitHub...) | Notifications |
 /// | 5 | `Auto-Submitted: auto-replied` (out-of-office, bounce) | General |
 /// | 6 | One-click unsubscribe (RFC 8058) | Newsletters |
 /// | 7 | `noreply`-style sender, `Auto-Submitted: auto-generated` | Notifications |
@@ -32,12 +33,14 @@ final class HeaderRuleClassifier implements MessageClassifier {
   /// re-sorted (see `Resorter`).
   /// 2: read receipts sort as notifications.
   /// 3: verification codes, sign-in links and password resets as Codes.
-  static const currentVersion = 3;
+  /// 4: GitHub and GitLab mail about the user as General.
+  static const currentVersion = 4;
 
   static const List<SortingRule> rules = [
     OwnMailRule(),
     ReadReceiptRule(),
     VerificationRule(),
+    AddressedToYouRule(),
     KnownServiceRule(),
     AutoReplyRule(),
     OneClickUnsubscribeRule(),

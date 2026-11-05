@@ -32,6 +32,7 @@ ClassificationInput input({
   String from = 'someone@x.example',
   Map<String, List<String>> headers = const {},
   SpecialUse? mailboxUse,
+  String? subject,
 }) {
   final at = from.lastIndexOf('@');
   return ClassificationInput(
@@ -41,6 +42,7 @@ ClassificationInput input({
     ),
     headers: headers,
     mailboxUse: mailboxUse,
+    subject: subject,
   );
 }
 
@@ -59,7 +61,11 @@ void main() {
     const notifications = MessageCategory.notifications;
 
     final expected = <String, (MessageCategory, SortingReason)>{
-      'notifications/github.eml': (notifications, SortingReason.knownService),
+      // A mention (X-GitHub-Reason): about the user, so General.
+      'notifications/github.eml': (
+        MessageCategory.general,
+        SortingReason.addressedToYou,
+      ),
       'notifications/bank-alert.eml': (
         notifications,
         SortingReason.automatedSender,
@@ -187,6 +193,116 @@ void main() {
         );
       },
     );
+
+    group('GitHub and GitLab mail about you goes to General', () {
+      Classification github(String? reason, {String? subject}) =>
+          classifier.classify(
+            input(
+              from: 'notifications@github.com',
+              subject:
+                  subject ??
+                  'Re: [EddyTHK/PSD_TopicA_Combined] Capacitor (PR #1)',
+              headers: {
+                'list-id': ['<PSD_TopicA_Combined.EddyTHK.github.com>'],
+                'list-unsubscribe': ['<https://github.com/u>'],
+                'precedence': ['list'],
+                if (reason != null) 'x-github-reason': [reason],
+              },
+            ),
+          );
+
+      for (final reason in [
+        'author',
+        'comment',
+        'mention',
+        'team_mention',
+        'review_requested',
+        'assign',
+      ]) {
+        test('X-GitHub-Reason: $reason', () {
+          expect(
+            github(reason),
+            sortedAs(MessageCategory.general, SortingReason.addressedToYou),
+          );
+        });
+      }
+
+      test('case and spacing do not matter', () {
+        expect(
+          github('  Author '),
+          sortedAs(MessageCategory.general, SortingReason.addressedToYou),
+        );
+      });
+
+      for (final reason in [
+        'subscribed',
+        'push',
+        'ci_activity',
+        'state_change',
+        'your_activity',
+        'something_new',
+      ]) {
+        test('X-GitHub-Reason: $reason stays a notification', () {
+          expect(
+            github(reason),
+            sortedAs(MessageCategory.notifications, SortingReason.knownService),
+          );
+        });
+      }
+
+      test('no reason header: a notification, as before', () {
+        expect(
+          github(null),
+          sortedAs(MessageCategory.notifications, SortingReason.knownService),
+        );
+      });
+
+      test('a sign-in code from GitHub is still a code', () {
+        expect(
+          github('author', subject: '[GitHub] Your sign-in code'),
+          sortedAs(MessageCategory.codes, SortingReason.verification),
+        );
+      });
+
+      test('GitLab: mentioned and assigned, not own activity', () {
+        Classification gitlab(String reason) => classifier.classify(
+          input(
+            from: 'gitlab@gitlab.com',
+            headers: {
+              'list-id': ['<group/project.gitlab.com>'],
+              'x-gitlab-notificationreason': [reason],
+            },
+          ),
+        );
+        expect(
+          gitlab('mentioned'),
+          sortedAs(MessageCategory.general, SortingReason.addressedToYou),
+        );
+        expect(
+          gitlab('assigned'),
+          sortedAs(MessageCategory.general, SortingReason.addressedToYou),
+        );
+        expect(
+          gitlab('own_activity'),
+          sortedAs(MessageCategory.notifications, SortingReason.knownService),
+        );
+      });
+
+      test('the header from anyone but the service counts for nothing', () {
+        expect(
+          classifier.classify(
+            input(
+              from: 'newsletter@deals.example',
+              headers: {
+                'list-id': ['<deals.example>'],
+                'x-github-reason': ['author'],
+              },
+            ),
+          ),
+          sortedAs(MessageCategory.newsletters, SortingReason.mailingList),
+        );
+      });
+    });
 
     test('one-click unsubscribe wins over a noreply sender', () {
       expect(
