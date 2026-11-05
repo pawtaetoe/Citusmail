@@ -157,8 +157,7 @@ void main() {
     expect(find.text('Privacy report'), findsNothing, reason: 'not in sidebar');
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Privacy'), 200);
-    await tester.tap(find.text('Privacy'));
+    await tester.tap(find.text('Privacy report'));
     await tester.pump();
     await settle(tester);
     await tester.pumpAndSettle();

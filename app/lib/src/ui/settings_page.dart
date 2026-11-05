@@ -343,6 +343,15 @@ final class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  void _openPrivacyReport() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => PrivacyReportPage(
+        services: widget.services,
+        onShowMail: widget.onShowMail,
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final settings = widget.services.settings;
@@ -352,6 +361,31 @@ final class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
+          // Pages about your mail, kept here so the sidebar stays short.
+          const _Group('Your mail'),
+          if (widget.controller case final controller?)
+            ListTile(
+              leading: const Icon(Icons.cleaning_services_outlined),
+              title: const Text('Clean up senders'),
+              subtitle: const Text(
+                'Senders you rarely open, and how to stop their mail',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SenderCleanupPage(controller: controller),
+                ),
+              ),
+            ),
+          ListTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text('Privacy report'),
+            subtitle: const Text(
+              'Trackers, remote images and read receipts $appName blocked',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _openPrivacyReport,
+          ),
           const _Group('Notifications'),
           SwitchListTile(
             title: const Text('New mail notifications'),
@@ -484,20 +518,6 @@ final class _SettingsPageState extends State<SettingsPage> {
           const _Group('Security'),
           ..._lockSettings(),
           const _Group('Senders and devices'),
-          if (widget.controller case final controller?)
-            ListTile(
-              leading: const Icon(Icons.cleaning_services_outlined),
-              title: const Text('Clean up senders'),
-              subtitle: const Text(
-                'Senders you rarely open, and how to stop their mail',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SenderCleanupPage(controller: controller),
-                ),
-              ),
-            ),
           DeviceSyncTile(services: widget.services),
           ListTile(
             leading: const Icon(Icons.image_outlined),
@@ -533,14 +553,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => PrivacyReportPage(
-                  services: widget.services,
-                  onShowMail: widget.onShowMail,
-                ),
-              ),
-            ),
+            onTap: _openPrivacyReport,
           ),
           _WebPageTile(
             icon: Icons.policy_outlined,
