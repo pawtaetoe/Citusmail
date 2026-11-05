@@ -155,7 +155,10 @@ for testing, never for distribution.
   connected" notification (a silent, minimum-importance channel). Type
   `specialUse` (no other type fits a mail push connection; `dataSync` is
   limited to 6 hours a day on Android 15). It restarts after a reboot
-  when on. Once per install the app asks Android's one-tap "run in the
+  when on. New inbox mail arrives through IDLE; every folder is synced
+  every 30 minutes (not every 5, as in the app), and the periodic check
+  then looks at the inboxes only, to save battery. Once
+  per install the app asks Android's one-tap "run in the
   background" question (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`), since
   without a push server of ours nothing else can keep the connection
   while the phone sleeps.

@@ -196,8 +196,11 @@ abstract final class BackgroundMail {
         noteNew(report);
         await notifier?.announce(store, account, tracker.claim(account.id));
       }
-      // Then the rest, while there is time.
-      for (final account in accounts) {
+      // Then the rest, while there is time. With Instant mail on, its
+      // service syncs every folder (every 30 minutes), so this check only
+      // looks at the inboxes: a cheap safety net if its connection died.
+      final fullSync = !AppSettings(store).instantMail;
+      for (final account in fullSync ? accounts : const <Account>[]) {
         if (DateTime.now().difference(started) > fullSyncBudget) break;
         final report = await engine.syncAccount(account.id);
         if (report == null) {
@@ -283,6 +286,11 @@ abstract final class BackgroundMail {
     }
   }
 
+  /// How often Instant mail syncs every folder. New inbox mail arrives
+  /// through IDLE at once; this catches mail filed into other folders and
+  /// changes made elsewhere, without waking the phone every few minutes.
+  static const instantFullSyncInterval = Duration(minutes: 30);
+
   /// Keeps syncing (IDLE on every inbox) until the service stops; announces
   /// new mail as it arrives.
   static Future<void> runInstant() async {
@@ -297,6 +305,7 @@ abstract final class BackgroundMail {
       store,
       DefaultMailConnector(KeychainCredentials(secrets)),
       syncCodes: KeychainSyncCodes(secrets),
+      fullSyncInterval: instantFullSyncInterval,
     );
     final tracker = NewMailTracker(store);
     final cleaner = CodeCleaner(store, MailActions(store));
