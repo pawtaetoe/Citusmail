@@ -134,6 +134,45 @@ void main() {
     expect(top(tester, 'Hello there') < top(tester, 'Important'), isTrue);
   });
 
+  testWidgets('sidebar: mail places, then what was found in your mail', (
+    tester,
+  ) async {
+    for (final (size, drawer) in [
+      (const Size(1400, 900), false),
+      (const Size(400, 860), true),
+    ]) {
+      await show(tester, size);
+      if (drawer) {
+        await tester.tap(find.byTooltip('Folders'));
+        await tester.pumpAndSettle();
+      }
+      final order = [
+        'Inbox',
+        'Pins',
+        'Found in your mail',
+        'Subscriptions',
+        'Deliveries',
+        'Trips',
+        'Your accounts',
+      ];
+      for (final label in order) {
+        expect(find.text(label), findsWidgets, reason: label);
+      }
+      // Top to bottom, within the sidebar.
+      for (var i = 1; i < order.length; i++) {
+        expect(
+          top(tester, order[i - 1]) < top(tester, order[i]),
+          isTrue,
+          reason: '${order[i - 1]} above ${order[i]}',
+        );
+      }
+      // Moved to Settings.
+      for (final gone in ['Clean up', 'Privacy report']) {
+        expect(find.text(gone), findsNothing, reason: gone);
+      }
+    }
+  });
+
   testWidgets('archive: the next message opens, and Undo brings it back', (
     tester,
   ) async {

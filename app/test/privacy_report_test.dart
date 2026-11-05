@@ -137,7 +137,7 @@ void main() {
     expect(find.textContaining('Nothing is sent anywhere'), findsOneWidget);
   });
 
-  testWidgets('from the sidebar; a sender opens their mail', (tester) async {
+  testWidgets('from Settings; a sender opens their mail', (tester) async {
     seedPrivacyMail(app, DateTime.now().toUtc());
     tester.view.physicalSize = const Size(1400, 1600);
     tester.view.devicePixelRatio = 1;
@@ -154,15 +154,20 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.text('Privacy report'));
+    expect(find.text('Privacy report'), findsNothing, reason: 'not in sidebar');
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Privacy'), 200);
+    await tester.tap(find.text('Privacy'));
     await tester.pump();
     await settle(tester);
     await tester.pumpAndSettle();
     expect(find.textContaining('Citusmail blocked'), findsOneWidget);
 
+    // Back to the mail, past Settings.
     await tester.tap(find.text('Market'));
     await settle(tester);
-    expect(find.text('Privacy report'), findsOneWidget, reason: 'sidebar');
+    expect(find.byType(SettingsPage), findsNothing);
     expect(find.text('Deals of the day'), findsOneWidget);
     expect(find.text('Lunch?'), findsNothing);
   });

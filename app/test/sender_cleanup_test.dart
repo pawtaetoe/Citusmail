@@ -90,7 +90,10 @@ void main() {
       await tester.tap(find.byTooltip('Folders'));
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.text('Clean up'));
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Clean up senders'), 200);
+    await tester.tap(find.text('Clean up senders'));
     await tester.pump();
     await settle(tester);
     await tester.pumpAndSettle();

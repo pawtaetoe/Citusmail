@@ -16,8 +16,6 @@ import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
-import 'privacy_report_page.dart';
-import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
 import 'trips_page.dart';
@@ -193,6 +191,12 @@ final class Sidebar extends StatelessWidget {
                               onTap: () =>
                                   go(InboxLocation(accountId: account.id)),
                             ),
+                        _Entry(
+                          icon: Icons.push_pin_outlined,
+                          label: 'Pins',
+                          selected: here == const PinsLocation(),
+                          onTap: () => go(const PinsLocation()),
+                        ),
                         if (counts.outbox > 0)
                           _Entry(
                             icon: Icons.outbox_outlined,
@@ -201,12 +205,6 @@ final class Sidebar extends StatelessWidget {
                             selected: here == const OutboxLocation(),
                             onTap: () => go(const OutboxLocation()),
                           ),
-                        _Entry(
-                          icon: Icons.push_pin_outlined,
-                          label: 'Pins',
-                          selected: here == const PinsLocation(),
-                          onTap: () => go(const PinsLocation()),
-                        ),
                         // While something is snoozed.
                         if (counts.snoozed > 0)
                           _Entry(
@@ -223,6 +221,9 @@ final class Sidebar extends StatelessWidget {
                             selected: here == const FollowUpsLocation(),
                             onTap: () => go(const FollowUpsLocation()),
                           ),
+                        // What the app found in your mail, apart from the
+                        // places to read it.
+                        const _SectionHeading('Found in your mail'),
                         _Entry(
                           icon: Icons.autorenew,
                           label: 'Subscriptions',
@@ -233,20 +234,6 @@ final class Sidebar extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) =>
                                     SubscriptionsPage(controller: controller),
-                              ),
-                            );
-                          },
-                        ),
-                        _Entry(
-                          icon: Icons.badge_outlined,
-                          label: 'Your accounts',
-                          selected: false,
-                          onTap: () {
-                            onNavigated?.call();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    AccountsPage(controller: controller),
                               ),
                             );
                           },
@@ -280,31 +267,15 @@ final class Sidebar extends StatelessWidget {
                           },
                         ),
                         _Entry(
-                          icon: Icons.cleaning_services_outlined,
-                          label: 'Clean up',
+                          icon: Icons.badge_outlined,
+                          label: 'Your accounts',
                           selected: false,
                           onTap: () {
                             onNavigated?.call();
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) =>
-                                    SenderCleanupPage(controller: controller),
-                              ),
-                            );
-                          },
-                        ),
-                        _Entry(
-                          icon: Icons.shield_outlined,
-                          label: 'Privacy report',
-                          selected: false,
-                          onTap: () {
-                            onNavigated?.call();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => PrivacyReportPage(
-                                  services: controller.services,
-                                  onShowMail: controller.search,
-                                ),
+                                    AccountsPage(controller: controller),
                               ),
                             );
                           },
@@ -429,6 +400,32 @@ final class Sidebar extends StatelessWidget {
           (m, depth(m)),
     ];
   }
+}
+
+/// A small, muted label over a group of entries, styled like an account
+/// block's name.
+final class _SectionHeading extends StatelessWidget {
+  const _SectionHeading(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 12, 4),
+    child: Semantics(
+      header: true,
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: SidebarColors.of(context).muted,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  );
 }
 
 final class _Entry extends StatelessWidget {
