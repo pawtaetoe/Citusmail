@@ -166,8 +166,8 @@ void main() {
           reason: '${order[i - 1]} above ${order[i]}',
         );
       }
-      // Moved to Settings.
-      for (final gone in ['Clean up', 'Privacy report']) {
+      // Moved to Settings, and to search (Files).
+      for (final gone in ['Clean up', 'Privacy report', 'Attachments']) {
         expect(find.text(gone), findsNothing, reason: gone);
       }
     }

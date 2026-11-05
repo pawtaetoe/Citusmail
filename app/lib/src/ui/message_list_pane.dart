@@ -12,6 +12,7 @@ import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../mail/message_list_model.dart';
 import '../mail/send_later_times.dart';
+import 'attachments_page.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
 import 'folder_dialogs.dart';
@@ -153,6 +154,17 @@ final class _TopBarState extends State<_TopBar> {
     super.dispose();
   }
 
+  /// Attachments from all your mail, with their own search.
+  void _openFiles(BuildContext context) {
+    // Not back to an open keyboard on return.
+    widget.searchFocus.unfocus();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AttachmentsPage(controller: widget.controller),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: widget.padding,
@@ -160,12 +172,19 @@ final class _TopBarState extends State<_TopBar> {
       children: [
         ?widget.leading,
         Expanded(
-          child: ValueListenableBuilder(
-            valueListenable: widget.controller.location,
-            builder: (context, location, _) {
+          child: ListenableBuilder(
+            listenable: Listenable.merge([
+              widget.controller.location,
+              widget.searchFocus,
+            ]),
+            builder: (context, _) {
+              final location = widget.controller.location.value;
               if (location is! SearchLocation && _search.text.isNotEmpty) {
                 _search.clear();
               }
+              final searching =
+                  location is SearchLocation || widget.searchFocus.hasFocus;
+              final theme = Theme.of(context);
               return SizedBox(
                 height: 44,
                 child: TextField(
@@ -177,20 +196,31 @@ final class _TopBarState extends State<_TopBar> {
                     hintText: 'Search mail',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     // Teaches the shortcut where it is used.
-                    suffixText: location is SearchLocation ? null : '/',
-                    suffixStyle: Theme.of(context).textTheme.labelMedium
-                        ?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                    suffixIcon: location is SearchLocation
-                        ? IconButton(
-                            tooltip: 'Clear search',
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => widget.controller.search(''),
+                    suffixText: searching ? null : '/',
+                    suffixStyle: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    // While searching: the files in your mail, and a way out.
+                    suffixIcon: searching
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _FilesButton(
+                                onPressed: () => _openFiles(context),
+                              ),
+                              if (location is SearchLocation)
+                                IconButton(
+                                  tooltip: 'Clear search',
+                                  icon: const Icon(Icons.close, size: 18),
+                                  onPressed: () => widget.controller.search(''),
+                                )
+                              else
+                                const SizedBox(width: 6),
+                            ],
                           )
                         : null,
                     isDense: true,
-                    fillColor: Theme.of(context).colorScheme.surface,
+                    fillColor: theme.colorScheme.surface,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
                 ),
@@ -215,6 +245,30 @@ final class _TopBarState extends State<_TopBar> {
           ),
         ],
       ],
+    ),
+  );
+}
+
+/// "Files" in the search field: the Attachments page, for when what you
+/// are looking for is a file rather than an email.
+final class _FilesButton extends StatelessWidget {
+  const _FilesButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: 'Attachments from all your mail',
+    child: TextButton.icon(
+      style: TextButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(0, 32),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: onPressed,
+      icon: const Icon(Icons.attach_file, size: 18),
+      label: const Text('Files'),
     ),
   );
 }
