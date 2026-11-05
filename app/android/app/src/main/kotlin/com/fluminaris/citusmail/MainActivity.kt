@@ -7,7 +7,10 @@ package com.fluminaris.citusmail
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -51,6 +54,21 @@ class MainActivity : FlutterFragmentActivity() {
                         (call.arguments as? Number)?.let {
                             BackgroundSyncWorker.checkAt(this, it.toLong())
                         }
+                        result.success(null)
+                    }
+                    // Whether Android holds background checks back to save
+                    // battery (Settings shows a way to allow them).
+                    "batteryOptimized" -> {
+                        val power = getSystemService(PowerManager::class.java)
+                        result.success(power?.isIgnoringBatteryOptimizations(packageName) == false)
+                    }
+                    // This app's page in Android's settings, where Battery
+                    // can be set to Unrestricted. No special permission.
+                    "openAppSettings" -> {
+                        startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                .setData(Uri.fromParts("package", packageName, null)),
+                        )
                         result.success(null)
                     }
                     // App lock on: the app switcher shows no picture of the

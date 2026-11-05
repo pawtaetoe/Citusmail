@@ -52,6 +52,7 @@ final class SettingsPage extends StatefulWidget {
     this.controller,
     this.isAndroid,
     this.onShowMail,
+    this.batteryLimited = BackgroundMail.batteryLimited,
   });
 
   final AppServices services;
@@ -68,6 +69,9 @@ final class SettingsPage extends StatefulWidget {
   /// Overrides whether this is the Google Play build, which has no Instant
   /// mail (tests).
   final bool? playBuild;
+
+  /// Whether Android holds background checks back to save battery.
+  final Future<bool> Function() batteryLimited;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -428,6 +432,11 @@ final class _SettingsPageState extends State<SettingsPage> {
                 'battery.',
                 style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
               ),
+            ),
+          if (_android && !settings.instantMail)
+            _BackgroundChecks(
+              store: widget.services.store,
+              batteryLimited: widget.batteryLimited,
             ),
           const _Group('Screener'),
           ..._screenerSettings(),
@@ -1087,4 +1096,88 @@ final class _VirusTotalDialogState extends State<VirusTotalDialog> {
       ),
     ],
   );
+}
+
+/// When the background check last ran, and, if Android holds it back to
+/// save battery, a way to allow it (the app's page in Android's settings).
+final class _BackgroundChecks extends StatefulWidget {
+  const _BackgroundChecks({required this.store, required this.batteryLimited});
+
+  final MailStore store;
+  final Future<bool> Function() batteryLimited;
+
+  @override
+  State<_BackgroundChecks> createState() => _BackgroundChecksState();
+}
+
+final class _BackgroundChecksState extends State<_BackgroundChecks> {
+  bool _limited = false;
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+    // Back from Android's settings: look again.
+    _lifecycle = AppLifecycleListener(onResume: _check);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  Future<void> _check() async {
+    final limited = await widget.batteryLimited();
+    if (mounted) setState(() => _limited = limited);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final last = BackgroundMail.lastCheck(widget.store);
+    final lastText = switch (last) {
+      null => 'No background check has run yet.',
+      (:final at, ok: true) => 'Last background check: ${_ago(at)}.',
+      (:final at, ok: false) =>
+        'Last background check: ${_ago(at)}, but not every account could be '
+            'reached.',
+    };
+    return ListTile(
+      leading: const Icon(Icons.schedule),
+      title: const Text('Background checks'),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _limited
+                ? '$lastText Android is saving battery for $appName, so '
+                      'checks can wait until you open the app. To get mail '
+                      'while it is closed, set Battery to "Unrestricted".'
+                : lastText,
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          if (_limited)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(
+                onPressed: BackgroundMail.openAppSettings,
+                child: const Text('Open battery settings'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _ago(DateTime at) {
+    final minutes = DateTime.now().difference(at).inMinutes;
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return '$minutes min ago';
+    final hours = minutes ~/ 60;
+    if (hours < 24) return hours == 1 ? '1 hour ago' : '$hours hours ago';
+    final days = hours ~/ 24;
+    return days == 1 ? 'yesterday' : '$days days ago';
+  }
 }
