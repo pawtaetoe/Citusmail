@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/background/background_mail.dart';
 import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
@@ -189,6 +190,102 @@ void main() {
     await tester.tap(find.text('Checking for new mail'));
     await tester.pump();
     expect(calls, isEmpty, reason: 'never asks for the service');
+  });
+
+  testWidgets('Android: when the background check last ran', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          services: app.services,
+          isAndroid: true,
+          batteryLimited: () async => false,
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(find.text('Background checks'), 200);
+    expect(
+      find.textContaining('No background check has run yet'),
+      findsOneWidget,
+    );
+    expect(find.text('Open battery settings'), findsNothing);
+
+    BackgroundMail.recordCheck(
+      app.store,
+      ok: true,
+      at: DateTime.now().subtract(const Duration(minutes: 12)),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          services: app.services,
+          isAndroid: true,
+          batteryLimited: () async => false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Background checks'), 200);
+    expect(find.text('Last background check: 12 min ago.'), findsOneWidget);
+  });
+
+  testWidgets('Android: held back to save battery, with a way to allow it', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('citusmail/background'),
+      (call) async {
+        calls.add(call);
+        return null;
+      },
+    );
+    BackgroundMail.recordCheck(
+      app.store,
+      ok: false,
+      at: DateTime.now().subtract(const Duration(hours: 3)),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          services: app.services,
+          isAndroid: true,
+          batteryLimited: () async => true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Open battery settings'), 200);
+    expect(find.textContaining('3 hours ago'), findsOneWidget);
+    expect(find.textContaining('not every account'), findsOneWidget);
+    expect(find.textContaining('Unrestricted'), findsOneWidget);
+    // On a phone it opens the app's page in Android's settings; here
+    // (not Android) nothing is called.
+    await tester.ensureVisible(find.text('Open battery settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open battery settings'));
+    await tester.pump();
+    expect(calls, isEmpty);
+  });
+
+  testWidgets('Android with Instant mail on: no background check row', (
+    tester,
+  ) async {
+    app.services.settings.instantMail = true;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('citusmail/background'),
+      (call) async => null,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          services: app.services,
+          isAndroid: true,
+          batteryLimited: () async => true,
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(find.text('Instant mail'), 200);
+    expect(find.text('Background checks'), findsNothing);
   });
 
   testWidgets('desktop: no background mail settings', (tester) async {

@@ -72,6 +72,56 @@ abstract final class BackgroundMail {
     }
   }
 
+  /// After this long, a background check starts no more full syncs (the
+  /// inboxes always come first). Android stops a check after 10 minutes.
+  static const fullSyncBudget = Duration(minutes: 4);
+
+  static const _lastCheckKey = 'background.lastCheck';
+
+  /// Notes when a background check ran and whether every account synced,
+  /// for Settings ("Last background check").
+  @visibleForTesting
+  static void recordCheck(MailStore store, {required bool ok, DateTime? at}) {
+    try {
+      final when = (at ?? DateTime.now()).toUtc().toIso8601String();
+      store.settings.write(_lastCheckKey, '${ok ? 'ok' : 'failed'} $when');
+    } on Object {
+      // Only for display.
+    }
+  }
+
+  /// The last background check: when, and whether it went well; null if
+  /// none has run yet.
+  static ({DateTime at, bool ok})? lastCheck(MailStore store) {
+    final value = store.settings.read(_lastCheckKey);
+    final parts = value?.split(' ');
+    if (parts == null || parts.length != 2) return null;
+    final at = DateTime.tryParse(parts[1]);
+    if (at == null) return null;
+    return (at: at.toLocal(), ok: parts[0] == 'ok');
+  }
+
+  /// Whether Android limits this app's background work to save battery
+  /// (then checks may wait until the device wakes). False elsewhere.
+  static Future<bool> batteryLimited() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _app.invokeMethod<bool>('batteryOptimized') ?? false;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Opens this app's page in Android's settings (Battery: Unrestricted).
+  static Future<void> openAppSettings() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _app.invokeMethod<void>('openAppSettings');
+    } on Object {
+      // Nothing to open.
+    }
+  }
+
   /// One check of every account; tells Android when done.
   static Future<void> runOnce() async {
     var ok = false;
@@ -100,17 +150,39 @@ abstract final class BackgroundMail {
       final tracker = NewMailTracker(store);
       var allOk = true;
       var newMail = false;
-      for (final account in store.accounts.all()) {
+      final started = DateTime.now();
+      void noteNew(AccountSyncReport report) {
+        newMail |= report.mailboxes.values.any(
+          (r) => r.added + r.backfilled > 0,
+        );
+      }
+
+      // Every inbox first, announced at once: the other folders and older
+      // mail can take longer than Android lets a check run.
+      final accounts = store.accounts.all();
+      for (final account in accounts) {
+        final inbox = store.mailboxes.inbox(account.id);
+        final report = await engine.syncAccount(
+          account.id,
+          mailboxIds: inbox == null ? null : {inbox.id},
+        );
+        if (report == null) {
+          allOk = false;
+          continue;
+        }
+        noteNew(report);
+        await notifier?.announce(store, account, tracker.claim(account.id));
+      }
+      // Then the rest, while there is time.
+      for (final account in accounts) {
+        if (DateTime.now().difference(started) > fullSyncBudget) break;
         final report = await engine.syncAccount(account.id);
         if (report == null) {
           allOk = false;
           continue;
         }
-        newMail |= report.mailboxes.values.any(
-          (r) => r.added + r.backfilled > 0,
-        );
-        final mail = tracker.claim(account.id);
-        await notifier?.announce(store, account, mail);
+        noteNew(report);
+        await notifier?.announce(store, account, tracker.claim(account.id));
       }
       // Snoozed mail whose time came: back (unread, also on the server),
       // announced once.
@@ -146,7 +218,11 @@ abstract final class BackgroundMail {
       // Last, once the news is out: receipts, bills and booking emails for
       // the pages, a few at a time (they stay unread).
       await readAhead(store, engine.loadBody, newMail: newMail);
+      recordCheck(store, ok: allOk);
       return allOk;
+    } on Object {
+      recordCheck(store, ok: false);
+      rethrow;
     } finally {
       await engine.dispose();
       store.close();
