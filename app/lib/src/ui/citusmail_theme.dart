@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -429,7 +429,9 @@ final class ListColors extends ThemeExtension<ListColors> {
   ListColors lerp(ListColors? other, double t) => other ?? this;
 }
 
-/// The app's mark: a citrus slice, drawn (no image asset to load).
+/// The app's mark, as in the app icon (assets/icon/icon.svg): a
+/// forward-leaning envelope with citrus speed lines ("citus" is Latin for
+/// fast) on a lagoon tile. Drawn, so there is no image asset to load.
 final class CitusMark extends StatelessWidget {
   const CitusMark({super.key, this.size = 24});
 
@@ -437,41 +439,74 @@ final class CitusMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
-    child: CustomPaint(size: Size.square(size), painter: const _SlicePainter()),
+    child: CustomPaint(size: Size.square(size), painter: const _MarkPainter()),
   );
 }
 
-final class _SlicePainter extends CustomPainter {
-  const _SlicePainter();
+final class _MarkPainter extends CustomPainter {
+  const _MarkPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.shortestSide / 2;
-    canvas.drawCircle(c, r, Paint()..color = CitusPalette.citrus);
-    final pith = Paint()
-      ..color = CitusPalette.onCitrus.withValues(alpha: 0.55)
-      ..strokeWidth = max(1, r * 0.11)
-      ..strokeCap = StrokeCap.round;
-    // Six segments, like a cut lemon.
-    for (var i = 0; i < 6; i++) {
-      final a = i * pi / 3 + pi / 6;
-      canvas.drawLine(
-        c + Offset(cos(a), sin(a)) * r * 0.16,
-        c + Offset(cos(a), sin(a)) * r * 0.68,
-        pith,
-      );
-    }
-    canvas.drawCircle(
-      c,
-      r * 0.82,
+    // The icon's own 512-unit drawing, scaled to fit.
+    final scale = size.shortestSide / 512;
+    canvas.save();
+    canvas.scale(scale);
+
+    // The tile (the icon's 16-unit margin dropped, so it fills the space).
+    const tile = Rect.fromLTWH(0, 0, 512, 512);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(tile, const Radius.circular(120)),
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF14917C), Color(0xFF0B4A40)],
+        ).createShader(tile),
+    );
+
+    // The envelope, leaning forward (skewX -14 degrees, moved right).
+    canvas.save();
+    canvas.transform(
+      Float64List.fromList([
+        1, 0, 0, 0, //
+        -0.2493, 1, 0, 0, //
+        0, 0, 1, 0, //
+        96, 0, 0, 1, //
+      ]),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(150, 160, 252, 184),
+        const Radius.circular(26),
+      ),
+      Paint()..color = Colors.white,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(166, 180)
+        ..lineTo(276, 262)
+        ..lineTo(386, 180),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = max(1, r * 0.09)
-        ..color = CitusPalette.onCitrus.withValues(alpha: 0.35),
+        ..strokeWidth = 22
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = CitusPalette.lagoon,
     );
+    canvas.restore();
+
+    // Citrus speed lines.
+    final speed = Paint()
+      ..strokeWidth = 22
+      ..strokeCap = StrokeCap.round
+      ..color = CitusPalette.citrus;
+    canvas.drawLine(const Offset(104, 206), const Offset(168, 206), speed);
+    canvas.drawLine(const Offset(84, 252), const Offset(160, 252), speed);
+    canvas.drawLine(const Offset(104, 298), const Offset(148, 298), speed);
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_SlicePainter oldDelegate) => false;
+  bool shouldRepaint(_MarkPainter oldDelegate) => false;
 }
