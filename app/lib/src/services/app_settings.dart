@@ -65,9 +65,9 @@ final class AppSettings {
   set monthlyRenewals(bool on) =>
       _store.settings.write(_monthlyRenewals, on ? 'on' : 'off');
 
-  /// Android: keep a live connection for instant mail (off by default; it
-  /// needs a permanent notification).
-  bool get instantMail => _store.settings.read(_instantMail) == 'on';
+  /// Android: keep a live connection for instant mail (on unless turned
+  /// off; Android shows a quiet permanent notification while it runs).
+  bool get instantMail => _store.settings.read(_instantMail) != 'off';
   set instantMail(bool on) =>
       _store.settings.write(_instantMail, on ? 'on' : 'off');
 

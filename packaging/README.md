@@ -149,12 +149,16 @@ for testing, never for distribution.
   Dart sync code in a background engine about every 5 minutes when online
   (a chain of one-off checks, with a 15-minute periodic check as a safety
   net).
-- **Instant mail** (Settings, off by default; both flavors): a
+- **Instant mail** (Settings, on unless turned off; both flavors): a
   foreground service keeps
   an IMAP IDLE connection; Android requires its permanent "Citusmail is
-  connected" notification. Type `specialUse` (no other type fits a mail
-  push connection; `dataSync` is limited to 6 hours a day on Android 15).
-  It restarts after a reboot when on.
+  connected" notification (a silent, minimum-importance channel). Type
+  `specialUse` (no other type fits a mail push connection; `dataSync` is
+  limited to 6 hours a day on Android 15). It restarts after a reboot
+  when on. Once per install the app asks Android's one-tap "run in the
+  background" question (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`), since
+  without a push server of ours nothing else can keep the connection
+  while the phone sleeps.
 
 Debug builds accept two test switches (release builds ignore them):
 
@@ -231,6 +235,12 @@ Play Console checklist (closed or open testing):
     data until mail arrives."
   - A short video: Settings > Instant mail on, the "Citusmail is
     connected" notification, an email arriving while the app is closed.
+- **Battery optimization exemption**: the app asks Android's one-tap
+  dialog (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`). Play allows it when the
+  app's core function needs it and Firebase push can't be used; if Play
+  asks, the reason is the same as Instant mail's: mail is delivered over
+  the user's own connection to their mail server, with no server of
+  ours to send push messages.
 - **Store listing**:
   - App icon (512 × 512): `assets/icon/png/512.png`.
   - Feature graphic (1024 × 500): `packaging/android/play/feature-graphic.png`,

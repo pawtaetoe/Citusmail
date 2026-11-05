@@ -105,9 +105,12 @@ verification code is shown in the title, with a Copy code button that puts
 it on the clipboard (marked sensitive, so Android 13+ hides it in its
 preview). On Android the lock screen shows only that there is new mail;
 with the app lock on, so do the notifications themselves. They are created
-on your device; no push service is involved. On Android, Citusmail checks for mail about every 5
-minutes in the background (Android may wait longer to save battery), or keeps a live connection if you turn on
-"Instant mail" (which shows a permanent notification, as Android requires).
+on your device; no push service is involved. On Android, Citusmail keeps
+a live connection to your own mail server ("Instant mail", on unless you
+turn it off), which shows a quiet permanent notification, as Android
+requires; it asks Android once to let it run while the phone sleeps.
+With Instant mail off, it checks about every 5 minutes in the background
+(Android may wait longer to save battery).
 
 ## Mail you send
 

@@ -62,6 +62,27 @@ class MainActivity : FlutterFragmentActivity() {
                         val power = getSystemService(PowerManager::class.java)
                         result.success(power?.isIgnoringBatteryOptimizations(packageName) == false)
                     }
+                    // Android's own one-tap question: let the app run in the
+                    // background without battery limits (Instant mail keeps
+                    // its connection while the phone sleeps). Falls back to
+                    // the app's settings page where the question is missing.
+                    "askUnrestricted" -> {
+                        val power = getSystemService(PowerManager::class.java)
+                        if (power?.isIgnoringBatteryOptimizations(packageName) == false) {
+                            try {
+                                startActivity(
+                                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                        .setData(Uri.parse("package:$packageName")),
+                                )
+                            } catch (e: ActivityNotFoundException) {
+                                startActivity(
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                        .setData(Uri.fromParts("package", packageName, null)),
+                                )
+                            }
+                        }
+                        result.success(null)
+                    }
                     // This app's page in Android's settings, where Battery
                     // can be set to Unrestricted. No special permission.
                     "openAppSettings" -> {

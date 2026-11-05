@@ -142,27 +142,61 @@ void main() {
     );
   });
 
-  testWidgets('Android: instant mail asks the system to start the service', (
+  testWidgets('Android: instant mail is on by default; can be turned off', (
     tester,
   ) async {
-    final calls = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('citusmail/background'),
-      (call) async {
-        calls.add(call);
-        return null;
-      },
+      (call) async => null,
     );
+    expect(app.services.settings.instantMail, isTrue, reason: 'the default');
     await tester.pumpWidget(
-      MaterialApp(home: SettingsPage(services: app.services, isAndroid: true)),
+      MaterialApp(
+        home: SettingsPage(
+          services: app.services,
+          isAndroid: true,
+          batteryLimited: () async => false,
+        ),
+      ),
     );
     await tester.scrollUntilVisible(find.text('Instant mail'), 200);
+    expect(find.text('Background checks'), findsNothing);
     await tester.tap(find.text('Instant mail'));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(app.services.settings.instantMail, isFalse);
+    expect(find.text('Background checks'), findsOneWidget);
+    await tester.tap(find.text('Instant mail'));
+    await tester.pumpAndSettle();
     expect(app.services.settings.instantMail, isTrue);
   });
 
+  test(
+    'Android is asked once to let Instant mail run in the background',
+    () async {
+      var asked = 0;
+      Future<void> ask() async => asked++;
+      await BackgroundMail.askOnce(
+        app.store,
+        limited: () async => false,
+        ask: ask,
+      );
+      expect(asked, 0, reason: 'already allowed: nothing to ask');
+      await BackgroundMail.askOnce(
+        app.store,
+        limited: () async => true,
+        ask: ask,
+      );
+      await BackgroundMail.askOnce(
+        app.store,
+        limited: () async => true,
+        ask: ask,
+      );
+      expect(asked, 1, reason: 'never twice');
+    },
+  );
+
   testWidgets('Android: when the background check last ran', (tester) async {
+    app.services.settings.instantMail = false;
     await tester.pumpWidget(
       MaterialApp(
         home: SettingsPage(
@@ -177,7 +211,7 @@ void main() {
       find.textContaining('No background check has run yet'),
       findsOneWidget,
     );
-    expect(find.text('Open battery settings'), findsNothing);
+    expect(find.text('Allow in background'), findsNothing);
 
     BackgroundMail.recordCheck(
       app.store,
@@ -198,9 +232,10 @@ void main() {
     expect(find.text('Last background check: 12 min ago.'), findsOneWidget);
   });
 
-  testWidgets('Android: held back to save battery, with a way to allow it', (
+  testWidgets('Android: held back to save battery, with one tap to allow it', (
     tester,
   ) async {
+    app.services.settings.instantMail = false;
     final calls = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('citusmail/background'),
@@ -224,15 +259,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Open battery settings'), 200);
+    await tester.scrollUntilVisible(find.text('Allow in background'), 200);
     expect(find.textContaining('3 hours ago'), findsOneWidget);
     expect(find.textContaining('not every account'), findsOneWidget);
-    expect(find.textContaining('Unrestricted'), findsOneWidget);
     // On a phone it opens the app's page in Android's settings; here
     // (not Android) nothing is called.
-    await tester.ensureVisible(find.text('Open battery settings'));
+    await tester.ensureVisible(find.text('Allow in background'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Open battery settings'));
+    await tester.tap(find.text('Allow in background'));
     await tester.pump();
     expect(calls, isEmpty);
   });

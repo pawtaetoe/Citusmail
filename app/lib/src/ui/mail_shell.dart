@@ -162,8 +162,11 @@ final class _MailShellState extends State<MailShell> {
   Future<void> _startBackground() async {
     try {
       // The periodic check is scheduled by Android itself at launch.
+      // Instant mail is on unless turned off; Android is asked once, with
+      // its one-tap dialog, to let it run while the phone sleeps.
       if (widget.services.settings.instantMail) {
         await BackgroundMail.setInstant(true);
+        await BackgroundMail.askOnce(widget.services.store);
       }
     } on Object {
       // Not fatal: mail still syncs while the app is open.
