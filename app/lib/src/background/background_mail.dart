@@ -17,10 +17,6 @@ import '../services/auto_reader.dart';
 import '../services/mail_notifier.dart';
 import '../services/secret_store.dart';
 
-/// Whether this is the Google Play build (`flutter build appbundle
-/// --flavor play`; Flutter passes the flavor to the app).
-const bool playBuild = appFlavor == 'play';
-
 /// Mail checks while the app is closed (Android). The Kotlin side runs the
 /// entry points in main.dart in a background Flutter engine:
 ///
@@ -36,10 +32,9 @@ abstract final class BackgroundMail {
   static const _task = MethodChannel('citusmail/background-task');
   static const _app = MethodChannel('citusmail/background');
 
-  /// Whether this build offers Instant mail: Android, except the Google
-  /// Play build (`--flavor play`), which leaves its foreground service out
-  /// (see packaging/README.md).
-  static bool get instantAvailable => Platform.isAndroid && !playBuild;
+  /// Whether Instant mail is offered: on Android (both the GitHub and the
+  /// Google Play build).
+  static bool get instantAvailable => Platform.isAndroid;
 
   /// Turns the instant-mail service on or off.
   static Future<void> setInstant(bool on) async {

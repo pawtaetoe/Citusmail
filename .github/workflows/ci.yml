@@ -282,8 +282,8 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       # Signed with the debug key: fine for testing, never for release.
-      # Two flavors (packaging/README.md): the APK for GitHub ("github",
-      # with Instant mail) and the bundle for Google Play ("play", without).
+      # Two flavors (packaging/README.md): the APK for GitHub ("github")
+      # and the bundle for Google Play ("play"), both with Instant mail.
       - name: APK (github flavor)
         working-directory: app
         env:
@@ -322,7 +322,7 @@ jobs:
           mkdir -p build/packages
           cp app/build/app/outputs/flutter-apk/app-github-release.apk "build/packages/citusmail-$version.apk"
           cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
-      - name: The Play bundle has no Instant mail
+      - name: The Play bundle has Instant mail and the mail check
         run: packaging/android/check-play-bundle.sh build/packages/*.aab
       - name: The GitHub APK keeps Instant mail
         run: |
@@ -416,7 +416,7 @@ jobs:
           mkdir -p build/packages
           cp app/build/app/outputs/flutter-apk/app-github-release.apk "build/packages/citusmail-$version.apk"
           cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
-      - name: The Play bundle has no Instant mail
+      - name: The Play bundle has Instant mail and the mail check
         run: packaging/android/check-play-bundle.sh build/packages/*.aab
       - name: The GitHub APK keeps Instant mail
         run: |

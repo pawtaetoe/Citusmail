@@ -48,7 +48,6 @@ final class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     required this.services,
-    this.playBuild,
     this.controller,
     this.isAndroid,
     this.onShowMail,
@@ -66,10 +65,6 @@ final class SettingsPage extends StatefulWidget {
   /// Overrides the platform (tests).
   final bool? isAndroid;
 
-  /// Overrides whether this is the Google Play build, which has no Instant
-  /// mail (tests).
-  final bool? playBuild;
-
   /// Whether Android holds background checks back to save battery.
   final Future<bool> Function() batteryLimited;
 
@@ -79,9 +74,6 @@ final class SettingsPage extends StatefulWidget {
 
 final class _SettingsPageState extends State<SettingsPage> {
   bool get _android => widget.isAndroid ?? Platform.isAndroid;
-
-  /// Instant mail is in every Android build except the Google Play one.
-  bool get _instantMail => _android && !(widget.playBuild ?? playBuild);
 
   AppLock get _lock => widget.services.lock;
   bool _biometricsAvailable = false;
@@ -412,7 +404,7 @@ final class _SettingsPageState extends State<SettingsPage> {
                 ? (on) => setState(() => settings.followUpNotifications = on)
                 : null,
           ),
-          if (_instantMail)
+          if (_android)
             SwitchListTile(
               title: const Text('Instant mail'),
               subtitle: const Text(
@@ -422,16 +414,6 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
               value: settings.instantMail,
               onChanged: _setInstant,
-            )
-          else if (_android)
-            ListTile(
-              title: const Text('Checking for new mail'),
-              subtitle: Text(
-                'While the app is closed, $appName checks for new mail about every '
-                '5 minutes when there is a network. Android may wait longer to save '
-                'battery.',
-                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-              ),
             ),
           if (_android && !settings.instantMail)
             _BackgroundChecks(

@@ -1,6 +1,6 @@
 # Citusmail Privacy Policy
 
-Effective date: 1 November 2026
+Effective date: 5 November 2026
 
 Citusmail is an email app published by **Fluminaris**. This policy explains
 what the app does with your information. Questions or requests:
@@ -81,7 +81,7 @@ ours, and are end-to-end encrypted with a code only your devices hold.
 | --- | --- |
 | Internet, network state | To connect to your mail provider |
 | Notifications | To tell you about new mail (sender, subject and, unless you turn previews off, the first lines; on the lock screen only that there is new mail) |
-| Foreground service, start at boot | To check for new mail in the background, or keep a live connection if you turn on "Instant mail" (not in the Google Play version, which only checks in the background) |
+| Foreground service, start at boot | To check for new mail in the background, or keep a live connection if you turn on "Instant mail" |
 | Fingerprint or face unlock | Only if you turn on the app lock; checked by Android, the app only learns "yes" or "no" |
 
 The app does not use your location, camera, microphone, contacts list or

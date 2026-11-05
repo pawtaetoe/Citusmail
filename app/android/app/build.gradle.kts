@@ -33,11 +33,10 @@ android {
         versionName = flutter.versionName
     }
 
-    // Two Android builds (packaging/README.md). "github" is the APK on
-    // GitHub, with Instant mail. "play" goes to Google Play without it:
-    // Instant mail needs a foreground service of type specialUse, which
-    // Play reviews by hand, so src/play/AndroidManifest.xml removes that
-    // service and its permission. Build with --flavor github or play.
+    // Two Android builds (packaging/README.md): "github" is the APK on
+    // GitHub, "play" the bundle for Google Play. Both have Instant mail (a
+    // foreground service of type specialUse, declared in Play Console).
+    // Build with --flavor github or play.
     buildFeatures {
         buildConfig = true
     }
@@ -46,11 +45,9 @@ android {
         create("github") {
             dimension = "store"
             isDefault = true
-            buildConfigField("boolean", "INSTANT_MAIL", "true")
         }
         create("play") {
             dimension = "store"
-            buildConfigField("boolean", "INSTANT_MAIL", "false")
         }
     }
 
