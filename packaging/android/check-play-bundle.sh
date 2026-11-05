@@ -1,6 +1,7 @@
 #!/bin/bash
-# Checks that a Google Play bundle (the "play" flavor) leaves Instant mail
-# out and keeps the periodic mail check:
+# Checks that a Google Play bundle (the "play" flavor) has what the app
+# needs in the background: Instant mail (a foreground service of type
+# specialUse, declared in Play Console) and the periodic mail check:
 #
 #   packaging/android/check-play-bundle.sh build/packages/citusmail-<version>.aab
 #
@@ -16,22 +17,14 @@ unzip -p "$bundle" base/manifest/AndroidManifest.xml > "$manifest"
 failed=0
 has() { grep -aqF -- "$1" "$manifest"; }
 
-# Things the Play build must not have (Play reviews specialUse by hand).
-for gone in android.permission.FOREGROUND_SERVICE_SPECIAL_USE \
+# Things it must have: the app itself, Instant mail (its service, the
+# special-use permission and type, and the receiver that restarts it after
+# a reboot) and WorkManager's periodic check.
+for kept in com.fluminaris.citusmail.MainActivity \
             com.fluminaris.citusmail.InstantMailService \
             com.fluminaris.citusmail.BootReceiver \
+            android.permission.FOREGROUND_SERVICE_SPECIAL_USE \
             PROPERTY_SPECIAL_USE_FGS_SUBTYPE \
-            specialUse; do
-  if has "$gone"; then
-    echo "error: the Play bundle still has $gone" >&2
-    failed=1
-  else
-    echo "ok: no $gone"
-  fi
-done
-
-# Things it must keep: the app itself and WorkManager's periodic check.
-for kept in com.fluminaris.citusmail.MainActivity \
             android.permission.INTERNET \
             android.permission.RECEIVE_BOOT_COMPLETED \
             androidx.work.impl.background.systemjob.SystemJobService \

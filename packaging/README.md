@@ -149,15 +149,14 @@ for testing, never for distribution.
   Dart sync code in a background engine about every 5 minutes when online
   (a chain of one-off checks, with a 15-minute periodic check as a safety
   net).
-- **Instant mail** (Settings, off by default; `github` flavor only): a
+- **Instant mail** (Settings, off by default; both flavors): a
   foreground service keeps
   an IMAP IDLE connection; Android requires its permanent "Citusmail is
   connected" notification. Type `specialUse` (no other type fits a mail
   push connection; `dataSync` is limited to 6 hours a day on Android 15).
   It restarts after a reboot when on.
 
-Debug builds accept two test switches (release builds ignore them; the
-`play` flavor has no Instant mail, so it ignores the second):
+Debug builds accept two test switches (release builds ignore them):
 
 ```bash
 adb shell am start -n com.fluminaris.citusmail/.MainActivity --ez citusmail.checkNow true
@@ -172,22 +171,18 @@ so every Android build needs `--flavor`:
 | Flavor | Built as | Goes to | Instant mail |
 | --- | --- | --- | --- |
 | `github` (default in Android Studio) | `citusmail-<version>.apk` | GitHub releases | yes |
-| `play` | `citusmail-<version>.aab` | Google Play | no |
+| `play` | `citusmail-<version>.aab` | Google Play | yes (declared in Play Console) |
 
-Google Play reviews foreground services of type `specialUse` by hand, so
-the Play build leaves Instant mail out entirely:
-`app/android/app/src/play/AndroidManifest.xml` removes the
-`InstantMailService`, the `FOREGROUND_SERVICE_SPECIAL_USE` permission and
-the boot receiver that only restarted it. The app reads the flavor
-(Flutter passes `--flavor` to Dart as `appFlavor`) and shows a line about
-the 5-minute check instead of the Instant mail switch; the Kotlin side
-(`BuildConfig.INSTANT_MAIL`) never starts the service either. The periodic
-check is the same in both.
+The two builds are the same app today. Instant mail is a foreground
+service of type `specialUse`, which Google Play reviews by hand: the Play
+build needs the declaration below (Foreground service declaration). The
+flavors stay so the Play build can differ again if Play ever asks.
 
 `packaging/android/check-play-bundle.sh <file.aab>` reads the bundle's
-manifest and fails if the special-use service or permission is still in
-it, or if WorkManager's check is missing. CI runs it on every Android
-build, and checks that the GitHub APK still has Instant mail.
+manifest and fails if Instant mail (its service, the special-use
+permission and type, the boot receiver) or WorkManager's check is
+missing. CI runs it on every Android build, and checks that the GitHub
+APK has Instant mail too.
 
 Outputs of a flavored build: `app/build/app/outputs/flutter-apk/app-github-release.apk`
 and `app/build/app/outputs/bundle/playRelease/app-play-release.aab`.
@@ -223,18 +218,26 @@ Play Console checklist (closed or open testing):
   Fastmail test account with an app password, or a mailbox on your own
   server), with the steps: Add account > enter the address > enter the
   app password. Don't give a password that opens anything else.
-- **Foreground service declaration**: not needed for the Play build (it
-  has no `FOREGROUND_SERVICE_*` type permission). If Play asks, check that
-  the `.aab` came from the `play` flavor (`check-play-bundle.sh`).
+- **Foreground service declaration** (App content > Foreground service
+  permissions): the bundle has `FOREGROUND_SERVICE_SPECIAL_USE` for
+  Instant mail. Declare:
+  - Type: **Special use**.
+  - Description, for example: "Instant mail: when the user turns it on
+    in Settings, the app keeps one connection to the user's own mail
+    server (IMAP IDLE) so new mail and sign-in codes arrive immediately.
+    Android shows a permanent notification while it runs, and the user
+    can turn it off at any time. No other foreground service type fits:
+    dataSync is limited to 6 hours a day, and the connection carries no
+    data until mail arrives."
+  - A short video: Settings > Instant mail on, the "Citusmail is
+    connected" notification, an email arriving while the app is closed.
 - **Store listing**:
   - App icon (512 × 512): `assets/icon/png/512.png`.
   - Feature graphic (1024 × 500): `packaging/android/play/feature-graphic.png`,
     rendered from `feature-graphic.svg` next to it (IBM Plex Sans from
     `app/assets/fonts`).
   - Phone screenshots: `docs/screenshots/readme_phone*.png` and
-    `readme_subscriptions.png` (the settings screenshot shows the GitHub
-    build's Instant mail switch; leave it out or render the Play build
-    with the `settings play` scene in `app/screenshots/screens_test.dart`).
+    `readme_subscriptions.png`.
   - Short description, for example "Fast, private email that stays yours".
 - **Testers**: a closed test needs a list of testers (email addresses or
   a Google group); new personal developer accounts must run a closed

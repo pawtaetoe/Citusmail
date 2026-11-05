@@ -162,36 +162,6 @@ void main() {
     expect(app.services.settings.instantMail, isTrue);
   });
 
-  testWidgets('Google Play build: no instant mail, only the 5-minute check', (
-    tester,
-  ) async {
-    final calls = <MethodCall>[];
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('citusmail/background'),
-      (call) async {
-        calls.add(call);
-        return null;
-      },
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: SettingsPage(
-          services: app.services,
-          isAndroid: true,
-          playBuild: true,
-        ),
-      ),
-    );
-    await tester.scrollUntilVisible(find.text('Checking for new mail'), 200);
-    expect(find.text('Instant mail'), findsNothing);
-    expect(find.textContaining('live connection'), findsNothing);
-    expect(find.text('Checking for new mail'), findsOneWidget);
-    expect(find.textContaining('about every 5 minutes'), findsOneWidget);
-    await tester.tap(find.text('Checking for new mail'));
-    await tester.pump();
-    expect(calls, isEmpty, reason: 'never asks for the service');
-  });
-
   testWidgets('Android: when the background check last ran', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
