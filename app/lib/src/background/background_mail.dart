@@ -107,6 +107,34 @@ abstract final class BackgroundMail {
     }
   }
 
+  static const _askedKey = 'instant.askedBackground';
+
+  /// Asks Android, with its own one-tap dialog, to let the app run in the
+  /// background without battery limits, so Instant mail keeps its
+  /// connection while the phone sleeps. Nothing if already allowed.
+  static Future<void> askToRunInBackground() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _app.invokeMethod<void>('askUnrestricted');
+    } on Object {
+      // Not offered on this phone: Settings shows the way.
+    }
+  }
+
+  /// Once per install, with Instant mail on: asks Android's one-tap
+  /// "run in background" question if the app is still battery limited.
+  /// [limited] and [ask] are for tests.
+  static Future<void> askOnce(
+    MailStore store, {
+    Future<bool> Function() limited = batteryLimited,
+    Future<void> Function() ask = askToRunInBackground,
+  }) async {
+    if (store.settings.read(_askedKey) != null) return;
+    if (!await limited()) return;
+    store.settings.write(_askedKey, 'yes');
+    await ask();
+  }
+
   /// Opens this app's page in Android's settings (Battery: Unrestricted).
   static Future<void> openAppSettings() async {
     if (!Platform.isAndroid) return;

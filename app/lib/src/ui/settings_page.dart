@@ -281,6 +281,9 @@ final class _SettingsPageState extends State<SettingsPage> {
     setState(() => widget.services.settings.instantMail = on);
     try {
       await BackgroundMail.setInstant(on);
+      if (on && await widget.batteryLimited()) {
+        await BackgroundMail.askToRunInBackground();
+      }
     } on Object {
       if (!mounted) return;
       setState(() => widget.services.settings.instantMail = !on);
@@ -408,9 +411,11 @@ final class _SettingsPageState extends State<SettingsPage> {
             SwitchListTile(
               title: const Text('Instant mail'),
               subtitle: const Text(
-                'Keeps a live connection to your mail server so new mail arrives at once. '
-                'Android requires a permanent "$appName is connected" notification and it uses more '
-                'battery. When off, $appName checks about every 5 minutes.',
+                'Keeps a live connection to your mail server so new mail arrives at once, '
+                'also while your phone sleeps. Android requires a quiet, permanent '
+                '"$appName is connected" notification, and it uses a little more battery. '
+                'When off, $appName checks about every 5 minutes, or less often when Android '
+                'saves battery.',
               ),
               value: settings.instantMail,
               onChanged: _setInstant,
@@ -1135,8 +1140,7 @@ final class _BackgroundChecksState extends State<_BackgroundChecks> {
           Text(
             _limited
                 ? '$lastText Android is saving battery for $appName, so '
-                      'checks can wait until you open the app. To get mail '
-                      'while it is closed, set Battery to "Unrestricted".'
+                      'checks can wait until you open the app.'
                 : lastText,
             style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
           ),
@@ -1144,8 +1148,8 @@ final class _BackgroundChecksState extends State<_BackgroundChecks> {
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: TextButton(
-                onPressed: BackgroundMail.openAppSettings,
-                child: const Text('Open battery settings'),
+                onPressed: BackgroundMail.askToRunInBackground,
+                child: const Text('Allow in background'),
               ),
             ),
         ],
