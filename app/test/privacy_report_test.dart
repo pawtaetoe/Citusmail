@@ -168,7 +168,7 @@ void main() {
   });
 
   testWidgets('from Settings, About, Privacy', (tester) async {
-    tester.view.physicalSize = const Size(400, 2400);
+    tester.view.physicalSize = const Size(400, 2800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(

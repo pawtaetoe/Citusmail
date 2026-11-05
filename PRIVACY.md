@@ -100,7 +100,8 @@ settings, the app lock and your PIN never sync.
 
 New-mail notifications show the sender, the subject and the first lines
 of the message (turn off "Show message previews" to leave the text out),
-and only for Verification, Important and General mail (and pins). A
+and only for Verification, Important, General and Notifications mail (and
+pins; Notifications can be turned off; never newsletters). A
 verification code is shown in the title, with a Copy code button that puts
 it on the clipboard (marked sensitive, so Android 13+ hides it in its
 preview). On Android the lock screen shows only that there is new mail;

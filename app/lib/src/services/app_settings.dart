@@ -71,6 +71,13 @@ final class AppSettings {
   set monthlyRenewals(bool on) =>
       _store.settings.write(_monthlyRenewals, on ? 'on' : 'off');
 
+  /// New mail in the Notifications section (GitHub, a bank, deliveries)
+  /// is announced too, unless turned off. Newsletters never are.
+  bool get notifyNotificationsSection =>
+      _store.settings.read(NewMailTracker.notificationsKey) != 'off';
+  set notifyNotificationsSection(bool on) =>
+      _store.settings.write(NewMailTracker.notificationsKey, on ? 'on' : 'off');
+
   /// Android: keep a live connection for instant mail (on unless turned
   /// off; Android shows a quiet permanent notification while it runs).
   bool get instantMail => _store.settings.read(_instantMail) != 'off';
