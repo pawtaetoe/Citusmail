@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
 import 'package:mail_oauth/mail_oauth.dart';
@@ -90,6 +91,12 @@ final class _MailShellState extends State<MailShell> {
     _lifecycle = AppLifecycleListener(
       onResume: _controller.onResume,
       onHide: _controller.onHide,
+      // Closing counts as going away too ("New since you were away").
+      onDetach: _controller.onHide,
+      onExitRequested: () async {
+        _controller.onHide();
+        return AppExitResponse.exit;
+      },
     );
     unawaited(widget.services.worker.start().catchError((Object _) {}));
     widget.services.linkSafety.start();

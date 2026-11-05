@@ -15,6 +15,7 @@ import 'dart:ui' as ui;
 import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
+import 'package:citusmail/src/mail/new_since_away.dart';
 import 'package:citusmail/src/mail/send_later_times.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
@@ -40,6 +41,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
+import '../test/support/away_mail.dart';
 import '../test/support/delivery_mail.dart';
 import '../test/support/privacy_mail.dart';
 import '../test/support/return_mail.dart';
@@ -715,6 +717,38 @@ void main() {
     );
     await shoot(tester, 'phone_follow_ups_list_dark');
   });
+
+  // New since you were away: the app closed last night, opened this
+  // morning. Its messages are only in that section until Done.
+  for (final (name, size, dark) in [
+    ('phone', const Size(390, 844), false),
+    ('desktop', const Size(1440, 900), false),
+    ('desktop_dark', const Size(1440, 900), true),
+  ]) {
+    testWidgets('new since away $name', (tester) async {
+      // Not the demo inbox: its mail of a few minutes ago would count as
+      // known senders for the Screener.
+      final now = DateTime.now();
+      final left = now.subtract(const Duration(hours: 14));
+      seedAwayMail(app.store, left: left.toUtc(), back: now.toUtc());
+      NewSinceAway(app.store).wentAway(left);
+      await show(tester, shell(), size: size, dark: dark);
+      await shoot(tester, 'new_since_away_$name');
+      if (name != 'phone') return;
+      await tester.tap(find.widgetWithText(TextButton, 'Done'));
+      await shoot(tester, 'new_since_away_${name}_done');
+
+      await tester.pumpWidget(const SizedBox());
+      await show(
+        tester,
+        SettingsPage(services: app.services, isAndroid: true),
+        size: size,
+      );
+      // The Inbox group, just under the notification settings.
+      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      await shoot(tester, 'new_since_away_${name}_setting');
+    });
+  }
 
   // Learn from my corrections: GitHub notifications marked "Not a
   // subscription", and one like them from Codeberg left out; the

@@ -18,6 +18,7 @@ import '../services/app_services.dart';
 import 'invitation_answers.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
+import 'new_since_away.dart';
 import 'send_later_times.dart';
 
 /// How a sender can be blocked.
@@ -205,6 +206,9 @@ final class MailController {
     : list = MessageListModel(services.store),
       codeCleaner = CodeCleaner(services.store, services.actions) {
     _events = services.worker.events.listen(_onSyncEvent);
+    // What arrived since the app was last used (closed, or in the
+    // background) is "New since you were away".
+    list.away.cameBack();
     list.show(location.value);
     _refreshCounts();
     _refreshCodesOffer();
@@ -713,15 +717,19 @@ final class MailController {
 
   void markSectionRead(SmartSection section) {
     final accountId = location.value.accountId;
-    final unread = _store.messages.list(
-      MessageQuery(
-        inboxesOnly: true,
-        accountIds: accountId == null ? null : [accountId],
-        section: section,
-        unreadOnly: true,
-        limit: 500,
-      ),
-    );
+    final unread = [
+      for (final m in _store.messages.list(
+        MessageQuery(
+          inboxesOnly: true,
+          accountIds: accountId == null ? null : [accountId],
+          section: section,
+          unreadOnly: true,
+          limit: 500,
+        ),
+      ))
+        // Shown in "New since you were away" instead.
+        if (!list.isAway(m)) m,
+    ];
     if (unread.isEmpty) return;
     final receipt = services.actions.markRead(unread);
     _afterFlags(receipt, 'Marked as read', unread.length, alwaysUndo: true);
@@ -985,8 +993,12 @@ final class MailController {
   /// When the app was last hidden (another app in front, or minimized).
   DateTime? _hiddenAt;
 
-  /// The app went to the background.
-  void onHide() => _hiddenAt ??= DateTime.now();
+  /// The app went to the background (or is closing): remembered for "New
+  /// since you were away", also if the app is then closed.
+  void onHide() {
+    _hiddenAt ??= DateTime.now();
+    list.away.wentAway();
+  }
 
   /// Coming back to the app: a look for new mail at once (a sign-in code
   /// is often why someone switches back), then snoozed mail and
@@ -995,6 +1007,8 @@ final class MailController {
   void onResume() {
     final hiddenAt = _hiddenAt;
     _hiddenAt = null;
+    // After more than a minute away, a new "New since you were away".
+    if (list.away.cameBack()) list.refresh();
     if (hiddenAt != null) {
       if (DateTime.now().difference(hiddenAt) > awayBeforeReconnect) {
         services.worker.reconnect();
@@ -1012,7 +1026,36 @@ final class MailController {
   }
 
   /// How long the app can be away before [onResume] reconnects.
-  static const awayBeforeReconnect = Duration(minutes: 1);
+  static const awayBeforeReconnect = NewSinceAway.awayFor;
+
+  // ------------------------------------------------ new since you were away
+
+  /// "Done" on "New since you were away": its messages go back to their
+  /// sections, still unread (only a view; nothing changes on the server).
+  void doneWithAway() {
+    final window = list.away.window;
+    if (window == null) return;
+    list.away.done();
+    refresh();
+    onNotice?.call(
+      'Back in their sections',
+      undo: () {
+        list.away.window = window;
+        refresh();
+      },
+    );
+  }
+
+  /// "Mark all as read" on "New since you were away".
+  void markAwayRead() {
+    final unread = [
+      for (final m in list.newSinceAway.messages)
+        if (!m.flags.seen) m,
+    ];
+    if (unread.isEmpty) return;
+    final receipt = services.actions.markRead(unread);
+    _afterFlags(receipt, 'Marked as read', unread.length, alwaysUndo: true);
+  }
 
   /// A timer for the next snooze or follow-up due. Checked at least
   /// hourly: timers may stop while the device sleeps (coming back to the
