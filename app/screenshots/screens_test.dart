@@ -737,6 +737,16 @@ void main() {
       if (name != 'phone') return;
       await tester.tap(find.widgetWithText(TextButton, 'Done'));
       await shoot(tester, 'new_since_away_${name}_done');
+
+      await tester.pumpWidget(const SizedBox());
+      await show(
+        tester,
+        SettingsPage(services: app.services, isAndroid: true),
+        size: size,
+      );
+      // The Inbox group, just under the notification settings.
+      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      await shoot(tester, 'new_since_away_${name}_setting');
     });
   }
 

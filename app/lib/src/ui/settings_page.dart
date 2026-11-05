@@ -425,6 +425,20 @@ final class _SettingsPageState extends State<SettingsPage> {
               store: widget.services.store,
               batteryLimited: widget.batteryLimited,
             ),
+          const _Group('Inbox'),
+          SwitchListTile(
+            secondary: const Icon(Icons.waving_hand_outlined),
+            title: const Text('New since you were away'),
+            subtitle: const Text(
+              'When you come back to the app, the emails that arrived while '
+              'you were away are shown together at the top of your inbox.',
+            ),
+            value: settings.newSinceAway,
+            onChanged: (on) {
+              setState(() => settings.newSinceAway = on);
+              widget.controller?.refresh();
+            },
+          ),
           const _Group('Screener'),
           ..._screenerSettings(),
           const _Group('Mail on this device'),

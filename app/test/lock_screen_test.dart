@@ -77,6 +77,7 @@ void main() {
     // "Lock now" covers everything again, pages included.
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('App lock'), 200);
     expect(find.text('App lock'), findsOneWidget);
     app.services.lock.lockNow();
     await tester.pump();

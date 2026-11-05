@@ -237,6 +237,29 @@ void main() {
     expect(find.text('Dinner on Friday?'), findsOneWidget);
   });
 
+  testWidgets('the setting: on by default, turned off from Settings', (
+    tester,
+  ) async {
+    seedAway();
+    await show(tester);
+    await settle(tester);
+    expect(find.text(_title), findsOneWidget);
+    expect(app.services.settings.newSinceAway, isTrue);
+
+    await tester.tap(find.byTooltip('Settings').first);
+    await settle(tester);
+    final setting = find.widgetWithText(SwitchListTile, _title);
+    await tester.scrollUntilVisible(setting, 200);
+    await tester.tap(setting);
+    await tester.pump();
+    expect(app.services.settings.newSinceAway, isFalse);
+
+    await tester.pageBack();
+    await settle(tester);
+    expect(find.text(_title), findsNothing);
+    expect(find.text('Dinner on Friday?'), findsOneWidget);
+  });
+
   testWidgets('on a phone', (tester) async {
     seedAway();
     await show(tester, size: const Size(390, 844));
