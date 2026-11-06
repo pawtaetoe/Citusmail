@@ -42,7 +42,9 @@ void main() {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 400)),
     );
+    // Long enough for the compose screen to slide in.
     await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 400));
   }
 
   Finder field(String hint) => find.widgetWithText(TextField, hint);
@@ -60,9 +62,9 @@ void main() {
     await show(tester);
     await tester.tap(find.byTooltip('New message (C)'));
     await tester.pumpAndSettle();
-    // The window's title (the sidebar also has a "New message" button).
+    // The screen's title (the sidebar also has a "New message" button).
     final window = find.descendant(
-      of: find.byType(Dialog),
+      of: find.byType(ComposePage),
       matching: find.text('New message'),
     );
     expect(window, findsOneWidget);

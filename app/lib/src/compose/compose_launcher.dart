@@ -24,29 +24,14 @@ abstract final class ComposeLauncher {
     Draft draft,
   ) async {
     final controller = ComposeController(services, draft);
-    final wide = MediaQuery.sizeOf(context).width >= 900;
-    final ComposeResult? result;
-    if (wide) {
-      result = await showDialog<ComposeResult>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Dialog(
-          clipBehavior: Clip.antiAlias,
-          insetPadding: const EdgeInsets.all(32),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 820, maxHeight: 760),
-            child: ComposePage(controller: controller),
-          ),
-        ),
-      );
-    } else {
-      result = await Navigator.of(context).push<ComposeResult>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => ComposePage(controller: controller),
-        ),
-      );
-    }
+    // A screen of its own, on phones and desktops alike: room to write,
+    // and the inbox is one Close (or Back) away.
+    final result = await Navigator.of(context).push<ComposeResult>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => ComposePage(controller: controller),
+      ),
+    );
     controller.dispose();
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
