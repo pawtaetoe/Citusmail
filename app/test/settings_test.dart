@@ -222,10 +222,14 @@ void main() {
     );
     await tester.scrollUntilVisible(find.text('Instant mail'), 200);
     expect(find.text('Background checks'), findsNothing);
+    await tester.ensureVisible(find.text('Instant mail'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Instant mail'));
     await tester.pumpAndSettle();
     expect(app.services.settings.instantMail, isFalse);
     expect(find.text('Background checks'), findsOneWidget);
+    await tester.ensureVisible(find.text('Instant mail'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Instant mail'));
     await tester.pumpAndSettle();
     expect(app.services.settings.instantMail, isTrue);

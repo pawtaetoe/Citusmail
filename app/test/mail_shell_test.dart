@@ -222,6 +222,7 @@ void main() {
         'Subscriptions',
         'Deliveries',
         'Trips',
+        'Appointments',
         'Online accounts',
         'Tools',
         'Clean up',
