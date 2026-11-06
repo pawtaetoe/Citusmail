@@ -426,9 +426,9 @@ final class _SettingsPageState extends State<SettingsPage> {
             title: const Text('Bill and trial reminders'),
             subtitle: const Text(
               'A few days before a bill is due, a free trial starts charging, '
-              'a yearly subscription renews or a return window closes, found '
-              'in your mail on this device. Also listed under Subscriptions '
-              'and Deliveries.',
+              'a yearly subscription renews or a return window closes, and '
+              'the day before an appointment. Found in your mail on this '
+              'device.',
             ),
             value: settings.notifications && settings.reminders,
             onChanged: settings.notifications

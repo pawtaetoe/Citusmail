@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'appointments.dart' show AppointmentFinder;
 import 'due_dates.dart';
 import 'returns.dart' show ReturnWindows;
 import 'subscriptions.dart';
@@ -19,10 +20,13 @@ enum ReminderKind {
 
   /// The last day to return an order (see [ReturnWindows]).
   returnBy,
+
+  /// An appointment the next day (see [AppointmentFinder]).
+  appointment,
 }
 
 /// Something coming up that the mail speaks of: a bill due, a free trial
-/// ending, a renewal.
+/// ending, a renewal, a return window closing, an appointment.
 final class Reminder {
   const Reminder({
     required this.kind,
@@ -32,6 +36,7 @@ final class Reminder {
     required this.messageId,
     this.amount,
     this.cadence,
+    this.at,
   });
 
   final ReminderKind kind;
@@ -55,6 +60,10 @@ final class Reminder {
   /// For a trial: how often its price charges ("then S$59.88 a year").
   /// For a renewal: the subscription's.
   final Cadence? cadence;
+
+  /// For an appointment: when it starts, on this device's clock (null for
+  /// a date alone).
+  final DateTime? at;
 
   /// Identifies this reminder (to dismiss it, or to notify once): a new
   /// bill or another date is another reminder.

@@ -7,6 +7,7 @@ import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_view/mail_view.dart';
 
+import '../mail/appointments_model.dart' show localTime;
 import 'booking_text.dart';
 
 /// How appointments read on the Appointments pages. Times are in the
@@ -27,15 +28,7 @@ abstract final class AppointmentWords {
   };
 
   /// [t] on this device's clock.
-  static DateTime local(PlaceTime t) => t.offset == null
-      ? DateTime(
-          t.wall.year,
-          t.wall.month,
-          t.wall.day,
-          t.wall.hour,
-          t.wall.minute,
-        )
-      : t.instant.toLocal();
+  static DateTime local(PlaceTime t) => localTime(t);
 
   /// "3:30 PM" or "15:30", as the device shows times. Empty for a date
   /// alone.

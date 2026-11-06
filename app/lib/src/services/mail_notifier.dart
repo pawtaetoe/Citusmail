@@ -359,7 +359,8 @@ final class MailNotifier {
       'reminders',
       'Bill and trial reminders',
       channelDescription:
-          'Bills due, free trials ending and subscriptions renewing',
+          'Bills due, free trials ending, subscriptions renewing and '
+          'appointments tomorrow',
       category: AndroidNotificationCategory.reminder,
       // The lock screen shows only that there is a notification.
       visibility: NotificationVisibility.private,

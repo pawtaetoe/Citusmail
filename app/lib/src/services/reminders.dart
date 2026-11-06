@@ -5,6 +5,7 @@
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../mail/appointments_model.dart' show appointmentReminders;
 import '../mail/deliveries_model.dart' show openReturnWindows;
 import '../mail/subscriptions_model.dart';
 import '../ui/subscriptions_page.dart' show Prices;
@@ -125,7 +126,18 @@ abstract final class ReminderWords {
       ].join(', '),
       ReminderKind.renewal => 'Renews $on',
       ReminderKind.returnBy => 'Return by $on',
+      ReminderKind.appointment => [
+        on,
+        if (r.at case final at?) clock(at),
+      ].join(', '),
     };
+  }
+
+  /// "3:30 PM".
+  static String clock(DateTime at) {
+    final h = at.hour % 12 == 0 ? 12 : at.hour % 12;
+    return '$h:${at.minute.toString().padLeft(2, '0')} '
+        '${at.hour < 12 ? 'AM' : 'PM'}';
   }
 
   /// What a notification says: "MyRepublic bill of $32.99 is due in 3
@@ -150,6 +162,10 @@ abstract final class ReminderWords {
       ReminderKind.returnBy =>
         'Your ${r.name} order can be returned until ${date(r.date)} '
             '($when)',
+      ReminderKind.appointment => switch (r.at) {
+        final at? => '${r.name}, $when at ${clock(at)}',
+        null => '${r.name}, $when',
+      },
     };
   }
 
@@ -159,6 +175,7 @@ abstract final class ReminderWords {
     ReminderKind.trialEnds => 'Free trial ending',
     ReminderKind.renewal => 'Renewal coming up',
     ReminderKind.returnBy => 'Return window closing',
+    ReminderKind.appointment => 'Appointment tomorrow',
   };
 }
 
@@ -182,12 +199,13 @@ final class ReminderNotice {
 }
 
 /// After a sync: notifications for bills due, free trials ending,
-/// renewals coming up and return windows closing (orders not marked
-/// "Returned" or "Keeping it" on the Deliveries page), from the mail on
-/// the device. Each reminder is
-/// notified at most once per stage (three days before, and on the day for
-/// bills), never once dismissed, only with the notification settings on,
-/// in the daytime, and at most twice a day.
+/// renewals coming up, return windows closing (orders not marked
+/// "Returned" or "Keeping it" on the Deliveries page) and tomorrow's
+/// appointments, from the mail on the device. Each reminder is notified
+/// at most once per stage (three days before, and on the day for bills;
+/// the day before for an appointment, from the morning), never once
+/// dismissed, only with the notification settings on, in the daytime,
+/// and at most twice a day.
 abstract final class ReminderCheck {
   /// At most this often.
   static const every = Duration(hours: 12);
@@ -235,6 +253,7 @@ abstract final class ReminderCheck {
         },
       );
       final returns = await openReturnWindows(store, at);
+      final appointments = await appointmentReminders(store, at);
       final notices = due(
         [
           ...reminders,
@@ -246,6 +265,7 @@ abstract final class ReminderCheck {
               date: w.deadline,
               messageId: w.messageId,
             ),
+          ...appointments,
         ],
         now: at,
         dismissed: state.dismissed,
@@ -284,9 +304,13 @@ abstract final class ReminderCheck {
   ];
 
   /// The stages [r] has reached, the current one first: `today` (a bill
-  /// due today) and `soon` (within [soonDays]).
+  /// due today) and `soon` (within [soonDays]); for an appointment,
+  /// `before` (the day before).
   static List<String> _stages(Reminder r, DateTime now) {
     final days = r.daysFrom(now);
+    if (r.kind == ReminderKind.appointment) {
+      return days == 1 ? const ['before'] : const [];
+    }
     if (days < 0 || days > soonDays) return const [];
     if (r.kind == ReminderKind.billDue && days == 0) {
       return const ['today', 'soon'];

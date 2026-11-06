@@ -87,6 +87,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
         ReminderKind.trialEnds => 'Free trial',
         ReminderKind.renewal => 'Receipt',
         ReminderKind.returnBy => 'Order',
+        ReminderKind.appointment => 'Appointment',
       },
     );
   }
@@ -797,6 +798,7 @@ final class _ReminderTile extends StatelessWidget {
       ReminderKind.trialEnds => (Icons.hourglass_bottom, 'Free trial'),
       ReminderKind.renewal => (Icons.autorenew, 'Renewal'),
       ReminderKind.returnBy => (Icons.keyboard_return, 'Return'),
+      ReminderKind.appointment => (Icons.event_outlined, 'Appointment'),
     };
     final overdue = days < 0;
     return Card(

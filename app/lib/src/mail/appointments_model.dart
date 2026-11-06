@@ -80,6 +80,48 @@ Future<AppointmentsFound> findAppointments(
   );
 }
 
+/// Reminders for tomorrow's appointments (not cancelled, nor marked or
+/// learned "not an appointment"), for a notification the day before.
+Future<List<Reminder>> appointmentReminders(
+  MailStore store,
+  DateTime now,
+) async {
+  final found = await findAppointments(store, now);
+  final left = {...found.hidden, ...found.learned};
+  final today = DueDates.dayOf(now);
+  return [
+    for (final a in found.all)
+      if (!a.cancelled && !left.contains(a.key) && a.endsAt.isAfter(now))
+        if (localTime(a.start) case final at
+            when DateTime.utc(
+                  at.year,
+                  at.month,
+                  at.day,
+                ).difference(today).inDays ==
+                1)
+          Reminder(
+            kind: ReminderKind.appointment,
+            company: a.sender,
+            name: a.title,
+            date: DateTime.utc(at.year, at.month, at.day),
+            messageId: a.latest.email.messageId,
+            at: a.start.hasTime ? at : null,
+          ),
+  ];
+}
+
+/// [t] on this device's clock: an exact moment in the user's time zone,
+/// else the clock time as written.
+DateTime localTime(PlaceTime t) => t.offset == null
+    ? DateTime(
+        t.wall.year,
+        t.wall.month,
+        t.wall.day,
+        t.wall.hour,
+        t.wall.minute,
+      )
+    : t.instant.toLocal();
+
 /// Appointment mail of [candidates] not understood yet ([all] are the
 /// appointments found) and not on the device: its body may say more
 /// than its preview. Small ones only, newsletters aside, at most
