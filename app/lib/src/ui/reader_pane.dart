@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -53,8 +52,10 @@ final class ReaderPane extends StatelessWidget {
   /// screen, within reach of the thumb.
   final bool toolbarAtBottom;
 
-  /// Lines longer than this are hard to read.
-  static const readingWidth = 760.0;
+  /// Side margins of the message: they grow a little with the window, so
+  /// the message uses the width it has (no fixed column).
+  static double sideMargin(double width, {double least = 20}) =>
+      (width * 0.04).clamp(least, 56);
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
@@ -77,10 +78,7 @@ final class ReaderPane extends StatelessWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final side = max(
-                  20.0,
-                  (constraints.maxWidth - readingWidth) / 2,
-                );
+                final side = sideMargin(constraints.maxWidth);
                 final padding = EdgeInsets.symmetric(horizontal: side);
                 final view = reader is ReaderReady ? reader.view : null;
                 final trust = reader is ReaderReady ? reader.trust : null;
@@ -1164,10 +1162,7 @@ final class _ReplyBar extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final side = max(
-            16.0,
-            (constraints.maxWidth - ReaderPane.readingWidth) / 2,
-          );
+          final side = ReaderPane.sideMargin(constraints.maxWidth, least: 16);
           final narrow = constraints.maxWidth < 420;
           Widget button(
             String label,
