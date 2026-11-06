@@ -767,6 +767,31 @@ final class MailController {
   bool isInTrash(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
 
+  bool isInJunk(StoredMessage m) =>
+      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.junk;
+
+  /// "Not spam": back to each account's inbox. Moving mail out of Spam is
+  /// how Gmail and other providers learn it isn't spam.
+  void notSpam(List<StoredMessage> messages) {
+    final byAccount = <int, List<StoredMessage>>{};
+    for (final m in messages) {
+      if (isInJunk(m)) byAccount.putIfAbsent(m.accountId, () => []).add(m);
+    }
+    final moves = [
+      for (final MapEntry(key: accountId, value: group) in byAccount.entries)
+        if (_store.mailboxes.inbox(accountId) case final inbox?)
+          () => services.actions.move(group, inbox),
+    ];
+    if (moves.isEmpty) return;
+    final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
+    _remove(
+      moves,
+      count == 1
+          ? 'Not spam. Moved to Inbox.'
+          : 'Not spam. Moved $count to Inbox.',
+    );
+  }
+
   /// Archives into each account's Archive folder (skipping messages already
   /// there or in accounts without one).
   void archive(List<StoredMessage> messages, {String? done}) {
