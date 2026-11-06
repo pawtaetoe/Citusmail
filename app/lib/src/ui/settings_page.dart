@@ -55,7 +55,8 @@ final class SettingsPage extends StatefulWidget {
 
   final AppServices services;
 
-  /// The mail screen, for pages that act on mail (Clean up).
+  /// The mail screen, refreshed after settings that change what it shows
+  /// (the Screener, mail that came while you were away).
   final MailController? controller;
 
   /// Shows mail matching a search (from the Privacy report's senders).
