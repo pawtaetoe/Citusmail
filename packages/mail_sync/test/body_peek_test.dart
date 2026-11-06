@@ -112,4 +112,91 @@ void main() {
     expect(commands, isNot(contains(contains(' BODY['))));
     expect(commands, isNot(contains(startsWith('UID STORE'))));
   });
+
+  test(
+    'reading ahead has its own connection: opened mail never waits',
+    () async {
+      final account = store.accounts.add(
+        NewAccount(
+          email: 'alice@citusmail.test',
+          username: 'alice@citusmail.test',
+          imap: ServerSettings(
+            host: 'mail.citusmail.test',
+            port: 993,
+            security: ConnectionSecurity.implicitTls,
+          ),
+          smtp: ServerSettings(
+            host: 'mail.citusmail.test',
+            port: 465,
+            security: ConnectionSecurity.implicitTls,
+          ),
+        ),
+      );
+      final inbox = store.mailboxes.replaceAll(account.id, [
+        ImapMailboxInfo(encodedName: 'INBOX', delimiter: '/', attributes: {}),
+      ]).single;
+      store.mailboxes.saveSyncState(
+        inbox.id,
+        const MailboxSyncState(uidValidity: 1, uidNext: 4),
+      );
+      for (var uid = 1; uid <= 3; uid++) {
+        servers.folders['INBOX']!.add(
+          Uint8List.fromList(
+            utf8.encode(
+              'From: Shop <orders@shop.example>\r\n'
+              'Subject: Order $uid\r\n'
+              'Date: Sun, 25 Oct 2026 10:00:00 +0000\r\n'
+              '\r\n'
+              'Order $uid shipped.\r\n',
+            ),
+          ),
+        );
+      }
+      store.messages.upsertSummaries(inbox.id, [
+        for (var uid = 1; uid <= 3; uid++)
+          MessageSummary(
+            uid: uid,
+            receivedAt: DateTime.utc(2026, 10, 25, 10, uid),
+            subject: 'Order $uid',
+            size: 120,
+          ),
+      ]);
+      final counting = _CountingConnector(servers.connector());
+      final engine = SyncEngine(store, counting);
+      addTearDown(engine.dispose);
+      int id(int uid) => store.messages.byUid(inbox.id, uid)!.id;
+
+      await engine.loadBody(id(1), background: true);
+      expect(counting.imapLogins, 1);
+      // Opened by the user: not on the reading-ahead connection.
+      await engine.loadBody(id(2));
+      expect(counting.imapLogins, 2);
+      // Each kind keeps its connection.
+      await engine.loadBody(id(3));
+      expect(counting.imapLogins, 2);
+      for (var uid = 1; uid <= 3; uid++) {
+        expect(store.messages.body(id(uid)), isNotNull);
+      }
+    },
+  );
+}
+
+/// Counts IMAP logins (one per connection opened).
+final class _CountingConnector implements MailConnector {
+  _CountingConnector(this._inner);
+
+  final MailConnector _inner;
+  int imapLogins = 0;
+
+  @override
+  Future<ImapClient> imap(Account account) {
+    imapLogins++;
+    return _inner.imap(account);
+  }
+
+  @override
+  Future<SmtpClient> smtp(Account account) => _inner.smtp(account);
+
+  @override
+  Future<ManageSieveClient> sieve(Account account) => _inner.sieve(account);
 }

@@ -173,6 +173,94 @@ void main() {
     }
   });
 
+  testWidgets('an account folds away even with one of its folders open', (
+    tester,
+  ) async {
+    final bob = store.accounts.add(
+      NewAccount(
+        email: 'bob@citusmail.test',
+        username: 'bob@citusmail.test',
+        imap: ServerSettings(
+          host: 'mail.citusmail.test',
+          port: 993,
+          security: ConnectionSecurity.implicitTls,
+        ),
+        smtp: ServerSettings(
+          host: 'mail.citusmail.test',
+          port: 465,
+          security: ConnectionSecurity.implicitTls,
+        ),
+      ),
+    );
+    store.mailboxes.replaceAll(bob.id, [
+      ImapMailboxInfo(encodedName: 'INBOX', delimiter: '/', attributes: {}),
+    ]);
+    await show(tester, const Size(1400, 900));
+    Finder toggle(String label) => find.byWidgetPredicate(
+      (w) => w is Semantics && w.properties.label == label,
+    );
+
+    // Alice's block: open it, show Projects.
+    await tester.tap(toggle('Show folders').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Archive'), findsOneWidget);
+    await tester.tap(find.text('Projects'));
+    await settle(tester);
+
+    // Folding it away works; the folder being shown stays in sight.
+    await tester.tap(toggle('Hide folders').first);
+    await tester.pumpAndSettle();
+    expect(toggle('Show folders'), findsNWidgets(2));
+    expect(find.text('Archive'), findsNothing);
+    expect(find.text('Projects'), findsWidgets);
+
+    // And it opens again.
+    await tester.tap(toggle('Show folders').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Archive'), findsOneWidget);
+  });
+
+  testWidgets('Not spam moves a message from Spam back to the inbox', (
+    tester,
+  ) async {
+    final account = store.accounts.all().single;
+    final boxes = store.mailboxes.forAccount(account.id);
+    final junk = boxes.firstWhere((b) => b.specialUse == SpecialUse.junk);
+    final inbox = store.mailboxes.inbox(account.id)!;
+    store.messages.upsertSummaries(junk.id, [
+      MessageSummary(
+        uid: 70,
+        receivedAt: DateTime.utc(2026, 11, 6, 15, 38),
+        subject: 'test from my other address',
+        from: MailAddress(localPart: 'me', domain: 'other.example'),
+      ),
+    ]);
+    await show(tester, const Size(1400, 900));
+    await tester.tap(find.text('Spam'));
+    await settle(tester);
+    await tester.tap(find.text('test from my other address'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Not spam'));
+    await settle(tester);
+    expect(find.text('Not spam. Moved to Inbox.'), findsOneWidget);
+    expect(find.text('test from my other address'), findsNothing);
+    // Queued for the server: from Spam to the inbox (how the provider
+    // learns it isn't spam).
+    final moves = store.outbox
+        .all(account.id)
+        .map((e) => e.action)
+        .whereType<MoveAction>();
+    expect(moves.single.mailboxId, junk.id);
+    expect(moves.single.targetMailboxId, inbox.id);
+
+    // Mail outside Spam has no such button.
+    await tester.tap(find.text('Inbox').first);
+    await settle(tester);
+    await tester.tap(find.text('Lunch?').first);
+    await settle(tester);
+    expect(find.byTooltip('Not spam'), findsNothing);
+  });
+
   testWidgets('archive: the next message opens, and Undo brings it back', (
     tester,
   ) async {

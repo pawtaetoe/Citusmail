@@ -74,7 +74,8 @@ final class SyncEngine {
        ),
        _loader = MessageLoader(_store),
        _files = FileLookup(_store),
-       _onDemand = OnDemandConnections(_connector) {
+       _onDemand = OnDemandConnections(_connector),
+       _background = OnDemandConnections(_connector) {
     _synchronizer = AccountSynchronizer(
       _store,
       _connector,
@@ -97,6 +98,11 @@ final class SyncEngine {
   final MessageLoader _loader;
   final FileLookup _files;
   final OnDemandConnections _onDemand;
+
+  /// A second on-demand connection per account for work nobody waits on
+  /// (reading receipts ahead of time), so a message the user opens never
+  /// queues behind it.
+  final OnDemandConnections _background;
   late final AccountSynchronizer _synchronizer;
 
   /// How often every folder is synced while running.
@@ -251,18 +257,20 @@ final class SyncEngine {
   Future<void> dispose() async {
     await stop();
     await _onDemand.closeAll();
+    await _background.closeAll();
     await _events.close();
   }
 
   /// The full message [messageId], downloaded now if it is not stored
   /// yet. Throws [BodyUnavailableException], or a [MailException] when the
-  /// server cannot be reached.
-  Future<Uint8List> loadBody(int messageId) async {
+  /// server cannot be reached. [background] downloads (nobody waiting)
+  /// use their own connection, so they never hold up one the user opened.
+  Future<Uint8List> loadBody(int messageId, {bool background = false}) async {
     final cached = _store.messages.body(messageId);
     if (cached != null) return cached;
     final account = _accountOfMessage(messageId);
     try {
-      return await _onDemand.run(
+      return await (background ? _background : _onDemand).run(
         account,
         (imap) => _loader.load(imap, messageId),
       );
@@ -352,7 +360,10 @@ final class SyncEngine {
 
   /// Forgets the on-demand connection of an account (after it was removed
   /// or its settings changed).
-  Future<void> accountChanged(int accountId) => _onDemand.close(accountId);
+  Future<void> accountChanged(int accountId) async {
+    await _onDemand.close(accountId);
+    await _background.close(accountId);
+  }
 
   Account _accountOfMessage(int messageId) {
     final message = _store.messages.byId(messageId);

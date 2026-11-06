@@ -71,7 +71,7 @@ final class AppServices {
       sender = Sender(store),
       replies = ReplyBuilder(store),
       settings = AppSettings(store),
-      autoRead = AutoReader(store, worker.loadBody);
+      autoRead = AutoReader(store, worker.loadBodyInBackground);
 
   final MailStore store;
   final SecretStore secrets;

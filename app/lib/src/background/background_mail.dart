@@ -243,7 +243,11 @@ abstract final class BackgroundMail {
       await checkWhenDue(store, fromCheck: true);
       // Last, once the news is out: receipts, bills and booking emails for
       // the pages, a few at a time (they stay unread).
-      await readAhead(store, engine.loadBody, newMail: newMail);
+      await readAhead(
+        store,
+        (id) => engine.loadBody(id, background: true),
+        newMail: newMail,
+      );
       recordCheck(store, ok: allOk);
       return allOk;
     } on Object {
