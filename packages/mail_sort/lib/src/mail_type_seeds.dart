@@ -21,6 +21,7 @@ abstract final class MailTypeSeeds {
   static const _d = {MailKind.delivery};
   static const _b = {MailKind.booking};
   static const _a = {MailKind.account};
+  static const _p = {MailKind.appointment};
   static const _none = <MailKind>{};
 
   static const all = [
@@ -196,6 +197,41 @@ abstract final class MailTypeSeeds {
         text:
             'Table for 4 at Olive & Vine on Sat 18 May at 7:30pm. '
             'Reservation number 99812. Need to change? Manage booking.',
+      ),
+    ),
+    // Appointments: a dentist, a salon, a car service.
+    MailTypeSeed(
+      _p,
+      MailSample(
+        address: 'appointments@brightsmile.example',
+        senderName: 'Bright Smile Dental',
+        subject: 'Your appointment is confirmed',
+        text:
+            'This is to confirm your appointment with Dr Lim on Tue 12 Nov '
+            'at 3:30 PM. Treatment: scale and polish. To reschedule or '
+            'cancel, call us at least 24 hours before.',
+      ),
+    ),
+    MailTypeSeed(
+      _p,
+      MailSample(
+        address: 'no-reply@salonbook.example',
+        senderName: 'SalonBook',
+        subject: 'Booking confirmed: Haircut at Studio Nine',
+        text:
+            'You are booked! Sat 16 Nov at 11:00, Haircut and blow dry '
+            'with Mia. Booking ref A7K2Q9. Manage appointment.',
+      ),
+    ),
+    MailTypeSeed(
+      _p,
+      MailSample(
+        address: 'service@northgarage.example',
+        senderName: 'North Garage',
+        subject: 'Reminder: your car service is tomorrow',
+        text:
+            'Your vehicle is booked in for a full service tomorrow at '
+            '08:30. Please drop off your keys at reception.',
       ),
     ),
     // Accounts: welcome, sign-in and password mail.
