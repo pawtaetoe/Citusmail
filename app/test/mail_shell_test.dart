@@ -7,6 +7,9 @@ import 'package:citusmail/src/services/app_services.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/message_tile.dart';
+import 'package:citusmail/src/ui/privacy_report_page.dart';
+import 'package:citusmail/src/ui/sender_cleanup_page.dart';
+import 'package:citusmail/src/ui/sidebar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,6 +59,61 @@ void main() {
 
   double top(WidgetTester tester, String text) =>
       tester.getTopLeft(find.text(text).first).dy;
+
+  Finder inSidebar(String text) =>
+      find.descendant(of: find.byType(Sidebar), matching: find.text(text));
+
+  /// A folding header in the sidebar, by what screen readers hear.
+  Finder fold(String label) => find.byWidgetPredicate(
+    (w) => w is Semantics && w.properties.label == label,
+  );
+
+  /// The count shown on a folding header.
+  Finder countOn(String header, int count) =>
+      find.descendant(of: fold(header), matching: find.text('$count'));
+
+  /// A second account, with an inbox (and [unread] unread messages in it)
+  /// and a folder of its own.
+  Account addBob({int unread = 0}) {
+    final bob = store.accounts.add(
+      NewAccount(
+        email: 'bob@citusmail.test',
+        username: 'bob@citusmail.test',
+        imap: ServerSettings(
+          host: 'mail.citusmail.test',
+          port: 993,
+          security: ConnectionSecurity.implicitTls,
+        ),
+        smtp: ServerSettings(
+          host: 'mail.citusmail.test',
+          port: 465,
+          security: ConnectionSecurity.implicitTls,
+        ),
+      ),
+    );
+    final boxes = store.mailboxes.replaceAll(bob.id, [
+      ImapMailboxInfo(
+        encodedName: 'INBOX',
+        delimiter: '/',
+        attributes: const {},
+      ),
+      ImapMailboxInfo(
+        encodedName: 'Bob Projects',
+        delimiter: '/',
+        attributes: const {},
+      ),
+    ]);
+    store.messages.upsertSummaries(boxes.firstWhere((b) => b.isInbox).id, [
+      for (var i = 0; i < unread; i++)
+        MessageSummary(
+          uid: 500 + i,
+          receivedAt: DateTime.utc(2026, 11, 1, 9, i),
+          subject: 'For Bob ${i + 1}',
+          from: MailAddress(localPart: 'school', domain: 'district.example'),
+        ),
+    ]);
+    return bob;
+  }
 
   testWidgets('wide: sidebar, Smart Inbox accordion, reader', (tester) async {
     await show(tester, const Size(1400, 900));
@@ -134,7 +192,7 @@ void main() {
     expect(top(tester, 'Hello there') < top(tester, 'Important'), isTrue);
   });
 
-  testWidgets('sidebar: mail places, then what was found in your mail', (
+  testWidgets('sidebar: mail places, accounts, then the feature groups', (
     tester,
   ) async {
     for (final (size, drawer) in [
@@ -146,14 +204,28 @@ void main() {
         await tester.tap(find.byTooltip('Folders'));
         await tester.pumpAndSettle();
       }
+      // The groups start folded.
+      for (final page in ['Subscriptions', 'Clean up', 'Privacy report']) {
+        expect(find.text(page), findsNothing, reason: page);
+      }
+      await tester.tap(fold('Show Found in your mail'));
+      await tester.pumpAndSettle();
+      await tester.tap(fold('Show Tools'));
+      await tester.pumpAndSettle();
       final order = [
         'Inbox',
         'Pins',
+        'alice@citusmail.test',
+        'Sent',
+        'Projects',
         'Found in your mail',
         'Subscriptions',
         'Deliveries',
         'Trips',
         'Online accounts',
+        'Tools',
+        'Clean up',
+        'Privacy report',
       ];
       for (final label in order) {
         expect(find.text(label), findsWidgets, reason: label);
@@ -166,11 +238,81 @@ void main() {
           reason: '${order[i - 1]} above ${order[i]}',
         );
       }
-      // Moved to Settings, and to search (Files).
-      for (final gone in ['Clean up', 'Privacy report', 'Attachments']) {
-        expect(find.text(gone), findsNothing, reason: gone);
-      }
+      // In search (Files) now.
+      expect(find.text('Attachments'), findsNothing);
+      // Fold them again for the next size.
+      await tester.tap(fold('Hide Found in your mail'));
+      await tester.pumpAndSettle();
+      await tester.tap(fold('Hide Tools'));
+      await tester.pumpAndSettle();
     }
+  });
+
+  testWidgets('an account folds away even with one of its folders open', (
+    tester,
+  ) async {
+    addBob();
+    await show(tester, const Size(1400, 900));
+
+    // Alice's block: open it, show Projects.
+    await tester.tap(fold('Show folders of alice@citusmail.test'));
+    await tester.pumpAndSettle();
+    expect(find.text('Archive'), findsOneWidget);
+    await tester.tap(find.text('Projects'));
+    await settle(tester);
+
+    // Folding it away works; the folder being shown stays in sight.
+    await tester.tap(fold('Hide folders of alice@citusmail.test'));
+    await tester.pumpAndSettle();
+    expect(fold('Show folders of alice@citusmail.test'), findsOneWidget);
+    expect(find.text('Archive'), findsNothing);
+    expect(find.text('Projects'), findsWidgets);
+
+    // And it opens again.
+    await tester.tap(fold('Show folders of alice@citusmail.test'));
+    await tester.pumpAndSettle();
+    expect(find.text('Archive'), findsOneWidget);
+  });
+
+  testWidgets('Not spam moves a message from Spam back to the inbox', (
+    tester,
+  ) async {
+    final account = store.accounts.all().single;
+    final boxes = store.mailboxes.forAccount(account.id);
+    final junk = boxes.firstWhere((b) => b.specialUse == SpecialUse.junk);
+    final inbox = store.mailboxes.inbox(account.id)!;
+    store.messages.upsertSummaries(junk.id, [
+      MessageSummary(
+        uid: 70,
+        receivedAt: DateTime.utc(2026, 11, 6, 15, 38),
+        subject: 'test from my other address',
+        from: MailAddress(localPart: 'me', domain: 'other.example'),
+      ),
+    ]);
+    await show(tester, const Size(1400, 900));
+    await tester.tap(find.text('Spam'));
+    await settle(tester);
+    await tester.tap(find.text('test from my other address'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Not spam'));
+    await settle(tester);
+    expect(find.text('Not spam. Moved to Inbox.'), findsOneWidget);
+    expect(find.text('test from my other address'), findsNothing);
+    // Queued for the server: from Spam to the inbox (how the provider
+    // learns it isn't spam).
+    final moves = store.outbox
+        .all(account.id)
+        .map((e) => e.action)
+        .whereType<MoveAction>();
+    expect(moves.single.mailboxId, junk.id);
+    expect(moves.single.targetMailboxId, inbox.id);
+
+    // Mail outside Spam has no such button.
+    await tester.tap(find.text('Inbox').first);
+    await settle(tester);
+    await tester.tap(find.text('Lunch?').first);
+    await settle(tester);
+    expect(find.byTooltip('Not spam'), findsNothing);
   });
 
   testWidgets('archive: the next message opens, and Undo brings it back', (
@@ -464,50 +606,169 @@ void main() {
   });
 
   testWidgets('several accounts: each folds away, remembered', (tester) async {
-    final bob = store.accounts.add(
-      NewAccount(
-        email: 'bob@citusmail.test',
-        username: 'bob@citusmail.test',
-        imap: ServerSettings(
-          host: 'mail.citusmail.test',
-          port: 993,
-          security: ConnectionSecurity.implicitTls,
-        ),
-        smtp: ServerSettings(
-          host: 'mail.citusmail.test',
-          port: 465,
-          security: ConnectionSecurity.implicitTls,
-        ),
-      ),
-    );
-    store.mailboxes.replaceAll(bob.id, [
-      ImapMailboxInfo(
-        encodedName: 'INBOX',
-        delimiter: '/',
-        attributes: const {},
-      ),
-      ImapMailboxInfo(
-        encodedName: 'Bob Projects',
-        delimiter: '/',
-        attributes: const {},
-      ),
-    ]);
+    final bob = addBob(unread: 3);
+    final alice = store.accounts.all().first;
     await show(tester, const Size(1400, 900));
 
-    // Folded: each account's header, no folders.
+    // Folded: a heading, each account's header with its unread count, no
+    // folders.
+    expect(find.text('Accounts'), findsOneWidget);
     expect(find.text('alice@citusmail.test'), findsWidgets);
     expect(find.text('bob@citusmail.test'), findsWidgets);
     expect(find.text('Bob Projects'), findsNothing);
     expect(find.text('Archive'), findsNothing);
+    final controller = MailController(services);
+    addTearDown(controller.dispose);
+    final aliceUnread = controller.counts.value.perAccountUnread[alice.id]!;
+    expect(aliceUnread, greaterThan(0));
+    expect(countOn('Show folders of bob@citusmail.test', 3), findsOneWidget);
+    expect(
+      countOn('Show folders of alice@citusmail.test', aliceUnread),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<Semantics>(fold('Show folders of bob@citusmail.test'))
+          .properties
+          .value,
+      '3 unread',
+    );
     // One status line instead of a row per account.
     expect(find.text('Up to date'), findsNothing);
+    // The top Inbox is every account's, as one Smart Inbox.
+    expect(inSidebar('Inbox'), findsOneWidget);
 
-    // Open Bob's block: his folders, not Alice's.
+    // Open Bob's block: his inbox (its count moves there) and folders, not
+    // Alice's.
     await tester.tap(find.text('bob@citusmail.test').last);
     await tester.pumpAndSettle();
     expect(find.text('Bob Projects'), findsOneWidget);
     expect(find.text('Archive'), findsNothing);
+    expect(inSidebar('Inbox'), findsNWidgets(2));
+    expect(countOn('Hide folders of bob@citusmail.test', 3), findsNothing);
     expect(store.settings.read('ui.openAccounts'), '${bob.id}');
+
+    // Bob's Inbox is his Smart Inbox alone.
+    await tester.tap(inSidebar('Inbox').last);
+    await settle(tester);
+    expect(find.text('For Bob 1'), findsOneWidget);
+    expect(find.text('Lunch?'), findsNothing);
+
+    // Remembered on the next start; folded, his inbox, being shown, stays
+    // in sight.
+    await show(tester, const Size(1400, 900));
+    expect(find.text('Bob Projects'), findsOneWidget);
+    await tester.tap(fold('Hide folders of bob@citusmail.test'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bob Projects'), findsNothing);
+    expect(store.settings.read('ui.openAccounts'), '');
+  });
+
+  testWidgets('one account: its folders under its address, nothing folds', (
+    tester,
+  ) async {
+    await show(tester, const Size(1400, 900));
+    // No "Accounts" heading, no second Inbox, no fold on the account.
+    expect(find.text('Accounts'), findsNothing);
+    expect(inSidebar('Inbox'), findsOneWidget);
+    expect(find.text('alice@citusmail.test'), findsOneWidget);
+    expect(fold('Show folders of alice@citusmail.test'), findsNothing);
+    expect(fold('Hide folders of alice@citusmail.test'), findsNothing);
+    for (final folder in ['Sent', 'Drafts', 'Archive', 'Spam', 'Projects']) {
+      expect(find.text(folder), findsOneWidget, reason: folder);
+    }
+    // Its menu is there.
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    expect(find.text('New folder'), findsOneWidget);
+    expect(find.text('Update password'), findsOneWidget);
+    expect(find.text('Remove account'), findsOneWidget);
+  });
+
+  testWidgets('feature groups: folded at first, open, remembered', (
+    tester,
+  ) async {
+    await show(tester, const Size(1400, 900));
+    expect(fold('Show Found in your mail'), findsOneWidget);
+    expect(fold('Show Tools'), findsOneWidget);
+    expect(find.text('Subscriptions'), findsNothing);
+    expect(find.text('Clean up'), findsNothing);
+
+    // Open Tools only.
+    await tester.tap(find.text('Tools'));
+    await tester.pumpAndSettle();
+    expect(find.text('Clean up'), findsOneWidget);
+    expect(find.text('Privacy report'), findsOneWidget);
+    expect(find.text('Subscriptions'), findsNothing);
+    expect(
+      tester.widget<Semantics>(fold('Hide Tools')).properties.expanded,
+      isTrue,
+    );
+    expect(store.settings.read('ui.openSidebarGroups'), 'tools');
+
+    // Remembered on the next start.
+    await show(tester, const Size(1400, 900));
+    expect(find.text('Clean up'), findsOneWidget);
+    expect(find.text('Subscriptions'), findsNothing);
+
+    // Keyboard: Enter and Space open and fold the focused header.
+    final inHeader = find
+        .descendant(
+          of: fold('Show Found in your mail'),
+          matching: find.byType(Row),
+        )
+        .first;
+    Focus.of(tester.element(inHeader)).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('Subscriptions'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pumpAndSettle();
+    expect(find.text('Subscriptions'), findsNothing);
+    // Enter worked the header, not the mail shortcut (open a message).
+    expect(find.text('Select a message to read it'), findsOneWidget);
+  });
+
+  testWidgets('Tools: Clean up and the Privacy report open from the sidebar', (
+    tester,
+  ) async {
+    for (final (size, drawer) in [
+      (const Size(1400, 900), false),
+      (const Size(400, 860), true),
+    ]) {
+      await show(tester, size);
+      Future<void> openTools() async {
+        if (drawer) {
+          await tester.tap(find.byTooltip('Folders'));
+          await tester.pumpAndSettle();
+        }
+        if (find.text('Clean up').evaluate().isEmpty) {
+          await tester.tap(find.text('Tools'));
+          await tester.pumpAndSettle();
+        }
+      }
+
+      // The pages count in the background; only the way there matters.
+      Future<void> open() async {
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+
+      await openTools();
+      await tester.tap(find.text('Clean up'));
+      await open();
+      expect(find.byType(SenderCleanupPage), findsOneWidget);
+      await tester.pageBack();
+      await open();
+
+      await openTools();
+      await tester.tap(find.text('Privacy report'));
+      await open();
+      expect(find.byType(PrivacyReportPage), findsOneWidget);
+      await tester.pageBack();
+      await open();
+    }
   });
 
   testWidgets('thousands of messages: only what is on screen is built', (

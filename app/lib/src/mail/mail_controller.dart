@@ -15,6 +15,7 @@ import 'package:mail_view/mail_view.dart';
 
 import '../background/background_mail.dart';
 import '../services/app_services.dart';
+import 'follow_up_times.dart';
 import 'invitation_answers.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
@@ -767,6 +768,31 @@ final class MailController {
   bool isInTrash(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
 
+  bool isInJunk(StoredMessage m) =>
+      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.junk;
+
+  /// "Not spam": back to each account's inbox. Moving mail out of Spam is
+  /// how Gmail and other providers learn it isn't spam.
+  void notSpam(List<StoredMessage> messages) {
+    final byAccount = <int, List<StoredMessage>>{};
+    for (final m in messages) {
+      if (isInJunk(m)) byAccount.putIfAbsent(m.accountId, () => []).add(m);
+    }
+    final moves = [
+      for (final MapEntry(key: accountId, value: group) in byAccount.entries)
+        if (_store.mailboxes.inbox(accountId) case final inbox?)
+          () => services.actions.move(group, inbox),
+    ];
+    if (moves.isEmpty) return;
+    final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
+    _remove(
+      moves,
+      count == 1
+          ? 'Not spam. Moved to Inbox.'
+          : 'Not spam. Moved $count to Inbox.',
+    );
+  }
+
   /// Archives into each account's Archive folder (skipping messages already
   /// there or in accounts without one).
   void archive(List<StoredMessage> messages, {String? done}) {
@@ -1143,7 +1169,9 @@ final class MailController {
   void checkFollowUps([DateTime? now]) {
     if (_disposed) return;
     try {
-      final result = followUps.check(now: now);
+      final result = followUps.check(
+        now: (now ?? FollowUpTimes.clock()).toUtc(),
+      );
       if (!result.isEmpty) refresh();
       if (result.returned.isNotEmpty) onFollowUpsBack?.call();
     } on Object catch (e) {

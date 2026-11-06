@@ -316,6 +316,12 @@ final class _Toolbar extends StatelessWidget {
     // Grouped by what they do: where it goes, how it's marked, the sender.
     // Replying is in the bar under the message.
     final actions = <_Action>[
+      if (controller.isInJunk(message))
+        _Action(
+          'Not spam',
+          Icons.report_off_outlined,
+          () => controller.notSpam([message]),
+        ),
       if (archive != null && archive.id != message.mailboxId)
         _Action(
           'Archive (E)',

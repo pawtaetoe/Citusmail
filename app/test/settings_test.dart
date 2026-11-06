@@ -6,7 +6,6 @@ import 'package:citusmail/src/background/background_mail.dart';
 import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
-import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,7 +20,7 @@ void main() {
   setUp(() async => app = await TestApp.create());
   tearDown(() => app.dispose());
 
-  testWidgets('Your mail: Clean up and the Privacy report open from here', (
+  testWidgets('Clean up and the Privacy report are in the sidebar, not here', (
     tester,
   ) async {
     final controller = MailController(app.services);
@@ -36,28 +35,21 @@ void main() {
         ),
       ),
     );
-    // First on the page, easy to find.
-    expect(find.text('Your mail'), findsOneWidget);
+    // Settings starts with settings (the sidebar's Tools has the pages).
+    expect(find.text('Your mail'), findsNothing);
+    expect(find.text('Clean up senders'), findsNothing);
+    expect(find.text('Privacy report'), findsNothing);
     expect(
-      tester.getTopLeft(find.text('Your mail')).dy <
-          tester.getTopLeft(find.text('Notifications')).dy,
+      tester.getTopLeft(find.text('Notifications')).dy <
+          tester.getTopLeft(find.text('New mail notifications')).dy,
       isTrue,
     );
 
-    // The pages count in the background; only the way there matters here.
-    Future<void> open() async {
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-    }
-
-    await tester.tap(find.text('Clean up senders'));
-    await open();
-    expect(find.byType(SenderCleanupPage), findsOneWidget);
-    await tester.pageBack();
-    await open();
-
-    await tester.tap(find.text('Privacy report'));
-    await open();
+    // About, Privacy still opens the report.
+    await tester.scrollUntilVisible(find.text('Privacy'), 200);
+    await tester.tap(find.text('Privacy'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(PrivacyReportPage), findsOneWidget);
   });
 

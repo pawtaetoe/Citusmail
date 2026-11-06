@@ -41,6 +41,9 @@ void main() {
       ),
     );
     await tester.pump();
+    // In the sidebar's "Found in your mail" group, folded at first.
+    await tester.tap(find.text('Found in your mail'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Deliveries'));
     await tester.pump();
     await settle(tester);

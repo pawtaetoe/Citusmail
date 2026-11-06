@@ -137,6 +137,12 @@ final class SyncWorker {
   /// [BodyUnavailableException] or [SyncWorkerException].
   Future<void> loadBody(int messageId) => _request(_LoadBody(messageId));
 
+  /// Downloads a message body nobody is waiting for (reading receipts
+  /// ahead of time), on its own connection: messages the user opens never
+  /// wait behind it.
+  Future<void> loadBodyInBackground(int messageId) =>
+      _request(_LoadBody(messageId, background: true));
+
   /// Looks up which files messages have, without downloading them (see
   /// [SyncEngine.lookUpFiles]). Throws [SyncWorkerException].
   Future<void> lookUpFiles(List<int> messageIds) =>
@@ -344,8 +350,8 @@ Future<void> _workerMain(_Boot boot) async {
         engine.reconnect();
       case _SyncAt(:final accountId, :final at):
         engine.syncAt(accountId, at);
-      case _LoadBody(:final messageId):
-        await engine.loadBody(messageId);
+      case _LoadBody(:final messageId, :final background):
+        await engine.loadBody(messageId, background: background);
       case _LookUpFiles(:final messageIds):
         await engine.lookUpFiles(messageIds);
       case _FetchOlder(:final mailboxId, :final count):
@@ -571,9 +577,10 @@ final class _SyncAt extends _Command {
 }
 
 final class _LoadBody extends _Command {
-  const _LoadBody(this.messageId);
+  const _LoadBody(this.messageId, {this.background = false});
 
   final int messageId;
+  final bool background;
 }
 
 final class _LookUpFiles extends _Command {
