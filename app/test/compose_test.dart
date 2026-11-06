@@ -5,6 +5,7 @@
 import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_compose/mail_compose.dart';
@@ -55,6 +56,43 @@ void main() {
         matching: find.byType(TextField),
       )
       .first;
+
+  testWidgets(
+    'clicking a suggested address adds it',
+    variant: TargetPlatformVariant(const {
+      TargetPlatform.android,
+      TargetPlatform.linux,
+    }),
+    (tester) async {
+      await show(tester);
+      await tester.tap(find.byTooltip('New message (C)'));
+      await settle(tester);
+      await tester.enterText(toField(), 'car');
+      await tester.pump();
+      final suggestion = find.text('carol@x.example');
+      expect(suggestion, findsOneWidget);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(suggestion));
+      await mouse.down(tester.getCenter(suggestion));
+      await tester.pump();
+      // A touchpad click moves a little.
+      await mouse.moveBy(const Offset(2, 1));
+      await mouse.up();
+      await settle(tester);
+      expect(find.text('Not an email address'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(InputChip),
+          matching: find.text('Carol'),
+        ),
+        findsOneWidget,
+        reason: 'the picked address became a chip',
+      );
+      expect(tester.widget<TextField>(toField()).controller?.text, isEmpty);
+      // Lets the draft's autosave run.
+      await tester.pump(const Duration(seconds: 10));
+    },
+  );
 
   testWidgets('write and send a new message, then undo it', (tester) async {
     await show(tester);
