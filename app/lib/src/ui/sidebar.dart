@@ -227,7 +227,10 @@ final class Sidebar extends StatelessWidget {
                               selected: here == const FollowUpsLocation(),
                               onTap: () => go(const FollowUpsLocation()),
                             ),
-                          if (several) const _SectionHeading('Accounts'),
+                          if (several)
+                            const _SectionHeading('Accounts')
+                          else
+                            const SizedBox(height: 8),
                           // One block per account: its inbox and folders.
                           // With several accounts each one folds away
                           // (remembered), showing its unread count.

@@ -473,6 +473,35 @@ void main() {
     });
   }
 
+  // The sidebar with two accounts: folded, with their unread counts;
+  // then one account and both feature groups open; the phone drawer.
+  for (final dark in [false, true]) {
+    final suffix = dark ? '_dark' : '';
+    testWidgets('sidebar accounts$suffix', (tester) async {
+      _seedSecondAccount(app.store);
+      Finder fold(String label) => find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.label == label,
+      );
+      await show(tester, shell(), size: const Size(1440, 900), dark: dark);
+      await shoot(tester, 'desktop_sidebar_folded$suffix');
+      for (final label in [
+        'Show folders of alice@citusmail.test',
+        'Show Found in your mail',
+        'Show Tools',
+      ]) {
+        await tester.tap(fold(label));
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Projects'));
+      await shoot(tester, 'desktop_sidebar_open$suffix');
+
+      await show(tester, shell(), size: const Size(390, 844), dark: dark);
+      await tester.tap(find.byTooltip('Folders'));
+      await tester.pumpAndSettle();
+      await shoot(tester, 'phone_drawer$suffix');
+    });
+  }
+
   // Meeting invitations (samples in test-data/invites).
   testWidgets('invitation', (tester) async {
     app.seedFixture(
@@ -1177,6 +1206,54 @@ void _seedSenders(MailStore store) {
             if (unsub) 'list-unsubscribe': ['<https://$domain/unsubscribe>'],
           },
         ),
+  ]);
+}
+
+/// A second account with a long address and some unread mail.
+void _seedSecondAccount(MailStore store) {
+  final account = store.accounts.add(
+    NewAccount(
+      email: 'robert.household-accounts@citusmail.test',
+      username: 'robert.household-accounts@citusmail.test',
+      imap: ServerSettings(
+        host: 'mail.citusmail.test',
+        port: 993,
+        security: ConnectionSecurity.implicitTls,
+      ),
+      smtp: ServerSettings(
+        host: 'mail.citusmail.test',
+        port: 465,
+        security: ConnectionSecurity.implicitTls,
+      ),
+    ),
+  );
+  final boxes = store.mailboxes.replaceAll(account.id, [
+    ImapMailboxInfo(encodedName: 'INBOX', delimiter: '/', attributes: const {}),
+    ImapMailboxInfo(
+      encodedName: 'Sent',
+      delimiter: '/',
+      attributes: const {r'\Sent'},
+    ),
+    ImapMailboxInfo(
+      encodedName: 'Trash',
+      delimiter: '/',
+      attributes: const {r'\Trash'},
+    ),
+  ]);
+  final inbox = boxes.firstWhere((b) => b.isInbox);
+  final now = DateTime.now().toUtc();
+  store.messages.upsertSummaries(inbox.id, [
+    for (var i = 0; i < 33; i++)
+      MessageSummary(
+        uid: 900 + i,
+        receivedAt: now.subtract(Duration(hours: 3 + i * 7)),
+        subject: 'Household note ${i + 1}',
+        from: MailAddress(
+          localPart: 'school',
+          domain: 'district.example',
+          displayName: 'School District',
+        ),
+      ),
   ]);
 }
 
