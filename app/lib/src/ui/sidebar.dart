@@ -288,9 +288,6 @@ final class Sidebar extends StatelessWidget {
                             account: account,
                             store: store,
                             collapsible: accounts.length > 1,
-                            holdsSelection:
-                                here is FolderLocation &&
-                                here.accountId == account.id,
                             event: controller.lastEvent(account.id),
                             onNewFolder: () => NewFolderDialog.show(
                               context,
@@ -559,7 +556,6 @@ final class _AccountBlock extends StatefulWidget {
     required this.account,
     required this.store,
     required this.collapsible,
-    required this.holdsSelection,
     required this.event,
     required this.folders,
     required this.onNewFolder,
@@ -571,8 +567,6 @@ final class _AccountBlock extends StatefulWidget {
   final MailStore store;
   final bool collapsible;
 
-  /// One of its folders is being shown.
-  final bool holdsSelection;
   final SyncEvent? event;
   final List<Widget> folders;
   final VoidCallback onNewFolder;
@@ -607,7 +601,7 @@ final class _AccountBlockState extends State<_AccountBlock> {
   Widget build(BuildContext context) {
     final colors = SidebarColors.of(context);
     final account = widget.account;
-    final open = !widget.collapsible || _open || widget.holdsSelection;
+    final open = !widget.collapsible || _open;
     final (status, problem) = _statusOf(account, widget.event);
     final name = account.displayName ?? account.email;
 
@@ -702,12 +696,17 @@ final class _AccountBlockState extends State<_AccountBlock> {
         AnimatedSize(
           duration: const Duration(milliseconds: 160),
           alignment: Alignment.topCenter,
-          child: open
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: widget.folders,
-                )
-              : const SizedBox(width: double.infinity),
+          // Folded away, the folder being shown stays, so it's clear where
+          // the list comes from.
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: open
+                ? widget.folders
+                : [
+                    for (final folder in widget.folders)
+                      if (folder is _Entry && folder.selected) folder,
+                  ],
+          ),
         ),
       ],
     );
