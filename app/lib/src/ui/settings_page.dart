@@ -24,7 +24,6 @@ import 'image_senders_page.dart';
 import 'link_opener.dart';
 import 'privacy_report_page.dart';
 import 'screener_page.dart';
-import 'sender_cleanup_page.dart';
 
 /// One account's server rules, in words.
 String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
@@ -361,31 +360,6 @@ final class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
-          // Pages about your mail, kept here so the sidebar stays short.
-          const _Group('Your mail'),
-          if (widget.controller case final controller?)
-            ListTile(
-              leading: const Icon(Icons.cleaning_services_outlined),
-              title: const Text('Clean up senders'),
-              subtitle: const Text(
-                'Senders you rarely open, and how to stop their mail',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SenderCleanupPage(controller: controller),
-                ),
-              ),
-            ),
-          ListTile(
-            leading: const Icon(Icons.shield_outlined),
-            title: const Text('Privacy report'),
-            subtitle: const Text(
-              'Trackers, remote images and read receipts $appName blocked',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _openPrivacyReport,
-          ),
           const _Group('Notifications'),
           SwitchListTile(
             title: const Text('New mail notifications'),

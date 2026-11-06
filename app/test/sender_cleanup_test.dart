@@ -90,9 +90,10 @@ void main() {
       await tester.tap(find.byTooltip('Folders'));
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.byTooltip('Settings'));
+    // In the sidebar's Tools, folded at first.
+    await tester.tap(find.text('Tools'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Clean up senders'));
+    await tester.tap(find.text('Clean up'));
     await tester.pump();
     await settle(tester);
     await tester.pumpAndSettle();
