@@ -67,6 +67,23 @@ abstract final class SectionSql {
       'AND EXISTS (SELECT 1 FROM mailboxes ib WHERE ib.id = messages.mailbox_id '
       "AND upper(ib.encoded_name) = 'INBOX'))";
 
+  // ------------------------------------------------------ Read receipts
+
+  /// A read receipt (RFC 8098 report, known by its stored Content-Type).
+  /// It is sorted as a notification but left out of the Smart Inbox's
+  /// [receiptFreeSections], so it is never listed there or announced: it
+  /// shows on the sent message it is about instead. It stays in the Inbox
+  /// folder and in search. Refers to the row as [alias].
+  static String readReceipt(String alias) =>
+      "($alias.category = 'notifications' AND EXISTS (SELECT 1 FROM message_headers rh "
+      "WHERE rh.message_id = $alias.id AND rh.name = 'content-type' "
+      "AND lower(rh.value) LIKE '%multipart/report%' "
+      "AND lower(rh.value) LIKE '%disposition-notification%'))";
+
+  /// The sections read receipts would otherwise be in (pinned or snoozed
+  /// ones stay where the user put them).
+  static const receiptFreeSections = {'notifications', 'screener'};
+
   // ----------------------------------------------------------- Screener
 
   /// When the Screener was turned on (milliseconds since the epoch), or

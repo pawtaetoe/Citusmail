@@ -167,6 +167,77 @@ void main() {
     });
   });
 
+  group('read receipts', () {
+    ClassificationInput mail(String from, String subject, String contentType) {
+      final at = from.lastIndexOf('@');
+      return ClassificationInput(
+        from: MailAddress(
+          localPart: from.substring(0, at),
+          domain: from.substring(at + 1),
+        ),
+        subject: subject,
+        headers: {
+          'content-type': [contentType],
+        },
+      );
+    }
+
+    test('as Gmail, Outlook and Thunderbird send them', () {
+      for (final receipt in [
+        mail(
+          'ana@northwind.example',
+          'Read: Quarterly plans',
+          'multipart/report; report-type=disposition-notification; '
+              'boundary="000000000000a1b2c3d4e5f6"',
+        ),
+        mail(
+          'ben@contoso.example',
+          'Read: Quarterly plans',
+          'multipart/report; report-type=disposition-notification;\r\n'
+              '\tboundary="_000_AM0PR10MB31234A1B2C3D4E5F6_"',
+        ),
+        mail(
+          'chloe@fastmail.example',
+          'Return Receipt (displayed) - Trip to Lisbon',
+          'multipart/report; report-type="disposition-notification"; '
+              'boundary="------------A1B2C3D4E5F6A7B8C9D0E1F2"',
+        ),
+      ]) {
+        expect(
+          classifier.classify(receipt),
+          sortedAs(MessageCategory.notifications, SortingReason.readReceipt),
+          reason: receipt.subject,
+        );
+      }
+    });
+
+    test('"Read:" in the subject alone is not a receipt', () {
+      expect(
+        classifier.classify(
+          mail(
+            'lena@bookclub.example',
+            'Read: The Midnight Library - notes for Thursday',
+            'text/plain; charset=utf-8',
+          ),
+        ),
+        sortedAs(MessageCategory.general, SortingReason.noSignal),
+      );
+      // A bounce is a report too, but about delivery.
+      expect(
+        classifier
+            .classify(
+              mail(
+                'mailer-daemon@mx.example',
+                'Undelivered Mail Returned to Sender',
+                'multipart/report; report-type=delivery-status; boundary="b"',
+              ),
+            )
+            .reason,
+        isNot(SortingReason.readReceipt),
+      );
+    });
+  });
+
   group('rule order', () {
     test(
       'a known service wins over list headers and one-click unsubscribe',

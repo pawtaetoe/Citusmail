@@ -84,7 +84,10 @@ final class AutoReplyRule implements SortingRule {
 }
 
 /// A read receipt (RFC 8098 report) is a notification about the user's
-/// own mail, not a message from a person.
+/// own mail, not a message from a person. Only its Content-Type counts: a
+/// subject such as "Read: …" proves nothing. The store keeps receipts out
+/// of the Smart Inbox (`SectionSql.readReceipt`); they show on the sent
+/// message instead.
 final class ReadReceiptRule implements SortingRule {
   const ReadReceiptRule();
 

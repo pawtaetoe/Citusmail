@@ -14,14 +14,18 @@ final class DispositionNotification {
   });
 
   /// The Message-ID of the message it reports on, without brackets.
-  final String originalMessageId;
+  /// Optional in RFC 8098 and left out by some mail apps: then the
+  /// report's `In-Reply-To` / `References` name the message.
+  final String? originalMessageId;
 
   /// The address the report is about, lower case.
   final String finalRecipient;
 
-  /// `displayed`, `deleted`, `dispatched` or `processed`.
+  /// `displayed`, `deleted`, `dispatched` or `processed`. Older kinds
+  /// (`denied`, `failed`) are not read as receipts at all.
   final String disposition;
 
+  /// Only this means the person saw the message.
   bool get displayed => disposition == 'displayed';
 
   /// The notification in [message] (a `multipart/report` with
@@ -61,11 +65,11 @@ final class DispositionNotification {
     final original = fields['original-message-id']
         ?.replaceAll(RegExp(r'^\s*<|>\s*$'), '')
         .trim();
+    // Missing is fine; present but malformed is not.
     final recipient = fields['final-recipient'];
     final disposition = fields['disposition'];
-    if (original == null ||
-        original.isEmpty ||
-        original.contains(RegExp(r'[\s<>]')) ||
+    if ((original != null &&
+            (original.isEmpty || original.contains(RegExp(r'[\s<>]')))) ||
         recipient == null ||
         disposition == null) {
       return null;
