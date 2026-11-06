@@ -40,6 +40,9 @@ Website: **https://citusmail.fluminaris.com** · Download:
   under Files in search, and old codes tidied away.
 - **Every account in one inbox**: Gmail, Outlook / Microsoft 365 and any
   IMAP provider.
+- **A calm sidebar**: each account folds away with its unread count in
+  sight, and what was found in your mail and the Tools (Clean up, the
+  Privacy report) sit apart, folded until you need them.
 - **Locked down**: encrypted storage, passwords in the system keychain,
   app lock with PIN or fingerprint, end-to-end encrypted sync between
   your devices.

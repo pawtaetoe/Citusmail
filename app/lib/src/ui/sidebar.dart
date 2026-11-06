@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
@@ -15,12 +16,17 @@ import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
+import 'privacy_report_page.dart';
+import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
 import 'trips_page.dart';
 
-/// The dark navigation column: inboxes, pins, folders and accounts. It
-/// rebuilds only when counts, the place shown or sync status change.
+/// The dark navigation column: the Smart Inbox and pins, each account's
+/// inbox and folders, then pages about your mail ("Found in your mail",
+/// "Tools") on a tinted band of their own. Accounts and groups fold the
+/// same way, remembered. It rebuilds only when counts, the place shown or
+/// sync status change.
 final class Sidebar extends StatelessWidget {
   const Sidebar({
     super.key,
@@ -63,6 +69,7 @@ final class Sidebar extends StatelessWidget {
     final counts = controller.counts.value;
     final here = controller.location.value;
     final syncing = controller.status.value is SyncRunning;
+    final several = accounts.length > 1;
 
     void go(MailLocation location) {
       controller.goTo(location);
@@ -82,7 +89,7 @@ final class Sidebar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 14, 8, 6),
+                    padding: const EdgeInsets.fromLTRB(18, 10, 8, 4),
                     child: Row(
                       children: [
                         const CitusMark(size: 22),
@@ -151,7 +158,7 @@ final class Sidebar extends StatelessWidget {
                   ),
                   if (onCompose case final compose?)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                       child: Tooltip(
                         message: 'New message (C)',
                         child: FilledButton.icon(
@@ -168,160 +175,136 @@ final class Sidebar extends StatelessWidget {
                       ),
                     ),
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      children: [
-                        _Entry(
-                          icon: Icons.inbox,
-                          label: 'Inbox',
-                          bold: true,
-                          badge: counts.inboxUnread,
-                          selected: here == const InboxLocation(),
-                          onTap: () => go(const InboxLocation()),
-                        ),
-                        if (accounts.length > 1)
-                          for (final account in accounts)
+                    // Enter and Space work the focused row here, instead of
+                    // reaching the mail shortcuts (Enter opens a message).
+                    child: Shortcuts(
+                      shortcuts: const {
+                        SingleActivator(LogicalKeyboardKey.enter):
+                            ActivateIntent(),
+                        SingleActivator(LogicalKeyboardKey.numpadEnter):
+                            ActivateIntent(),
+                        SingleActivator(LogicalKeyboardKey.space):
+                            ActivateIntent(),
+                      },
+                      child: ListView(
+                        padding: const EdgeInsets.only(top: 2, bottom: 8),
+                        children: [
+                          _Entry(
+                            icon: Icons.inbox,
+                            label: 'Inbox',
+                            bold: true,
+                            badge: counts.inboxUnread,
+                            selected: here == const InboxLocation(),
+                            onTap: () => go(const InboxLocation()),
+                          ),
+                          _Entry(
+                            icon: Icons.push_pin_outlined,
+                            label: 'Pins',
+                            selected: here == const PinsLocation(),
+                            onTap: () => go(const PinsLocation()),
+                          ),
+                          if (counts.outbox > 0)
                             _Entry(
-                              indent: 1,
-                              label: account.displayName ?? account.email,
-                              badge: counts.perAccountUnread[account.id] ?? 0,
-                              selected:
-                                  here == InboxLocation(accountId: account.id),
-                              onTap: () =>
-                                  go(InboxLocation(accountId: account.id)),
+                              icon: Icons.outbox_outlined,
+                              label: 'Outbox',
+                              badge: counts.outbox,
+                              selected: here == const OutboxLocation(),
+                              onTap: () => go(const OutboxLocation()),
                             ),
-                        _Entry(
-                          icon: Icons.push_pin_outlined,
-                          label: 'Pins',
-                          selected: here == const PinsLocation(),
-                          onTap: () => go(const PinsLocation()),
-                        ),
-                        if (counts.outbox > 0)
-                          _Entry(
-                            icon: Icons.outbox_outlined,
-                            label: 'Outbox',
-                            badge: counts.outbox,
-                            selected: here == const OutboxLocation(),
-                            onTap: () => go(const OutboxLocation()),
-                          ),
-                        // While something is snoozed.
-                        if (counts.snoozed > 0)
-                          _Entry(
-                            icon: Icons.snooze,
-                            label: 'Snoozed',
-                            selected: here == const SnoozedLocation(),
-                            onTap: () => go(const SnoozedLocation()),
-                          ),
-                        // While a sent email waits for a reply.
-                        if (counts.followUps > 0)
-                          _Entry(
-                            icon: Icons.hourglass_empty,
-                            label: 'Waiting for a reply',
-                            selected: here == const FollowUpsLocation(),
-                            onTap: () => go(const FollowUpsLocation()),
-                          ),
-                        // What the app found in your mail, apart from the
-                        // places to read it.
-                        const _SectionHeading('Found in your mail'),
-                        _Entry(
-                          icon: Icons.autorenew,
-                          label: 'Subscriptions',
-                          selected: false,
-                          onTap: () {
-                            onNavigated?.call();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    SubscriptionsPage(controller: controller),
-                              ),
-                            );
-                          },
-                        ),
-                        _Entry(
-                          icon: Icons.local_shipping_outlined,
-                          label: 'Deliveries',
-                          selected: false,
-                          onTap: () {
-                            onNavigated?.call();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    DeliveriesPage(controller: controller),
-                              ),
-                            );
-                          },
-                        ),
-                        _Entry(
-                          icon: Icons.luggage_outlined,
-                          label: 'Trips',
-                          selected: false,
-                          onTap: () {
-                            onNavigated?.call();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    TripsPage(controller: controller),
-                              ),
-                            );
-                          },
-                        ),
-                        _Entry(
-                          icon: Icons.badge_outlined,
-                          label: 'Online accounts',
-                          selected: false,
-                          onTap: () {
-                            onNavigated?.call();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    AccountsPage(controller: controller),
-                              ),
-                            );
-                          },
-                        ),
-                        // One block per account: its status, menu and
-                        // folders. With several accounts each one folds
-                        // away (remembered), so the list stays short.
-                        for (final account in accounts)
-                          _AccountBlock(
-                            key: ValueKey('account-${account.id}'),
-                            account: account,
-                            store: store,
-                            collapsible: accounts.length > 1,
-                            event: controller.lastEvent(account.id),
-                            onNewFolder: () => NewFolderDialog.show(
-                              context,
-                              controller,
-                              account.id,
+                          // While something is snoozed.
+                          if (counts.snoozed > 0)
+                            _Entry(
+                              icon: Icons.snooze,
+                              label: 'Snoozed',
+                              selected: here == const SnoozedLocation(),
+                              onTap: () => go(const SnoozedLocation()),
                             ),
-                            onRemove: () => onRemoveAccount(account),
-                            onReconnect: () => onReconnectAccount(account),
-                            folders: [
-                              for (final (mailbox, depth) in _folders(
-                                store,
-                                account,
-                              ))
-                                _Entry(
-                                  icon: MailText.folderIcon(mailbox),
-                                  indent: depth,
-                                  label: MailText.folder(mailbox),
-                                  badge: mailbox.specialUse == null
-                                      ? counts.folderUnread[mailbox.id] ?? 0
-                                      : 0,
-                                  selected:
-                                      here ==
-                                      FolderLocation(mailbox.id, account.id),
-                                  onTap: () => go(
-                                    FolderLocation(mailbox.id, account.id),
+                          // While a sent email waits for a reply.
+                          if (counts.followUps > 0)
+                            _Entry(
+                              icon: Icons.hourglass_empty,
+                              label: 'Waiting for a reply',
+                              selected: here == const FollowUpsLocation(),
+                              onTap: () => go(const FollowUpsLocation()),
+                            ),
+                          if (several)
+                            const _SectionHeading('Accounts')
+                          else
+                            const SizedBox(height: 8),
+                          // One block per account: its inbox and folders.
+                          // With several accounts each one folds away
+                          // (remembered), showing its unread count.
+                          for (final account in accounts)
+                            _AccountBlock(
+                              key: ValueKey('account-${account.id}'),
+                              account: account,
+                              memory: several
+                                  ? _OpenSet(store, _OpenSet.accountsKey)
+                                  : null,
+                              unread: counts.perAccountUnread[account.id] ?? 0,
+                              event: controller.lastEvent(account.id),
+                              onNewFolder: () => NewFolderDialog.show(
+                                context,
+                                controller,
+                                account.id,
+                              ),
+                              onRemove: () => onRemoveAccount(account),
+                              onReconnect: () => onReconnectAccount(account),
+                              folders: [
+                                // With one account, the Inbox above is its
+                                // inbox.
+                                if (several)
+                                  _Entry(
+                                    icon: Icons.inbox,
+                                    indent: 1,
+                                    label: 'Inbox',
+                                    badge:
+                                        counts.perAccountUnread[account.id] ??
+                                        0,
+                                    selected:
+                                        here ==
+                                        InboxLocation(accountId: account.id),
+                                    onTap: () => go(
+                                      InboxLocation(accountId: account.id),
+                                    ),
                                   ),
-                                ),
-                            ],
+                                for (final (mailbox, depth) in _folders(
+                                  store,
+                                  account,
+                                ))
+                                  _Entry(
+                                    icon: MailText.folderIcon(mailbox),
+                                    indent: depth + (several ? 1 : 0),
+                                    label: MailText.folder(mailbox),
+                                    badge: mailbox.specialUse == null
+                                        ? counts.folderUnread[mailbox.id] ?? 0
+                                        : 0,
+                                    selected:
+                                        here ==
+                                        FolderLocation(mailbox.id, account.id),
+                                    onTap: () => go(
+                                      FolderLocation(mailbox.id, account.id),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          // Pages about your mail, apart from the places to
+                          // read it.
+                          _FeaturePanel(
+                            memory: _OpenSet(store, _OpenSet.groupsKey),
+                            groups: _featureGroups(),
+                            onOpen: (page) {
+                              onNavigated?.call();
+                              Navigator.of(context)
+                                  .push(MaterialPageRoute<void>(builder: page));
+                            },
                           ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   Divider(color: colors.selected, height: 1),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 2),
                   // One line for all accounts; a problem names the
                   // account (its block shows it too).
                   _SyncSummary(
@@ -333,7 +316,7 @@ final class Sidebar extends StatelessWidget {
                     label: 'Add account',
                     onTap: onAddAccount,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                 ],
               ),
             ),
@@ -342,6 +325,56 @@ final class Sidebar extends StatelessWidget {
       ),
     );
   }
+
+  /// The pages below the accounts, in folding groups. Adding a page is
+  /// one line here.
+  List<_FeatureGroup> _featureGroups() => [
+    (
+      id: 'found',
+      title: 'Found in your mail',
+      pages: [
+        (
+          icon: Icons.autorenew,
+          label: 'Subscriptions',
+          page: (_) => SubscriptionsPage(controller: controller),
+        ),
+        (
+          icon: Icons.local_shipping_outlined,
+          label: 'Deliveries',
+          page: (_) => DeliveriesPage(controller: controller),
+        ),
+        (
+          icon: Icons.luggage_outlined,
+          label: 'Trips',
+          page: (_) => TripsPage(controller: controller),
+        ),
+        (
+          icon: Icons.badge_outlined,
+          label: 'Online accounts',
+          page: (_) => AccountsPage(controller: controller),
+        ),
+      ],
+    ),
+    (
+      id: 'tools',
+      title: 'Tools',
+      pages: [
+        (
+          icon: Icons.cleaning_services_outlined,
+          label: 'Clean up',
+          page: (_) => SenderCleanupPage(controller: controller),
+        ),
+        (
+          icon: Icons.shield_outlined,
+          label: 'Privacy report',
+          page: (_) => PrivacyReportPage(
+            services: controller.services,
+            onShowMail: controller.search,
+          ),
+        ),
+      ],
+    ),
+  ];
 
   /// The account's folders other than the inbox: standard folders first,
   /// then the rest as a tree (depth from the folder separator).
@@ -384,8 +417,28 @@ final class Sidebar extends StatelessWidget {
   }
 }
 
-/// A small, muted label over a group of entries, styled like an account
-/// block's name.
+/// One size for every row, icon and step of indentation in the sidebar,
+/// so it reads as one list.
+abstract final class _Size {
+  /// Height of an entry or a folding header (and so its tap target).
+  static const row = 40.0;
+  static const icon = 20.0;
+  static const iconGap = 12.0;
+
+  /// One level of nesting (a folder in a folder, an entry in a group).
+  static const indent = 16.0;
+
+  /// From the row's edge to its icon or chevron.
+  static const start = 12.0;
+
+  /// From the row's edge to its count.
+  static const end = 10.0;
+
+  /// How long folding takes: enough to see where things went.
+  static const fold = Duration(milliseconds: 160);
+}
+
+/// A small, muted label over a group of entries.
 final class _SectionHeading extends StatelessWidget {
   const _SectionHeading(this.text);
 
@@ -393,7 +446,7 @@ final class _SectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 16, 12, 4),
+    padding: const EdgeInsets.fromLTRB(20, 12, 12, 2),
     child: Semantics(
       header: true,
       child: Text(
@@ -402,26 +455,58 @@ final class _SectionHeading extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: SidebarColors.of(context).muted,
-          fontSize: 12.5,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
         ),
       ),
     ),
   );
 }
 
+/// An unread count, right-aligned in its row. Large ones read "999+".
+final class _Count extends StatelessWidget {
+  const _Count(this.count);
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SidebarColors.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 24),
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: colors.badge,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        count > 999 ? '999+' : '$count',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: colors.onBadge,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+/// A place to go: an icon, a label and an unread count.
 final class _Entry extends StatelessWidget {
   const _Entry({
+    required this.icon,
     required this.label,
     required this.onTap,
-    this.icon,
     this.indent = 0,
     this.badge = 0,
     this.selected = false,
     this.bold = false,
   });
 
-  final IconData? icon;
+  final IconData icon;
   final String label;
   final int indent;
   final int badge;
@@ -433,88 +518,389 @@ final class _Entry extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = SidebarColors.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-      child: Material(
-        color: selected ? colors.selected : Colors.transparent,
-        borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          hoverColor: colors.hover,
-          onTap: onTap,
-          child: Stack(
-            children: [
-              // Where you are, without relying on colour alone.
-              if (selected)
-                Positioned(
-                  left: 0,
-                  top: 8,
-                  bottom: 8,
-                  child: Container(
-                    width: 3,
-                    decoration: BoxDecoration(
-                      color: colors.indicator,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(12.0 + indent * 16, 9, 10, 9),
-                child: Row(
-                  children: [
-                    if (icon != null) ...[
-                      Icon(icon, color: selected ? colors.text : colors.muted),
-                      const SizedBox(width: 12),
-                    ] else
-                      Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.only(left: 2, right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: selected ? colors.selected : Colors.transparent,
+          borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            hoverColor: colors.hover,
+            focusColor: colors.selected,
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: _Size.row),
+              child: Stack(
+                alignment: AlignmentDirectional.centerStart,
+                children: [
+                  // Where you are, without relying on colour alone.
+                  if (selected)
+                    Positioned(
+                      left: 0,
+                      top: 9,
+                      bottom: 9,
+                      child: Container(
+                        width: 3,
                         decoration: BoxDecoration(
-                          color: colors.muted,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.text,
-                          fontSize: 14,
-                          fontWeight: bold || selected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+                          color: colors.indicator,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ),
-                    if (badge > 0)
-                      Container(
-                        constraints: const BoxConstraints(minWidth: 22),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      _Size.start + indent * _Size.indent,
+                      6,
+                      _Size.end,
+                      6,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          icon,
+                          size: _Size.icon,
+                          color: selected ? colors.text : colors.muted,
                         ),
-                        decoration: BoxDecoration(
-                          color: colors.badge,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          badge > 999 ? '999+' : '$badge',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: colors.onBadge,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(width: _Size.iconGap),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.text,
+                              fontSize: 14,
+                              fontWeight: bold || selected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
+                        if (badge > 0) _Count(badge),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Which folding parts of the sidebar are open, remembered in the
+/// settings store as a list of ids. Everything starts folded.
+final class _OpenSet {
+  const _OpenSet(this.store, this.key);
+
+  /// Account ids.
+  static const accountsKey = 'ui.openAccounts';
+
+  /// Feature group ids ("found", "tools").
+  static const groupsKey = 'ui.openSidebarGroups';
+
+  final MailStore store;
+  final String key;
+
+  Set<String> _read() => {
+    ...?store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
+  };
+
+  bool contains(String id) => _read().contains(id);
+
+  void set(String id, {required bool open}) {
+    final ids = _read();
+    open ? ids.add(id) : ids.remove(id);
+    store.settings.write(key, ids.join(','));
+  }
+}
+
+/// A header and the entries under it, folding away the same way
+/// everywhere: the chevron turns, the entries slide in or out, and the
+/// choice is remembered in [memory] (null: it doesn't fold). Folded, the
+/// entry being shown stays in sight, so it's clear where the list comes
+/// from.
+final class _Fold extends StatefulWidget {
+  const _Fold({
+    super.key,
+    required this.memory,
+    required this.id,
+    required this.header,
+    required this.children,
+  });
+
+  final _OpenSet? memory;
+  final String id;
+
+  /// The header, given whether it's open and how to fold it (null when it
+  /// doesn't fold).
+  final Widget Function(bool open, VoidCallback? toggle) header;
+  final List<Widget> children;
+
+  @override
+  State<_Fold> createState() => _FoldState();
+}
+
+final class _FoldState extends State<_Fold> {
+  late bool _open = widget.memory?.contains(widget.id) ?? true;
+
+  /// Scrolls what was just opened into view once it has slid open.
+  bool _reveal = false;
+
+  void _toggle() {
+    setState(() => _open = !_open);
+    _reveal = _open;
+    widget.memory?.set(widget.id, open: _open);
+  }
+
+  void _revealOpened() {
+    if (!_reveal) return;
+    _reveal = false;
+    // After this frame's layout, when the new size is known.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final scrollable = Scrollable.maybeOf(context);
+      final height = context.size?.height;
+      if (scrollable == null || height == null) return;
+      // All of it if it fits; otherwise its header at the top.
+      final fits = height <= scrollable.position.viewportDimension;
+      Scrollable.ensureVisible(
+        context,
+        duration: _Size.fold,
+        alignmentPolicy: fits
+            ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
+            : ScrollPositionAlignmentPolicy.explicit,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final foldable = widget.memory != null;
+    final open = !foldable || _open;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        widget.header(open, foldable ? _toggle : null),
+        AnimatedSize(
+          duration: _Size.fold,
+          curve: Curves.easeOut,
+          alignment: Alignment.topCenter,
+          onEnd: _revealOpened,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: open
+                ? widget.children
+                : [
+                    for (final child in widget.children)
+                      if (child is _Entry && child.selected) child,
+                  ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The header of a [_Fold]: a turning chevron, then [leading] (an
+/// account's status dot), the title (cut short, with a tooltip, when
+/// long), a problem on a second line, and a count. Screen readers hear
+/// "Show …" or "Hide …"; Enter or Space folds it.
+final class _FoldHeader extends StatelessWidget {
+  const _FoldHeader({
+    required this.title,
+    required this.what,
+    required this.open,
+    required this.onToggle,
+    this.tooltip,
+    this.leading,
+    this.problem,
+    this.badge = 0,
+    this.trailing,
+  });
+
+  final String title;
+
+  /// What folds, for screen readers: "Show $what".
+  final String what;
+  final bool open;
+
+  /// Null when it doesn't fold: then it is a plain heading.
+  final VoidCallback? onToggle;
+  final String? tooltip;
+  final Widget? leading;
+  final String? problem;
+  final int badge;
+
+  /// Beside the header, outside the folding part (an account's menu).
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SidebarColors.of(context);
+    final foldable = onToggle != null;
+    final problem = this.problem;
+    final row = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _Size.row),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          _Size.start,
+          4,
+          trailing == null ? _Size.end : 0,
+          4,
+        ),
+        child: Row(
+          children: [
+            if (foldable) ...[
+              AnimatedRotation(
+                turns: open ? 0 : -0.25,
+                duration: _Size.fold,
+                child: Icon(
+                  Icons.expand_more,
+                  size: _Size.icon,
+                  color: colors.muted,
+                ),
+              ),
+              const SizedBox(width: _Size.iconGap - 4),
+            ],
+            if (leading case final leading?) ...[
+              leading,
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tooltip(
+                    message: tooltip ?? title,
+                    excludeFromSemantics: true,
+                    waitDuration: const Duration(milliseconds: 600),
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.text,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (problem != null)
+                    Text(
+                      problem,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: colors.problem, fontSize: 12),
+                    ),
+                ],
+              ),
+            ),
+            if (badge > 0) _Count(badge),
+          ],
+        ),
+      ),
+    );
+    final value = [if (badge > 0) '$badge unread', ?problem].join(', ');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              container: true,
+              button: foldable,
+              header: !foldable,
+              expanded: foldable ? open : null,
+              label: foldable ? '${open ? 'Hide' : 'Show'} $what' : title,
+              value: value.isEmpty ? null : value,
+              excludeSemantics: true,
+              onTap: onToggle,
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
+                clipBehavior: Clip.antiAlias,
+                child: foldable
+                    ? InkWell(
+                        hoverColor: colors.hover,
+                        focusColor: colors.selected,
+                        onTap: onToggle,
+                        child: row,
+                      )
+                    : row,
+              ),
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
+    );
+  }
+}
+
+/// A page the sidebar opens (Subscriptions, Clean up…).
+typedef _Feature = ({IconData icon, String label, WidgetBuilder page});
+
+/// A folding group of pages, such as "Tools".
+typedef _FeatureGroup = ({String id, String title, List<_Feature> pages});
+
+/// Pages about your mail, apart from the places to read it: a tinted band
+/// below the accounts, so they read as features, not folders. Each group
+/// folds (folded at first; remembered).
+final class _FeaturePanel extends StatelessWidget {
+  const _FeaturePanel({
+    required this.memory,
+    required this.groups,
+    required this.onOpen,
+  });
+
+  final _OpenSet memory;
+  final List<_FeatureGroup> groups;
+  final void Function(WidgetBuilder page) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SidebarColors.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.hover,
+        border: Border(
+          top: BorderSide(color: colors.selected),
+          bottom: BorderSide(color: colors.selected),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final group in groups)
+            _Fold(
+              key: ValueKey('group-${group.id}'),
+              memory: memory,
+              id: group.id,
+              header: (open, toggle) => _FoldHeader(
+                title: group.title,
+                what: group.title,
+                open: open,
+                onToggle: toggle,
+              ),
+              children: [
+                for (final page in group.pages)
+                  _Entry(
+                    icon: page.icon,
+                    label: page.label,
+                    indent: 1,
+                    onTap: () => onOpen(page.page),
+                  ),
+              ],
+            ),
+        ],
       ),
     );
   }
@@ -545,17 +931,16 @@ Color _dotOf(SidebarColors colors, SyncEvent? event) => switch (event) {
   null => colors.muted,
 };
 
-/// An account's folders under a header with its address, status dot and
-/// menu (sign in again, remove). With several accounts the folders fold
-/// away; the choice is remembered, and the block opens by itself when one
-/// of its folders is shown. A sync problem shows on the header even when
-/// folded.
-final class _AccountBlock extends StatefulWidget {
+/// An account's inbox and folders under a header with its address, status
+/// dot and menu (new folder, sign in again, remove). With several
+/// accounts the block folds away (remembered), its header showing the
+/// account's unread count; a sync problem shows there too.
+final class _AccountBlock extends StatelessWidget {
   const _AccountBlock({
     super.key,
     required this.account,
-    required this.store,
-    required this.collapsible,
+    required this.memory,
+    required this.unread,
     required this.event,
     required this.folders,
     required this.onNewFolder,
@@ -564,151 +949,64 @@ final class _AccountBlock extends StatefulWidget {
   });
 
   final Account account;
-  final MailStore store;
-  final bool collapsible;
 
+  /// Where its folding is remembered; null when it doesn't fold (one
+  /// account).
+  final _OpenSet? memory;
+  final int unread;
   final SyncEvent? event;
   final List<Widget> folders;
   final VoidCallback onNewFolder;
   final VoidCallback onRemove;
   final VoidCallback onReconnect;
 
-  static const _openKey = 'ui.openAccounts';
-
-  @override
-  State<_AccountBlock> createState() => _AccountBlockState();
-}
-
-final class _AccountBlockState extends State<_AccountBlock> {
-  late bool _open = _stored().contains('${widget.account.id}');
-
-  Set<String> _stored() => {
-    ...?widget.store.settings
-        .read(_AccountBlock._openKey)
-        ?.split(',')
-        .where((s) => s.isNotEmpty),
-  };
-
-  void _toggle() {
-    setState(() => _open = !_open);
-    final ids = _stored();
-    final id = '${widget.account.id}';
-    _open ? ids.add(id) : ids.remove(id);
-    widget.store.settings.write(_AccountBlock._openKey, ids.join(','));
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = SidebarColors.of(context);
-    final account = widget.account;
-    final open = !widget.collapsible || _open;
-    final (status, problem) = _statusOf(account, widget.event);
+    final (status, problem) = _statusOf(account, event);
     final name = account.displayName ?? account.email;
-
-    final header = Padding(
-      padding: const EdgeInsets.fromLTRB(8, 10, 4, 0),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          hoverColor: colors.hover,
-          onTap: widget.collapsible ? _toggle : null,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 0, 4),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _dotOf(colors, widget.event),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.muted,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      // Problems always show; "Up to date" only when there
-                      // is one account (the summary below covers several).
-                      if (problem || (!widget.collapsible && status.isNotEmpty))
-                        Text(
-                          status,
-                          style: TextStyle(
-                            color: problem ? colors.problem : colors.muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                PopupMenuButton<void>(
-                  tooltip: 'Account',
-                  icon: Icon(Icons.more_horiz, size: 20, color: colors.muted),
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      onTap: widget.onNewFolder,
-                      child: const Text('New folder'),
-                    ),
-                    PopupMenuItem(
-                      onTap: widget.onReconnect,
-                      child: Text(
-                        account.usesOAuth ? 'Sign in again' : 'Update password',
-                      ),
-                    ),
-                    PopupMenuItem(
-                      onTap: widget.onRemove,
-                      child: const Text('Remove account'),
-                    ),
-                  ],
-                ),
-                if (widget.collapsible)
-                  Semantics(
-                    label: open ? 'Hide folders' : 'Show folders',
-                    child: Icon(
-                      open ? Icons.expand_less : Icons.expand_more,
-                      color: colors.muted,
-                    ),
-                  ),
-                const SizedBox(width: 6),
-              ],
-            ),
+    return _Fold(
+      memory: memory,
+      id: '${account.id}',
+      header: (open, toggle) => _FoldHeader(
+        title: name,
+        what: 'folders of $name',
+        tooltip: name == account.email ? name : '$name <${account.email}>',
+        open: open,
+        onToggle: toggle,
+        // While folded; open, its Inbox shows it.
+        badge: toggle != null && !open ? unread : 0,
+        problem: problem ? status : null,
+        leading: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: _dotOf(colors, event),
+            shape: BoxShape.circle,
           ),
+        ),
+        trailing: PopupMenuButton<void>(
+          tooltip: 'Account',
+          icon: Icon(Icons.more_horiz, size: _Size.icon, color: colors.muted),
+          style: IconButton.styleFrom(
+            fixedSize: const Size.square(_Size.row),
+            minimumSize: const Size.square(_Size.row),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          itemBuilder: (_) => [
+            PopupMenuItem(onTap: onNewFolder, child: const Text('New folder')),
+            PopupMenuItem(
+              onTap: onReconnect,
+              child: Text(
+                account.usesOAuth ? 'Sign in again' : 'Update password',
+              ),
+            ),
+            PopupMenuItem(onTap: onRemove, child: const Text('Remove account')),
+          ],
         ),
       ),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        header,
-        AnimatedSize(
-          duration: const Duration(milliseconds: 160),
-          alignment: Alignment.topCenter,
-          // Folded away, the folder being shown stays, so it's clear where
-          // the list comes from.
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: open
-                ? widget.folders
-                : [
-                    for (final folder in widget.folders)
-                      if (folder is _Entry && folder.selected) folder,
-                  ],
-          ),
-        ),
-      ],
+      children: folders,
     );
   }
 }
