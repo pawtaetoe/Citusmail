@@ -229,15 +229,18 @@ Play Console checklist (closed or open testing):
   permissions): the bundle has `FOREGROUND_SERVICE_SPECIAL_USE` for
   Instant mail. Declare:
   - Type: **Special use**.
-  - Description, for example: "Instant mail: when the user turns it on
-    in Settings, the app keeps one connection to the user's own mail
-    server (IMAP IDLE) so new mail and sign-in codes arrive immediately.
+  - Description, for example: "Instant mail (on by default, can be
+    turned off in Settings): the app keeps one connection to the user's
+    own mail server (IMAP IDLE) so new mail and sign-in codes arrive
+    immediately. The app has no server of its own, so it cannot use push
+    messages; this connection is the only way to deliver mail at once.
     Android shows a permanent notification while it runs, and the user
     can turn it off at any time. No other foreground service type fits:
     dataSync is limited to 6 hours a day, and the connection carries no
     data until mail arrives."
-  - A short video: Settings > Instant mail on, the "Citusmail is
-    connected" notification, an email arriving while the app is closed.
+  - A short video: the "Citusmail is connected" notification, an email
+    arriving while the app is closed, and Settings > Instant mail where
+    it can be turned off.
 - **Battery optimization exemption**: the app asks Android's one-tap
   dialog (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`). Play allows it when the
   app's core function needs it and Firebase push can't be used; if Play
@@ -249,12 +252,21 @@ Play Console checklist (closed or open testing):
   - Feature graphic (1024 × 500): `packaging/android/play/feature-graphic.png`,
     rendered from `feature-graphic.svg` next to it (IBM Plex Sans from
     `app/assets/fonts`).
-  - Phone screenshots: `docs/screenshots/readme_phone*.png` and
-    `readme_subscriptions.png`.
-  - Short description, for example "Fast, private email that stays yours".
+  - Phone screenshots: `packaging/android/play/screenshots/` (824 × 1464,
+    16:9). Play takes at most 2:1, so the README's 390 × 844 phone
+    screens (2.16:1) are refused. Render them again with
+    `cd app && SCREEN_PHONE=play SCREEN_OUT=<dir> flutter test screenshots/screens_test.dart`.
+  - Name, short and full description: `packaging/android/play/listing.md`.
 - **Testers**: a closed test needs a list of testers (email addresses or
   a Google group); new personal developer accounts must run a closed
-  test with enough testers for the required time before production.
+  test with enough testers for the required time before production
+  (the Dashboard shows what is still needed).
+- **Before each upload**: the `.aab` from a release built after the
+  client ID variables were set (sign-in buttons work without asking for a
+  client ID), a higher version code than the last upload, and
+  `check-play-bundle.sh` passing (CI runs it). Every native library in
+  the bundle is aligned for 16 KB memory pages (NDK 28), as Play
+  requires for apps targeting Android 15 and later.
 
 ## Linux
 
