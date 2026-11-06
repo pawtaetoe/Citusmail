@@ -20,6 +20,7 @@ import 'package:citusmail/src/mail/send_later_times.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/accounts_page.dart';
+import 'package:citusmail/src/ui/appointments_page.dart';
 import 'package:citusmail/src/ui/attachments_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/deliveries_page.dart';
@@ -41,6 +42,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
+import '../test/support/appointment_mail.dart';
 import '../test/support/away_mail.dart';
 import '../test/support/delivery_mail.dart';
 import '../test/support/privacy_mail.dart';
@@ -321,6 +323,27 @@ void main() {
         await shoot(tester, '${name}_trips$suffix');
         await tester.tap(find.text('Flight to Tokyo'));
         await shoot(tester, '${name}_booking$suffix');
+      });
+    }
+  }
+
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    for (final dark in [false, true]) {
+      testWidgets('appointments $name${dark ? ' dark' : ''}', (tester) async {
+        seedAppointments(app.store, now: DateTime.now().toUtc());
+        await show(
+          tester,
+          AppointmentsPage(controller: MailController(app.services)),
+          size: size,
+          dark: dark,
+        );
+        final suffix = dark ? '_dark' : '';
+        await shoot(tester, '${name}_appointments$suffix');
+        await tester.tap(find.text('Bright Smile Dental'));
+        await shoot(tester, '${name}_appointment$suffix');
       });
     }
   }

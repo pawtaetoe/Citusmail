@@ -202,8 +202,14 @@ final class AppointmentsModel extends ChangeNotifier {
   Set<int> get _skip =>
       _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
 
+  /// Loads started; only the latest one's findings are kept (an earlier
+  /// one may end later, with what was true before).
+  int _loads = 0;
+
   Future<void> load() async {
+    final run = ++_loads;
     final found = await findAppointments(_store, _now(), skip: _skip);
+    if (run != _loads) return;
     hidden = found.hidden;
     learned = found.learned;
     _all = found.all;

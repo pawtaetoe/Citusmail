@@ -234,6 +234,28 @@ abstract final class MailTypeSeeds {
             '08:30. Please drop off your keys at reception.',
       ),
     ),
+    MailTypeSeed(
+      _p,
+      MailSample(
+        address: 'noreply@riverclinic.example',
+        senderName: 'River Medical Clinic',
+        subject: 'Appointment confirmation',
+        text:
+            'Your appointment is attached. Flu vaccination on 25 Nov at '
+            '9:30 AM. Please arrive 5 minutes early.',
+      ),
+    ),
+    MailTypeSeed(
+      _p,
+      MailSample(
+        address: 'appointments@passports.example',
+        senderName: 'Passport Office',
+        subject: 'Appointment confirmed: passport interview',
+        text:
+            'Your appointment has been booked. Date: 20/11 Time: 9:40 AM. '
+            'Appointment ID P-7781. Bring your ID card.',
+      ),
+    ),
     // Accounts: welcome, sign-in and password mail.
     MailTypeSeed(
       _a,
