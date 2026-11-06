@@ -102,7 +102,9 @@ void main() {
   /// past).
   void remind(String messageId, DateTime due) {
     followUps().remind(followUps().forMessage(sent(messageId), due));
-    followUps().check(now: DateTime.now());
+    // The test's clock, as the app uses (FollowUpTimes.clock): never the
+    // real one, so the tests don't depend on today's date.
+    followUps().check(now: _now);
   }
 
   Future<void> show(
@@ -271,7 +273,7 @@ void main() {
     seedSent();
     remind(
       'quote.kitchen@citusmail.test',
-      DateTime.now().subtract(const Duration(hours: 1)),
+      _now.subtract(const Duration(hours: 1)),
     );
     await show(tester);
     await settle(tester);
@@ -304,8 +306,9 @@ void main() {
     seedSent();
     remind(
       'quote.kitchen@citusmail.test',
-      DateTime.now().subtract(const Duration(hours: 1)),
+      _now.subtract(const Duration(hours: 1)),
     );
+    // Friday, two days after the test's Wednesday.
     remind('reunion@citusmail.test', DateTime(2026, 11, 6, 16));
     await show(tester);
     await tester.tap(find.text('Waiting for a reply'));
