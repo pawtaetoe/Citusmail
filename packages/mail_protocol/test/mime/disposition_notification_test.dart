@@ -55,14 +55,28 @@ void main() {
   test('incomplete or odd notifications are refused', () {
     for (final text in [
       '',
-      'Final-Recipient: rfc822;bob@x.example\nDisposition: a/b; displayed',
       'Original-Message-ID: <a@b>\nDisposition: a/b; displayed',
       'Original-Message-ID: <a@b>\nFinal-Recipient: rfc822;bob@x.example\nDisposition: a/b; exploded',
       'Original-Message-ID: <a b@c>\nFinal-Recipient: rfc822;bob@x.example\nDisposition: a/b; displayed',
       'Original-Message-ID: <a@b>\nFinal-Recipient: rfc822;nobody\nDisposition: a/b; displayed',
+      'Original-Message-ID: <>\nFinal-Recipient: rfc822;bob@x.example\nDisposition: a/b; displayed',
+      // RFC 2298 kinds: the person did not read it.
+      'Original-Message-ID: <a@b>\nFinal-Recipient: rfc822;bob@x.example\nDisposition: manual-action/MDN-sent-manually; denied',
+      'Original-Message-ID: <a@b>\nFinal-Recipient: rfc822;bob@x.example\nDisposition: automatic-action/MDN-sent-automatically; failed',
     ]) {
       expect(DispositionNotification.parseFields(text), isNull, reason: text);
     }
+  });
+
+  test('Original-Message-ID may be missing (the thread headers name it)', () {
+    final n = DispositionNotification.parseFields(
+      'Reporting-UA: Mobile Mail\n'
+      'Final-Recipient: rfc822;bob@x.example\n'
+      'Disposition: manual-action/MDN-sent-manually; displayed\n',
+    )!;
+    expect(n.originalMessageId, isNull);
+    expect(n.finalRecipient, 'bob@x.example');
+    expect(n.displayed, isTrue);
   });
 
   test('asking for a receipt writes the standard header, nothing more', () {

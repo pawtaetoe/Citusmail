@@ -150,7 +150,8 @@ adds only the standard request (`Disposition-Notification-To`); the
 recipient's mail app decides whether to answer, and many never do.
 Citusmail never uses tracking pixels or tracked links to find out whether
 someone read your mail. Receipts that come back are matched to your sent
-message on your device and filed under Notifications.
+message on your device and shown on it ("Read on …"); they stay in your
+Inbox folder but not in the Smart Inbox, and never cause a notification.
 
 Images stay hidden until you load them, so senders can't see when or
 where you open their mail. Tracking pixels (tiny or invisible images,

@@ -714,6 +714,28 @@ void main() {
     await shoot(tester, 'phone_send_later_outbox');
   });
 
+  // Read receipts: "Read by … on …" under the header of a sent email that
+  // went to several people, "Read on …" for one person.
+  testWidgets('read receipts', (tester) async {
+    _seedReadReceipts(app.store);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await tester.tap(find.text('Sent'));
+    await settle(tester);
+    await tester.tap(find.text('Quarterly plans'));
+    await shoot(tester, 'desktop_read_receipts');
+
+    await tester.pumpWidget(const SizedBox());
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await tester.tap(find.byTooltip('Folders'));
+    await settle(tester);
+    await tester.tap(
+      find.descendant(of: find.byType(Drawer), matching: find.text('Sent')),
+    );
+    await settle(tester);
+    await tester.tap(find.text('Trip to Lisbon'));
+    await shoot(tester, 'phone_read_receipt_dark');
+  });
+
   // Follow-up reminders: sent mail back with "No reply yet" at the top of
   // the inbox, "Remind me if no reply" on a sent email and in compose,
   // and the "Waiting for a reply" list.
@@ -895,6 +917,90 @@ void _seedLearning(MailStore store) {
 
 /// Four emails Alex sent: two came back with "No reply yet", two are
 /// waiting.
+/// Two sent emails that asked for read receipts, and the receipts that
+/// came back (one saying it was deleted unread: not shown).
+void _seedReadReceipts(MailStore store) {
+  final accountId = store.accounts.all().single.id;
+  final sent = store.mailboxes.bySpecialUse(accountId, SpecialUse.sent)!;
+  final now = DateTime.now().toUtc();
+  MailAddress who(String address, [String? name]) => MailAddress(
+    localPart: address.substring(0, address.indexOf('@')),
+    domain: address.substring(address.indexOf('@') + 1),
+    displayName: name,
+  );
+  final me = who('alice@citusmail.test', 'Alex Morgan');
+  for (final (uid, id, subject, to, body, ago) in [
+    (
+      801,
+      'plans-1@demo.example',
+      'Quarterly plans',
+      [
+        who('ana@northwind.example', 'Ana Silva'),
+        who('ben@contoso.example', 'Ben Okafor'),
+        who('chloe@fastmail.example', 'Chloe Martin'),
+      ],
+      'Hi all,\n\nHere are the plans for the next quarter. Could you each '
+          'have a look before Thursday\'s meeting?\n\nThanks,\nAlex',
+      const Duration(hours: 5),
+    ),
+    (
+      802,
+      'trip-2@demo.example',
+      'Trip to Lisbon',
+      [who('dev@mobile.example', 'Dev Patel')],
+      'Hi Dev,\n\nThe tickets are booked: we fly out on the 14th at 9:40. '
+          'The hotel is two streets from the river.\n\nAlex',
+      const Duration(days: 1, hours: 3),
+    ),
+  ]) {
+    final at = now.subtract(ago);
+    store.messages.upsertSummaries(sent.id, [
+      MessageSummary(
+        uid: uid,
+        receivedAt: at,
+        sentAt: at,
+        subject: subject,
+        messageId: id,
+        from: me,
+        to: to,
+        snippet: body.replaceAll('\n', ' '),
+        flags: MessageFlags.fromImap([r'\Seen']),
+        headers: const {
+          'disposition-notification-to': ['<alice@citusmail.test>'],
+        },
+      ),
+    ]);
+    final raw =
+        'From: Alex Morgan <alice@citusmail.test>\r\n'
+        'To: ${to.map((a) => '${a.displayName} <${a.address}>').join(', ')}\r\n'
+        'Subject: $subject\r\n'
+        'Message-ID: <$id>\r\n'
+        'Disposition-Notification-To: <alice@citusmail.test>\r\n'
+        'Content-Type: text/plain; charset=utf-8\r\n\r\n'
+        '${body.replaceAll('\n', '\r\n')}\r\n';
+    store.messages.saveBody(
+      store.messages.byUid(sent.id, uid)!.id,
+      Uint8List.fromList(raw.codeUnits),
+      searchableText: body,
+    );
+    store.receipts.requested(accountId, id);
+  }
+  for (final (id, reader, kind, ago) in [
+    ('plans-1@demo.example', 'ana@northwind.example', 'displayed', 4),
+    ('plans-1@demo.example', 'ben@contoso.example', 'displayed', 2),
+    ('plans-1@demo.example', 'chloe@fastmail.example', 'deleted', 1),
+    ('trip-2@demo.example', 'dev@mobile.example', 'displayed', 20),
+  ]) {
+    store.receipts.record(
+      accountId,
+      id,
+      recipient: reader,
+      disposition: kind,
+      at: now.subtract(Duration(hours: ago, minutes: 18)),
+    );
+  }
+}
+
 void _seedFollowUps(MailStore store) {
   final accountId = store.accounts.all().single.id;
   final sent = store.mailboxes.bySpecialUse(accountId, SpecialUse.sent)!;

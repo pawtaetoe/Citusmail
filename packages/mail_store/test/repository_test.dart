@@ -1795,6 +1795,137 @@ void main() {
       store.receipts.markReportRead(reports.single);
       expect(store.receipts.unreadReports(inbox.id), isEmpty);
     });
+
+    test('an older receipt read later does not replace a newer one', () {
+      store.receipts.requested(account.id, 'x@a');
+      store.receipts.record(
+        account.id,
+        'x@a',
+        recipient: 'bob@b.example',
+        disposition: 'displayed',
+        at: DateTime.utc(2026, 10, 2),
+      );
+      store.receipts.record(
+        account.id,
+        'x@a',
+        recipient: 'bob@b.example',
+        disposition: 'processed',
+        at: DateTime.utc(2026, 10, 1),
+      );
+      final got = store.receipts.forMessage(account.id, 'x@a').single;
+      expect(got.disposition, 'displayed');
+      expect(got.displayed, isTrue);
+    });
+
+    test('reports are linked to receipts, and can be read again', () {
+      store.receipts.linkReport(
+        account.id,
+        'x@a',
+        recipient: 'Bob@B.example',
+        reportId: 7,
+      );
+      expect(store.receipts.reportFor(account.id, 'x@a', 'bob@b.example'), 7);
+      expect(
+        store.receipts.reportFor(account.id, 'x@a', 'carol@c.example'),
+        isNull,
+      );
+      for (var i = 0; i < ReceiptRepository.maxLinks + 5; i++) {
+        store.receipts.linkReport(
+          account.id,
+          'm$i@a',
+          recipient: 'bob@b.example',
+          reportId: i,
+        );
+      }
+      expect(
+        store.receipts.reportFor(account.id, 'x@a', 'bob@b.example'),
+        isNull,
+        reason: 'the oldest go',
+      );
+      expect(
+        store.receipts.reportFor(account.id, 'm504@a', 'bob@b.example'),
+        504,
+      );
+
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026, 10, 1),
+          headers: const {
+            'content-type': [
+              'multipart/report; report-type=disposition-notification; boundary="b"',
+            ],
+          },
+        ),
+      ]);
+      final id = store.receipts.unreadReports(inbox.id).single;
+      store.receipts.markReportRead(id);
+      store.receipts.rereadReports(inbox.id);
+      expect(store.receipts.unreadReports(inbox.id), [id]);
+    });
+
+    test('receipts stay out of Notifications, but not the Inbox folder', () {
+      MessageSummary report(int uid, String type) => MessageSummary(
+        uid: uid,
+        subject: 'Read: Plans',
+        receivedAt: DateTime.utc(2026, 10, 1, uid),
+        category: MessageCategory.notifications,
+        headers: {
+          'content-type': [type],
+        },
+      );
+      store.messages.upsertSummaries(inbox.id, [
+        report(
+          1,
+          'multipart/report; report-type=disposition-notification;\r\n boundary="b"',
+        ),
+        // A bounce is a report too, but not a receipt.
+        report(2, 'multipart/report; report-type=delivery-status'),
+        summary(
+          3,
+          category: MessageCategory.notifications,
+          at: DateTime.utc(2026, 10, 1, 3),
+        ),
+        // Pinned by the user: stays pinned.
+        MessageSummary(
+          uid: 4,
+          receivedAt: DateTime.utc(2026, 10, 1, 4),
+          category: MessageCategory.notifications,
+          flags: MessageFlags.fromImap([r'\Flagged']),
+          headers: const {
+            'content-type': [
+              'multipart/report; report-type=disposition-notification',
+            ],
+          },
+        ),
+      ]);
+      final notifications = store.messages.list(
+        const MessageQuery.smart(SmartSection.notifications),
+      );
+      expect(notifications.map((m) => m.uid), [3, 2]);
+      final counts = store.messages.sectionCounts();
+      expect(counts[SmartSection.notifications]!.total, 2);
+      expect(counts[SmartSection.notifications]!.unread, 2);
+      expect(counts[SmartSection.pinned]!.total, 1);
+      expect(
+        store.messages
+            .list(const MessageQuery.smart(SmartSection.pinned))
+            .map((m) => m.uid),
+        [4],
+      );
+      expect(
+        store.messages.list(const MessageQuery.inbox()).map((m) => m.uid),
+        [4, 3, 2, 1],
+      );
+      final plan = store.messages
+          .debugQueryPlan(
+            const MessageQuery.smart(SmartSection.notifications),
+            mailboxId: inbox.id,
+          )
+          .join(' | ');
+      expect(plan, contains('messages_by_section'), reason: plan);
+      expect(plan, isNot(contains('TEMP B-TREE')), reason: plan);
+    });
   });
 
   group('subscription candidates', () {

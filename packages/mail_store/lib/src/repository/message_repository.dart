@@ -360,6 +360,9 @@ final class MessageRepository {
     if (query.section case final section?) {
       where.add('m.section = ?');
       args.add(section.name);
+      if (SectionSql.receiptFreeSections.contains(section.name)) {
+        where.add('NOT ${SectionSql.readReceipt('m')}');
+      }
     } else {
       // Snoozed mail is only in the Snoozed list until it comes back.
       where.add("m.section != 'snoozed'");
@@ -1082,7 +1085,8 @@ final class MessageRepository {
       });
 
   /// Totals and unread counts of every Smart Inbox section, across the
-  /// inboxes of [accountIds] (or all accounts). Reads the section index.
+  /// inboxes of [accountIds] (or all accounts). Reads the section index
+  /// (and, for Notifications and the Screener, leaves read receipts out).
   Map<SmartSection, SectionCount> sectionCounts({List<int>? accountIds}) {
     final inboxes = inboxIds(accountIds: accountIds);
     final totals = {for (final s in SmartSection.values) s: 0};
@@ -1090,7 +1094,10 @@ final class MessageRepository {
     if (inboxes.isEmpty) {
       return {for (final s in SmartSection.values) s: SectionCount.empty};
     }
-    final where = 'mailbox_id IN (${_placeholders(inboxes.length)})';
+    final hidden = SectionSql.receiptFreeSections.map((s) => "'$s'").join(', ');
+    final where =
+        'mailbox_id IN (${_placeholders(inboxes.length)}) '
+        'AND NOT (section IN ($hidden) AND ${SectionSql.readReceipt('messages')})';
     for (final row in _db.select(
       'SELECT section, count(*) AS n FROM messages WHERE $where GROUP BY section',
       inboxes,

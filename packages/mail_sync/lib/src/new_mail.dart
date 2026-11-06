@@ -14,10 +14,11 @@ import 'package:mail_store/mail_store.dart';
 /// Only unread mail in the Pinned, Codes, Important and General sections
 /// counts (codes are waited for), and Notifications (service mail such as
 /// GitHub, a bank or a delivery) unless the user turned that off
-/// ([notificationsKey]); newsletters, blocked senders and mail waiting in
-/// the Screener (or screened out) never interrupt. The first claim of an
-/// account (or after its inbox was reset) only sets the mark, so adding an
-/// account does not announce its whole inbox.
+/// ([notificationsKey]); newsletters, blocked senders, mail waiting in
+/// the Screener (or screened out) and read receipts (left out of the
+/// sections, see `SectionSql.readReceipt`) never interrupt. The first
+/// claim of an account (or after its inbox was reset) only sets the mark,
+/// so adding an account does not announce its whole inbox.
 final class NewMailTracker {
   NewMailTracker(this._store);
 

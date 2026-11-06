@@ -123,6 +123,29 @@ void main() {
         reports.every((m) => m.category == MessageCategory.notifications),
         isTrue,
       );
+      // ...but are not listed there: they show on the sent message, and
+      // open from it without another download.
+      expect(
+        device.store.messages
+            .list(
+              MessageQuery.smart(
+                SmartSection.notifications,
+                accountIds: [device.account.id],
+                limit: 500,
+              ),
+            )
+            .where((m) => m.subject == 'Read: Report'),
+        isEmpty,
+      );
+      for (final m in reports) {
+        expect(device.store.messages.body(m.id), isNotNull);
+      }
+      final linked = device.store.receipts.reportFor(
+        device.account.id,
+        askedHere,
+        'bob@citusmail.test',
+      );
+      expect(reports.map((m) => m.id), contains(linked));
 
       // Read once only.
       final again = await engine.syncAccount(device.account.id);

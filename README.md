@@ -33,6 +33,8 @@ Website: **https://citusmail.fluminaris.com** · Download:
   lookalike links, outsiders writing in your company's name.
 - **Privacy by default**: images and trackers blocked, read receipts
   never sent, tracking removed from links, one-tap unsubscribe.
+- **Read receipts you ask for** show on your sent email ("Read on
+  Nov 6, 3:42 PM"), instead of arriving as notifications.
 - **Inbox tools**: Snooze, Send later, "remind me if no reply", a
   Screener for new senders, clean-up of busy senders, every attachment
   under Files in search, and old codes tidied away.

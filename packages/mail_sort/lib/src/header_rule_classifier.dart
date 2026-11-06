@@ -12,7 +12,7 @@ import 'sorting_rules.dart';
 /// | # | Rule | Category |
 /// | - | ---- | -------- |
 /// | 1 | Sent or Drafts folder | General |
-/// | 2 | Read receipt (RFC 8098 report) | Notifications |
+/// | 2 | Read receipt (RFC 8098 report) | Notifications (not listed: shown on the sent message) |
 /// | 3 | Verification code, sign-in link, password reset (subject or preview) | Codes |
 /// | 4 | Known service (GitHub...) | Notifications |
 /// | 5 | `Auto-Submitted: auto-replied` (out-of-office, bounce) | General |

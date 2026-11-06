@@ -220,10 +220,16 @@ void main() {
         "Today's deals",
         '[project-dev] Proposal: drop Python 3.9',
       });
+      // A read receipt is sorted as a notification but never listed: it
+      // shows as "Read on …" on the sent message instead.
       expect(subjects(SmartSection.notifications), {
         'Re: [owner/repo] Fix crash on startup (PR #12)',
-        'Read: Final report', // a read receipt
       });
+      expect(
+        alice.messages('INBOX').map((m) => m.subject),
+        contains('Read: Final report'),
+        reason: 'still in the Inbox folder',
+      );
       expect(subjects(SmartSection.codes), {'Reset your password'});
       expect(subjects(SmartSection.pinned), {'Photos from the hike'});
       expect(count(SmartSection.important), 0, reason: 'Sent not synced yet');
@@ -235,7 +241,7 @@ void main() {
 
       // Alice has written to Bob, which her Sent folder shows.
       await alice.sync(['Sent']);
-      // Bob's mail, except his read receipt (a notification).
+      // Bob's mail, except his read receipt (not listed).
       expect(count(SmartSection.important), 4);
       expect(
         alice.store.messages

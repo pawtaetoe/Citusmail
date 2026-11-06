@@ -2,9 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:convert';
+
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
+import 'settings_repository.dart';
 
 /// A read receipt someone's mail app sent for the user's message.
 final class ReadReceipt {
@@ -20,15 +23,26 @@ final class ReadReceipt {
   /// `displayed`, `deleted`, `dispatched` or `processed`.
   final String disposition;
 
-  /// When the receipt arrived.
+  /// When it was read: the receipt's date, or when it arrived.
   final DateTime at;
+
+  /// Only this means the person saw the message; `deleted` and the
+  /// others mean it was not read.
+  bool get displayed => disposition == 'displayed';
 }
 
 /// Read receipts the user asked for, and the ones that came back.
 final class ReceiptRepository {
-  ReceiptRepository(this._db);
+  ReceiptRepository(this._db) : _settings = SettingsRepository(_db);
 
   final MailDatabase _db;
+
+  /// Which report each receipt came in (see [linkReport]); kept in the
+  /// settings, so the database needs no new table.
+  final SettingsRepository _settings;
+
+  /// At most this many links are kept per account (the oldest go).
+  static const maxLinks = 500;
 
   /// Remembers that the message [messageId] (without brackets) asked for
   /// read receipts.
@@ -49,8 +63,9 @@ final class ReceiptRepository {
   ).isNotEmpty;
 
   /// Records a receipt for a message that asked for one; a later receipt
-  /// from the same person replaces an earlier one. Returns false (and
-  /// stores nothing) when the message never asked.
+  /// from the same person replaces an earlier one (an older one, read
+  /// after it, does not). Returns false (and stores nothing) when the
+  /// message never asked.
   bool record(
     int accountId,
     String messageId, {
@@ -63,7 +78,8 @@ final class ReceiptRepository {
       'INSERT INTO read_receipts (account_id, message_id_header, recipient, disposition, at) '
       'VALUES (?, ?, ?, ?, ?) '
       'ON CONFLICT (account_id, message_id_header, recipient) DO UPDATE SET '
-      'disposition = excluded.disposition, at = excluded.at',
+      'disposition = excluded.disposition, at = excluded.at '
+      'WHERE excluded.at >= read_receipts.at',
       [
         accountId,
         messageId,
@@ -104,6 +120,55 @@ final class ReceiptRepository {
     'INSERT OR IGNORE INTO processed_reports (message_id) VALUES (?)',
     [messageId],
   );
+
+  /// Reads every report of [mailboxId] again on the next pass (after the
+  /// way they are matched improved).
+  void rereadReports(int mailboxId) => _db.execute(
+    'DELETE FROM processed_reports WHERE message_id IN '
+    '(SELECT id FROM messages WHERE mailbox_id = ?)',
+    [mailboxId],
+  );
+
+  /// Remembers that [recipient]'s receipt for [messageId] is the stored
+  /// message [reportId], so it can be opened from the sent message.
+  void linkReport(
+    int accountId,
+    String messageId, {
+    required String recipient,
+    required int reportId,
+  }) {
+    final links = _links(accountId)
+      ..remove(_linkKey(messageId, recipient))
+      ..[_linkKey(messageId, recipient)] = reportId;
+    while (links.length > maxLinks) {
+      links.remove(links.keys.first);
+    }
+    _settings.write(_linksKey(accountId), jsonEncode(links));
+  }
+
+  /// The stored id of [recipient]'s receipt for [messageId], if known.
+  int? reportFor(int accountId, String messageId, String recipient) =>
+      _links(accountId)[_linkKey(messageId, recipient.toLowerCase())];
+
+  static String _linksKey(int accountId) => 'receipts.reports.$accountId';
+
+  static String _linkKey(String messageId, String recipient) =>
+      '$messageId ${recipient.toLowerCase()}';
+
+  Map<String, int> _links(int accountId) {
+    final text = _settings.read(_linksKey(accountId));
+    if (text == null) return {};
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is! Map<String, Object?>) return {};
+      return {
+        for (final MapEntry(:key, :value) in decoded.entries)
+          if (value is int) key: value,
+      };
+    } on FormatException {
+      return {};
+    }
+  }
 
   static ReadReceipt _fromRow(Row row) => ReadReceipt(
     recipient: row['recipient'] as String,
