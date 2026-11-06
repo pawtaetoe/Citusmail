@@ -27,8 +27,8 @@ Website: **https://citusmail.fluminaris.com** · Download:
   away on top. Sign-in codes show in the list,
   copied with a tap, and in the notification.
 - **Finds things in your mail for you**: subscriptions and what they cost,
-  bills and trials coming up, deliveries, return-by dates, trips and the
-  online accounts you have.
+  bills and trials coming up, deliveries, return-by dates, trips,
+  appointments and the online accounts you have.
 - **Phishing warnings that explain** what's wrong: forged senders,
   lookalike links, outsiders writing in your company's name.
 - **Privacy by default**: images and trackers blocked, read receipts
