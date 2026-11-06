@@ -10,7 +10,7 @@ import '../services/app_settings.dart';
 
 /// What the app learned from the user's corrections ("Not a
 /// subscription", "Not a delivery", "Not a booking", "Not an account",
-/// and "List again"), kept in the settings store on the device. Found
+/// "Not an appointment", and "List again"), kept in the settings store on the device. Found
 /// items that look like ones the user rejected are left out
 /// ([vetoed]); nothing is ever added.
 ///

@@ -13,7 +13,8 @@ enum MailKind {
   subscription('s'),
   delivery('d'),
   booking('b'),
-  account('a');
+  account('a'),
+  appointment('p');
 
   const MailKind(this.code);
 
@@ -190,8 +191,8 @@ final class _Counts {
 
 /// A small text classifier that learns, on the device, from the user's
 /// own corrections: when they say "Not a subscription" (or a delivery, a
-/// booking, an account), those emails count against that kind, and
-/// emails that look like them are no longer picked up.
+/// booking, an account, an appointment), those emails count against that
+/// kind, and emails that look like them are no longer picked up.
 ///
 /// Naive Bayes over hashed features ([MailFeatures]), with priors from a
 /// small set of made-up example emails that ship with the package (never

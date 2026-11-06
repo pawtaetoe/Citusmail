@@ -12,6 +12,7 @@ import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import 'accounts_page.dart';
+import 'appointments_page.dart';
 import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
 import 'folder_dialogs.dart';
@@ -347,6 +348,11 @@ final class Sidebar extends StatelessWidget {
           icon: Icons.luggage_outlined,
           label: 'Trips',
           page: (_) => TripsPage(controller: controller),
+        ),
+        (
+          icon: Icons.event_available_outlined,
+          label: 'Appointments',
+          page: (_) => AppointmentsPage(controller: controller),
         ),
         (
           icon: Icons.badge_outlined,

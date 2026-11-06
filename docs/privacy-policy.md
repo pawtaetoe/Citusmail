@@ -33,8 +33,8 @@ services listed in the next section.
 Features that understand your mail, such as sorting, finding verification
 codes, phishing checks, the list of your paid subscriptions (found in
 receipts and renewal emails), your deliveries (found in order and
-shipping emails) and your trips (found in booking emails), run entirely
-on the device.
+shipping emails), your trips and appointments (found in booking
+emails), run entirely on the device.
 
 ## Services the app connects to
 

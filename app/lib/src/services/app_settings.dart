@@ -33,8 +33,9 @@ final class AppSettings {
   set notificationPreviews(bool on) =>
       _store.settings.write(_previews, on ? 'on' : 'off');
 
-  /// Notifications before a bill is due, a free trial ends or a yearly
-  /// subscription renews (on by default; only with [notifications]).
+  /// Notifications before a bill is due, a free trial ends, a yearly
+  /// subscription renews, a return window closes or an appointment (on by
+  /// default; only with [notifications]).
   bool get reminders => _store.settings.read(_reminders) != 'off';
   set reminders(bool on) =>
       _store.settings.write(_reminders, on ? 'on' : 'off');
@@ -54,8 +55,8 @@ final class AppSettings {
       _store.settings.write(_learn, on ? 'on' : 'off');
 
   /// "Read receipts and bookings automatically" (on by default): the
-  /// emails Subscriptions, Deliveries, Trips and Online accounts would read
-  /// are downloaded ahead of time (they stay unread). Off, each page
+  /// emails Subscriptions, Deliveries, Trips, Appointments and Online
+  /// accounts would read are downloaded ahead of time (they stay unread). Off, each page
   /// offers to read them, as a button.
   bool get autoRead => _store.settings.read(_autoRead) != 'off';
   set autoRead(bool on) => _store.settings.write(_autoRead, on ? 'on' : 'off');

@@ -7,6 +7,7 @@
 library;
 
 export 'src/accounts.dart';
+export 'src/appointments.dart';
 export 'src/classification.dart';
 export 'src/deliveries.dart';
 export 'src/due_dates.dart';

@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../mail/accounts_model.dart';
+import '../mail/appointments_model.dart';
 import '../mail/deliveries_model.dart';
 import '../mail/subscriptions_model.dart';
 import '../mail/trips_model.dart';
@@ -19,10 +20,10 @@ import 'app_settings.dart';
 typedef BodyLoader = Future<void> Function(int messageId);
 
 /// "Read receipts and bookings automatically" (on by default): the
-/// receipts, bills, shipping, booking and account emails that
-/// Subscriptions, Deliveries, Trips and Online accounts would read are
-/// downloaded ahead of time, quietly, so the pages are filled in when
-/// opened.
+/// receipts, bills, shipping, booking, appointment and account emails
+/// that Subscriptions, Deliveries, Trips, Appointments and Online accounts
+/// would read are downloaded ahead of time, quietly, so the pages are
+/// filled in when opened.
 ///
 /// It is the same as opening those emails on the device: they come from
 /// the user's own mail server with BODY.PEEK, so they stay unread; no read
@@ -213,6 +214,7 @@ final class AutoReader extends ChangeNotifier {
       )).toRead,
       (await findTrips(store, now, skip: skip)).toRead,
       (await findDeliveries(store, now, skip: skip)).toRead,
+      (await findAppointments(store, now, skip: skip)).toRead,
       (await findOnlineAccounts(store, now, skip: skip)).toRead,
     ];
     final ids = <int>{};

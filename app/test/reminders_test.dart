@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/mail/appointments_model.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/services/reminders.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
@@ -12,6 +13,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'support/appointment_mail.dart';
 import 'support/return_mail.dart';
 import 'support/test_app.dart';
 
@@ -228,6 +230,29 @@ void main() {
       expect(await check(at.add(const Duration(days: 1))), isEmpty);
     });
 
+    test('the day before an appointment, not a cancelled one', () async {
+      // Sent around 2 Nov: the salon on the 5th, the barber (cancelled) on
+      // the 6th, the dentist on the 8th at 3:30 PM.
+      seedAppointments(app.store, now: DateTime.utc(2026, 11, 2, 12));
+      expect(await check(DateTime(2026, 11, 5, 9)), isEmpty);
+      ReminderState(app.store).lastCheck = null;
+      expect(await check(DateTime(2026, 11, 7, 8, 30)), [
+        'Bright Smile Dental, tomorrow at 3:30 PM',
+      ]);
+      // Once.
+      ReminderState(app.store).lastCheck = null;
+      expect(await check(DateTime(2026, 11, 7, 18)), isEmpty);
+      // Not once marked "not an appointment".
+      ReminderState(app.store).lastCheck = null;
+      app.store.settings.write('reminders.notified', '');
+      final found = await findAppointments(app.store, DateTime(2026, 11, 7, 9));
+      final dentist = found.all.firstWhere(
+        (a) => a.title == 'Bright Smile Dental',
+      );
+      app.store.settings.write(AppointmentsModel.hiddenKey, dentist.key);
+      expect(await check(DateTime(2026, 11, 7, 9)), isEmpty);
+    });
+
     test('words', () {
       final bill = Reminder(
         kind: ReminderKind.billDue,
@@ -271,6 +296,20 @@ void main() {
         'Today is the last day to return your UNIQLO order',
       );
       expect(ReminderWords.title(uniqlo), 'Return window closing');
+      final dentist = Reminder(
+        kind: ReminderKind.appointment,
+        company: 'brightsmile.co.uk',
+        name: 'Bright Smile Dental',
+        date: DateTime.utc(2026, 11, 15),
+        messageId: 4,
+        at: DateTime(2026, 11, 15, 9, 5),
+      );
+      expect(
+        ReminderWords.notification(dentist, now),
+        'Bright Smile Dental, tomorrow at 9:05 AM',
+      );
+      expect(ReminderWords.title(dentist), 'Appointment tomorrow');
+      expect(ReminderWords.detail(dentist, now), 'Sun, 15 Nov, 9:05 AM');
       // Its own notification id, apart from new mail's.
       final id = ReminderNotice(spotify, '', '').id;
       expect(id & 0xF0000000, 0x20000000);
