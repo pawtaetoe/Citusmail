@@ -123,6 +123,21 @@ abstract final class MailText {
     return localizations.formatShortDate(local);
   }
 
+  /// A day and time in a sentence: "Nov 6, 3:42 PM", with the year when
+  /// it isn't this year.
+  static String dayAndTime(BuildContext context, DateTime when) {
+    final local = when.toLocal();
+    final localizations = MaterialLocalizations.of(context);
+    final day = local.year == DateTime.now().year
+        ? localizations.formatShortMonthDay(local)
+        : localizations.formatShortDate(local);
+    final time = localizations.formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+    return '$day, $time';
+  }
+
   /// The date in the reading pane: weekday, date and time.
   static String fullDate(BuildContext context, DateTime when) {
     final local = when.toLocal();
