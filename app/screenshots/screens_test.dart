@@ -106,7 +106,14 @@ void main() {
     required Size size,
     bool dark = false,
   }) async {
-    tester.view.physicalSize = size * 2;
+    // SCREEN_PHONE=play: phones at 16:9 instead, for the Google Play
+    // listing (Play takes at most 2:1; 390 x 844 is 2.16).
+    final shown =
+        Platform.environment['SCREEN_PHONE'] == 'play' &&
+            size == const Size(390, 844)
+        ? const Size(412, 732)
+        : size;
+    tester.view.physicalSize = shown * 2;
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
