@@ -15,6 +15,7 @@ import 'package:mail_view/mail_view.dart';
 
 import '../background/background_mail.dart';
 import '../services/app_services.dart';
+import 'follow_up_times.dart';
 import 'invitation_answers.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
@@ -1143,7 +1144,9 @@ final class MailController {
   void checkFollowUps([DateTime? now]) {
     if (_disposed) return;
     try {
-      final result = followUps.check(now: now);
+      final result = followUps.check(
+        now: (now ?? FollowUpTimes.clock()).toUtc(),
+      );
       if (!result.isEmpty) refresh();
       if (result.returned.isNotEmpty) onFollowUpsBack?.call();
     } on Object catch (e) {
