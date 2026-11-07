@@ -450,6 +450,15 @@ final class _SectionHeading extends StatelessWidget {
 
   final String text;
 
+  /// Small, muted, a little spaced: also the style of the folding group
+  /// headings below the accounts.
+  static TextStyle style(SidebarColors colors) => TextStyle(
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.4,
+  );
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 12, 12, 2),
@@ -459,12 +468,7 @@ final class _SectionHeading extends StatelessWidget {
         text,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: SidebarColors.of(context).muted,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.4,
-        ),
+        style: style(SidebarColors.of(context)),
       ),
     ),
   );
@@ -727,12 +731,17 @@ final class _FoldHeader extends StatelessWidget {
     this.problem,
     this.badge = 0,
     this.trailing,
+    this.heading = false,
   });
 
   final String title;
 
   /// What folds, for screen readers: "Show $what".
   final String what;
+
+  /// A group heading (small, muted, like [_SectionHeading]) rather than
+  /// an account's name.
+  final bool heading;
   final bool open;
 
   /// Null when it doesn't fold: then it is a plain heading.
@@ -790,11 +799,13 @@ final class _FoldHeader extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.text,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: heading
+                          ? _SectionHeading.style(colors)
+                          : TextStyle(
+                              color: colors.text,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
                     ),
                   ),
                   if (problem != null)
@@ -855,9 +866,9 @@ typedef _Feature = ({IconData icon, String label, WidgetBuilder page});
 /// A folding group of pages, such as "Tools".
 typedef _FeatureGroup = ({String id, String title, List<_Feature> pages});
 
-/// Pages about your mail, apart from the places to read it: a tinted band
-/// below the accounts, so they read as features, not folders. Each group
-/// folds (folded at first; remembered).
+/// Pages about your mail, apart from the places to read it: below the
+/// accounts, under small muted headings, so they read as features, not
+/// folders. Each group folds (folded at first; remembered).
 final class _FeaturePanel extends StatelessWidget {
   const _FeaturePanel({
     required this.memory,
@@ -870,46 +881,36 @@ final class _FeaturePanel extends StatelessWidget {
   final void Function(WidgetBuilder page) onOpen;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = SidebarColors.of(context);
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: colors.hover,
-        border: Border(
-          top: BorderSide(color: colors.selected),
-          bottom: BorderSide(color: colors.selected),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final group in groups)
-            _Fold(
-              key: ValueKey('group-${group.id}'),
-              memory: memory,
-              id: group.id,
-              header: (open, toggle) => _FoldHeader(
-                title: group.title,
-                what: group.title,
-                open: open,
-                onToggle: toggle,
-              ),
-              children: [
-                for (final page in group.pages)
-                  _Entry(
-                    icon: page.icon,
-                    label: page.label,
-                    indent: 1,
-                    onTap: () => onOpen(page.page),
-                  ),
-              ],
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: CitusSpace.l),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final group in groups)
+          _Fold(
+            key: ValueKey('group-${group.id}'),
+            memory: memory,
+            id: group.id,
+            header: (open, toggle) => _FoldHeader(
+              title: group.title,
+              what: group.title,
+              open: open,
+              onToggle: toggle,
+              heading: true,
             ),
-        ],
-      ),
-    );
-  }
+            children: [
+              for (final page in group.pages)
+                _Entry(
+                  icon: page.icon,
+                  label: page.label,
+                  indent: 1,
+                  onTap: () => onOpen(page.page),
+                ),
+            ],
+          ),
+      ],
+    ),
+  );
 }
 
 /// What an account's last sync says, in a few words, and whether it is a
