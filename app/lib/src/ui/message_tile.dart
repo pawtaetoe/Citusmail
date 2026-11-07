@@ -43,6 +43,9 @@ final class MessageTile extends StatefulWidget {
   /// Selection mode: taps select instead of opening.
   final bool selecting;
 
+  /// The preview line's size (the sender and subject are 14).
+  static const previewSize = 13.0;
+
   /// Rows are laid out with this prototype (the same height for all).
   static StoredMessage prototype = StoredMessage(
     id: -1,
@@ -101,7 +104,7 @@ final class _MessageTileState extends State<MessageTile> {
         : widget.open
         ? listColors.selected
         : _hovered
-        ? colors.onSurface.withValues(alpha: 0.04)
+        ? theme.hoverColor
         : Colors.transparent;
 
     final row = Semantics(
@@ -133,45 +136,65 @@ final class _MessageTileState extends State<MessageTile> {
               onTap: _tap,
               onLongPress: () => _c.toggleSelected(_m),
               onSecondaryTapUp: (d) => _menu(d.globalPosition),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Unread: a dot beside the avatar, and bold text.
-                    SizedBox(
-                      width: 16,
-                      height: 36,
-                      child: unread
-                          ? Center(
-                              child: Container(
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  color: listColors.unreadDot,
-                                  shape: BoxShape.circle,
+              child: Stack(
+                children: [
+                  // The open row: a bar at its left, as in the sidebar,
+                  // so it is marked by more than its tint.
+                  if (widget.open)
+                    Positioned(
+                      key: const ValueKey('open-row-bar'),
+                      left: 0,
+                      top: 9,
+                      bottom: 9,
+                      child: Container(
+                        width: 3,
+                        decoration: BoxDecoration(
+                          color: listColors.indicator,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Unread: a dot beside the avatar, and bold text.
+                        SizedBox(
+                          width: 16,
+                          height: 36,
+                          child: unread
+                              ? Center(
+                                  child: Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      color: listColors.unreadDot,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        SizedBox.square(
+                          dimension: 36,
+                          child: showCheckbox
+                              ? Checkbox(
+                                  value: widget.checked,
+                                  onChanged: (_) => _c.toggleSelected(_m),
+                                  semanticLabel: 'Select',
+                                )
+                              : Avatar(
+                                  name: MailText.sender(_m),
+                                  address: _m.from?.address ?? '',
                                 ),
-                              ),
-                            )
-                          : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: _text(context, unread, showActions)),
+                      ],
                     ),
-                    SizedBox.square(
-                      dimension: 36,
-                      child: showCheckbox
-                          ? Checkbox(
-                              value: widget.checked,
-                              onChanged: (_) => _c.toggleSelected(_m),
-                              semanticLabel: 'Select',
-                            )
-                          : Avatar(
-                              name: MailText.sender(_m),
-                              address: _m.from?.address ?? '',
-                            ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(child: _text(context, unread, showActions)),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -215,7 +238,10 @@ final class _MessageTileState extends State<MessageTile> {
     );
   }
 
-  /// Sender and date (or hover actions), subject, preview.
+  /// Sender and date (or hover actions), subject, preview. Unread: the
+  /// sender and subject in semibold ink; read: the subject drops to
+  /// regular weight and the muted colour, so unread mail stands out at a
+  /// glance.
   Widget _text(BuildContext context, bool unread, bool showActions) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
@@ -279,6 +305,7 @@ final class _MessageTileState extends State<MessageTile> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodyMedium?.copyWith(
+            color: unread ? colors.onSurface : muted,
             fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
             height: 1.35,
           ),
@@ -286,7 +313,10 @@ final class _MessageTileState extends State<MessageTile> {
         if (_m.shownCode case final code?)
           _CodeLine(
             code: code,
-            style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontSize: MessageTile.previewSize,
+              height: 1.35,
+            ),
           )
         else
           Text(
@@ -295,6 +325,7 @@ final class _MessageTileState extends State<MessageTile> {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(
               color: muted,
+              fontSize: MessageTile.previewSize,
               height: 1.35,
             ),
           ),
