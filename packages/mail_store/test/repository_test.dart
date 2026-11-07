@@ -2131,6 +2131,93 @@ void main() {
     );
   });
 
+  group('sender totals', () {
+    test('per address (any case): counts, opened, newest, unsubscribe', () {
+      final account = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+        folder('Sent', use: 'Sent'),
+        folder('Junk', use: 'Junk'),
+        folder('Archive', use: 'Archive'),
+      ]);
+      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      MailAddress shop(String name, [String address = 'news@shop.example']) =>
+          MailAddress(
+            displayName: name,
+            localPart: address.split('@').first,
+            domain: address.split('@').last,
+          );
+      store.messages.upsertSummaries(id('INBOX'), [
+        MessageSummary(
+          uid: 1,
+          subject: 'Weekly deals',
+          receivedAt: DateTime.utc(2026, 10, 2),
+          from: shop('Shop News'),
+          category: MessageCategory.newsletters,
+          headers: const {
+            'list-unsubscribe': ['<https://shop.example/u/1>'],
+          },
+        ),
+        MessageSummary(
+          uid: 2,
+          subject: 'Deals again',
+          receivedAt: DateTime.utc(2026, 10, 5),
+          from: shop('Shop', 'News@Shop.example'),
+          category: MessageCategory.newsletters,
+          flags: MessageFlags.fromImap([r'\Seen']),
+        ),
+        MessageSummary(
+          uid: 3,
+          subject: 'Sale',
+          receivedAt: DateTime.utc(2026, 10, 1),
+          from: shop('Shop News'),
+          category: MessageCategory.notifications,
+          flags: MessageFlags.fromImap([r'\Seen']),
+          headers: const {
+            'list-unsubscribe': ['<https://shop.example/u/3>'],
+          },
+        ),
+        summary(4, subject: 'Lunch?'),
+        summary(5, subject: 'Too old', at: DateTime.utc(2025, 1)),
+      ]);
+      store.messages.upsertSummaries(id('Archive'), [summary(6)]);
+      store.messages.upsertSummaries(id('Junk'), [summary(7)]);
+      store.messages.upsertSummaries(id('Sent'), [
+        MessageSummary(
+          uid: 8,
+          receivedAt: DateTime.utc(2026, 10, 3),
+          from: const MailAddress(localPart: 'me', domain: 'x.example'),
+          to: const [MailAddress(localPart: 'carol', domain: 'x.example')],
+        ),
+      ]);
+      final inbox = id('INBOX');
+      int uid(int u, [int? box]) => store.messages.byUid(box ?? inbox, u)!.id;
+
+      final stats = store.messages.senderStats(DateTime.utc(2026, 9));
+      expect(stats.map((s) => s.from.address), [
+        'News@Shop.example', // as the newest message spelt it
+        'sender6@x.example',
+        'sender4@x.example',
+      ]);
+      final news = stats.first;
+      expect(news.from.displayName, 'Shop News', reason: 'the name used most');
+      expect(news.count, 3);
+      expect(news.opened, 2);
+      expect(news.newsletters, 2);
+      expect(news.notifications, 1);
+      expect(news.last, DateTime.utc(2026, 10, 5));
+      expect(news.newestId, uid(2));
+      expect(news.unsubscribeId, uid(1), reason: 'the newest with the header');
+      expect(news.unsubscribeAt, DateTime.utc(2026, 10, 2));
+      final lunch = stats.last;
+      expect(lunch.count, 1);
+      expect(lunch.opened, 0);
+      expect(lunch.newestId, uid(4));
+      expect(lunch.unsubscribeId, isNull);
+      expect(lunch.from.displayName, 'Sender 4');
+    });
+  });
+
   group('privacy report candidates', () {
     test('received since a date, not own mail, only downloaded listed', () {
       final account = temp.addAccount();

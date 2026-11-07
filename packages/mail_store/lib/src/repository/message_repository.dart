@@ -739,6 +739,90 @@ final class MessageRepository {
       (message: _fromRow(row), unsubscribe: row['unsubscribe'] == 1),
   ];
 
+  /// The mail [receivedSince] lists, added up per sender address (any
+  /// case) by SQLite: how much, how much of it opened, when the newest
+  /// came and which it is, and the newest with a `List-Unsubscribe`
+  /// header. One row per address instead of one object per message, so
+  /// the Clean up page does not read thousands of rows. Most mail first,
+  /// then the most recent.
+  List<SenderStats> senderStats(DateTime since) {
+    const from =
+        '$_from WHERE m.received_at >= ? AND m.from_address IS NOT NULL '
+        "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts', 'trash', 'junk')) ";
+    final at = since.toUtc().millisecondsSinceEpoch;
+    // Per address and display name; the bare columns (id, from_address)
+    // come from the row with the newest received_at, as SQLite defines
+    // for a query with one max().
+    final rows = _db.select(
+      'SELECT lower(m.from_address) AS address, m.from_name AS name, '
+      'count(*) AS n, sum((m.flags & 1) != 0) AS opened, '
+      "sum(m.category = 'newsletters') AS newsletters, "
+      "sum(m.category = 'notifications') AS notifications, "
+      'max(m.received_at) AS last, m.id AS newest_id, m.from_address AS spelled '
+      '$from AND $_notACopy '
+      'GROUP BY lower(m.from_address), m.from_name',
+      [at],
+    );
+    // The newest message with unsubscribe headers, per address.
+    final unsubscribe = {
+      for (final row in _db.select(
+        'SELECT lower(m.from_address) AS address, max(m.received_at) AS last, m.id AS newest_id '
+        '$from AND $_notACopy '
+        'AND EXISTS (SELECT 1 FROM message_headers h '
+        "WHERE h.message_id = m.id AND h.name = 'list-unsubscribe') "
+        'GROUP BY lower(m.from_address)',
+        [at],
+      ))
+        row['address'] as String: (row['newest_id'] as int, row['last'] as int),
+    };
+    final byAddress = <String, _SenderTotals>{};
+    for (final row in rows) {
+      final totals = byAddress.putIfAbsent(
+        row['address'] as String,
+        _SenderTotals.new,
+      );
+      final n = row['n'] as int;
+      final last = row['last'] as int;
+      totals.count += n;
+      totals.opened += row['opened'] as int;
+      totals.newsletters += row['newsletters'] as int;
+      totals.notifications += row['notifications'] as int;
+      if (last > totals.last) {
+        totals.last = last;
+        totals.newestId = row['newest_id'] as int;
+        totals.spelled = row['spelled'] as String;
+      }
+      final name = (row['name'] as String?)?.trim();
+      if (name != null && name.isNotEmpty) {
+        totals.names.update(name, (c) => c + n, ifAbsent: () => n);
+      }
+    }
+    final stats = [
+      for (final MapEntry(key: address, value: t) in byAddress.entries)
+        SenderStats(
+          from: _address(t.mostUsedName, t.spelled)!,
+          count: t.count,
+          opened: t.opened,
+          newsletters: t.newsletters,
+          notifications: t.notifications,
+          last: DateTime.fromMillisecondsSinceEpoch(t.last, isUtc: true),
+          newestId: t.newestId,
+          unsubscribeId: unsubscribe[address]?.$1,
+          unsubscribeAt: switch (unsubscribe[address]?.$2) {
+            final ms? => DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true),
+            null => null,
+          },
+        ),
+    ];
+    stats.sort((a, b) {
+      final byCount = b.count.compareTo(a.count);
+      if (byCount != 0) return byCount;
+      final byLast = b.last.compareTo(a.last);
+      return byLast != 0 ? byLast : a.from.address.compareTo(b.from.address);
+    });
+    return stats;
+  }
+
   List<SortableMessage> _sortable(
     Iterable<Row> rows,
     Iterable<Row> headerRows,
@@ -1340,6 +1424,65 @@ final class MessageRepository {
         isUtc: true,
       ),
     );
+  }
+}
+
+/// One sender's received mail, added up by the store (see
+/// [MessageRepository.senderStats]). What the Clean up page counts.
+final class SenderStats {
+  const SenderStats({
+    required this.from,
+    required this.count,
+    required this.opened,
+    required this.newsletters,
+    required this.notifications,
+    required this.last,
+    required this.newestId,
+    this.unsubscribeId,
+    this.unsubscribeAt,
+  });
+
+  /// The address as the newest message spelt it, with the display name
+  /// used most (or none).
+  final MailAddress from;
+
+  /// How many messages, and how many of them were opened.
+  final int count;
+  final int opened;
+
+  /// How many are newsletters, and notifications.
+  final int newsletters;
+  final int notifications;
+
+  /// When the newest came, and its stored id.
+  final DateTime last;
+  final int newestId;
+
+  /// The newest message with a `List-Unsubscribe` header, if any, and
+  /// when it came.
+  final int? unsubscribeId;
+  final DateTime? unsubscribeAt;
+}
+
+/// Running totals of one address while [MessageRepository.senderStats]
+/// adds up its rows (one per display name).
+final class _SenderTotals {
+  int count = 0, opened = 0, newsletters = 0, notifications = 0;
+  int last = -1;
+  int newestId = 0;
+  String spelled = '';
+  final names = <String, int>{};
+
+  String? get mostUsedName {
+    String? best;
+    var most = 0;
+    for (final MapEntry(key: name, value: n) in names.entries) {
+      if (n > most) {
+        best = name;
+        most = n;
+      }
+    }
+    return best;
   }
 }
 
