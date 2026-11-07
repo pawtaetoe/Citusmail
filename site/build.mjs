@@ -94,7 +94,9 @@ export async function latestRelease(fetchImpl = globalThis.fetch) {
       release.assets?.find((a) => pattern.test(a.name))?.browser_download_url;
     return {
       version: String(release.tag_name ?? '').replace(/^v/, ''),
-      apk: find(/\.apk$/),
+      // The arm64 APK (plain name); the release also has one per other
+      // processor type (citusmail-1.2.3-armeabi-v7a.apk).
+      apk: find(/^citusmail-[0-9.]+\.apk$/),
       deb: find(/_amd64\.deb$/),
       flatpak: find(/\.flatpak$/),
       exe: find(/setup.*\.exe$/),

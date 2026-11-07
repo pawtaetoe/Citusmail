@@ -282,8 +282,9 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - run: flutter pub get --enforce-lockfile
       # Signed with the debug key: fine for testing, never for release.
-      # Two flavors (packaging/README.md): the APK for GitHub ("github")
-      # and the bundle for Google Play ("play"), both with Instant mail.
+      # Two flavors (packaging/README.md): the APKs for GitHub ("github",
+      # one per processor type) and the bundle for Google Play ("play"),
+      # both with Instant mail.
       - name: APK (github flavor)
         working-directory: app
         env:
@@ -295,7 +296,7 @@ jobs:
           CITUSMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.CITUSMAIL_GOOGLE_CLIENT_SECRET }}
           CITUSMAIL_SAFE_BROWSING_KEY: ${{ secrets.CITUSMAIL_SAFE_BROWSING_KEY }}
         run: >-
-          flutter build apk --release --flavor github
+          flutter build apk --release --flavor github --split-per-abi
           --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
@@ -316,20 +317,28 @@ jobs:
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
           --dart-define=CITUSMAIL_SAFE_BROWSING_KEY="$CITUSMAIL_SAFE_BROWSING_KEY"
-      - name: Name the APK and the bundle
+      # One APK per processor type (--split-per-abi), a third of the size
+      # of one carrying all three. The arm64 one, for nearly every phone,
+      # keeps the plain name the website links to.
+      - name: Name the APKs and the bundle
         run: |
           version="$(sed -n 's/^version: *//p' app/pubspec.yaml | cut -d+ -f1)"
+          apks=app/build/app/outputs/flutter-apk
           mkdir -p build/packages
-          cp app/build/app/outputs/flutter-apk/app-github-release.apk "build/packages/citusmail-$version.apk"
+          cp "$apks/app-github-arm64-v8a-release.apk" "build/packages/citusmail-$version.apk"
+          cp "$apks/app-github-armeabi-v7a-release.apk" "build/packages/citusmail-$version-armeabi-v7a.apk"
+          cp "$apks/app-github-x86_64-release.apk" "build/packages/citusmail-$version-x86_64.apk"
           cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
       - name: The Play bundle has Instant mail and the mail check
         run: packaging/android/check-play-bundle.sh build/packages/*.aab
-      - name: The GitHub APK keeps Instant mail
+      - name: The GitHub APKs keep Instant mail
         run: |
           aapt2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)"
-          "$aapt2" dump xmltree --file AndroidManifest.xml build/packages/*.apk > "$RUNNER_TEMP/manifest.txt"
-          grep -F com.fluminaris.citusmail.InstantMailService "$RUNNER_TEMP/manifest.txt"
-          grep -F android.permission.FOREGROUND_SERVICE_SPECIAL_USE "$RUNNER_TEMP/manifest.txt"
+          for apk in build/packages/*.apk; do
+            "$aapt2" dump xmltree --file AndroidManifest.xml "$apk" > "$RUNNER_TEMP/manifest.txt"
+            grep -F com.fluminaris.citusmail.InstantMailService "$RUNNER_TEMP/manifest.txt"
+            grep -F android.permission.FOREGROUND_SERVICE_SPECIAL_USE "$RUNNER_TEMP/manifest.txt"
+          done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-package
@@ -367,8 +376,9 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "CITUSMAIL_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
       # The same key and the same build settings for both flavors
-      # (packaging/README.md): the APK for GitHub ("github", with Instant
-      # mail) and the bundle for Google Play ("play", without).
+      # (packaging/README.md): the APKs for GitHub ("github", one per
+      # processor type) and the bundle for Google Play ("play"), both
+      # with Instant mail.
       - name: APK (github flavor)
         working-directory: app
         env:
@@ -383,7 +393,7 @@ jobs:
           CITUSMAIL_KEY_ALIAS: ${{ secrets.CITUSMAIL_KEY_ALIAS || secrets.FMAIL_KEY_ALIAS }}
           CITUSMAIL_KEY_PASSWORD: ${{ secrets.CITUSMAIL_KEY_PASSWORD || secrets.FMAIL_KEY_PASSWORD }}
         run: >-
-          flutter build apk --release --flavor github
+          flutter build apk --release --flavor github --split-per-abi
           --dart-define=CITUSMAIL_MS_CLIENT_ID="$CITUSMAIL_MS_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_ID="$CITUSMAIL_GOOGLE_CLIENT_ID"
           --dart-define=CITUSMAIL_GOOGLE_CLIENT_SECRET="$CITUSMAIL_GOOGLE_CLIENT_SECRET"
@@ -410,20 +420,28 @@ jobs:
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
-      - name: Name the APK and the bundle
+      # One APK per processor type (--split-per-abi), a third of the size
+      # of one carrying all three. The arm64 one, for nearly every phone,
+      # keeps the plain name the website links to.
+      - name: Name the APKs and the bundle
         run: |
           version="$(sed -n 's/^version: *//p' app/pubspec.yaml | cut -d+ -f1)"
+          apks=app/build/app/outputs/flutter-apk
           mkdir -p build/packages
-          cp app/build/app/outputs/flutter-apk/app-github-release.apk "build/packages/citusmail-$version.apk"
+          cp "$apks/app-github-arm64-v8a-release.apk" "build/packages/citusmail-$version.apk"
+          cp "$apks/app-github-armeabi-v7a-release.apk" "build/packages/citusmail-$version-armeabi-v7a.apk"
+          cp "$apks/app-github-x86_64-release.apk" "build/packages/citusmail-$version-x86_64.apk"
           cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
       - name: The Play bundle has Instant mail and the mail check
         run: packaging/android/check-play-bundle.sh build/packages/*.aab
-      - name: The GitHub APK keeps Instant mail
+      - name: The GitHub APKs keep Instant mail
         run: |
           aapt2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)"
-          "$aapt2" dump xmltree --file AndroidManifest.xml build/packages/*.apk > "$RUNNER_TEMP/manifest.txt"
-          grep -F com.fluminaris.citusmail.InstantMailService "$RUNNER_TEMP/manifest.txt"
-          grep -F android.permission.FOREGROUND_SERVICE_SPECIAL_USE "$RUNNER_TEMP/manifest.txt"
+          for apk in build/packages/*.apk; do
+            "$aapt2" dump xmltree --file AndroidManifest.xml "$apk" > "$RUNNER_TEMP/manifest.txt"
+            grep -F com.fluminaris.citusmail.InstantMailService "$RUNNER_TEMP/manifest.txt"
+            grep -F android.permission.FOREGROUND_SERVICE_SPECIAL_USE "$RUNNER_TEMP/manifest.txt"
+          done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-package
