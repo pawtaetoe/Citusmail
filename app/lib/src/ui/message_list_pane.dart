@@ -15,6 +15,7 @@ import '../mail/send_later_times.dart';
 import 'attachments_page.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
+import 'empty_state.dart';
 import 'folder_dialogs.dart';
 import 'follow_ups_list.dart';
 import 'mail_text.dart';
@@ -605,7 +606,13 @@ final class _MessagesState extends State<_Messages> {
             list.screenerWaiting == 0 &&
             list.followUps.isEmpty &&
             list.newSinceAway.isEmpty) {
-          return const _Empty(Icons.inbox_outlined, 'Your inbox is empty.');
+          return EmptyState(
+            icon: Icons.inbox_outlined,
+            text: 'Your inbox is empty.',
+            hint: 'Nothing new has arrived.',
+            action: 'Check for new mail',
+            onAction: _c.syncNow,
+          );
         }
         return Scrollbar(
           controller: _scroll,
@@ -697,16 +704,22 @@ final class _MessagesState extends State<_Messages> {
       final messages = list.messages;
       if (messages.isEmpty) {
         return switch (list.location) {
-          SearchLocation() => const _Empty(
-            Icons.search_off,
-            'No messages found.',
+          SearchLocation() => const EmptyState(
+            icon: Icons.search_off,
+            text: 'No messages found.',
+            hint: 'Try other words, or the name of who wrote.',
           ),
-          SnoozedLocation() => const _Empty(
-            Icons.snooze,
-            'Nothing is snoozed. Snooze an email to have it come back '
-            'to the top of your inbox later.',
+          SnoozedLocation() => const EmptyState(
+            icon: Icons.snooze,
+            text: 'Nothing is snoozed.',
+            hint:
+                'Snooze an email to have it come back to the top of your '
+                'inbox later.',
           ),
-          _ => const _Empty(Icons.mail_outline, 'No messages here.'),
+          _ => const EmptyState(
+            icon: Icons.mail_outline,
+            text: 'No messages here.',
+          ),
         };
       }
       return Scrollbar(
@@ -763,7 +776,10 @@ final class _MessagesState extends State<_Messages> {
   Widget _outbox() {
     final entries = _c.outbox;
     if (entries.isEmpty) {
-      return const _Empty(Icons.outbox_outlined, 'Everything has been sent.');
+      return const EmptyState(
+        icon: Icons.outbox_outlined,
+        text: 'Everything has been sent.',
+      );
     }
     // Scheduled messages ("Send later"): a word on when they really go.
     final note = entries.any((e) => ScheduledSend.of(e) != null);
@@ -1000,35 +1016,6 @@ final class _ScreenerEntry extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-final class _Empty extends StatelessWidget {
-  const _Empty(this.icon, this.text);
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: colors.outlineVariant),
-            const SizedBox(height: 12),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-          ],
         ),
       ),
     );
