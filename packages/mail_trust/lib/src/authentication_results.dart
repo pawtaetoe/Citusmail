@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'domains.dart';
+
 /// One `Authentication-Results` header (RFC 8601): what a mail server
 /// found when it checked SPF, DKIM and DMARC.
 ///
@@ -123,17 +125,35 @@ final class AuthResult {
 /// behaved one removes forged copies that claim its name. So the id that
 /// sits at the top of most recent incoming mail is the user's own server;
 /// results from any other id may have been written by the sender.
+///
+/// Learning it from the mail itself can be gamed on a sparse inbox: on a
+/// server that writes no such header, a few messages from one sender,
+/// each carrying a made-up id at the top, would be the whole sample. So
+/// an id needs [minimumMessages] recent messages behind it, unless it
+/// names the account's own mail server (the IMAP host, or another name
+/// in its domain), when [minimumMessagesForServer] are enough.
 abstract final class AuthServIds {
-  /// Messages needed before an id is trusted.
-  static const minimumMessages = 5;
+  /// Messages needed before an id is trusted. At the share below, this
+  /// needs a run of at least this many messages to be forged into the
+  /// inbox unnoticed; an id that matches the account's server needs only
+  /// [minimumMessagesForServer].
+  static const minimumMessages = 20;
+
+  /// Messages needed for an id that names the account's own server.
+  static const minimumMessagesForServer = 5;
 
   /// Share of recent messages that must carry the id at the top.
   static const minimumShare = 0.6;
 
   /// The trusted id given the topmost `Authentication-Results` value of
   /// each recent incoming message (null for a message without one), or
-  /// null if no id is common enough yet.
-  static String? learn(Iterable<String?> topmostValues) {
+  /// null if no id is common enough yet. [serverHosts] are the account's
+  /// own server names (its IMAP host): an id among them, or in the same
+  /// registrable domain, is believed from fewer messages.
+  static String? learn(
+    Iterable<String?> topmostValues, {
+    Set<String> serverHosts = const {},
+  }) {
     var total = 0;
     final counts = <String, int>{};
     for (final value in topmostValues) {
@@ -145,9 +165,29 @@ abstract final class AuthServIds {
     }
     if (counts.isEmpty) return null;
     final best = counts.entries.reduce((a, b) => b.value > a.value ? b : a);
-    if (best.value < minimumMessages) return null;
+    final minimum = namesServer(best.key, serverHosts)
+        ? minimumMessagesForServer
+        : minimumMessages;
+    if (best.value < minimum) return null;
     if (best.value < total * minimumShare) return null;
     return best.key;
+  }
+
+  /// Whether [id] is one of [serverHosts] or shares a registrable domain
+  /// with one (`mx.example.com` for an IMAP host `imap.example.com`).
+  static bool namesServer(String id, Set<String> serverHosts) {
+    final name = Domains.normalize(id);
+    if (name == null) return false;
+    final registrable = Domains.registrable(name);
+    for (final host in serverHosts) {
+      final h = Domains.normalize(host);
+      if (h == null) continue;
+      if (h == name) return true;
+      if (registrable != null && Domains.registrable(h) == registrable) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// The results from [trustedId] in a message's headers ([values] top

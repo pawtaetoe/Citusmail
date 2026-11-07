@@ -59,28 +59,69 @@ void main() {
     test('the server id is learned from most recent mail', () {
       String ar(String id) => '$id; spf=pass smtp.mailfrom=a.example';
       expect(
-        AuthServIds.learn([for (var i = 0; i < 4; i++) ar('mx.me')]),
+        AuthServIds.learn([for (var i = 0; i < 19; i++) ar('mx.me')]),
         isNull,
       );
       expect(
-        AuthServIds.learn([for (var i = 0; i < 5; i++) ar('mx.me')]),
+        AuthServIds.learn([for (var i = 0; i < 20; i++) ar('mx.me')]),
         'mx.me',
       );
       expect(
         AuthServIds.learn([
-          for (var i = 0; i < 6; i++) ar('mx.me'),
-          for (var i = 0; i < 5; i++) null,
+          for (var i = 0; i < 22; i++) ar('mx.me'),
+          for (var i = 0; i < 20; i++) null,
         ]),
         isNull,
-        reason: 'only 55% carry it',
+        reason: 'only 52% carry it',
       );
       expect(
         AuthServIds.learn([
-          for (var i = 0; i < 8; i++) ar('MX.me'),
+          for (var i = 0; i < 30; i++) ar('MX.me'),
           ar('evil.example'),
           null,
         ]),
         'mx.me',
+      );
+    });
+
+    test('a few forged headers on a sparse inbox teach nothing', () {
+      // A new account on a server that writes no header: five messages
+      // from one sender, each with a made-up id at the top, are the whole
+      // sample. Not enough, unless the id names the account's own server.
+      final forged = [
+        for (var i = 0; i < 5; i++)
+          'whatever.example; dkim=pass header.d=victimcorp.example',
+        null,
+        null,
+      ];
+      expect(AuthServIds.learn(forged), isNull);
+      expect(
+        AuthServIds.learn(forged, serverHosts: {'imap.user.example'}),
+        isNull,
+      );
+      final own = [
+        for (var i = 0; i < 5; i++)
+          'mx.user.example; dkim=pass header.d=shop.example',
+        null,
+        null,
+      ];
+      expect(AuthServIds.learn(own), isNull);
+      expect(
+        AuthServIds.learn(own, serverHosts: {'imap.user.example'}),
+        'mx.user.example',
+        reason: 'same domain as the account\'s IMAP server',
+      );
+      expect(
+        AuthServIds.learn(own, serverHosts: {'MX.User.Example'}),
+        'mx.user.example',
+      );
+      expect(
+        AuthServIds.learn(own, serverHosts: {'imap.hoster.example'}),
+        isNull,
+      );
+      expect(
+        AuthServIds.namesServer('mail.co.uk', {'imap.shop.co.uk'}),
+        isFalse,
       );
     });
 
