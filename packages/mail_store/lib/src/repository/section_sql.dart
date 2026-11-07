@@ -116,35 +116,56 @@ abstract final class SectionSql {
   static const _screenerSince =
       "(SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'screener.since')";
 
-  /// The sender's domain: the text after the last '@', in lower case.
-  static const _domain =
-      'lower(substr(messages.from_address, '
-      "length(rtrim(messages.from_address, replace(messages.from_address, '@', ''))) + 1))";
+  /// How many parent domains of the sender's domain a decision or block
+  /// can be about: `news.shop.example` is also covered by one on
+  /// `shop.example`. Four levels above the domain itself cover mail from
+  /// well below any registrable domain.
+  static const _domainLevels = 4;
+
+  /// The sender's stored domain (`messages.from_domain`, lower case) and
+  /// its parent domains, as a list of expressions: `a.b.shop.example`,
+  /// `b.shop.example`, `shop.example`... A domain with fewer labels
+  /// repeats its last one, which matches nothing (a decision has a dot).
+  /// With `IN`, SQLite probes the `(kind, value)` index once per level.
+  static final _domainChain = () {
+    final levels = ['messages.from_domain'];
+    for (var i = 0; i < _domainLevels; i++) {
+      final parent = levels.last;
+      levels.add("substr($parent, instr($parent, '.') + 1)");
+    }
+    return levels.join(', ');
+  }();
 
   /// Whether a `kind`/`value` row of [table] (an address, or a domain and
-  /// its subdomains) names the sender.
+  /// its subdomains) names the sender. Two probes of the table's unique
+  /// `(kind, value)` index.
   static String _names(String table) =>
       "(($table.kind = 'address' AND $table.value = lower(messages.from_address)) "
-      "OR ($table.kind = 'domain' AND ($_domain = $table.value "
-      "OR substr($_domain, -length($table.value) - 1) = '.' || $table.value)))";
+      "OR ($table.kind = 'domain' AND $table.value IN ($_domainChain)))";
 
-  /// The user's decision for the sender ('in' or 'out'; an address
-  /// decision before a domain one), or NULL.
+  /// The user's decision for the sender ('in' or 'out'), or NULL: the
+  /// decision about the address, else the one about the most specific
+  /// domain. Index probes, see [_names].
   static final _decision =
-      '(SELECT d.decision FROM screener_senders d WHERE ${_names('d')} '
-      "ORDER BY d.kind = 'domain' LIMIT 1)";
+      '(coalesce('
+      "(SELECT d.decision FROM screener_senders d WHERE d.kind = 'address' "
+      'AND d.value = lower(messages.from_address)), '
+      "(SELECT d.decision FROM screener_senders d WHERE d.kind = 'domain' "
+      'AND d.value IN ($_domainChain) ORDER BY length(d.value) DESC LIMIT 1)'
+      '))';
 
   /// Mail the Screener never holds back or moves: replies to the user's
-  /// own messages (In-Reply-To or References), and mail from blocked
-  /// senders (it keeps going to Junk).
+  /// own messages (In-Reply-To, or any of the References, stored one per
+  /// row in `message_references`), and mail from blocked senders (it
+  /// keeps going to Junk).
   static final _exempt =
       '('
       'EXISTS (SELECT 1 FROM messages s JOIN mailboxes sb ON sb.id = s.mailbox_id '
       "WHERE s.message_id_header = messages.in_reply_to AND sb.special_use = 'sent') "
-      "OR (coalesce(messages.thread_references, '') != '' AND EXISTS (SELECT 1 FROM messages s "
+      'OR EXISTS (SELECT 1 FROM message_references r '
+      'JOIN messages s ON s.message_id_header = r.ref '
       'JOIN mailboxes sb ON sb.id = s.mailbox_id '
-      "WHERE sb.special_use = 'sent' AND s.message_id_header IS NOT NULL "
-      "AND instr(' ' || messages.thread_references || ' ', ' ' || s.message_id_header || ' ') > 0)) "
+      "WHERE r.message_id = messages.id AND sb.special_use = 'sent') "
       'OR EXISTS (SELECT 1 FROM blocked_senders bs WHERE ${_names('bs')})'
       ')';
 

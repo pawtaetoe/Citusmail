@@ -4,6 +4,7 @@
 
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_store/src/repository/section_sql.dart';
 import 'package:test/test.dart';
 
 import 'support/temp_store.dart';
@@ -283,6 +284,43 @@ void main() {
       final m = mail('win@mail.spam.example', 'You won');
       expect(sectionOf(m), SmartSection.general);
       expect(store.screener.waitingCount(), 0);
+    });
+
+    test('a reply still counts as one after a move is undone', () {
+      final reply = mail(
+        'new.person@lists.example',
+        'Re: Question',
+        inReplyTo: '<r7@lists.example>',
+        references: ['<q3@citusmail.test>', '<r7@lists.example>'],
+      );
+      expect(sectionOf(reply), SmartSection.screener);
+      final snapshot = store.messages.snapshot([reply.id]);
+      store.messages.removeUids(inbox.id, [reply.uid]);
+      final back = store.messages.restore(snapshot)[reply.id]!;
+      wrote('list@lists.example', messageId: '<q3@citusmail.test>');
+      expect(store.messages.byId(back)!.section, SmartSection.general);
+    });
+
+    test('deciding a section probes indexes, never whole tables', () {
+      store.screener.decide(
+        ScreenerKind.domain,
+        'shop.example',
+        ScreenerDecision.screenOut,
+      );
+      store.blocks.block(BlockKind.domain, 'spam.example');
+      final plan = store.database
+          .select(
+            'EXPLAIN QUERY PLAN UPDATE messages SET section = ${SectionSql.expression} WHERE id = ?',
+            [1],
+          )
+          .map((row) => row['detail'] as String)
+          .join(' | ');
+      // Decisions and blocks: index probes of (kind, value); References:
+      // the message's own rows, then the Message-ID index.
+      expect(plan, isNot(contains('SCAN d')), reason: plan);
+      expect(plan, isNot(contains('SCAN bs')), reason: plan);
+      expect(plan, isNot(contains('SCAN s')), reason: plan);
+      expect(plan, contains('message_references'), reason: plan);
     });
 
     test('lists stay index reads with the Screener on', () {

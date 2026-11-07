@@ -130,12 +130,13 @@ final class MessageRepository {
                       .select(
                         'INSERT INTO messages (mailbox_id, uid, message_id_header, in_reply_to, thread_references, '
                         'subject, from_name, from_address, sent_at, received_at, size, flags, keywords, mod_seq, '
-                        'has_attachments, category, category_source, list_id, snippet, code, listed_at) '
-                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                        'has_attachments, category, category_source, list_id, snippet, code, listed_at, from_domain) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                         'ON CONFLICT (mailbox_id, uid) DO UPDATE SET '
                         'message_id_header = excluded.message_id_header, in_reply_to = excluded.in_reply_to, '
                         'thread_references = excluded.thread_references, subject = excluded.subject, '
                         'from_name = excluded.from_name, from_address = excluded.from_address, '
+                        'from_domain = excluded.from_domain, '
                         'sent_at = excluded.sent_at, received_at = excluded.received_at, size = excluded.size, '
                         'flags = excluded.flags, keywords = excluded.keywords, mod_seq = excluded.mod_seq, '
                         'has_attachments = excluded.has_attachments, snippet = excluded.snippet, '
@@ -170,6 +171,7 @@ final class MessageRepository {
                           s.snippet,
                           s.code,
                           s.receivedAt.toUtc().millisecondsSinceEpoch,
+                          _domainOf(s.from),
                         ],
                       )
                       .first
@@ -177,6 +179,7 @@ final class MessageRepository {
                   as int;
           _replaceAddresses(id, s);
           _replaceHeaders(id, s.headers);
+          _replaceReferences(id, s.references);
           _indexSummary(id, s);
           ids.add(id);
         }
@@ -820,7 +823,12 @@ final class MessageRepository {
         'INSERT INTO messages (${columns.join(', ')}) VALUES (${_placeholders(columns.length)})',
         [for (final c in columns) row[c]],
       );
-      newIds[oldId] = idFree ? oldId : _db.lastInsertRowId;
+      final newId = idFree ? oldId : _db.lastInsertRowId;
+      newIds[oldId] = newId;
+      _replaceReferences(
+        newId,
+        ((row['thread_references'] as String?) ?? '').split(' '),
+      );
     }
     void copy(String table, List<Map<String, Object?>> rows) {
       for (final row in rows) {
@@ -1173,6 +1181,29 @@ final class MessageRepository {
             [messageId, name.toLowerCase(), i, values[i]],
       ],
     );
+  }
+
+  /// Stores the message's References one per row (`message_references`),
+  /// so that "is this a reply to something the user sent" is an index
+  /// lookup. The joined list stays in `messages.thread_references`.
+  void _replaceReferences(int messageId, Iterable<String> references) {
+    _db.execute('DELETE FROM message_references WHERE message_id = ?', [
+      messageId,
+    ]);
+    _db.executeMany(
+      'INSERT OR IGNORE INTO message_references (message_id, ref) VALUES (?, ?)',
+      [
+        for (final ref in references.toSet())
+          if (ref.isNotEmpty) [messageId, ref],
+      ],
+    );
+  }
+
+  /// The sender's domain in lower case (`messages.from_domain`), or null
+  /// without a sender or a domain.
+  static String? _domainOf(MailAddress? from) {
+    final domain = from?.domain.toLowerCase();
+    return domain == null || domain.isEmpty ? null : domain;
   }
 
   /// Indexes subject and participants, keeping any body text already
