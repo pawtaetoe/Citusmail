@@ -770,30 +770,78 @@ final class MessageRepository {
     ];
   }
 
+  /// How many bytes of downloaded bodies a [snapshot] keeps unless asked
+  /// otherwise: every body of the mail people undo one or a few at a
+  /// time, and a bound for "archive this whole list".
+  static const defaultSnapshotBodyBytes = 4 << 20;
+
   /// Everything stored about messages [ids] (summary, addresses, headers,
-  /// body, search text), to put them back with [restore] if the user
-  /// undoes a move or delete within a few seconds.
-  MessageSnapshot snapshot(List<int> ids) {
-    List<Map<String, Object?>> rows(String table, String key) => [
-      for (var i = 0; i < ids.length; i += 500)
+  /// search text), to put them back with [restore] if the user undoes a
+  /// move or delete within a few seconds. Downloaded bodies are kept
+  /// while they fit in [bodyBytes], in the order of [ids]; a message
+  /// whose body is left out comes back like one never downloaded (it is
+  /// fetched again when opened), so undoing a move of thousands of
+  /// messages never holds their bodies in memory.
+  MessageSnapshot snapshot(
+    List<int> ids, {
+    int bodyBytes = defaultSnapshotBodyBytes,
+  }) {
+    List<Map<String, Object?>> rows(
+      String table,
+      String key,
+      List<int> keys, [
+      String columns = '*',
+    ]) => [
+      for (var i = 0; i < keys.length; i += 500)
         for (final row in _db.select(
-          'SELECT * FROM $table WHERE $key IN (${_placeholders((ids.length - i).clamp(0, 500))})',
-          ids.sublist(i, (i + 500).clamp(0, ids.length)),
+          'SELECT $columns FROM $table WHERE $key IN (${_placeholders((keys.length - i).clamp(0, 500))})',
+          keys.sublist(i, (i + 500).clamp(0, keys.length)),
         ))
           {for (final column in row.keys) column: row[column]},
     ];
+    final sizes = {
+      for (final row in rows(
+        'message_bodies',
+        'message_id',
+        ids,
+        'message_id, length(raw) AS size',
+      ))
+        row['message_id'] as int: row['size'] as int,
+    };
+    final kept = <int>[];
+    var used = 0;
+    for (final id in ids) {
+      final size = sizes[id];
+      if (size == null || used + size > bodyBytes) continue;
+      kept.add(id);
+      used += size;
+    }
+    // The indexed body text goes with the body.
+    final search = rows(
+      'message_search',
+      'rowid',
+      ids,
+      'rowid AS id, subject, participants',
+    );
+    final bodyText = {
+      for (final row in rows(
+        'message_search',
+        'rowid',
+        kept,
+        'rowid AS id, body',
+      ))
+        row['id'] as int: row['body'],
+    };
+    for (final row in search) {
+      row['body'] = bodyText[row['id']] ?? '';
+    }
     return MessageSnapshot._(
-      messages: rows('messages', 'id'),
-      addresses: rows('message_addresses', 'message_id'),
-      headers: rows('message_headers', 'message_id'),
-      bodies: rows('message_bodies', 'message_id'),
-      search: [
-        for (final row in _db.select(
-          'SELECT rowid AS id, subject, participants, body FROM message_search WHERE rowid IN (${_placeholders(ids.length)})',
-          ids,
-        ))
-          {for (final column in row.keys) column: row[column]},
-      ],
+      messages: rows('messages', 'id', ids),
+      addresses: rows('message_addresses', 'message_id', ids),
+      headers: rows('message_headers', 'message_id', ids),
+      bodies: rows('message_bodies', 'message_id', kept),
+      search: search,
+      bodiesLeftOut: sizes.length - kept.length,
     );
   }
 
@@ -1304,13 +1352,20 @@ final class MessageSnapshot {
     required this.headers,
     required this.bodies,
     required this.search,
+    required this.bodiesLeftOut,
   });
 
   final List<Map<String, Object?>> messages;
   final List<Map<String, Object?>> addresses;
   final List<Map<String, Object?>> headers;
+
+  /// The downloaded bodies that fit the snapshot's size limit.
   final List<Map<String, Object?>> bodies;
   final List<Map<String, Object?>> search;
+
+  /// How many downloaded bodies did not fit: those messages come back
+  /// without one, and are downloaded again when opened.
+  final int bodiesLeftOut;
 
   bool get isEmpty => messages.isEmpty;
 }

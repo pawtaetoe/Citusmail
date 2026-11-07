@@ -1334,6 +1334,58 @@ void main() {
     });
   });
 
+  group('undo snapshots', () {
+    test('bodies are kept while they fit; the rest come back undownloaded', () {
+      final account = temp.addAccount();
+      final inbox = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+      ]).single;
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, subject: 'first invoice'),
+        summary(2, subject: 'second invoice'),
+        summary(3, subject: 'quarterly budget'),
+      ]);
+      final ids = [
+        for (var uid = 1; uid <= 3; uid++)
+          store.messages.byUid(inbox.id, uid)!.id,
+      ];
+      for (final id in ids) {
+        store.messages.saveBody(
+          id,
+          Uint8List(1000),
+          searchableText: 'uniquebodyword$id',
+        );
+      }
+      final all = store.messages.snapshot(ids);
+      expect(all.bodies, hasLength(3));
+      expect(all.bodiesLeftOut, 0);
+
+      // 2,500 bytes: the first two bodies fit, the third does not.
+      final some = store.messages.snapshot(ids, bodyBytes: 2500);
+      expect(some.bodies.map((b) => b['message_id']), [ids[0], ids[1]]);
+      expect(some.bodiesLeftOut, 1);
+      expect(some.messages, hasLength(3), reason: 'every summary is kept');
+
+      store.messages.removeUids(inbox.id, [1, 2, 3]);
+      final back = store.messages.restore(some);
+      expect(back.keys, unorderedEquals(ids));
+      expect(store.messages.body(ids[0]), hasLength(1000));
+      expect(
+        store.messages.body(ids[2]),
+        isNull,
+        reason: 'downloaded again when opened',
+      );
+      expect(
+        store.messages.search('uniquebodyword${ids[0]}').map((m) => m.id),
+        [ids[0]],
+      );
+      expect(store.messages.search('uniquebodyword${ids[2]}'), isEmpty);
+      expect(store.messages.search('quarterly').map((m) => m.id), [
+        ids[2],
+      ], reason: 'the subject stays searchable');
+    });
+  });
+
   group('sending with undo', () {
     late Account account;
     setUp(() => account = temp.addAccount());
