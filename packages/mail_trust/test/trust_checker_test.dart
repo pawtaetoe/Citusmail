@@ -140,9 +140,11 @@ void main() {
     test('only the topmost header counts, even under the trusted id', () {
       // The server wrote the first header on arrival; the sender wrote the
       // second one, claiming the server's name, before sending.
+      const genuine =
+          'mx.me; spf=none smtp.mailfrom=attacker.example; dkim=none; '
+          'dmarc=none header.from=victimcorp.example';
       final values = [
-        'mx.me; spf=none smtp.mailfrom=attacker.example; dkim=none; '
-            'dmarc=none header.from=victimcorp.example',
+        genuine,
         'mx.me; dkim=pass header.d=victimcorp.example header.s=sel',
       ];
       final trustedResults = AuthServIds.trusted(values, 'mx.me');

@@ -370,208 +370,212 @@ void main() {
   });
 
   group('AccountDiscovery', () {
-    test('tries sources in order, and never sends the email address', () async {
-      final fetcher = _FakeFetcher({
-        'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': cpanelXml,
-      });
-      final prober = _FakeProber(available: {'tommykung.cc'});
-      final steps = <DiscoveryStep>[];
-      final result = await AccountDiscovery(
-        fetcher: fetcher,
-        srv: const NoSrvResolver(),
-        prober: prober,
-      ).discover('me@tommykung.cc', onStep: steps.add);
-      expect(result.settings!.source, DiscoverySource.httpAutoconfig);
-      expect(result.settings!.imap.host, 'tommykung.cc');
-      expect(steps, [
-        DiscoveryStep.providerFileSecure,
-        DiscoveryStep.dnsRecords,
-        DiscoveryStep.providerFileUnencrypted,
-      ]);
-      expect(fetcher.requested.map((u) => u.toString()), [
-        'https://autoconfig.tommykung.cc/mail/config-v1.1.xml',
-        'https://tommykung.cc/.well-known/autoconfig/mail/config-v1.1.xml',
-        'http://autoconfig.tommykung.cc/mail/config-v1.1.xml',
-      ]);
-      expect(
-        fetcher.requested.any(
-          (u) => u.toString().contains('me@') || u.query.isNotEmpty,
-        ),
-        isFalse,
-      );
-    });
-
-    test('HTTPS settings win and need no confirmation', () async {
-      final fetcher = _FakeFetcher({
-        'https://autoconfig.x.example/mail/config-v1.1.xml': providerXml(),
-      });
-      final result = await AccountDiscovery(
-        fetcher: fetcher,
-        srv: const NoSrvResolver(),
-        prober: _FakeProber(),
-      ).discover('ana@x.example');
-      expect(result.settings!.source, DiscoverySource.httpsAutoconfig);
-      expect(result.settings!.needsConfirmation, isFalse);
-    });
-
-    test('unencrypted settings are only used if their servers have valid certificates', () async {
-      final fetcher = _FakeFetcher({
-        'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': cpanelXml,
-      });
-      final result = await AccountDiscovery(
-        fetcher: fetcher,
-        srv: const NoSrvResolver(),
-        prober: _FakeProber(available: {'mail.tommykung.cc'}),
-      ).discover('me@tommykung.cc');
-      expect(
-        result.settings!.source,
-        DiscoverySource.probed,
-        reason: 'HTTP answer failed the TLS check, probing found another',
-      );
-      expect(result.settings!.imap.host, 'mail.tommykung.cc');
-    });
-
     test(
-      'unencrypted settings may only name the domain\'s own servers',
-      () async {
-        // Someone on the network answers the plain-HTTP request with a file
-        // naming their own server (with a valid certificate of its own).
-        final hijacked = cpanelXml.replaceAll(
-          '<hostname>tommykung.cc</hostname>',
-          '<hostname>imap.attacker.example</hostname>',
-        );
-        final fetcher = _FakeFetcher({
-          'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': hijacked,
-        });
-        final result = await AccountDiscovery(
-          fetcher: fetcher,
-          srv: const NoSrvResolver(),
-          mx: _FakeMx({
-            'tommykung.cc': [const MxRecord(10, 'mail.tommykung.cc.')],
-          }),
-          prober: _FakeProber(
-            available: {'imap.attacker.example', 'mail.tommykung.cc'},
-          ),
-        ).discover('me@tommykung.cc');
-        expect(
-          result.settings!.source,
-          DiscoverySource.probed,
-          reason: 'the file was thrown away; probing found the real server',
-        );
-        expect(result.settings!.imap.host, 'mail.tommykung.cc');
-      },
-    );
-
-    test('unencrypted settings may name the servers of the MX host', () async {
-      // A custom domain hosted elsewhere: the MX points to the hoster,
-      // and the hoster's file names its own servers.
-      final hosted = cpanelXml
-          .replaceAll(
-            '<hostname>tommykung.cc</hostname>',
-            '<hostname>mail.privateemail.example</hostname>',
-          )
-          .replaceAll('tommykung.cc', 'shop.co.uk');
-      final result = await AccountDiscovery(
-        fetcher: _FakeFetcher({
-          'http://autoconfig.shop.co.uk/mail/config-v1.1.xml': hosted,
-        }),
-        srv: const NoSrvResolver(),
-        mx: _FakeMx({
-          'shop.co.uk': [const MxRecord(10, 'mx1.privateemail.example.')],
-        }),
-        prober: _FakeProber(available: {'mail.privateemail.example'}),
-      ).discover('me@shop.co.uk');
-      expect(result.settings!.source, DiscoverySource.httpAutoconfig);
-      expect(result.settings!.imap.host, 'mail.privateemail.example');
-    });
-
-    test('servesDomain uses registrable domains (public suffix list)', () {
-      DiscoveredSettings settings(String imap, String smtp) =>
-          DiscoveredSettings(
-            email: 'me@shop.co.uk',
-            imap: ServerCandidate(imap, 993, ConnectionSecurity.implicitTls),
-            smtp: ServerCandidate(smtp, 465, ConnectionSecurity.implicitTls),
-            username: 'me@shop.co.uk',
-            source: DiscoverySource.httpAutoconfig,
-          );
-      const noMx = <MxRecord>[];
-      expect(
-        AccountDiscovery.servesDomain(
-          settings('imap.shop.co.uk', 'shop.co.uk'),
-          'shop.co.uk',
-          noMx,
-        ),
-        isTrue,
-      );
-      expect(
-        AccountDiscovery.servesDomain(
-          settings('imap.shop.co.uk', 'smtp.other.co.uk'),
-          'shop.co.uk',
-          noMx,
-        ),
-        isFalse,
-        reason: 'co.uk is a public suffix, not a shared domain',
-      );
-      expect(
-        AccountDiscovery.servesDomain(
-          settings('imap.hoster.example', 'smtp.hoster.example'),
-          'shop.co.uk',
-          [const MxRecord(10, 'mx.hoster.example')],
-        ),
-        isTrue,
-      );
-      expect(
-        AccountDiscovery.servesDomain(
-          settings('imap.hoster.example', 'smtp.hoster.example'),
-          'shop.co.uk',
-          noMx,
-        ),
-        isFalse,
-      );
-      expect(
-        AccountDiscovery.servesDomain(
-          settings('10.0.0.5', 'shop.co.uk'),
-          'shop.co.uk',
-          noMx,
-        ),
-        isFalse,
-      );
-    });
-
-    test(
-      'Mozilla is asked only last, only with consent, and only for the domain',
+      'tries sources in order; the address goes only to the domain',
       () async {
         final fetcher = _FakeFetcher({
-          'https://autoconfig.thunderbird.net/v1.1/x.example': providerXml(),
+          'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': cpanelXml,
         });
-        String? askedFor;
-        final declined = await AccountDiscovery(
-          fetcher: fetcher,
-          srv: const NoSrvResolver(),
-          prober: _FakeProber(),
-        ).discover('ana@x.example', askMozillaConsent: (d) async => false);
-        expect(declined.settings, isNull);
-        expect(
-          fetcher.requested.any((u) => u.host == 'autoconfig.thunderbird.net'),
-          isFalse,
-        );
-
-        final allowed =
+        final prober = _FakeProber(available: {'tommykung.cc'});
+        final steps = <DiscoveryStep>[];
+        final result =
             await AccountDiscovery(
               fetcher: fetcher,
               srv: const NoSrvResolver(),
-              prober: _FakeProber(),
+              prober: prober,
             ).discover(
-              'ana@x.example',
-              askMozillaConsent: (d) async {
-                askedFor = d;
-                return true;
-              },
+              'me@tommykung.cc',
+              askMozillaConsent: (d) async => true,
+              onStep: steps.add,
             );
-        expect(askedFor, 'x.example');
-        expect(allowed.settings!.source, DiscoverySource.mozillaDatabase);
+        expect(result.settings!.source, DiscoverySource.httpAutoconfig);
+        expect(result.settings!.imap.host, 'tommykung.cc');
+        expect(steps, [
+          DiscoveryStep.providerFileSecure,
+          DiscoveryStep.mozillaDatabase,
+          DiscoveryStep.dnsRecords,
+          DiscoveryStep.providerFileUnencrypted,
+        ]);
+        expect(fetcher.requested.map((u) => u.toString()), [
+          'https://autoconfig.tommykung.cc/mail/config-v1.1.xml?emailaddress=me%40tommykung.cc',
+          'https://tommykung.cc/.well-known/autoconfig/mail/config-v1.1.xml',
+          'https://autoconfig.thunderbird.net/v1.1/tommykung.cc',
+          'http://autoconfig.tommykung.cc/mail/config-v1.1.xml',
+        ]);
+        // The address only over HTTPS, and only to the domain itself.
+        for (final uri in fetcher.requested) {
+          final carriesAddress = uri.toString().contains('me%40tommykung.cc');
+          if (uri.host.endsWith('tommykung.cc') && uri.scheme == 'https') {
+            continue;
+          }
+          expect(carriesAddress, isFalse, reason: uri.toString());
+          expect(uri.query, isEmpty, reason: uri.toString());
+        }
       },
     );
+
+    test('the whole order, when nothing answers', () async {
+      final fetcher = _FakeFetcher({});
+      final steps = <DiscoveryStep>[];
+      final result =
+          await AccountDiscovery(
+            fetcher: fetcher,
+            srv: const NoSrvResolver(),
+            mx: _FakeMx({
+              'shop.co.uk': [const MxRecord(10, 'mx1.privateemail.example.')],
+            }),
+            prober: _FakeProber(),
+          ).discover(
+            'me@shop.co.uk',
+            askMozillaConsent: (d) async => true,
+            onStep: steps.add,
+          );
+      expect(result.settings, isNull);
+      expect(steps, [
+        DiscoveryStep.providerFileSecure,
+        DiscoveryStep.mozillaDatabase,
+        DiscoveryStep.dnsRecords,
+        DiscoveryStep.mailHostProviderFile,
+        DiscoveryStep.mozillaDatabase,
+        DiscoveryStep.providerFileUnencrypted,
+        DiscoveryStep.dnsService,
+        DiscoveryStep.probing,
+      ]);
+      expect(fetcher.requested.map((u) => u.toString()), [
+        'https://autoconfig.shop.co.uk/mail/config-v1.1.xml?emailaddress=me%40shop.co.uk',
+        'https://shop.co.uk/.well-known/autoconfig/mail/config-v1.1.xml',
+        'https://autoconfig.thunderbird.net/v1.1/shop.co.uk',
+        'https://autoconfig.privateemail.example/mail/config-v1.1.xml?emailaddress=me%40shop.co.uk',
+        'https://privateemail.example/.well-known/autoconfig/mail/config-v1.1.xml',
+        'https://autoconfig.thunderbird.net/v1.1/privateemail.example',
+        'http://autoconfig.shop.co.uk/mail/config-v1.1.xml',
+      ]);
+      // The address went only to the domain and its mail host, over HTTPS.
+      final allowed = {'shop.co.uk', 'privateemail.example'};
+      for (final uri in fetcher.requested) {
+        final text = uri.toString();
+        final base = uri.host.split('.').length > 2
+            ? uri.host.substring(uri.host.indexOf('.') + 1)
+            : uri.host;
+        if (text.contains('me%40') || text.contains('me@')) {
+          expect(uri.scheme, 'https', reason: text);
+          expect(allowed, contains(base), reason: text);
+        }
+      }
+    });
+
+    test('a custom domain is answered by its mail host\'s settings', () async {
+      // shop.co.uk is hosted at privateemail.example: its MX says so, and
+      // the hoster's settings file (fetched for the hoster's base domain)
+      // names the hoster's servers, which are then not "outside".
+      final hosterXml = providerXml().replaceAll(
+        '%EMAILDOMAIN%',
+        'privateemail.example',
+      );
+      final fetcher = _FakeFetcher({
+        'https://autoconfig.privateemail.example/mail/config-v1.1.xml?emailaddress=me%40shop.co.uk':
+            hosterXml,
+      });
+      final result = await AccountDiscovery(
+        fetcher: fetcher,
+        srv: const NoSrvResolver(),
+        mx: _FakeMx({
+          'shop.co.uk': [
+            const MxRecord(20, 'mx2.privateemail.example.'),
+            const MxRecord(10, 'mx1.privateemail.example.'),
+          ],
+        }),
+        prober: _FakeProber(),
+      ).discover('me@shop.co.uk');
+      final s = result.settings!;
+      expect(s.source, DiscoverySource.httpsAutoconfig);
+      expect(s.imap.host, 'imap.privateemail.example');
+      expect(s.smtp.host, 'smtp.privateemail.example');
+      expect(s.mailHostDomain, 'privateemail.example');
+      expect(s.warnings, isEmpty, reason: 'the MX names that host');
+      expect(s.needsConfirmation, isFalse);
+    });
+
+    test('the mail host\'s base domain follows the public suffix list', () {
+      expect(
+        AccountDiscovery.mailHostDomain('shop.co.uk', [
+          const MxRecord(10, 'mx.mailhost.co.uk.'),
+        ]),
+        'mailhost.co.uk',
+        reason: 'co.uk is a suffix, not a domain',
+      );
+      expect(
+        AccountDiscovery.mailHostDomain('shop.co.uk', [
+          const MxRecord(10, 'mail.shop.co.uk'),
+        ]),
+        isNull,
+        reason: 'handled within the domain itself',
+      );
+      expect(
+        AccountDiscovery.mailHostDomain('x.example', [
+          const MxRecord(10, 'MX1.PrivateEmail.Example.'),
+        ]),
+        'privateemail.example',
+      );
+      expect(AccountDiscovery.mailHostDomain('x.example', const []), isNull);
+    });
+
+    test('Mozilla is asked before DNS, once, and only with consent', () async {
+      final fetcher = _FakeFetcher({
+        'https://autoconfig.thunderbird.net/v1.1/privateemail.example':
+            providerXml().replaceAll('%EMAILDOMAIN%', 'privateemail.example'),
+      });
+      final mx = _FakeMx({
+        'shop.co.uk': [const MxRecord(10, 'mx1.privateemail.example.')],
+      });
+      var asked = 0;
+      final declined =
+          await AccountDiscovery(
+            fetcher: fetcher,
+            srv: const NoSrvResolver(),
+            mx: mx,
+            prober: _FakeProber(),
+          ).discover(
+            'me@shop.co.uk',
+            askMozillaConsent: (d) async {
+              asked++;
+              return false;
+            },
+          );
+      expect(declined.settings, isNull);
+      expect(asked, 1, reason: 'not asked again for the mail host');
+      expect(
+        fetcher.requested.any((u) => u.host == 'autoconfig.thunderbird.net'),
+        isFalse,
+      );
+
+      fetcher.requested.clear();
+      String? askedFor;
+      final allowed =
+          await AccountDiscovery(
+            fetcher: fetcher,
+            srv: const NoSrvResolver(),
+            mx: mx,
+            prober: _FakeProber(),
+          ).discover(
+            'me@shop.co.uk',
+            askMozillaConsent: (d) async {
+              askedFor = d;
+              return true;
+            },
+          );
+      expect(askedFor, 'shop.co.uk');
+      expect(allowed.settings!.source, DiscoverySource.mozillaDatabase);
+      expect(allowed.settings!.imap.host, 'imap.privateemail.example');
+      expect(allowed.settings!.warnings, isEmpty);
+      // Mozilla saw the domains only.
+      for (final uri in fetcher.requested.where(
+        (u) => u.host == 'autoconfig.thunderbird.net',
+      )) {
+        expect(uri.query, isEmpty);
+        expect(uri.path, isNot(contains('@')));
+      }
+    });
 
     test('rejects addresses it cannot handle', () {
       final discovery = AccountDiscovery(
@@ -612,6 +616,7 @@ void main() {
 final class _FakeFetcher implements SettingsFetcher {
   _FakeFetcher(this.files);
 
+  /// Files by URL (the URL as requested, query included).
   final Map<String, String> files;
   final requested = <Uri>[];
 

@@ -444,11 +444,14 @@ abstract final class SetupText {
     null => 'Starting…',
     DiscoveryStep.providerFileSecure =>
       'Asking your provider for its settings…',
+    DiscoveryStep.mozillaDatabase => 'Checking Mozilla\'s database…',
     DiscoveryStep.dnsRecords => 'Checking your domain\'s mail records…',
+    DiscoveryStep.mailHostProviderFile =>
+      'Asking your domain\'s mail host for its settings…',
     DiscoveryStep.providerFileUnencrypted =>
       'Trying your provider\'s settings file…',
+    DiscoveryStep.dnsService => 'Checking your domain\'s service records…',
     DiscoveryStep.probing => 'Trying common server names…',
-    DiscoveryStep.mozillaDatabase => 'Checking Mozilla\'s database…',
   };
 
   static String source(DiscoverySource source) => switch (source) {

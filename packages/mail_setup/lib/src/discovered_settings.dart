@@ -83,7 +83,10 @@ final class DiscoveredSettings {
     required this.smtp,
     required this.username,
     required this.source,
-  }) : warnings = List.unmodifiable(_warningsFor(email, imap, smtp, source));
+    this.mailHostDomain,
+  }) : warnings = List.unmodifiable(
+         _warningsFor(email, imap, smtp, source, mailHostDomain),
+       );
 
   final String email;
   final ServerCandidate imap;
@@ -92,6 +95,11 @@ final class DiscoveredSettings {
   /// Login name (often the email address).
   final String username;
   final DiscoverySource source;
+
+  /// The domain the address's MX records point to, when the settings came
+  /// from there (a custom domain hosted with a provider): its servers are
+  /// expected, not "outside the domain".
+  final String? mailHostDomain;
   final List<SetupWarning> warnings;
 
   /// Whether the user must confirm these settings before the password is
@@ -106,15 +114,18 @@ final class DiscoveredSettings {
     ServerCandidate imap,
     ServerCandidate smtp,
     DiscoverySource source,
+    String? mailHostDomain,
   ) {
     final domain = email.substring(email.lastIndexOf('@') + 1).toLowerCase();
+    bool inside(String host) =>
+        isWithinDomain(host, domain) ||
+        (mailHostDomain != null && isWithinDomain(host, mailHostDomain));
     return [
       if (!source.authenticated) SetupWarning.unauthenticatedSource,
       if (source != DiscoverySource.manual &&
           source != DiscoverySource.builtIn &&
           source != DiscoverySource.mailHost &&
-          (!isWithinDomain(imap.host, domain) ||
-              !isWithinDomain(smtp.host, domain)))
+          (!inside(imap.host) || !inside(smtp.host)))
         SetupWarning.serverOutsideDomain,
     ];
   }
