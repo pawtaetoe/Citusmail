@@ -306,8 +306,8 @@ final class Sidebar extends StatelessWidget {
                   ),
                   Divider(color: colors.selected, height: 1),
                   const SizedBox(height: 2),
-                  // One line for all accounts; a problem names the
-                  // account (its block shows it too).
+                  // One line for all accounts (a single problem shows
+                  // only on its account's block).
                   _SyncSummary(
                     accounts: accounts,
                     eventOf: controller.lastEvent,
@@ -1018,7 +1018,8 @@ final class _AccountBlock extends StatelessWidget {
 }
 
 /// The accounts' sync status in one line: "All accounts up to date", or
-/// the problem to look at.
+/// how many accounts need looking at. A single account's problem is not
+/// repeated here: its block shows it.
 final class _SyncSummary extends StatelessWidget {
   const _SyncSummary({required this.accounts, required this.eventOf});
 
@@ -1037,9 +1038,9 @@ final class _SyncSummary extends StatelessWidget {
     final String text;
     final Color dot;
     if (failed.length == 1) {
-      text =
-          '${failed.single.email}: ${_statusOf(failed.single, eventOf(failed.single.id)).$1}';
-      dot = colors.problem;
+      // Its block says what is wrong, right under its address: saying it
+      // again here would be noise.
+      return const SizedBox.shrink();
     } else if (failed.length > 1) {
       text = '${failed.length} accounts need attention';
       dot = colors.problem;
