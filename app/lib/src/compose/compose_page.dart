@@ -210,17 +210,19 @@ final class _ComposePageState extends State<ComposePage> {
                             ),
                           ),
                         ),
-                      IconButton(
+                      _Toggle(
                         tooltip: draft.requestReceipt
                             ? 'Read receipt requested (tap to cancel)'
                             : 'Ask for a read receipt',
-                        isSelected: draft.requestReceipt,
-                        icon: const Icon(Icons.mark_email_read_outlined),
-                        selectedIcon: const Icon(Icons.mark_email_read),
+                        label: 'Receipt',
+                        labelled: !phone,
+                        selected: draft.requestReceipt,
+                        icon: Icons.mark_email_read_outlined,
+                        selectedIcon: Icons.mark_email_read,
                         onPressed: () =>
                             _c.setRequestReceipt(!draft.requestReceipt),
                       ),
-                      IconButton(
+                      _Toggle(
                         key: const ValueKey('compose-follow-up'),
                         tooltip: switch (_c.followUp?.at) {
                           final at? =>
@@ -228,9 +230,11 @@ final class _ComposePageState extends State<ComposePage> {
                                 '(tap to change)',
                           null => 'Remind me if no reply',
                         },
-                        isSelected: _c.followUp != null,
-                        icon: const Icon(Icons.alarm_add_outlined),
-                        selectedIcon: const Icon(Icons.alarm_on),
+                        label: 'Remind me',
+                        labelled: !phone,
+                        selected: _c.followUp != null,
+                        icon: Icons.alarm_add_outlined,
+                        selectedIcon: Icons.alarm_on,
                         onPressed: _chooseFollowUp,
                       ),
                       IconButton(
@@ -297,7 +301,7 @@ final class _ComposePageState extends State<ComposePage> {
                     autofocus: draft.to.isEmpty,
                     trailing: TextButton(
                       onPressed: _c.toggleCopies,
-                      child: const Text('Cc Bcc'),
+                      child: const Text('Cc · Bcc'),
                     ),
                   ),
                   if (_c.showCopies) ...[
@@ -409,6 +413,58 @@ final class _ComposePageState extends State<ComposePage> {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A setting of the message that is on or off (a read receipt, a
+/// reminder): an icon button on phones, a labelled button where there is
+/// room, filled in while it is on.
+final class _Toggle extends StatelessWidget {
+  const _Toggle({
+    super.key,
+    required this.tooltip,
+    required this.label,
+    required this.labelled,
+    required this.selected,
+    required this.icon,
+    required this.selectedIcon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final String label;
+  final bool labelled;
+  final bool selected;
+  final IconData icon;
+  final IconData selectedIcon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!labelled) {
+      return IconButton(
+        tooltip: tooltip,
+        isSelected: selected,
+        icon: Icon(icon),
+        selectedIcon: Icon(selectedIcon),
+        onPressed: onPressed,
+      );
+    }
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: TextButton.icon(
+        style: selected
+            ? TextButton.styleFrom(
+                backgroundColor: colors.primaryContainer,
+                foregroundColor: colors.onPrimaryContainer,
+              )
+            : TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
+        onPressed: onPressed,
+        icon: Icon(selected ? selectedIcon : icon, size: 20),
+        label: Text(label),
       ),
     );
   }
