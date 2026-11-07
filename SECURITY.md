@@ -19,8 +19,11 @@ public issue. We aim to reply within 7 days.
 1. **Encrypted connections only.** TLS 1.2 or newer with full certificate
    and hostname checks. Plain-text IMAP and SMTP are refused. If STARTTLS
    is expected but not offered, the connection fails rather than
-   continuing in plain text. A self-signed certificate is accepted only after an
-   explicit warning, and then only that exact certificate (pinned by SHA-256).
+   continuing in plain text. A certificate that fails these checks is
+   refused outright: there is no way to accept a self-signed or otherwise
+   untrusted certificate, and nothing is pinned. When a certificate names
+   a different host, setup suggests that name so the user can connect to
+   the server under the name its certificate is valid for.
 2. **Secrets live in the system keychain only** (libsecret, Windows
    Credential Manager, Android Keystore). Never in the database, settings,
    logs or error messages. If no keychain is available the app refuses to
