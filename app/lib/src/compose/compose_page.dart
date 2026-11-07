@@ -21,6 +21,10 @@ final class ComposePage extends StatefulWidget {
 
   final ComposeController controller;
 
+  /// From this window width the fields are a bounded column in the
+  /// middle; narrower windows use the full width.
+  static const wideWidth = 900.0;
+
   @override
   State<ComposePage> createState() => _ComposePageState();
 }
@@ -250,6 +254,134 @@ final class _ComposePageState extends State<ComposePage> {
                   ),
                 ),
               );
+              // On a wide window the fields stay a readable column in the
+              // middle; the toolbar keeps the full width.
+              final fields = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (accounts.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 44,
+                            child: Text(
+                              'From',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          DropdownButton<int>(
+                            value: draft.accountId,
+                            underline: const SizedBox.shrink(),
+                            items: [
+                              for (final a in accounts)
+                                DropdownMenuItem(
+                                  value: a.id,
+                                  child: Text(a.email),
+                                ),
+                            ],
+                            onChanged: (id) {
+                              if (id != null) _c.setAccount(id);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  RecipientField(
+                    label: 'To',
+                    list: _c.to,
+                    suggest: _c.suggest,
+                    autofocus: draft.to.isEmpty,
+                    trailing: TextButton(
+                      onPressed: _c.toggleCopies,
+                      child: const Text('Cc Bcc'),
+                    ),
+                  ),
+                  if (_c.showCopies) ...[
+                    const Divider(indent: 16),
+                    RecipientField(
+                      label: 'Cc',
+                      list: _c.cc,
+                      suggest: _c.suggest,
+                    ),
+                    const Divider(indent: 16),
+                    RecipientField(
+                      label: 'Bcc',
+                      list: _c.bcc,
+                      suggest: _c.suggest,
+                    ),
+                  ],
+                  const Divider(indent: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      controller: _subject,
+                      onChanged: _c.setSubject,
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _bodyFocus.requestFocus(),
+                      decoration: CitusmailTheme.bareField(hintText: 'Subject'),
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ),
+                  const Divider(),
+                  if (_c.problems.isNotEmpty)
+                    Container(
+                      color: theme.colorScheme.errorContainer,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      child: Text(
+                        _c.problems.map(_problem).join(' '),
+                        style: TextStyle(
+                          color: theme.colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  if (draft.attachments.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final file in draft.attachments)
+                            InputChip(
+                              avatar: const Icon(Icons.attach_file, size: 18),
+                              label: Text(
+                                '${file.fileName} · ${MailText.size(file.bytes.length)}',
+                              ),
+                              onDeleted: () => _c.removeAttachment(file),
+                            ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        controller: _body,
+                        focusNode: _bodyFocus,
+                        autofocus: draft.to.isNotEmpty,
+                        onChanged: _c.setBody,
+                        maxLines: null,
+                        expands: true,
+                        keyboardType: TextInputType.multiline,
+                        textAlignVertical: TextAlignVertical.top,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          height: 1.45,
+                        ),
+                        decoration: CitusmailTheme.bareField(
+                          hintText: 'Write your message',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
               return Padding(
                 padding: EdgeInsets.only(
                   bottom: phone ? MediaQuery.viewInsetsOf(context).bottom : 0,
@@ -258,126 +390,15 @@ final class _ComposePageState extends State<ComposePage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (!phone) ...[actions, const Divider()],
-                    if (accounts.length > 1)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 44,
-                              child: Text(
-                                'From',
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                            DropdownButton<int>(
-                              value: draft.accountId,
-                              underline: const SizedBox.shrink(),
-                              items: [
-                                for (final a in accounts)
-                                  DropdownMenuItem(
-                                    value: a.id,
-                                    child: Text(a.email),
-                                  ),
-                              ],
-                              onChanged: (id) {
-                                if (id != null) _c.setAccount(id);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    RecipientField(
-                      label: 'To',
-                      list: _c.to,
-                      suggest: _c.suggest,
-                      autofocus: draft.to.isEmpty,
-                      trailing: TextButton(
-                        onPressed: _c.toggleCopies,
-                        child: const Text('Cc Bcc'),
-                      ),
-                    ),
-                    if (_c.showCopies) ...[
-                      const Divider(indent: 16),
-                      RecipientField(
-                        label: 'Cc',
-                        list: _c.cc,
-                        suggest: _c.suggest,
-                      ),
-                      const Divider(indent: 16),
-                      RecipientField(
-                        label: 'Bcc',
-                        list: _c.bcc,
-                        suggest: _c.suggest,
-                      ),
-                    ],
-                    const Divider(indent: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextField(
-                        controller: _subject,
-                        onChanged: _c.setSubject,
-                        textInputAction: TextInputAction.next,
-                        onSubmitted: (_) => _bodyFocus.requestFocus(),
-                        decoration: CitusmailTheme.bareField(
-                          hintText: 'Subject',
-                        ),
-                        style: theme.textTheme.titleSmall,
-                      ),
-                    ),
-                    const Divider(),
-                    if (_c.problems.isNotEmpty)
-                      Container(
-                        color: theme.colorScheme.errorContainer,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Text(
-                          _c.problems.map(_problem).join(' '),
-                          style: TextStyle(
-                            color: theme.colorScheme.onErrorContainer,
-                          ),
-                        ),
-                      ),
-                    if (draft.attachments.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final file in draft.attachments)
-                              InputChip(
-                                avatar: const Icon(Icons.attach_file, size: 18),
-                                label: Text(
-                                  '${file.fileName} · ${MailText.size(file.bytes.length)}',
-                                ),
-                                onDeleted: () => _c.removeAttachment(file),
-                              ),
-                          ],
-                        ),
-                      ),
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: TextField(
-                          controller: _body,
-                          focusNode: _bodyFocus,
-                          autofocus: draft.to.isNotEmpty,
-                          onChanged: _c.setBody,
-                          maxLines: null,
-                          expands: true,
-                          keyboardType: TextInputType.multiline,
-                          textAlignVertical: TextAlignVertical.top,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            height: 1.45,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: width >= ComposePage.wideWidth
+                                ? CitusmailTheme.writingWidth
+                                : double.infinity,
                           ),
-                          decoration: CitusmailTheme.bareField(
-                            hintText: 'Write your message',
-                          ),
+                          child: fields,
                         ),
                       ),
                     ),

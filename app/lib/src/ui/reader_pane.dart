@@ -53,10 +53,18 @@ final class ReaderPane extends StatelessWidget {
   /// screen, within reach of the thumb.
   final bool toolbarAtBottom;
 
-  /// Side margins of the message: they grow a little with the window, so
-  /// the message uses the width it has (no fixed column).
+  /// Side margins of the pane's bars: they grow a little with the window.
   static double sideMargin(double width, {double least = 20}) =>
       (width * 0.04).clamp(least, 56);
+
+  /// Side margins of the message itself: as [sideMargin], but on a wide
+  /// pane they grow so the text stays a readable column
+  /// ([CitusmailTheme.readingWidth]) in the middle, instead of lines
+  /// running the whole width.
+  static double readingMargin(double width) {
+    final centred = (width - CitusmailTheme.readingWidth) / 2;
+    return centred > sideMargin(width) ? centred : sideMargin(width);
+  }
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
@@ -79,7 +87,7 @@ final class ReaderPane extends StatelessWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final side = sideMargin(constraints.maxWidth);
+                final side = readingMargin(constraints.maxWidth);
                 final padding = EdgeInsets.symmetric(horizontal: side);
                 final view = reader is ReaderReady ? reader.view : null;
                 final trust = reader is ReaderReady ? reader.trust : null;
