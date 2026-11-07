@@ -18,7 +18,32 @@ abstract final class SectionSql {
   /// keyword, or the same message in the account's `\Important` folder),
   /// it replies to a message in a Sent folder, or its sender was written
   /// to from a Sent folder. Refers to the row being updated as `messages`.
+  ///
+  /// The last check is skipped for the user's own addresses: they are the
+  /// recipient of every message in the inbox, so looking one up in
+  /// `message_addresses` would read the whole inbox for every row in Sent
+  /// (and every All Mail copy of sent mail), only to find no Sent message
+  /// addressed to it. Mail from the user to themselves is not Important
+  /// for that reason alone.
   static const _important =
+      '('
+      r"(' ' || messages.keywords || ' ') LIKE '% $important %' "
+      'OR EXISTS (SELECT 1 FROM messages i JOIN mailboxes ib ON ib.id = i.mailbox_id '
+      "WHERE i.message_id_header = messages.message_id_header AND ib.special_use = 'important' "
+      'AND ib.account_id = (SELECT account_id FROM mailboxes WHERE id = messages.mailbox_id)) '
+      'OR EXISTS (SELECT 1 FROM messages s JOIN mailboxes sb ON sb.id = s.mailbox_id '
+      "WHERE s.message_id_header = messages.in_reply_to AND sb.special_use = 'sent') "
+      'OR (NOT EXISTS (SELECT 1 FROM accounts '
+      'WHERE accounts.email = messages.from_address COLLATE NOCASE) '
+      'AND EXISTS (SELECT 1 FROM message_addresses a JOIN messages s ON s.id = a.message_id '
+      'JOIN mailboxes sb ON sb.id = s.mailbox_id '
+      "WHERE a.address = messages.from_address COLLATE NOCASE AND a.kind IN ('to', 'cc', 'bcc') "
+      "AND sb.special_use = 'sent'))"
+      ')';
+
+  /// [_important] as schema versions 6 to 15 worked it out. Part of
+  /// [migration6Expression]; never change it.
+  static const _migration6Important =
       '('
       r"(' ' || messages.keywords || ' ') LIKE '% $important %' "
       'OR EXISTS (SELECT 1 FROM messages i JOIN mailboxes ib ON ib.id = i.mailbox_id '
@@ -41,7 +66,7 @@ abstract final class SectionSql {
       "WHEN messages.category = 'codes' THEN 'codes' "
       "WHEN messages.category = 'newsletters' THEN 'newsletters' "
       "WHEN messages.category = 'notifications' THEN 'notifications' "
-      "WHEN $_important THEN 'important' "
+      "WHEN $_migration6Important THEN 'important' "
       "ELSE 'general' END";
 
   /// The section's name, first rule that applies (see `SmartSection`).
@@ -173,6 +198,21 @@ abstract final class SectionSql {
         db,
         'id IN (${List.filled(chunk.length, '?').join(', ')})',
         chunk,
+      );
+    }
+  }
+
+  /// Recomputes the messages [uids] of [mailboxId], in chunks.
+  static void refreshUids(MailDatabase db, int mailboxId, List<int> uids) {
+    for (var i = 0; i < uids.length; i += 500) {
+      final chunk = uids.sublist(
+        i,
+        i + 500 > uids.length ? uids.length : i + 500,
+      );
+      refresh(
+        db,
+        'mailbox_id = ? AND uid IN (${List.filled(chunk.length, '?').join(', ')})',
+        [mailboxId, ...chunk],
       );
     }
   }

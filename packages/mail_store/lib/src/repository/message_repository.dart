@@ -241,10 +241,9 @@ final class MessageRepository {
           ],
       ],
     );
-    // Pinning (and the $Important keyword) changes the section.
-    for (final c in changes) {
-      SectionSql.refresh(_db, 'mailbox_id = ? AND uid = ?', [mailboxId, c.uid]);
-    }
+    // Pinning (and the $Important keyword) changes the section: one
+    // statement per 500 messages, not one per message.
+    SectionSql.refreshUids(_db, mailboxId, [for (final c in changes) c.uid]);
   });
 
   /// Removes messages by UID (with addresses, headers, body and index).

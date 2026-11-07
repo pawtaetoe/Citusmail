@@ -1103,6 +1103,59 @@ void main() {
       expect(section(SmartSection.important), hasLength(1));
     });
 
+    test('mail from the user to themselves is not Important for that', () {
+      // Alice mails herself: the Sent copy, the copy that arrives in the
+      // inbox, and a reply to it. Being her own recipient makes nothing
+      // Important (and would otherwise look up every inbox address);
+      // the reply still is, as a reply to her sent message.
+      store.messages.upsertSummaries(sent.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026),
+          messageId: 'self@x',
+          from: address('alice@citusmail.test'),
+          to: [address('Alice@citusmail.test')],
+        ),
+      ]);
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 1,
+          subject: 'note to self',
+          receivedAt: DateTime.utc(2026),
+          messageId: 'self@x',
+          from: address('alice@citusmail.test'),
+        ),
+        MessageSummary(
+          uid: 2,
+          subject: 'reply to self',
+          receivedAt: DateTime.utc(2026, 2),
+          inReplyTo: 'self@x',
+          from: address('alice@citusmail.test'),
+        ),
+      ]);
+      expect(section(SmartSection.general), {'note to self'});
+      expect(section(SmartSection.important), {'reply to self'});
+      expect(store.messages.byUid(sent.id, 1)!.section, SmartSection.general);
+    });
+
+    test('flag changes on many messages refresh every section', () {
+      store.messages.upsertSummaries(inbox.id, [
+        for (var i = 1; i <= 1200; i++) summary(i),
+      ]);
+      final pin = MessageFlags.fromImap([r'\Flagged']);
+      store.messages.updateFlags(inbox.id, [
+        for (var i = 1; i <= 1200; i++) (uid: i, flags: pin, modSeq: null),
+      ]);
+      expect(store.messages.sectionCounts()[SmartSection.pinned]!.total, 1200);
+      store.messages.updateFlags(inbox.id, [
+        for (var i = 1; i <= 1200; i++)
+          (uid: i, flags: MessageFlags.none, modSeq: null),
+      ]);
+      final counts = store.messages.sectionCounts();
+      expect(counts[SmartSection.pinned]!.total, 0);
+      expect(counts[SmartSection.general]!.total, 1200);
+    });
+
     test('lists read an index in date order, never the whole folder', () {
       for (final query in [
         const MessageQuery.smart(SmartSection.general),
