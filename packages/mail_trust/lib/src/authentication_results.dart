@@ -151,21 +151,21 @@ abstract final class AuthServIds {
   }
 
   /// The results from [trustedId] in a message's headers ([values] top
-  /// first): the run at the top written by the trusted server. A result
-  /// under a different id stops the run; anything below it could be
-  /// forged.
+  /// first): only the topmost header, and only when the trusted server
+  /// wrote it. A server adds one header at the top as the message arrives,
+  /// so anything below it, including a second header that claims the same
+  /// id, was there when the message came in and could have been written by
+  /// the sender (RFC 8601 §5 only recommends that servers strip those).
   static List<AuthenticationResults> trusted(
     Iterable<String> values,
     String? trustedId,
   ) {
     if (trustedId == null) return const [];
-    final out = <AuthenticationResults>[];
-    for (final value in values) {
-      final parsed = AuthenticationResults.parse(value);
-      if (parsed == null || parsed.authServId != trustedId) break;
-      out.add(parsed);
-    }
-    return out;
+    final first = values.firstOrNull;
+    if (first == null) return const [];
+    final parsed = AuthenticationResults.parse(first);
+    if (parsed == null || parsed.authServId != trustedId) return const [];
+    return [parsed];
   }
 }
 

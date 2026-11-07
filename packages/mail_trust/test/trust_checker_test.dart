@@ -95,6 +95,59 @@ void main() {
       expect(AuthServIds.trusted(values, null), isEmpty);
       expect(AuthServIds.trusted(values.reversed, 'mx.me'), hasLength(1));
     });
+
+    test('only the topmost header counts, even under the trusted id', () {
+      // The server wrote the first header on arrival; the sender wrote the
+      // second one, claiming the server's name, before sending.
+      final values = [
+        'mx.me; spf=none smtp.mailfrom=attacker.example; dkim=none; '
+            'dmarc=none header.from=victimcorp.example',
+        'mx.me; dkim=pass header.d=victimcorp.example header.s=sel',
+      ];
+      final trustedResults = AuthServIds.trusted(values, 'mx.me');
+      expect(trustedResults, hasLength(1));
+      expect(trustedResults.single.dkim.where((d) => d.passed), isEmpty);
+    });
+
+    test('a forged pass under the server\'s own header is not verified', () {
+      const context = TrustContext(trustedAuthServId: 'mx.user.example');
+      const headers =
+          'From: Billing <billing@victimcorp.example>\n'
+          'To: user@user.example\n'
+          'Subject: Invoice\n'
+          'Authentication-Results: mx.user.example; spf=none '
+          'smtp.mailfrom=attacker.example; dkim=none; dmarc=none '
+          'header.from=victimcorp.example\n';
+      const forgedHeader =
+          'Authentication-Results: mx.user.example; dkim=pass '
+          'header.d=victimcorp.example header.s=sel\n'
+          'DKIM-Signature: v=1; a=rsa-sha256; d=victimcorp.example; s=sel; '
+          'h=from:to:subject:list-unsubscribe:list-unsubscribe-post; '
+          'bh=x; b=y\n'
+          'List-Unsubscribe: <https://attacker.example/u>\n'
+          'List-Unsubscribe-Post: List-Unsubscribe=One-Click\n';
+
+      final forged = checker.check(mail(headers + forgedHeader), context);
+      expect(forged.verified, isFalse);
+      expect(forged.dkimPasses, isEmpty);
+
+      final genuine = checker.check(mail(headers), context);
+      expect(genuine.verified, isFalse);
+
+      // The server's own pass, at the top, still verifies the sender.
+      final passed = checker.check(
+        mail(
+          'From: Billing <billing@victimcorp.example>\n'
+          'To: user@user.example\n'
+          'Subject: Invoice\n'
+          'Authentication-Results: mx.user.example; dkim=pass '
+          'header.d=victimcorp.example header.s=sel\n',
+        ),
+        context,
+      );
+      expect(passed.verified, isTrue);
+      expect(passed.dkimPasses, hasLength(1));
+    });
   });
 
   group('fixtures', () {
