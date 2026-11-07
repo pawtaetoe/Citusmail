@@ -10,7 +10,7 @@ import '../mail/subscriptions_model.dart';
 import '../services/app_services.dart';
 import '../services/reminders.dart';
 import 'avatar.dart';
-import 'citusmail_theme.dart';
+import 'badge.dart';
 import 'read_ahead.dart';
 import 'subscription_detail_page.dart';
 
@@ -734,28 +734,15 @@ final class _SubscriptionTile extends StatelessWidget {
                   ),
                 ),
                 if (soon && days != null)
-                  Container(
-                    margin: const EdgeInsets.only(top: 4),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: CitusPalette.citrus,
-                      borderRadius: BorderRadius.circular(
-                        CitusmailTheme.radiusSmall,
-                      ),
-                    ),
-                    child: Text(
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: AppBadge(
                       days <= 0
                           ? 'today'
                           : days == 1
                           ? 'tomorrow'
                           : 'in $days days',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: CitusPalette.onCitrus,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      tone: BadgeTone.accent,
                     ),
                   ),
               ],
@@ -852,32 +839,15 @@ final class _ReminderTile extends StatelessWidget {
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
-                Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: overdue
-                        ? colors.errorContainer
-                        : days <= 3
-                        ? CitusPalette.citrus
-                        : colors.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(
-                      CitusmailTheme.radiusSmall,
-                    ),
-                  ),
-                  child: Text(
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: AppBadge(
                     ReminderWords.when(days),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: overdue
-                          ? colors.onErrorContainer
-                          : days <= 3
-                          ? CitusPalette.onCitrus
-                          : colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    tone: overdue
+                        ? BadgeTone.danger
+                        : days <= 3
+                        ? BadgeTone.accent
+                        : BadgeTone.neutral,
                   ),
                 ),
               ],

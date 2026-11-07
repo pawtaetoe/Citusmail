@@ -10,7 +10,7 @@ import '../mail/deliveries_model.dart';
 import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
 import 'avatar.dart';
-import 'citusmail_theme.dart';
+import 'badge.dart';
 import 'delivery_detail_page.dart';
 import 'read_ahead.dart';
 import 'returns_section.dart';
@@ -415,22 +415,7 @@ final class DeliveryTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (d.status == DeliveryStatus.outForDelivery)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: CitusPalette.citrus,
-                  borderRadius: BorderRadius.circular(
-                    CitusmailTheme.radiusSmall,
-                  ),
-                ),
-                child: Text(
-                  'today',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: CitusPalette.onCitrus,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              )
+              const AppBadge('today', tone: BadgeTone.accent)
             else if (problem)
               Icon(Icons.error_outline, color: colors.error, size: 20),
             const SizedBox(width: 4),

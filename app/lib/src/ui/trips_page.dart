@@ -8,9 +8,9 @@ import 'package:mail_sort/mail_sort.dart';
 import '../mail/mail_controller.dart';
 import '../mail/trips_model.dart';
 import '../services/app_services.dart';
+import 'badge.dart';
 import 'booking_detail_page.dart';
 import 'booking_text.dart';
-import 'citusmail_theme.dart';
 import 'read_ahead.dart';
 
 /// Flights, stays, trains, buses, rental cars, tables and tickets found
@@ -350,7 +350,7 @@ final class TripCard extends StatelessWidget {
                     ],
                     if (t.cancelled) ...[
                       const SizedBox(width: 10),
-                      const _Badge('Cancelled', error: true),
+                      const AppBadge('Cancelled', tone: BadgeTone.danger),
                     ],
                   ],
                 ),
@@ -485,41 +485,16 @@ final class _TimelineRow extends StatelessWidget {
                 ),
               ),
               if (badge && b.cancelled)
-                const Center(child: _Badge('Cancelled', error: true))
+                const Center(
+                  child: AppBadge('Cancelled', tone: BadgeTone.danger),
+                )
               else if (badge && b.changed)
-                const Center(child: _Badge('Changed')),
+                const Center(
+                  child: AppBadge('Changed', tone: BadgeTone.warning),
+                ),
               const Center(child: Icon(Icons.chevron_right)),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A small label: "Changed", "Cancelled".
-final class _Badge extends StatelessWidget {
-  const _Badge(this.text, {this.error = false});
-
-  final String text;
-  final bool error;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: error ? colors.errorContainer : CitusPalette.citrus,
-        borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
-      ),
-      child: Text(
-        text,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: error ? colors.onErrorContainer : CitusPalette.onCitrus,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );

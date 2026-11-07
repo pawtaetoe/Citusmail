@@ -10,6 +10,7 @@ import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/sender_cleanup_model.dart';
 import 'avatar.dart';
+import 'badge.dart';
 import 'block_dialog.dart';
 import 'citusmail_theme.dart';
 import 'mail_shell.dart';
@@ -529,15 +530,15 @@ final class _SenderTile extends StatelessWidget {
                           runSpacing: 4,
                           children: [
                             if (g.kind == SenderKind.newsletter)
-                              const _Tag('Newsletter'),
+                              const AppBadge('Newsletter'),
                             if (g.kind == SenderKind.notification)
-                              const _Tag('Notifications'),
+                              const AppBadge('Notifications'),
                             if (unsubscribed != null)
-                              _Tag(
+                              AppBadge(
                                 'Unsubscribed ${material.formatShortMonthDay(unsubscribed.at.toLocal())}',
                               )
                             else if (g.canUnsubscribe)
-                              const _Tag('Can unsubscribe'),
+                              const AppBadge('Can unsubscribe'),
                           ],
                         ),
                       ],
@@ -597,30 +598,6 @@ final class _MenuRow extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     children: [Icon(icon, size: 20), const SizedBox(width: 12), Text(text)],
   );
-}
-
-final class _Tag extends StatelessWidget {
-  const _Tag(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
-      ),
-      child: Text(
-        text,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
 }
 
 /// What can be done to the picked senders: in the top bar on wide

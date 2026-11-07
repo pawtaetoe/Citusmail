@@ -8,6 +8,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import 'avatar.dart';
+import 'badge.dart';
 import 'citusmail_theme.dart';
 import 'mail_text.dart';
 import 'snooze_sheet.dart';
@@ -287,7 +288,15 @@ final class _MessageTileState extends State<MessageTile> {
                     ),
                   ),
                 ] else ...[
-                  if (_m.backFromSnooze) const _SnoozedBadge(),
+                  if (_m.backFromSnooze)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: AppBadge(
+                        'Snoozed',
+                        icon: Icons.snooze,
+                        tint: MailText.snoozeColor,
+                      ),
+                    ),
                   Text(
                     MailText.listDate(context, _m.listedAt),
                     style: theme.textTheme.labelMedium?.copyWith(
@@ -504,35 +513,6 @@ final class _QuickActions extends StatelessWidget {
       ],
     );
   }
-}
-
-/// "Snoozed" beside the time of mail that came back from snooze.
-final class _SnoozedBadge extends StatelessWidget {
-  const _SnoozedBadge();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(right: 6),
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-    decoration: BoxDecoration(
-      color: MailText.snoozeColor.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(4),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.snooze, size: 12, color: MailText.snoozeColor),
-        const SizedBox(width: 3),
-        Text(
-          'Snoozed',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: MailText.snoozeColor,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 final class _SwipeBackground extends StatelessWidget {

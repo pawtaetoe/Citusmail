@@ -10,6 +10,7 @@ import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
 import 'account_detail_page.dart';
 import 'avatar.dart';
+import 'badge.dart';
 import 'read_ahead.dart';
 
 /// Online services the user has an account with, found in welcome,
@@ -390,7 +391,7 @@ final class _AccountTile extends StatelessWidget {
                         child: Wrap(
                           spacing: 6,
                           runSpacing: 4,
-                          children: [for (final t in tags) _Tag(t)],
+                          children: [for (final t in tags) AppBadge(t)],
                         ),
                       ),
                   ],
@@ -399,30 +400,6 @@ final class _AccountTile extends StatelessWidget {
               const Icon(Icons.chevron_right),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-final class _Tag extends StatelessWidget {
-  const _Tag(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        text,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
     );
