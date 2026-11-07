@@ -828,8 +828,13 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
         MailText.sender(m),
     }.join(', ');
     final total = count.total == 1 ? '1 message' : '${count.total} messages';
-    // Collapsed sections say who wrote, so they can stay collapsed.
-    final summary = state.expanded || senders.isEmpty ? total : senders;
+    // Folded sections say who wrote (or how many), so they can stay
+    // folded; an open section shows its messages, so it says nothing.
+    final summary = state.expanded
+        ? null
+        : senders.isEmpty
+        ? total
+        : senders;
     return Material(
       color: ListColors.of(context).background,
       child: Semantics(
@@ -891,15 +896,16 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
                             ],
                           ],
                         ),
-                        Text(
-                          summary,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            height: 1.3,
+                        if (summary != null)
+                          Text(
+                            summary,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              height: 1.3,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
