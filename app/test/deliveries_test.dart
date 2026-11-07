@@ -2,11 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:convert';
+
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'support/delivery_mail.dart';
 import 'support/test_app.dart';
@@ -165,5 +169,70 @@ void main() {
     await tester.tap(find.text('List again'));
     await settle(tester);
     expect(find.text('3 on the way'), findsOneWidget);
+  });
+
+  testWidgets('a lookalike tracking page from the email\'s data is flagged', (
+    tester,
+  ) async {
+    // The shop's markup names an unknown carrier and a tracking page
+    // whose address is "pаypal.com" with a Cyrillic а, as punycode.
+    final store = app.store;
+    final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+    final now = DateTime.now().toUtc();
+    final summary = MessageSummary(
+      uid: 900,
+      receivedAt: now.subtract(const Duration(hours: 3)),
+      subject: 'Your order has shipped',
+      from: const MailAddress(
+        localPart: 'orders',
+        domain: 'gadgetshop.example',
+        displayName: 'Gadget Shop',
+      ),
+      snippet: 'Your package is on its way.',
+      size: 2000,
+      category: MessageCategory.notifications,
+      flags: MessageFlags.fromImap([r'\Seen']),
+    );
+    store.messages.upsertSummaries(inbox.id, [summary]);
+    final stored = store.messages.byUid(inbox.id, 900)!;
+    const raw =
+        'From: Gadget Shop <orders@gadgetshop.example>\r\n'
+        'To: alice@citusmail.test\r\n'
+        'Subject: Your order has shipped\r\n'
+        'Content-Type: text/html; charset=utf-8\r\n'
+        '\r\n'
+        '<html><head><script type="application/ld+json">\r\n'
+        '{"@context": "http://schema.org", "@type": "ParcelDelivery",\r\n'
+        ' "carrier": {"@type": "Organization", "name": "Speedy Parcel"},\r\n'
+        ' "trackingNumber": "SP0012345678",\r\n'
+        ' "trackingUrl": "https://xn--pypal-4ve.com/track?id=SP0012345678",\r\n'
+        ' "partOfOrder": {"@type": "Order", "orderNumber": "GS-1001",\r\n'
+        '   "merchant": {"@type": "Organization", "name": "Gadget Shop"},\r\n'
+        '   "orderStatus": "http://schema.org/OrderInTransit"}}\r\n'
+        '</script></head>\r\n'
+        '<body><p>Your package is on its way.</p></body></html>\r\n';
+    store.messages.saveBody(
+      stored.id,
+      utf8.encode(raw),
+      searchableText: 'Your package is on its way.',
+    );
+    await openDeliveries(tester);
+
+    await tester.tap(find.text('Gadget Shop'));
+    await tester.pumpAndSettle();
+    expect(find.text('Track on Speedy Parcel'), findsOneWidget);
+    await tester.tap(find.text('Track on Speedy Parcel'));
+    await tester.pumpAndSettle();
+
+    // The same red warning the reader would show for this link.
+    expect(find.text('Open this link anyway?'), findsOneWidget);
+    expect(
+      find.textContaining('letters from another alphabet'),
+      findsOneWidget,
+    );
+    expect(find.text('Don\'t open'), findsOneWidget);
+    await tester.tap(find.text('Don\'t open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open this link anyway?'), findsNothing);
   });
 }
