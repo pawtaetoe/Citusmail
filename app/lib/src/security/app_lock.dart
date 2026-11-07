@@ -111,22 +111,35 @@ final class MustWait extends UnlockResult {
 /// the system keychain). The PIN's hash lives in the keychain; settings
 /// and the count of wrong tries in the encrypted store, so restarting the
 /// app does not reset the wait after too many wrong PINs.
+///
+/// The wait is measured on the device's uptime where there is one
+/// (Android's `elapsedRealtime`, which keeps counting while the phone
+/// sleeps and which nobody can set), so moving the date forward does not
+/// shorten it. After a restart the uptime starts over, and so does the
+/// wait: a restart never makes it shorter. Where no uptime is available
+/// (desktops), the wall clock is used.
 final class AppLock with WidgetsBindingObserver {
   AppLock(
     this._store,
     this._secrets, {
     Biometrics? biometrics,
     DateTime Function()? now,
+    Future<int?> Function()? elapsedMillis,
     bool? desktop,
     this.pinRounds = PinHasher.iterations,
   }) : biometrics = biometrics ?? SystemBiometrics(),
        _now = now ?? DateTime.now,
+       _elapsed = elapsedMillis ?? _systemElapsedMillis,
        _desktop = desktop ?? (Platform.isLinux || Platform.isWindows);
 
   final MailStore _store;
   final SecretStore _secrets;
   final Biometrics biometrics;
   final DateTime Function() _now;
+
+  /// Milliseconds since the device started, or null where the platform
+  /// has no such clock.
+  final Future<int?> Function() _elapsed;
   final bool _desktop;
 
   /// PBKDF2 rounds for new PINs (lower only in tests).
@@ -139,7 +152,17 @@ final class AppLock with WidgetsBindingObserver {
   static const _timeoutKey = 'lock.timeout';
   static const _biometricsKey = 'lock.biometrics';
   static const _failuresKey = 'lock.failures';
+
+  /// When the wait ends, as a wall-clock time (for showing a countdown,
+  /// and the only measure where there is no uptime clock).
   static const _untilKey = 'lock.until';
+
+  /// When the wait ends and when it was set, in device uptime.
+  static const _untilElapsedKey = 'lock.untilElapsed';
+  static const _elapsedAtKey = 'lock.elapsedAt';
+
+  /// The length of the current wait, to start it over after a restart.
+  static const _waitKey = 'lock.wait';
 
   /// Shortest and longest PIN.
   static const minLength = 4;
@@ -163,6 +186,19 @@ final class AppLock with WidgetsBindingObserver {
 
   /// The Android side (see MainActivity.kt).
   static const _android = MethodChannel('citusmail/background');
+
+  /// Android's `SystemClock.elapsedRealtime()`; null elsewhere, or off a
+  /// device (tests).
+  static Future<int?> _systemElapsedMillis() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      return await _android.invokeMethod<int>('elapsedRealtime');
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
 
   /// Hides the app from the app switcher's pictures while the lock is on.
   Future<void> _applyPrivacy() async {
@@ -295,7 +331,7 @@ final class AppLock with WidgetsBindingObserver {
 
   /// Unlocks with the system's biometrics, if turned on and available.
   Future<bool> unlockWithBiometrics(String reason) async {
-    if (!useBiometrics || waitRemaining > Duration.zero) return false;
+    if (!useBiometrics || await currentWait() > Duration.zero) return false;
     if (!await biometrics.isAvailable()) return false;
     if (!await biometrics.authenticate(reason)) return false;
     _resetFailures();
@@ -303,7 +339,9 @@ final class AppLock with WidgetsBindingObserver {
     return true;
   }
 
-  /// How long until another PIN may be tried.
+  /// How long until another PIN may be tried, by the wall clock: what the
+  /// lock screen counts down. The gate itself asks [currentWait], which
+  /// prefers the device's uptime and corrects this value from it.
   Duration get waitRemaining {
     final until = int.tryParse(_store.settings.read(_untilKey) ?? '');
     if (until == null) return Duration.zero;
@@ -314,8 +352,43 @@ final class AppLock with WidgetsBindingObserver {
     return left.isNegative ? Duration.zero : left;
   }
 
+  /// How long until another PIN may be tried, measured on the device's
+  /// uptime where there is one (so a changed date does not count), else
+  /// by the wall clock.
+  Future<Duration> currentWait() async {
+    final byClock = waitRemaining;
+    final elapsed = await _elapsed();
+    final untilElapsed = int.tryParse(
+      _store.settings.read(_untilElapsedKey) ?? '',
+    );
+    final elapsedAt = int.tryParse(_store.settings.read(_elapsedAtKey) ?? '');
+    if (elapsed == null || untilElapsed == null || elapsedAt == null) {
+      return byClock;
+    }
+    if (elapsed < elapsedAt) {
+      // The device restarted since the wait was set: its uptime started
+      // over, and the wait starts over too, so a restart never shortens it.
+      final wait = Duration(
+        milliseconds: int.tryParse(_store.settings.read(_waitKey) ?? '') ?? 0,
+      );
+      _startWait(wait, elapsed);
+      return wait;
+    }
+    final left = Duration(milliseconds: untilElapsed - elapsed);
+    if (left <= Duration.zero) return Duration.zero;
+    if (left != byClock) {
+      // The date was changed: keep the countdown shown in step with the
+      // real wait.
+      _store.settings.write(
+        _untilKey,
+        '${_now().toUtc().add(left).millisecondsSinceEpoch}',
+      );
+    }
+    return left;
+  }
+
   Future<UnlockResult> _check(String pin) async {
-    final wait = waitRemaining;
+    final wait = await currentWait();
     if (wait > Duration.zero) return MustWait(wait);
     final stored = PinHash.decode(await _secrets.read(pinKey));
     if (stored != null && await PinHasher.verify(pin, stored)) {
@@ -326,13 +399,28 @@ final class AppLock with WidgetsBindingObserver {
         (int.tryParse(_store.settings.read(_failuresKey) ?? '') ?? 0) + 1;
     _store.settings.write(_failuresKey, '$failures');
     final delay = delayAfter(failures);
-    if (delay > Duration.zero) {
-      _store.settings.write(
-        _untilKey,
-        '${_now().toUtc().add(delay).millisecondsSinceEpoch}',
-      );
-    }
+    if (delay > Duration.zero) _startWait(delay, await _elapsed());
     return WrongPin(delay);
+  }
+
+  /// Starts a wait of [delay] from now, in uptime too when [elapsed] (the
+  /// device's uptime now) is known.
+  void _startWait(Duration delay, int? elapsed) {
+    _store.settings.write(
+      _untilKey,
+      '${_now().toUtc().add(delay).millisecondsSinceEpoch}',
+    );
+    _store.settings.write(_waitKey, '${delay.inMilliseconds}');
+    if (elapsed == null) {
+      _store.settings.delete(_untilElapsedKey);
+      _store.settings.delete(_elapsedAtKey);
+    } else {
+      _store.settings.write(
+        _untilElapsedKey,
+        '${elapsed + delay.inMilliseconds}',
+      );
+      _store.settings.write(_elapsedAtKey, '$elapsed');
+    }
   }
 
   /// The wait after [failures] wrong PINs in a row: none for the first
@@ -349,5 +437,8 @@ final class AppLock with WidgetsBindingObserver {
   void _resetFailures() {
     _store.settings.delete(_failuresKey);
     _store.settings.delete(_untilKey);
+    _store.settings.delete(_untilElapsedKey);
+    _store.settings.delete(_elapsedAtKey);
+    _store.settings.delete(_waitKey);
   }
 }
