@@ -190,6 +190,9 @@ void main() {
 final class _NoNetwork implements SettingsFetcher {
   @override
   Future<String?> fetch(Uri uri) => fail('fetched $uri');
+
+  @override
+  Future<String?> post(Uri uri, String body) => fail('posted to $uri');
 }
 
 final class _NoProbes implements ServerAvailability {

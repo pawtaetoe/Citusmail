@@ -21,6 +21,9 @@ enum DiscoverySource {
   /// Mozilla's database over HTTPS (trusted, third party).
   mozillaDatabase(authenticated: true),
 
+  /// The domain's own Exchange Autodiscover service over HTTPS (trusted).
+  autodiscover(authenticated: true),
+
   /// Built into the app for a well-known provider (no lookup at all).
   builtIn(authenticated: true),
 

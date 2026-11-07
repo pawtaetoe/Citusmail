@@ -6,6 +6,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_trust/mail_trust.dart';
 
 import 'autoconfig_parser.dart';
+import 'autodiscover_parser.dart';
 import 'discovered_settings.dart';
 import 'dns_srv.dart';
 import 'known_providers.dart';
@@ -35,6 +36,9 @@ enum DiscoveryStep {
 
   /// Common server names.
   probing,
+
+  /// The domain's Exchange Autodiscover service.
+  autodiscover,
 }
 
 /// The outcome of discovery.
@@ -70,13 +74,14 @@ final class DiscoveryResult {
 ///    serves only this), used only when it names servers of the domain
 ///    or of its mail host, each with a valid certificate;
 /// 5. DNS SRV records (RFC 6186 / 8314);
-/// 6. common host names, each required to have a valid certificate.
+/// 6. common host names, each required to have a valid certificate;
+/// 7. the domain's Exchange Autodiscover service (hosted Exchange).
 ///
 /// Privacy: the email address itself goes only to the domain's own
 /// servers and to those of its mail host (its provider), in the HTTPS
-/// request for the settings file (some providers need it). Everything
-/// else (Mozilla, DNS, the plain-HTTP request, probing) sees the domain
-/// only. Results from unauthenticated
+/// request for the settings file (some providers need it) and in the
+/// Autodiscover request. Everything else (Mozilla, DNS, the plain-HTTP
+/// request, probing) sees the domain only. Results from unauthenticated
 /// sources (3 to 6) are only used if their servers answer with a valid
 /// certificate, and are flagged for the user to confirm
 /// ([DiscoveredSettings.warnings]).
@@ -103,6 +108,7 @@ final class AccountDiscovery {
   final String mozillaBase;
 
   static const _parser = AutoconfigParser();
+  static const _autodiscover = AutodiscoverParser();
   static final _email = RegExp(
     r'^[^@\s]+@([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$',
   );
@@ -243,6 +249,19 @@ final class AccountDiscovery {
     onStep?.call(DiscoveryStep.probing);
     final probed = await _probe(address, domain);
     if (probed != null) return DiscoveryResult(probed);
+
+    // 7: Exchange's own answer, from the domain's servers only.
+    onStep?.call(DiscoveryStep.autodiscover);
+    final request = AutodiscoverParser.request(address);
+    for (final uri in [
+      Uri.https('autodiscover.$domain', '/autodiscover/autodiscover.xml'),
+      Uri.https(domain, '/autodiscover/autodiscover.xml'),
+    ]) {
+      final xml = await _fetcher.post(uri, request);
+      if (xml == null) continue;
+      final found = _autodiscover.parse(xml, address);
+      if (found != null) return DiscoveryResult(found);
+    }
 
     return DiscoveryResult(null, oauthOnly: oauthOnly);
   }

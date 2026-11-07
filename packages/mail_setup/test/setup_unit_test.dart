@@ -31,6 +31,43 @@ const cpanelXml = '''<?xml version="1.0"?>
     </emailProvider>
 </clientConfig>''';
 
+/// What a hosted Exchange answers to the Outlook Autodiscover request.
+const autodiscoverXml = '''<?xml version="1.0" encoding="utf-8"?>
+<Autodiscover xmlns="http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006">
+  <Response xmlns="http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a">
+    <User>
+      <DisplayName>Ana</DisplayName>
+    </User>
+    <Account>
+      <AccountType>email</AccountType>
+      <Action>settings</Action>
+      <Protocol>
+        <Type>EXCH</Type>
+        <Server>exchange.corp.example</Server>
+      </Protocol>
+      <Protocol>
+        <Type>IMAP</Type>
+        <Server>mail.corp.example</Server>
+        <Port>993</Port>
+        <LoginName>corp\\ana</LoginName>
+        <DomainRequired>off</DomainRequired>
+        <SPA>off</SPA>
+        <SSL>on</SSL>
+        <AuthRequired>on</AuthRequired>
+      </Protocol>
+      <Protocol>
+        <Type>SMTP</Type>
+        <Server>mail.corp.example</Server>
+        <Port>587</Port>
+        <LoginName>corp\\ana</LoginName>
+        <SSL>on</SSL>
+        <Encryption>TLS</Encryption>
+        <AuthRequired>on</AuthRequired>
+      </Protocol>
+    </Account>
+  </Response>
+</Autodiscover>''';
+
 String providerXml({
   String imapSocket = 'STARTTLS',
   String auth = 'password-cleartext',
@@ -226,6 +263,62 @@ void main() {
     });
   });
 
+  group('AutodiscoverParser', () {
+    const parser = AutodiscoverParser();
+
+    test('reads the IMAP and SMTP protocols, ignores Exchange\'s own', () {
+      final s = parser.parse(autodiscoverXml, 'ana@corp.example')!;
+      expect(s.imap.host, 'mail.corp.example');
+      expect(s.imap.port, 993);
+      expect(s.imap.security, ConnectionSecurity.implicitTls);
+      expect(s.smtp.port, 587);
+      expect(s.smtp.security, ConnectionSecurity.startTls);
+      expect(s.username, 'corp\\ana');
+      expect(s.source, DiscoverySource.autodiscover);
+    });
+
+    test('plain-text protocols, redirects and errors give nothing', () {
+      expect(
+        parser.parse(
+          autodiscoverXml.replaceAll('<SSL>on</SSL>', '<SSL>off</SSL>'),
+          'ana@corp.example',
+        ),
+        isNull,
+        reason: 'SMTP keeps Encryption TLS, but IMAP is plain',
+      );
+      expect(
+        parser.parse(
+          autodiscoverXml.replaceAll(
+            '<Action>settings</Action>',
+            '<Action>redirectAddr</Action><RedirectAddr>ana@other.example</RedirectAddr>',
+          ),
+          'ana@corp.example',
+        ),
+        isNull,
+      );
+      expect(
+        parser.parse(
+          '<Autodiscover><Response><Error><ErrorCode>600</ErrorCode>'
+              '<Message>Invalid Request</Message></Error></Response></Autodiscover>',
+          'ana@corp.example',
+        ),
+        isNull,
+      );
+      expect(parser.parse('not xml <', 'ana@corp.example'), isNull);
+      expect(parser.parse('<html></html>', 'ana@corp.example'), isNull);
+    });
+
+    test('the request names the address and the Outlook schema only', () {
+      final request = AutodiscoverParser.request('a&b@corp.example');
+      expect(
+        request,
+        contains('<EMailAddress>a&amp;b@corp.example</EMailAddress>'),
+      );
+      expect(request, contains(AutodiscoverParser.responseSchema));
+      expect(request, isNot(contains('mobilesync')));
+    });
+  });
+
   group('DnsMessage', () {
     Uint8List answer({
       int id = 0x1234,
@@ -411,6 +504,7 @@ void main() {
           expect(carriesAddress, isFalse, reason: uri.toString());
           expect(uri.query, isEmpty, reason: uri.toString());
         }
+        expect(fetcher.posted, isEmpty, reason: 'Autodiscover comes last');
       },
     );
 
@@ -440,6 +534,7 @@ void main() {
         DiscoveryStep.providerFileUnencrypted,
         DiscoveryStep.dnsService,
         DiscoveryStep.probing,
+        DiscoveryStep.autodiscover,
       ]);
       expect(fetcher.requested.map((u) => u.toString()), [
         'https://autoconfig.shop.co.uk/mail/config-v1.1.xml?emailaddress=me%40shop.co.uk',
@@ -450,9 +545,16 @@ void main() {
         'https://autoconfig.thunderbird.net/v1.1/privateemail.example',
         'http://autoconfig.shop.co.uk/mail/config-v1.1.xml',
       ]);
+      expect(fetcher.posted.map((p) => p.$1.toString()), [
+        'https://autodiscover.shop.co.uk/autodiscover/autodiscover.xml',
+        'https://shop.co.uk/autodiscover/autodiscover.xml',
+      ]);
       // The address went only to the domain and its mail host, over HTTPS.
       final allowed = {'shop.co.uk', 'privateemail.example'};
-      for (final uri in fetcher.requested) {
+      for (final uri in [
+        ...fetcher.requested,
+        for (final p in fetcher.posted) p.$1,
+      ]) {
         final text = uri.toString();
         final base = uri.host.split('.').length > 2
             ? uri.host.substring(uri.host.indexOf('.') + 1)
@@ -461,6 +563,10 @@ void main() {
           expect(uri.scheme, 'https', reason: text);
           expect(allowed, contains(base), reason: text);
         }
+      }
+      for (final (uri, body) in fetcher.posted) {
+        expect(body, contains('<EMailAddress>me@shop.co.uk</EMailAddress>'));
+        expect(uri.scheme, 'https');
       }
     });
 
@@ -577,6 +683,194 @@ void main() {
       }
     });
 
+    test(
+      'Autodiscover from the domain\'s own server, as a last resort',
+      () async {
+        final fetcher = _FakeFetcher(
+          {},
+          answers: {
+            'https://autodiscover.corp.example/autodiscover/autodiscover.xml':
+                autodiscoverXml,
+          },
+        );
+        final steps = <DiscoveryStep>[];
+        final result = await AccountDiscovery(
+          fetcher: fetcher,
+          srv: const NoSrvResolver(),
+          prober: _FakeProber(),
+        ).discover('ana@corp.example', onStep: steps.add);
+        final s = result.settings!;
+        expect(s.source, DiscoverySource.autodiscover);
+        expect(
+          s.imap,
+          const ServerCandidate(
+            'mail.corp.example',
+            993,
+            ConnectionSecurity.implicitTls,
+          ),
+        );
+        expect(
+          s.smtp,
+          const ServerCandidate(
+            'mail.corp.example',
+            587,
+            ConnectionSecurity.startTls,
+          ),
+        );
+        expect(s.username, 'corp\\ana');
+        expect(s.needsConfirmation, isFalse);
+        expect(steps.last, DiscoveryStep.autodiscover);
+        expect(fetcher.posted.single.$1.host, 'autodiscover.corp.example');
+        expect(
+          fetcher.posted.single.$2,
+          contains('<EMailAddress>ana@corp.example</EMailAddress>'),
+        );
+        expect(
+          fetcher.posted.any((p) => p.$1.host.endsWith('outlook.com')),
+          isFalse,
+          reason: 'never Microsoft\'s central service',
+        );
+      },
+    );
+
+    test('HTTPS settings win and need no confirmation', () async {
+      final fetcher = _FakeFetcher({
+        'https://autoconfig.x.example/mail/config-v1.1.xml?emailaddress=ana%40x.example':
+            providerXml(),
+      });
+      final result = await AccountDiscovery(
+        fetcher: fetcher,
+        srv: const NoSrvResolver(),
+        prober: _FakeProber(),
+      ).discover('ana@x.example');
+      expect(result.settings!.source, DiscoverySource.httpsAutoconfig);
+      expect(result.settings!.needsConfirmation, isFalse);
+    });
+
+    test('unencrypted settings are only used if their servers have valid certificates', () async {
+      final fetcher = _FakeFetcher({
+        'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': cpanelXml,
+      });
+      final result = await AccountDiscovery(
+        fetcher: fetcher,
+        srv: const NoSrvResolver(),
+        prober: _FakeProber(available: {'mail.tommykung.cc'}),
+      ).discover('me@tommykung.cc');
+      expect(
+        result.settings!.source,
+        DiscoverySource.probed,
+        reason: 'HTTP answer failed the TLS check, probing found another',
+      );
+      expect(result.settings!.imap.host, 'mail.tommykung.cc');
+    });
+
+    test(
+      'unencrypted settings may only name the domain\'s own servers',
+      () async {
+        // Someone on the network answers the plain-HTTP request with a file
+        // naming their own server (with a valid certificate of its own).
+        final hijacked = cpanelXml.replaceAll(
+          '<hostname>tommykung.cc</hostname>',
+          '<hostname>imap.attacker.example</hostname>',
+        );
+        final fetcher = _FakeFetcher({
+          'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': hijacked,
+        });
+        final result = await AccountDiscovery(
+          fetcher: fetcher,
+          srv: const NoSrvResolver(),
+          mx: _FakeMx({
+            'tommykung.cc': [const MxRecord(10, 'mail.tommykung.cc.')],
+          }),
+          prober: _FakeProber(
+            available: {'imap.attacker.example', 'mail.tommykung.cc'},
+          ),
+        ).discover('me@tommykung.cc');
+        expect(
+          result.settings!.source,
+          DiscoverySource.probed,
+          reason: 'the file was thrown away; probing found the real server',
+        );
+        expect(result.settings!.imap.host, 'mail.tommykung.cc');
+      },
+    );
+
+    test('unencrypted settings may name the servers of the MX host', () async {
+      // A custom domain hosted elsewhere: the MX points to the hoster,
+      // and the hoster's file names its own servers.
+      final hosted = cpanelXml
+          .replaceAll(
+            '<hostname>tommykung.cc</hostname>',
+            '<hostname>mail.privateemail.example</hostname>',
+          )
+          .replaceAll('tommykung.cc', 'shop.co.uk');
+      final result = await AccountDiscovery(
+        fetcher: _FakeFetcher({
+          'http://autoconfig.shop.co.uk/mail/config-v1.1.xml': hosted,
+        }),
+        srv: const NoSrvResolver(),
+        mx: _FakeMx({
+          'shop.co.uk': [const MxRecord(10, 'mx1.privateemail.example.')],
+        }),
+        prober: _FakeProber(available: {'mail.privateemail.example'}),
+      ).discover('me@shop.co.uk');
+      expect(result.settings!.source, DiscoverySource.httpAutoconfig);
+      expect(result.settings!.imap.host, 'mail.privateemail.example');
+    });
+
+    test('servesDomain uses registrable domains (public suffix list)', () {
+      DiscoveredSettings settings(String imap, String smtp) =>
+          DiscoveredSettings(
+            email: 'me@shop.co.uk',
+            imap: ServerCandidate(imap, 993, ConnectionSecurity.implicitTls),
+            smtp: ServerCandidate(smtp, 465, ConnectionSecurity.implicitTls),
+            username: 'me@shop.co.uk',
+            source: DiscoverySource.httpAutoconfig,
+          );
+      const noMx = <MxRecord>[];
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('imap.shop.co.uk', 'shop.co.uk'),
+          'shop.co.uk',
+          noMx,
+        ),
+        isTrue,
+      );
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('imap.shop.co.uk', 'smtp.other.co.uk'),
+          'shop.co.uk',
+          noMx,
+        ),
+        isFalse,
+        reason: 'co.uk is a public suffix, not a shared domain',
+      );
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('imap.hoster.example', 'smtp.hoster.example'),
+          'shop.co.uk',
+          [const MxRecord(10, 'mx.hoster.example')],
+        ),
+        isTrue,
+      );
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('imap.hoster.example', 'smtp.hoster.example'),
+          'shop.co.uk',
+          noMx,
+        ),
+        isFalse,
+      );
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('10.0.0.5', 'shop.co.uk'),
+          'shop.co.uk',
+          noMx,
+        ),
+        isFalse,
+      );
+    });
+
     test('rejects addresses it cannot handle', () {
       final discovery = AccountDiscovery(
         fetcher: _FakeFetcher({}),
@@ -614,16 +908,26 @@ void main() {
 }
 
 final class _FakeFetcher implements SettingsFetcher {
-  _FakeFetcher(this.files);
+  _FakeFetcher(this.files, {this.answers = const {}});
 
   /// Files by URL (the URL as requested, query included).
   final Map<String, String> files;
+
+  /// Answers to POSTs by URL.
+  final Map<String, String> answers;
   final requested = <Uri>[];
+  final posted = <(Uri, String)>[];
 
   @override
   Future<String?> fetch(Uri uri) async {
     requested.add(uri);
     return files[uri.toString()];
+  }
+
+  @override
+  Future<String?> post(Uri uri, String body) async {
+    posted.add((uri, body));
+    return answers[uri.toString()];
   }
 }
 

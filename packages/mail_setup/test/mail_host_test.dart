@@ -54,6 +54,9 @@ final class _Files implements SettingsFetcher {
 
   @override
   Future<String?> fetch(Uri uri) async => files[uri.toString()];
+
+  @override
+  Future<String?> post(Uri uri, String body) async => null;
 }
 
 final class _NoServers implements ServerAvailability {

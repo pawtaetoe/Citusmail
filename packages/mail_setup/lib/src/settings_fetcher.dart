@@ -10,13 +10,19 @@ import 'dart:io';
 /// TLS error, timeout, too large): discovery simply moves on.
 abstract interface class SettingsFetcher {
   Future<String?> fetch(Uri uri);
+
+  /// Sends [body] (XML) to [uri] and returns the answer: Microsoft's
+  /// Autodiscover is asked with a POST. HTTPS only, and never redirected,
+  /// because the body names the email address.
+  Future<String?> post(Uri uri, String body);
 }
 
 /// Fetches over HTTP(S) privately and strictly:
 /// - certificates are always checked (TLS 1.2+); there is no override;
-/// - no User-Agent, no cookies, and never the email address in the URL;
+/// - no User-Agent, no cookies;
 /// - HTTPS may redirect only to HTTPS (at most 3 times), HTTP never
-///   redirects;
+///   redirects, and a POST (which carries the email address) is never
+///   redirected at all;
 /// - at most [maxBytes] and [timeout] per request.
 final class HttpSettingsFetcher implements SettingsFetcher {
   HttpSettingsFetcher({
@@ -32,6 +38,20 @@ final class HttpSettingsFetcher implements SettingsFetcher {
   @override
   Future<String?> fetch(Uri uri) async {
     if (uri.scheme != 'https' && uri.scheme != 'http') return null;
+    return _send(uri, body: null, redirectsLeft: uri.scheme == 'https' ? 3 : 0);
+  }
+
+  @override
+  Future<String?> post(Uri uri, String body) async {
+    if (uri.scheme != 'https') return null;
+    return _send(uri, body: body, redirectsLeft: 0);
+  }
+
+  Future<String?> _send(
+    Uri uri, {
+    required String? body,
+    required int redirectsLeft,
+  }) async {
     final client =
         HttpClient(
             context:
@@ -43,10 +63,11 @@ final class HttpSettingsFetcher implements SettingsFetcher {
           ..connectionTimeout = timeout
           ..badCertificateCallback = ((_, _, _) => false);
     try {
-      return await _get(
+      return await _request(
         client,
         uri,
-        redirectsLeft: uri.scheme == 'https' ? 3 : 0,
+        body: body,
+        redirectsLeft: redirectsLeft,
       ).timeout(timeout);
     } on Object {
       return null; // offline, TLS failure, timeout...: try the next source
@@ -55,15 +76,26 @@ final class HttpSettingsFetcher implements SettingsFetcher {
     }
   }
 
-  Future<String?> _get(
+  Future<String?> _request(
     HttpClient client,
     Uri uri, {
+    required String? body,
     required int redirectsLeft,
   }) async {
-    final request = await client.getUrl(uri);
+    final request = body == null
+        ? await client.getUrl(uri)
+        : await client.postUrl(uri);
     request
       ..followRedirects = false
       ..headers.set(HttpHeaders.acceptHeader, 'application/xml, text/xml');
+    if (body != null) {
+      request.headers.contentType = ContentType(
+        'text',
+        'xml',
+        charset: 'utf-8',
+      );
+      request.write(body);
+    }
     final response = await request.close();
     if (response.isRedirect) {
       await response.drain<void>();
@@ -72,7 +104,12 @@ final class HttpSettingsFetcher implements SettingsFetcher {
       if (redirectsLeft <= 0 || next == null || next.scheme != 'https') {
         return null;
       }
-      return _get(client, next, redirectsLeft: redirectsLeft - 1);
+      return _request(
+        client,
+        next,
+        body: body,
+        redirectsLeft: redirectsLeft - 1,
+      );
     }
     if (response.statusCode != 200) {
       await response.drain<void>();
