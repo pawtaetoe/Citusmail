@@ -12,6 +12,7 @@ environment:
 
 dependencies:
   mail_protocol: any
+  mail_trust: any
 
 dev_dependencies:
   lints: ^6.0.0

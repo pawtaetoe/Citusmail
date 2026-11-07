@@ -432,6 +432,113 @@ void main() {
     });
 
     test(
+      'unencrypted settings may only name the domain\'s own servers',
+      () async {
+        // Someone on the network answers the plain-HTTP request with a file
+        // naming their own server (with a valid certificate of its own).
+        final hijacked = cpanelXml.replaceAll(
+          '<hostname>tommykung.cc</hostname>',
+          '<hostname>imap.attacker.example</hostname>',
+        );
+        final fetcher = _FakeFetcher({
+          'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': hijacked,
+        });
+        final result = await AccountDiscovery(
+          fetcher: fetcher,
+          srv: const NoSrvResolver(),
+          mx: _FakeMx({
+            'tommykung.cc': [const MxRecord(10, 'mail.tommykung.cc.')],
+          }),
+          prober: _FakeProber(
+            available: {'imap.attacker.example', 'mail.tommykung.cc'},
+          ),
+        ).discover('me@tommykung.cc');
+        expect(
+          result.settings!.source,
+          DiscoverySource.probed,
+          reason: 'the file was thrown away; probing found the real server',
+        );
+        expect(result.settings!.imap.host, 'mail.tommykung.cc');
+      },
+    );
+
+    test('unencrypted settings may name the servers of the MX host', () async {
+      // A custom domain hosted elsewhere: the MX points to the hoster,
+      // and the hoster's file names its own servers.
+      final hosted = cpanelXml
+          .replaceAll(
+            '<hostname>tommykung.cc</hostname>',
+            '<hostname>mail.privateemail.example</hostname>',
+          )
+          .replaceAll('tommykung.cc', 'shop.co.uk');
+      final result = await AccountDiscovery(
+        fetcher: _FakeFetcher({
+          'http://autoconfig.shop.co.uk/mail/config-v1.1.xml': hosted,
+        }),
+        srv: const NoSrvResolver(),
+        mx: _FakeMx({
+          'shop.co.uk': [const MxRecord(10, 'mx1.privateemail.example.')],
+        }),
+        prober: _FakeProber(available: {'mail.privateemail.example'}),
+      ).discover('me@shop.co.uk');
+      expect(result.settings!.source, DiscoverySource.httpAutoconfig);
+      expect(result.settings!.imap.host, 'mail.privateemail.example');
+    });
+
+    test('servesDomain uses registrable domains (public suffix list)', () {
+      DiscoveredSettings settings(String imap, String smtp) =>
+          DiscoveredSettings(
+            email: 'me@shop.co.uk',
+            imap: ServerCandidate(imap, 993, ConnectionSecurity.implicitTls),
+            smtp: ServerCandidate(smtp, 465, ConnectionSecurity.implicitTls),
+            username: 'me@shop.co.uk',
+            source: DiscoverySource.httpAutoconfig,
+          );
+      const noMx = <MxRecord>[];
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('imap.shop.co.uk', 'shop.co.uk'),
+          'shop.co.uk',
+          noMx,
+        ),
+        isTrue,
+      );
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('imap.shop.co.uk', 'smtp.other.co.uk'),
+          'shop.co.uk',
+          noMx,
+        ),
+        isFalse,
+        reason: 'co.uk is a public suffix, not a shared domain',
+      );
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('imap.hoster.example', 'smtp.hoster.example'),
+          'shop.co.uk',
+          [const MxRecord(10, 'mx.hoster.example')],
+        ),
+        isTrue,
+      );
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('imap.hoster.example', 'smtp.hoster.example'),
+          'shop.co.uk',
+          noMx,
+        ),
+        isFalse,
+      );
+      expect(
+        AccountDiscovery.servesDomain(
+          settings('10.0.0.5', 'shop.co.uk'),
+          'shop.co.uk',
+          noMx,
+        ),
+        isFalse,
+      );
+    });
+
+    test(
       'Mozilla is asked only last, only with consent, and only for the domain',
       () async {
         final fetcher = _FakeFetcher({
@@ -513,6 +620,16 @@ final class _FakeFetcher implements SettingsFetcher {
     requested.add(uri);
     return files[uri.toString()];
   }
+}
+
+final class _FakeMx implements MxResolver {
+  _FakeMx(this.records);
+
+  final Map<String, List<MxRecord>> records;
+
+  @override
+  Future<List<MxRecord>> lookupMx(String domain) async =>
+      records[domain] ?? const [];
 }
 
 final class _FakeProber implements ServerAvailability {

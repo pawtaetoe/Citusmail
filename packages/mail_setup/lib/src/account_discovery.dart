@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_trust/mail_trust.dart';
 
 import 'autoconfig_parser.dart';
 import 'discovered_settings.dart';
@@ -119,7 +120,8 @@ final class AccountDiscovery {
     }
 
     onStep?.call(DiscoveryStep.dnsRecords);
-    switch (MailHost.fromMx(await _mx.lookupMx(domain))) {
+    final mx = await _mx.lookupMx(domain);
+    switch (MailHost.fromMx(mx)) {
       case MailHost.google:
         return DiscoveryResult(
           KnownProvider.gmail.settingsFor(
@@ -136,6 +138,10 @@ final class AccountDiscovery {
     final fromDns = await _fromSrv(address, domain);
     if (fromDns != null) return DiscoveryResult(fromDns);
 
+    // Unencrypted, so anyone on the network could have written it. It may
+    // only name servers of the domain itself or of the host its MX records
+    // point to (each then checked with a real TLS connection); a file that
+    // names anything else is thrown away as if it had not been served.
     onStep?.call(DiscoveryStep.providerFileUnencrypted);
     final fromHttp = fromFile(
       await _fetcher.fetch(
@@ -143,7 +149,9 @@ final class AccountDiscovery {
       ),
       DiscoverySource.httpAutoconfig,
     );
-    if (fromHttp != null && await _reachable(fromHttp)) {
+    if (fromHttp != null &&
+        servesDomain(fromHttp, domain, mx) &&
+        await _reachable(fromHttp)) {
       return DiscoveryResult(fromHttp);
     }
 
@@ -228,4 +236,28 @@ final class AccountDiscovery {
   Future<bool> _reachable(DiscoveredSettings s) async =>
       await _prober.imapAvailable(s.imap) &&
       await _prober.smtpAvailable(s.smtp);
+
+  /// Whether every server in [settings] belongs to [domain] or to the
+  /// mail host its [mx] records name: the same registrable domain (by the
+  /// public suffix list, so `mail.example.co.uk` belongs to
+  /// `example.co.uk`, and `imap.hoster.example` to an MX of
+  /// `mx1.hoster.example`). Settings from a source that could have been
+  /// tampered with are used only when this holds.
+  static bool servesDomain(
+    DiscoveredSettings settings,
+    String domain,
+    List<MxRecord> mx,
+  ) {
+    final allowed = <String>{
+      ?Domains.registrable(domain),
+      for (final record in mx)
+        ?Domains.registrable(record.exchange.replaceAll(RegExp(r'\.$'), '')),
+    };
+    if (allowed.isEmpty) return false;
+    for (final host in [settings.imap.host, settings.smtp.host]) {
+      final registrable = Domains.registrable(host);
+      if (registrable == null || !allowed.contains(registrable)) return false;
+    }
+    return true;
+  }
 }
