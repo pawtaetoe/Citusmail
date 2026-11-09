@@ -9,6 +9,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'app_data/app_data_sync.dart';
+import 'archived_mail.dart';
 import 'code_reader.dart';
 import 'connector.dart';
 import 'folder_rules.dart';
@@ -123,7 +124,8 @@ final class AccountSynchronizer {
     this.listInterval = const Duration(minutes: 15),
     DateTime Function()? now,
   }) : _connections = connections ?? SyncConnections.unpooled(_connector),
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _archived = ArchivedMail(_store, _mailboxSync);
 
   final MailStore _store;
   final MailConnector _connector;
@@ -136,6 +138,7 @@ final class AccountSynchronizer {
   final ServerRules? _serverRules;
   final SyncConnections _connections;
   final DateTime Function() _now;
+  final ArchivedMail _archived;
 
   /// How often the folder list is read again. Folders are rarely added
   /// or removed, and one that disappears in between is noticed when it
@@ -201,6 +204,17 @@ final class AccountSynchronizer {
           await CodeReader(_store).read(imap, account);
         } on MailException {
           // Read again next time.
+        }
+      }
+
+      // Mail archived elsewhere, on the full sync (Gmail's All Mail is
+      // not synced in the background). Optional, like the above.
+      _archived.note(account, results);
+      if (mailboxIds == null) {
+        try {
+          await _archived.find(imap, account);
+        } on MailException {
+          // Looked up again next time.
         }
       }
 

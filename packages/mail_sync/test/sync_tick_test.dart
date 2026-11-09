@@ -7,6 +7,7 @@
 
 import 'dart:io';
 
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
@@ -275,6 +276,96 @@ void main() {
       store.settings.write(KeepMail.key, KeepMail.everything.storageName);
       await sync.sync(account);
       expect(server.since(mark, 'UID SEARCH'), hasLength(1));
+    });
+  });
+
+  group('Gmail All Mail', () {
+    late AccountSynchronizer sync;
+    late FakeFolder serverInbox;
+    late FakeFolder serverAll;
+
+    setUp(() async {
+      await setUpWith(condstore: true);
+      serverInbox = server.folders['INBOX']!;
+      serverAll = server.folders['[Gmail]/All Mail'] = FakeFolder(
+        specialUse: 'All',
+      );
+      sync = AccountSynchronizer(
+        store,
+        server.connector(),
+        MailboxSynchronizer(
+          store,
+          const SummaryMapper(HeaderRuleClassifier()),
+          settings: const SyncSettings(initialWindow: 2, backfillBatch: 2),
+        ),
+        OutboxReplayer(store),
+      );
+    });
+
+    StoredMailbox allMail() =>
+        store.mailboxes.bySpecialUse(account.id, SpecialUse.all)!;
+    List<String> subjectsIn(StoredMailbox m) => [
+      for (final s in store.messages.list(MessageQuery(mailboxIds: [m.id])))
+        s.subject!,
+    ];
+
+    test('is not stored a second time in the background', () async {
+      for (final id in ['a', 'b']) {
+        serverInbox.add(subject: 'Lunch $id', messageId: '$id@x.example');
+        serverAll.add(subject: 'Lunch $id', messageId: '$id@x.example');
+      }
+      await sync.sync(account);
+      await sync.sync(account);
+      expect(subjectsIn(inbox()), ['Lunch b', 'Lunch a']);
+      expect(subjectsIn(allMail()), isEmpty);
+      expect(server.since(0, 'SELECT "[Gmail]/All Mail"'), isEmpty);
+    });
+
+    test('mail archived elsewhere stays on the device, searchable', () async {
+      serverInbox
+        ..add(subject: 'Flight to Lisbon', messageId: 'trip@x.example')
+        ..add(subject: 'Old offer', messageId: 'spam@x.example');
+      serverAll
+        ..add(subject: 'Flight to Lisbon', messageId: 'trip@x.example')
+        ..add(subject: 'Old offer', messageId: 'spam@x.example');
+      await sync.sync(account);
+
+      // Archived on the phone; deleted for good on the laptop.
+      serverInbox
+        ..remove(1)
+        ..remove(2);
+      serverAll.remove(2);
+      await sync.sync(account, mailboxIds: {inbox().id});
+      expect(subjectsIn(inbox()), isEmpty);
+
+      await sync.sync(account);
+      expect(subjectsIn(allMail()), ['Flight to Lisbon']);
+      expect(store.messages.search('Lisbon').map((m) => m.mailboxId), [
+        allMail().id,
+      ]);
+      // Nothing left to look up.
+      final mark = server.commands.length;
+      await sync.sync(account);
+      expect(server.since(mark, 'UID SEARCH'), isEmpty);
+    });
+
+    test('opening All Mail later still fetches all of it', () async {
+      serverInbox.add(subject: 'Archived', messageId: 'old@x.example');
+      serverAll.add(subject: 'Archived', messageId: 'old@x.example');
+      for (var i = 2; i <= 5; i++) {
+        serverAll.add(subject: 'Mail $i');
+      }
+      await sync.sync(account);
+      serverInbox.remove(1);
+      await sync.sync(account);
+      expect(subjectsIn(allMail()), ['Archived']);
+
+      // Opened: the newest two, then older ones on the next openings,
+      // although the oldest one is already on the device.
+      for (var i = 0; i < 3; i++) {
+        await sync.sync(account, mailboxIds: {allMail().id});
+      }
+      expect(subjectsIn(allMail()), hasLength(5));
     });
   });
 }

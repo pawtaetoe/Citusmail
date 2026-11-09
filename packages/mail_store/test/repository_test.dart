@@ -1228,7 +1228,7 @@ void main() {
       final starred = folders['[Gmail].Starred']!;
       expect(starred.isView, isTrue);
       expect(folders['[Gmail].Important']!.isView, isTrue);
-      expect(all.isView, isFalse);
+      expect(all.isView, isTrue);
       expect(folders['INBOX']!.isView, isFalse);
 
       final pin = MessageFlags.fromImap([r'\Flagged']);
