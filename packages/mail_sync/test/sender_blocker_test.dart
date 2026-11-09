@@ -155,4 +155,19 @@ void main() {
     receive(3, 'carol@x.example');
     expect(tracker.claim(account.id).messages.map((m) => m.uid), [3]);
   });
+
+  test('a pass looks only at mail that arrived since the last one', () {
+    store.blocks.block(BlockKind.address, 'news@shop.example', now: blockedAt);
+    receive(5, 'ana@x.example');
+    expect(SenderBlocker(store).apply(account), 0);
+    receive(3, 'news@shop.example'); // older mail, downloaded later
+    expect(SenderBlocker(store).apply(account), 0);
+    expect(SenderBlocker(store).apply(account, everything: true), 1);
+    // A new block looks at everything since it was made.
+    receive(1, 'promo@deals.example');
+    expect(SenderBlocker(store).apply(account), 0);
+    store.blocks.block(BlockKind.domain, 'deals.example', now: blockedAt);
+    expect(SenderBlocker(store).apply(account), 1);
+    expect(store.messages.uids(inbox.id), [5]);
+  });
 }

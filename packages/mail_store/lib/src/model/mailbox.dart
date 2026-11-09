@@ -52,11 +52,15 @@ final class StoredMailbox {
 
   bool get isInbox => encodedName.toUpperCase() == 'INBOX';
 
-  /// A folder that only shows mail kept in other folders: Gmail's Starred
-  /// and Important (\Flagged, \Important). Not synced in the background,
-  /// only when opened; its copies are left out of lists across folders.
+  /// A folder that mostly shows mail kept in other folders: Gmail's All
+  /// Mail, Starred and Important (\All, \Flagged, \Important). Not
+  /// synced in the background, only when opened (storing All Mail would
+  /// keep every message twice); its copies are left out of lists across
+  /// folders.
   bool get isView =>
-      specialUse == SpecialUse.flagged || specialUse == SpecialUse.important;
+      specialUse == SpecialUse.all ||
+      specialUse == SpecialUse.flagged ||
+      specialUse == SpecialUse.important;
 
   /// Special uses whose copies duplicate mail in other folders (Gmail's
   /// All Mail, Starred, Important), as stored in the database.

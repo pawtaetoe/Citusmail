@@ -267,6 +267,16 @@ final class MessageRepository {
       .map((r) => r.columnAt(0) as int)
       .toList(growable: false);
 
+  /// Cached UIDs of a folder above [uid], ascending: what arrived since a
+  /// UID was seen.
+  List<int> uidsAbove(int mailboxId, int uid) => _db
+      .select(
+        'SELECT uid FROM messages WHERE mailbox_id = ? AND uid > ? ORDER BY uid',
+        [mailboxId, uid],
+      )
+      .map((r) => r.columnAt(0) as int)
+      .toList(growable: false);
+
   /// Cached flags of every message in a folder, by UID.
   Map<int, MessageFlags> flagsByUid(int mailboxId) => {
     for (final row in _db.select(

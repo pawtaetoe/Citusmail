@@ -66,6 +66,10 @@ final class AppDataSyncReport {
 /// everything, applies the result here, and replaces this device's
 /// message if what it knows changed. Devices never write each other's
 /// messages, so two of them syncing at once can't overwrite one another.
+///
+/// When neither this device's data nor the folder (its STATUS counters)
+/// changed since the last exchange, there is nothing to exchange, and
+/// nothing is downloaded.
 final class AppDataSync {
   AppDataSync(this._store, this._codes, {DateTime Function()? now})
     : _snapshotter = AppDataSnapshotter(_store),
@@ -86,6 +90,10 @@ final class AppDataSync {
   static const _accountSetting = 'sync.account';
   static const _publishedSetting = 'sync.published';
   static const _statusSetting = 'sync.status';
+
+  /// What the last exchange left: the folder's counters and this
+  /// device's data, summed up.
+  static const _exchangedSetting = 'sync.exchanged';
 
   /// The account whose mailbox carries the data: the one chosen, else the
   /// first account.
@@ -142,6 +150,23 @@ final class AppDataSync {
     final keys = code.keys;
     final sealer = SnapshotSealer(keys);
     final me = _snapshotter.device;
+
+    // Nothing changed here or on the server since the last exchange?
+    if (_existingFolder(syncAccount) case final existing?) {
+      final state = await _state(imap, existing, syncAccount, keys.syncId);
+      if (_store.settings.read(_exchangedSetting) == state) {
+        final last = statusIn(_store);
+        final devices = last?.devices ?? 1;
+        final unreadable = last?.unreadable ?? 0;
+        _writeStatus(devices: devices, unreadable: unreadable);
+        return AppDataSyncReport(
+          devices: devices,
+          changes: AppliedChanges(),
+          published: false,
+          unreadable: unreadable,
+        );
+      }
+    }
 
     final folder = await _folder(imap, syncAccount);
     await imap.select(folder);
@@ -232,13 +257,10 @@ final class AppDataSync {
         if (!current.contains(uid)) uid,
     ]);
 
+    _writeStatus(devices: remote.length + 1, unreadable: unreadable);
     _store.settings.write(
-      _statusSetting,
-      jsonEncode({
-        'at': now,
-        'devices': remote.length + 1,
-        'unreadable': unreadable,
-      }),
+      _exchangedSetting,
+      await _state(imap, folder, syncAccount, keys.syncId),
     );
     return AppDataSyncReport(
       devices: remote.length + 1,
@@ -264,16 +286,45 @@ final class AppDataSync {
     }
     _store.settings.delete(_publishedSetting);
     _store.settings.delete(_statusSetting);
+    _store.settings.delete(_exchangedSetting);
     _store.appDataSync.reset();
   }
 
+  void _writeStatus({required int devices, required int unreadable}) =>
+      _store.settings.write(
+        _statusSetting,
+        jsonEncode({
+          'at': _now().toUtc().millisecondsSinceEpoch,
+          'devices': devices,
+          'unreadable': unreadable,
+        }),
+      );
+
+  /// The folder's counters (STATUS) and a digest of this device's data:
+  /// when both are as the last exchange left them, nothing changed.
+  Future<String> _state(
+    ImapClient imap,
+    String folder,
+    Account account,
+    String syncId,
+  ) async {
+    final status = await imap.status(folder);
+    final records = _snapshotter.localRecords().values.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return '${account.id}:$syncId:${status.uidValidity}:${status.uidNext}:'
+        '${status.messages}:${_fingerprint(records)}';
+  }
+
+  String? _existingFolder(Account account) => _store.mailboxes
+      .forAccount(account.id)
+      .where((m) => m.isAppData)
+      .firstOrNull
+      ?.encodedName;
+
   /// The data folder's server name, created if missing.
   Future<String> _folder(ImapClient imap, Account account) async {
-    final existing = _store.mailboxes
-        .forAccount(account.id)
-        .where((m) => m.isAppData)
-        .firstOrNull;
-    if (existing != null) return existing.encodedName;
+    final existing = _existingFolder(account);
+    if (existing != null) return existing;
     final encoded = FolderNames.newFolder(
       _store.mailboxes.forAccount(account.id),
       StoredMailbox.appDataName,
