@@ -85,6 +85,15 @@ final class KeychainSyncCodes implements SyncCodeProvider {
 /// Account secrets from the keychain: the password, or for an OAuth
 /// account a current access token, renewed with its refresh token when it
 /// is about to expire (one renewal at a time per account).
+///
+/// Known limitation: the renewal lock is per isolate. The app and the
+/// background worker each have their own [KeychainCredentials], so both
+/// can renew the same account at once; with a provider that rotates
+/// refresh tokens (Microsoft), the one that finishes last can write back
+/// a token the provider has already retired, and the next renewal fails
+/// with "sign in again". No secret leaks and the account recovers with a
+/// new sign-in; a fix would have only the app renew while the worker
+/// asks it for the token, which needs a channel between the two.
 final class KeychainCredentials implements CredentialProvider {
   KeychainCredentials(this._secrets, {TokenClient? tokens})
     : _tokens = tokens ?? TokenClient(WebClient());

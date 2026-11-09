@@ -29,11 +29,14 @@ final class AutoconfigParser {
   );
 
   /// Settings for [email] from [xml], or the reason there are none.
+  /// [mailHostDomain] is the domain the file was fetched for when that is
+  /// the address's mail host rather than its own domain.
   (DiscoveredSettings?, AutoconfigProblem?) parse(
     String xml,
     String email,
-    DiscoverySource source,
-  ) {
+    DiscoverySource source, {
+    String? mailHostDomain,
+  }) {
     final XmlElement root;
     try {
       root = const MiniXml().parse(xml);
@@ -75,6 +78,7 @@ final class AutoconfigParser {
         smtp: smtp.$1,
         username: username,
         source: source,
+        mailHostDomain: mailHostDomain,
       ),
       null,
     );

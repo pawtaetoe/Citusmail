@@ -488,6 +488,7 @@ final class MailController {
     final use = _store.mailboxes.byId(message.mailboxId)?.specialUse;
     if (use == SpecialUse.sent || use == SpecialUse.drafts) return null;
     final inbox = _store.mailboxes.inbox(message.accountId);
+    final account = _store.accounts.byId(message.accountId);
     return TrustContext(
       trustedAuthServId: inbox == null
           ? null
@@ -496,6 +497,7 @@ final class MailController {
                 inbox.id,
                 'authentication-results',
               ),
+              serverHosts: {?account?.imap.host},
             ),
       ownDomains: {
         for (final account in _store.accounts.all())

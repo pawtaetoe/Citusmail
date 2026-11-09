@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,12 +14,31 @@ import 'package:url_launcher/url_launcher.dart';
 import 'attachment_saver.dart';
 
 /// Hands an event to the user's own calendar app, the app having no
-/// calendar of its own: the .ics file is written to the app's temporary
-/// folder and opened with the system (on Android, a "view" request for
-/// a text/calendar file, which calendar apps answer). Nothing is sent
-/// anywhere.
+/// calendar of its own: the .ics file is written to a folder of the app's
+/// own data (on Android, its private cache, offered through a
+/// FileProvider) and opened with the system (on Android, a "view" request
+/// for a text/calendar file, which calendar apps answer). Nothing is sent
+/// anywhere. The file is removed once the calendar app has had time to
+/// read it.
 abstract final class CalendarFiles {
   static const _android = MethodChannel('citusmail/files');
+
+  /// Where the file is written on desktops: the app's own data folder,
+  /// which the store keeps readable by the user only (mode 700 on Linux
+  /// and macOS; private under the profile on Windows), never the shared
+  /// temporary folder, where everyone on the machine could read who is
+  /// meeting whom. Tests point it elsewhere.
+  static Future<Directory> Function() dataDirectory =
+      getApplicationSupportDirectory;
+
+  /// Opens a file with the system; tests replace it.
+  static Future<bool> Function(Uri file) launcher = (uri) =>
+      launchUrl(uri, mode: LaunchMode.externalApplication);
+
+  /// How long the file is kept for the calendar app to read it (the
+  /// system starts the app and hands it the path; the app reads the file
+  /// as it comes up) before it is deleted.
+  static Duration keepFor = const Duration(minutes: 2);
 
   /// Whether this platform can hand a file to another app at all.
   static bool get canOpen =>
@@ -41,24 +61,34 @@ abstract final class CalendarFiles {
       }
       if (!canOpen) return false;
       final directory = Directory(
-        '${(await getTemporaryDirectory()).path}'
-        '${Platform.pathSeparator}citusmail-events',
+        '${(await dataDirectory()).path}${Platform.pathSeparator}events',
       );
-      // Only the latest event is kept there.
+      // Only the latest event is ever there.
       if (directory.existsSync()) directory.deleteSync(recursive: true);
       directory.createSync(recursive: true);
       final file = File('${directory.path}${Platform.pathSeparator}$name');
       await file.writeAsBytes(bytes, flush: true);
-      return await launchUrl(
-        Uri.file(file.path),
-        mode: LaunchMode.externalApplication,
-      );
+      final launched = await launcher(Uri.file(file.path));
+      if (launched) {
+        unawaited(Future<void>.delayed(keepFor, () => _remove(directory)));
+      } else {
+        _remove(directory);
+      }
+      return launched;
     } on PlatformException {
       return false;
     } on MissingPluginException {
       return false;
     } on FileSystemException {
       return false;
+    }
+  }
+
+  static void _remove(Directory directory) {
+    try {
+      if (directory.existsSync()) directory.deleteSync(recursive: true);
+    } on FileSystemException {
+      // Gone already, or still open elsewhere: the next hand-off clears it.
     }
   }
 

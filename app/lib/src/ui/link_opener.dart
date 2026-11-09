@@ -18,7 +18,10 @@ abstract final class LinkOpener {
   ///
   /// [trust] is the message's check report. A link it flags, or any link
   /// in a message that looks like a scam, gets a warning, and "Don't open"
-  /// becomes the main button.
+  /// becomes the main button. The link itself is always checked here too
+  /// (lookalike and imitating hosts, hidden destinations), so a link that
+  /// came from a message's data rather than its text, such as a tracking
+  /// or booking page, gets the same warning as it would in the reader.
   static Future<void> open(
     BuildContext context,
     Uri link, {
@@ -28,8 +31,15 @@ abstract final class LinkOpener {
     Future<VirusTotalReport> Function(Uri link)? virusTotal,
   }) async {
     if (link.scheme == 'mailto') return onMailto(link);
-    final reasons = <String>[...?trust?.link(link)?.reasons];
-    var level = trust?.link(link)?.level ?? TrustLevel.ok;
+    final reasons = <String>[];
+    var level = TrustLevel.ok;
+    for (final verdict in [trust?.link(link), TrustChecker.checkLink(link)]) {
+      if (verdict == null) continue;
+      level = level.max(verdict.level);
+      for (final reason in verdict.reasons) {
+        if (!reasons.contains(reason)) reasons.add(reason);
+      }
+    }
     // Google Safe Browsing, when the user turned it on: checked on the
     // device, so this is quick unless a match must be confirmed.
     if (safety != null) {
@@ -51,8 +61,7 @@ abstract final class LinkOpener {
       level = TrustLevel.danger;
       reasons.add('This message may be a scam.');
     }
-    final unusual = link.host.runes.any((r) => r > 0x7E);
-    if (unusual && reasons.isEmpty) {
+    if (hasUnusualHost(link) && reasons.isEmpty) {
       level = level.max(TrustLevel.caution);
       reasons.add(
         'The address uses unusual characters that can imitate a familiar '
@@ -150,15 +159,27 @@ abstract final class LinkOpener {
     return launched;
   }
 
+  /// Whether the host has letters outside plain ASCII, written out or as
+  /// punycode (`xn--`). Dart's [Uri] percent-encodes a non-ASCII host, so
+  /// the host is decoded before looking.
+  static bool hasUnusualHost(Uri link) {
+    final host = _decodedHost(link);
+    return host.runes.any((r) => r > 0x7E) ||
+        host.toLowerCase().split('.').any((l) => l.startsWith('xn--'));
+  }
+
+  static String _decodedHost(Uri link) {
+    try {
+      return Uri.decodeComponent(link.host);
+    } on Object {
+      return link.host;
+    }
+  }
+
   /// The host as people read it: international names decoded, so a
   /// lookalike shows its true letters next to the punycode.
   static String _host(Uri link) {
-    String host;
-    try {
-      host = Uri.decodeComponent(link.host);
-    } on Object {
-      host = link.host;
-    }
+    final host = _decodedHost(link);
     final readable = Domains.normalize(host);
     if (readable == null || readable == host) return host;
     return '$readable ($host)';

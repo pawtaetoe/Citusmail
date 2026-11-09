@@ -10,6 +10,7 @@ import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.work.OneTimeWorkRequestBuilder
@@ -92,6 +93,11 @@ class MainActivity : FlutterFragmentActivity() {
                         )
                         result.success(null)
                     }
+                    // Time since the device started, which keeps counting
+                    // while it sleeps and which nobody can set: the app
+                    // lock measures its waits on it, so changing the date
+                    // does not shorten them.
+                    "elapsedRealtime" -> result.success(SystemClock.elapsedRealtime())
                     // App lock on: the app switcher shows no picture of the
                     // mail (Android 13+; older versions show the app's own
                     // cover).

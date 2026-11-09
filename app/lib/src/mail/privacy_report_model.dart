@@ -97,6 +97,7 @@ final class PrivacyReportModel extends ChangeNotifier {
     final contexts = <int, TrustContext>{};
     TrustContext context(int accountId) => contexts.putIfAbsent(accountId, () {
       final inbox = _store.mailboxes.inbox(accountId);
+      final account = _store.accounts.byId(accountId);
       return TrustContext(
         trustedAuthServId: inbox == null
             ? null
@@ -105,6 +106,7 @@ final class PrivacyReportModel extends ChangeNotifier {
                   inbox.id,
                   'authentication-results',
                 ),
+                serverHosts: {?account?.imap.host},
               ),
         ownDomains: ownDomains,
       );

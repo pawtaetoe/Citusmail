@@ -554,7 +554,8 @@ void main() {
     expect(top(tester, 'Pinned') < top(tester, 'Verification'), isTrue);
     expect(top(tester, 'Verification') < top(tester, 'Important'), isTrue);
 
-    // The code instead of the preview; a tap copies it.
+    // The code instead of the preview; a tap copies it, marked sensitive
+    // (through the clipboard plugin, as the test platform is Android).
     expect(find.text('482913'), findsOneWidget);
     String? copied;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -566,9 +567,26 @@ void main() {
         return null;
       },
     );
+    Map<Object?, Object?>? pluginCall;
+    const plugin = MethodChannel('citusmail/background-clipboard');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(plugin, (
+      call,
+    ) async {
+      if (call.method == 'copy') pluginCall = call.arguments as Map;
+      return true;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        plugin,
+        null,
+      ),
+    );
     await tester.tap(find.byKey(const ValueKey('copy-code-482913')));
     await tester.pump();
-    expect(copied, '482913');
+    expect(copied, isNull, reason: 'not through the plain clipboard');
+    expect(pluginCall, isNotNull);
+    expect(pluginCall!['text'], '482913');
+    expect(pluginCall!['sensitive'], isTrue);
     expect(find.text('Copied 482913'), findsOneWidget);
     expect(
       store.messages

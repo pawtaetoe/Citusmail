@@ -54,6 +54,9 @@ final class _Files implements SettingsFetcher {
 
   @override
   Future<String?> fetch(Uri uri) async => files[uri.toString()];
+
+  @override
+  Future<String?> post(Uri uri, String body) async => null;
 }
 
 final class _NoServers implements ServerAvailability {
@@ -154,7 +157,8 @@ void main() {
       final dns = _Dns(const [MxRecord(1, 'aspmx.l.google.com')]);
       final result = await AccountDiscovery(
         fetcher: _Files({
-          'https://autoconfig.company.example/mail/config-v1.1.xml': '''
+          'https://autoconfig.company.example/mail/config-v1.1.xml?emailaddress=ana%40company.example':
+              '''
 <clientConfig version="1.1"><emailProvider id="x">
   <incomingServer type="imap"><hostname>imap.company.example</hostname><port>993</port><socketType>SSL</socketType><authentication>password-cleartext</authentication><username>%EMAILADDRESS%</username></incomingServer>
   <outgoingServer type="smtp"><hostname>smtp.company.example</hostname><port>465</port><socketType>SSL</socketType><authentication>password-cleartext</authentication></outgoingServer>
