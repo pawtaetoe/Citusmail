@@ -49,6 +49,10 @@ final class Script {
   final verified = <(DiscoveredSettings, String)>[];
   final saved = <(DiscoveredSettings, String, String?)>[];
 
+  /// What the hosting server lookup finds after a host name mismatch.
+  String? hostingServer;
+  final lookedUp = <(DiscoveredSettings, VerificationResult)>[];
+
   late final controller = SetupController(
     discover: (email, {askMozillaConsent, onStep}) async {
       onStep?.call(DiscoveryStep.providerFileSecure);
@@ -64,8 +68,27 @@ final class Script {
       saved.add((settings, password, displayName));
       return account;
     },
+    findHostingServer: (settings, failure) async {
+      lookedUp.add((settings, failure));
+      return hostingServer;
+    },
   );
 }
+
+/// What Namecheap's shared hosting presents for mail.tommykung.cc.
+VerificationResult webHostingMismatch({ServerRole role = ServerRole.imap}) =>
+    VerificationResult.failure(
+      role,
+      VerificationProblem.certificate,
+      'TLS with mail.tommykung.cc failed: Hostname mismatch',
+      tlsFailure: TlsFailure.hostnameMismatch,
+      certificate: RejectedCertificate(
+        subject: '/CN=*.web-hosting.com',
+        issuer: '/CN=Sectigo RSA Domain Validation',
+        validFrom: DateTime(2026),
+        validUntil: DateTime(2027),
+      ),
+    );
 
 Future<bool> noMozilla(String _) async => false;
 
@@ -156,6 +179,74 @@ void main() {
         expect(used.source, DiscoverySource.manual);
       },
     );
+
+    test('a host name mismatch looks up the hosting server\'s own name, '
+        'and only offers it', () async {
+      final s = Script()
+        ..verifications.add(webHostingMismatch())
+        ..hostingServer = 'business905-5.web-hosting.com';
+      await s.controller.start(
+        email: 'me@tommykung.cc',
+        password: 'pw',
+        askMozillaConsent: noMozilla,
+      );
+      await s.controller.useSettings(found(host: 'mail.tommykung.cc'));
+      final failed = s.controller.state as VerificationFailed;
+      expect(failed.hostingServer, 'business905-5.web-hosting.com');
+      expect(failed.suggestedHost, 'business905-5.web-hosting.com');
+      expect(s.lookedUp.single.$1.imap.host, 'mail.tommykung.cc');
+      // Nothing was switched or saved without the user.
+      expect(s.verified, hasLength(1));
+      expect(s.saved, isEmpty);
+    });
+
+    test('other problems don\'t look for a hosting server', () async {
+      final s = Script()
+        ..verifications.add(
+          const VerificationResult.failure(
+            ServerRole.imap,
+            VerificationProblem.credentials,
+            'no',
+          ),
+        )
+        ..hostingServer = 'business905-5.web-hosting.com';
+      await s.controller.start(
+        email: 'me@tommykung.cc',
+        password: 'pw',
+        askMozillaConsent: noMozilla,
+      );
+      await s.controller.useSettings(found());
+      expect((s.controller.state as VerificationFailed).hostingServer, isNull);
+      expect(s.lookedUp, isEmpty);
+    });
+
+    test('a host name mismatch without a found name says where to look', () {
+      final text = SetupText.problem(
+        webHostingMismatch(),
+        found(host: 'mail.tommykung.cc'),
+      );
+      expect(
+        text,
+        startsWith(
+          'The certificate of mail.tommykung.cc is for *.web-hosting.com',
+        ),
+      );
+      expect(text, contains('Shared hosting often uses its own server name'));
+      expect(text, contains('cPanel: Email Accounts → Connect Devices'));
+      final withName = SetupText.problem(
+        webHostingMismatch(),
+        found(host: 'mail.tommykung.cc'),
+        hostingServer: 'business905-5.web-hosting.com',
+      );
+      expect(
+        withName,
+        contains(
+          'Your mail is hosted on business905-5.web-hosting.com, and its '
+          'certificate is valid for that name.',
+        ),
+      );
+      expect(withName, isNot(contains('cPanel')));
+    });
 
     test('Gmail: an app password loses its spaces; others are kept', () async {
       final s = Script()
@@ -293,6 +384,66 @@ void main() {
         find.text('Use business905.web-hosting.com instead'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('the hosting server\'s own name is offered, and tapping it '
+        'switches both servers and continues', (tester) async {
+      final s = await pump(tester);
+      s
+        ..verifications.add(webHostingMismatch())
+        ..hostingServer = 'business905-5.web-hosting.com';
+      await s.controller.start(
+        email: 'me@tommykung.cc',
+        password: 'pw',
+        askMozillaConsent: noMozilla,
+      );
+      await s.controller.useSettings(found(host: 'mail.tommykung.cc'));
+      await tester.pumpAndSettle();
+      expect(find.text('Couldn\'t sign in'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Your mail is hosted on business905-5.web-hosting.com',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Start over'), findsOneWidget);
+      expect(find.text('Edit settings'), findsOneWidget);
+      final use = find.widgetWithText(
+        FilledButton,
+        'Use business905-5.web-hosting.com',
+      );
+      expect(use, findsOneWidget);
+      expect(s.saved, isEmpty, reason: 'nothing changes until tapped');
+
+      await tester.tap(use);
+      // The busy spinner never settles: just let the checks run.
+      await tester.pump();
+      await tester.pump();
+      final used = s.verified.last.$1;
+      expect(used.imap.host, 'business905-5.web-hosting.com');
+      expect(used.smtp.host, 'business905-5.web-hosting.com');
+      expect(used.imap.port, 993);
+      expect(used.smtp.port, 465);
+      expect(s.saved.single.$1.imap.host, 'business905-5.web-hosting.com');
+      expect(s.controller.state, isA<SetupDone>());
+    });
+
+    testWidgets('without a found name, the error says where to find it', (
+      tester,
+    ) async {
+      final s = await pump(tester);
+      s.verifications.add(webHostingMismatch());
+      await s.controller.start(
+        email: 'me@tommykung.cc',
+        password: 'pw',
+        askMozillaConsent: noMozilla,
+      );
+      await s.controller.useSettings(found(host: 'mail.tommykung.cc'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Connect Devices'), findsOneWidget);
+      expect(find.textContaining('Use '), findsNothing);
+      expect(find.text('Start over'), findsOneWidget);
+      expect(find.text('Edit settings'), findsOneWidget);
     });
 
     testWidgets('a Gmail address asks for an app password and links to it', (
