@@ -8,6 +8,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import 'accounts_page.dart' show AccountWords;
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'reader_pane.dart';
 
@@ -161,7 +162,7 @@ final class AccountDetailPage extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
                     onPressed: () => _searchAll(context),
-                    icon: const Icon(Icons.search),
+                    icon: const Icon(AppIcons.search),
                     label: Text('Search all mail from ${a.name}'),
                   ),
                 ),
@@ -221,7 +222,7 @@ final class AccountDetailPage extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            trailing: const Icon(Icons.chevron_right),
+                            trailing: const Icon(AppIcons.chevron),
                             onTap: () => _openEmail(context, r.email.messageId),
                           ),
                         ],

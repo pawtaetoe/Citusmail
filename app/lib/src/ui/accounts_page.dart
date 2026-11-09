@@ -9,6 +9,7 @@ import '../mail/accounts_model.dart';
 import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
 import 'account_detail_page.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
 import 'read_ahead.dart';
@@ -174,12 +175,12 @@ final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
                       controller: _search,
                       decoration: InputDecoration(
                         hintText: 'Search services or addresses',
-                        prefixIcon: const Icon(Icons.search),
+                        prefixIcon: const Icon(AppIcons.search),
                         suffixIcon: _search.text.isEmpty
                             ? null
                             : IconButton(
                                 tooltip: 'Clear',
-                                icon: const Icon(Icons.close),
+                                icon: const Icon(AppIcons.close),
                                 onPressed: _search.clear,
                               ),
                       ),
@@ -397,7 +398,7 @@ final class _AccountTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right),
+              const Icon(AppIcons.chevron),
             ],
           ),
         ),
@@ -427,7 +428,7 @@ final class _ReadOffer extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.mark_email_unread_outlined),
+                const Icon(AppIcons.markUnread),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -502,7 +503,7 @@ final class _Empty extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.badge_outlined,
+            AppIcons.onlineAccounts,
             size: 40,
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -612,7 +613,7 @@ abstract final class AccountWords {
     AccountEvidence.passwordReset => Icons.lock_reset,
     AccountEvidence.securityAlert => Icons.shield_outlined,
     AccountEvidence.accountChange => Icons.manage_accounts_outlined,
-    AccountEvidence.notice => Icons.mail_outline,
+    AccountEvidence.notice => AppIcons.mail,
     AccountEvidence.paid => Icons.receipt_long_outlined,
     AccountEvidence.closed => Icons.no_accounts_outlined,
   };

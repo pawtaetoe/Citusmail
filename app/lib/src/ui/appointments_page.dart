@@ -8,6 +8,7 @@ import 'package:mail_sort/mail_sort.dart';
 import '../mail/appointments_model.dart';
 import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
+import 'app_icons.dart';
 import 'appointment_detail_page.dart';
 import 'appointment_text.dart';
 import 'badge.dart';
@@ -344,7 +345,7 @@ final class AppointmentTile extends StatelessWidget {
             else if (a.changed && !over)
               const AppBadge('Moved', tone: BadgeTone.warning),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right),
+            const Icon(AppIcons.chevron),
           ],
         ),
       ),

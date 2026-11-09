@@ -16,6 +16,7 @@ import 'package:mail_view/mail_view.dart';
 
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'attachment_save_flow.dart';
 import 'attachment_saver.dart';
 import 'avatar.dart';
@@ -248,7 +249,7 @@ final class _Header extends StatelessWidget {
         _SnoozedNotice(controller: controller, message: message, until: until)
       else if (message.backFromSnooze)
         _Notice(
-          icon: Icons.snooze,
+          icon: AppIcons.snooze,
           text:
               'Back from snooze '
               '(${SnoozeSheet.describe(context, message.listedAt)}).',
@@ -263,7 +264,7 @@ final class _Header extends StatelessWidget {
           ),
         ],
         ReaderFailed(:final reason) => [
-          _Notice(icon: Icons.cloud_off, text: reason),
+          _Notice(icon: AppIcons.offline, text: reason),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
@@ -292,7 +293,7 @@ final class _Header extends StatelessWidget {
           // did show under the header).
           if (controller.receiptsFor(ready.message)?.isEmpty ?? false)
             const _Notice(
-              icon: Icons.mark_email_unread_outlined,
+              icon: AppIcons.markUnread,
               text:
                   'Read receipt requested. No answer yet: the recipient\'s '
                   'mail app decides whether to send one.',
@@ -340,24 +341,24 @@ final class _Toolbar extends StatelessWidget {
       if (archive != null && archive.id != message.mailboxId)
         _Action(
           'Archive (E)',
-          Icons.archive_outlined,
+          AppIcons.archive,
           () => controller.archive([message]),
         ),
       if (controller.snoozedUntil(message) != null) ...[
         _Action(
           'Change snooze time (B)',
-          Icons.snooze,
+          AppIcons.snooze,
           () => SnoozeSheet.show(context, controller, [message]),
         ),
         _Action(
           'Unsnooze',
-          Icons.alarm_off,
+          AppIcons.unsnooze,
           () => controller.unsnooze([message]),
         ),
       ] else if (controller.canSnooze(message))
         _Action(
           'Snooze (B)',
-          Icons.snooze,
+          AppIcons.snooze,
           () => SnoozeSheet.show(context, controller, [message]),
         ),
       if (controller.canFollowUp(message))
@@ -365,45 +366,43 @@ final class _Toolbar extends StatelessWidget {
           controller.followUpFor(message) == null
               ? 'Remind me if no reply'
               : 'Change reminder',
-          Icons.alarm_add_outlined,
+          AppIcons.remind,
           () => FollowUpSheet.show(context, controller, message),
         ),
       _Action(
         inTrash ? 'Delete forever' : 'Move to Trash (#)',
-        inTrash ? Icons.delete_forever_outlined : Icons.delete_outline,
+        inTrash ? AppIcons.deleteForever : AppIcons.delete,
         () => _delete(context, inTrash),
       ),
       _Action(
         'Move to folder (V)',
-        Icons.drive_file_move_outline,
+        AppIcons.move,
         () => MoveDialog.show(context, controller, [message]),
       ),
       _Action(
         message.flags.flagged ? 'Unpin (S)' : 'Pin (S)',
-        message.flags.flagged ? Icons.push_pin : Icons.push_pin_outlined,
+        message.flags.flagged ? AppIcons.pinOn : AppIcons.pinOff,
         () => controller.togglePin([message]),
         color: message.flags.flagged ? MailText.pinColor : null,
         group: 1,
       ),
       _Action(
         message.flags.seen ? 'Mark as unread (U)' : 'Mark as read (U)',
-        message.flags.seen
-            ? Icons.mark_email_unread_outlined
-            : Icons.mark_email_read_outlined,
+        message.flags.seen ? AppIcons.markUnread : AppIcons.markRead,
         () => controller.toggleRead([message]),
         group: 1,
       ),
       if (controller.blockFor(message) case final block?)
         _Action(
           'Unblock sender',
-          Icons.how_to_reg_outlined,
+          AppIcons.unblock,
           () => controller.unblock(block),
           group: 2,
         )
       else if (controller.canBlock(message))
         _Action(
           'Block sender',
-          Icons.block,
+          AppIcons.block,
           () => BlockDialog.show(context, controller, message),
           group: 2,
         ),
@@ -411,19 +410,19 @@ final class _Toolbar extends StatelessWidget {
       if (reader is ReaderReady) ...[
         _Action(
           'Forward as attachment',
-          Icons.forward_to_inbox_outlined,
+          AppIcons.forwardAsAttachment,
           () => controller.forwardAsAttachment(reader as ReaderReady),
           group: 3,
         ),
         _Action(
           'Save as .eml',
-          Icons.download_outlined,
+          AppIcons.save,
           () => _saveEml(context),
           group: 3,
         ),
         _Action(
           'Show original',
-          Icons.code,
+          AppIcons.original,
           () => _showOriginal(context),
           group: 3,
         ),
@@ -447,7 +446,7 @@ final class _Toolbar extends StatelessWidget {
             children: [
               IconButton(
                 tooltip: showBack ? 'Back (Esc)' : 'Close (Esc)',
-                icon: Icon(showBack ? Icons.arrow_back : Icons.close),
+                icon: Icon(showBack ? AppIcons.back : AppIcons.close),
                 onPressed: controller.closeMessage,
               ),
               const Spacer(),
@@ -463,7 +462,7 @@ final class _Toolbar extends StatelessWidget {
               if (more.isNotEmpty)
                 PopupMenuButton<VoidCallback>(
                   tooltip: 'More',
-                  icon: const Icon(Icons.more_vert),
+                  icon: const Icon(AppIcons.more),
                   onSelected: (action) => action(),
                   itemBuilder: (_) => [
                     for (final a in more)
@@ -603,12 +602,12 @@ final class _OriginalDialog extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: 'Save as .eml',
-                      icon: const Icon(Icons.download_outlined),
+                      icon: const Icon(AppIcons.save),
                       onPressed: onSave,
                     ),
                     IconButton(
                       tooltip: 'Close',
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(AppIcons.close),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -852,7 +851,7 @@ final class _BlockedNotice extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.block, size: 18, color: colors.onSurfaceVariant),
+          Icon(AppIcons.block, size: 18, color: colors.onSurfaceVariant),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -903,7 +902,7 @@ final class _SnoozedNotice extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.snooze, size: 18, color: colors.onSurfaceVariant),
+                Icon(AppIcons.snooze, size: 18, color: colors.onSurfaceVariant),
                 const SizedBox(width: 10),
                 Text(
                   'Snoozed until ${SnoozeSheet.describe(context, until)}',
@@ -968,7 +967,11 @@ final class _FollowUpNotice extends StatelessWidget {
                 if (returned)
                   const NoReplyBadge()
                 else ...[
-                  Icon(Icons.alarm, size: 18, color: colors.onSurfaceVariant),
+                  Icon(
+                    AppIcons.reminder,
+                    size: 18,
+                    color: colors.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
@@ -1074,7 +1077,7 @@ final class _Attachments extends StatelessWidget {
         : TrustStyle.of(context, verdict.level);
     return ActionChip(
       avatar: Icon(
-        style?.icon ?? Icons.attach_file,
+        style?.icon ?? AppIcons.attachment,
         size: 18,
         color: style?.foreground,
       ),
@@ -1166,20 +1169,20 @@ final class _ReplyBar extends StatelessWidget {
             button(
               'Reply',
               'Reply (R)',
-              Icons.reply,
+              AppIcons.reply,
               () => controller.reply(reader),
               main: true,
             ),
             button(
               'Reply all',
               'Reply all (A)',
-              Icons.reply_all,
+              AppIcons.replyAll,
               () => controller.replyAll(reader),
             ),
             button(
               'Forward',
               'Forward (F)',
-              Icons.forward,
+              AppIcons.forward,
               () => controller.forward(reader),
             ),
           ];

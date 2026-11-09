@@ -8,6 +8,7 @@ import 'package:mail_trust/mail_trust.dart';
 import '../app.dart' show appName;
 import '../mail/privacy_report_model.dart';
 import '../services/app_services.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
 import 'mail_shell.dart';
@@ -272,7 +273,7 @@ final class _Stats extends StatelessWidget {
             '$appName removes them before a link opens.',
       ),
       _Stat(
-        icon: Icons.mark_email_read_outlined,
+        icon: AppIcons.receipt,
         value: r.readReceipts,
         label: r.readReceipts == 1
             ? 'Read receipt not sent'
@@ -444,7 +445,7 @@ final class _SenderTile extends StatelessWidget {
         '${_number(s.trackers)} in ${_number(s.emails)} '
         '${s.emails == 1 ? 'email' : 'emails'}',
       ),
-      trailing: onTap == null ? null : const Icon(Icons.chevron_right),
+      trailing: onTap == null ? null : const Icon(AppIcons.chevron),
       onTap: onTap,
     );
   }
@@ -477,11 +478,7 @@ final class _SmallPrint extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.lock_outline,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
+              Icon(AppIcons.lock, size: 18, color: theme.colorScheme.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

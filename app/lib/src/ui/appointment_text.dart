@@ -8,6 +8,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../mail/appointments_model.dart' show localTime;
+import 'app_icons.dart';
 import 'booking_text.dart';
 
 /// How appointments read on the Appointments pages. Times are in the
@@ -23,7 +24,7 @@ abstract final class AppointmentWords {
     AppointmentKind.interview => Icons.work_outline,
     AppointmentKind.school => Icons.school_outlined,
     AppointmentKind.lesson => Icons.self_improvement_outlined,
-    AppointmentKind.delivery => Icons.local_shipping_outlined,
+    AppointmentKind.delivery => AppIcons.deliveries,
     AppointmentKind.other => Icons.event_outlined,
   };
 

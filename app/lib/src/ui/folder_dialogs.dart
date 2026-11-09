@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'mail_text.dart';
 
 /// Asks for a folder name and creates the folder on the server.
@@ -184,11 +185,11 @@ final class _RulesState extends State<_Rules> {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.filter_alt_outlined),
+                leading: const Icon(AppIcons.folderRules),
                 title: Text(FolderRulesDialog.describe(rule.field, rule.value)),
                 trailing: IconButton(
                   tooltip: 'Remove rule',
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(AppIcons.delete),
                   onPressed: () =>
                       setState(() => widget.controller.removeRule(rule)),
                 ),

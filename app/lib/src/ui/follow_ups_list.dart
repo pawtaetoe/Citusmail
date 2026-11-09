@@ -8,6 +8,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../mail/follow_up_times.dart';
 import '../mail/mail_controller.dart';
 import '../mail/message_list_model.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
 import 'follow_up_sheet.dart';
@@ -36,7 +37,7 @@ final class NoReplySection extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       _Heading(
-        icon: Icons.hourglass_bottom,
+        icon: AppIcons.noReply,
         title: 'No reply yet',
         detail: rows.length == 1
             ? '1 email you sent'
@@ -66,11 +67,7 @@ final class FollowUpsView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.hourglass_bottom,
-                size: 40,
-                color: colors.outlineVariant,
-              ),
+              Icon(AppIcons.noReply, size: 40, color: colors.outlineVariant),
               const SizedBox(height: 12),
               Text(
                 'Nothing is waiting for a reply. When you send an email, '
@@ -97,7 +94,7 @@ final class FollowUpsView extends StatelessWidget {
       children: [
         if (back.isNotEmpty) ...[
           const _Heading(
-            icon: Icons.hourglass_bottom,
+            icon: AppIcons.noReply,
             title: 'No reply yet',
             detail: 'Also at the top of your inbox',
           ),
@@ -105,7 +102,7 @@ final class FollowUpsView extends StatelessWidget {
         ],
         if (waiting.isNotEmpty) ...[
           _Heading(
-            icon: Icons.hourglass_empty,
+            icon: AppIcons.waiting,
             title: 'Waiting',
             detail: waiting.length == 1
                 ? '1 email'
@@ -297,7 +294,7 @@ final class FollowUpTile extends StatelessWidget {
                         Row(
                           children: [
                             Icon(
-                              returned ? Icons.send_outlined : Icons.alarm,
+                              returned ? AppIcons.sent : AppIcons.reminder,
                               size: 13,
                               color: returned ? muted : FollowUpColors.accent,
                             ),
@@ -327,20 +324,20 @@ final class FollowUpTile extends StatelessWidget {
                   else
                     IconButton(
                       tooltip: 'Cancel reminder',
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(AppIcons.close),
                       color: muted,
                       onPressed: () => controller.endFollowUp(_f),
                     ),
                   PopupMenuButton<_Action>(
                     tooltip: 'Reminder options',
-                    icon: Icon(Icons.more_vert, color: muted),
+                    icon: Icon(AppIcons.more, color: muted),
                     onSelected: (a) => _act(context, a),
                     itemBuilder: (_) => returned
                         ? const [
                             PopupMenuItem(
                               value: _Action.remindAgain,
                               child: ListTile(
-                                leading: Icon(Icons.alarm_add_outlined),
+                                leading: Icon(AppIcons.remind),
                                 title: Text('Remind me again…'),
                               ),
                             ),
@@ -356,14 +353,14 @@ final class FollowUpTile extends StatelessWidget {
                             PopupMenuItem(
                               value: _Action.changeTime,
                               child: ListTile(
-                                leading: Icon(Icons.alarm),
+                                leading: Icon(AppIcons.reminder),
                                 title: Text('Change time…'),
                               ),
                             ),
                             PopupMenuItem(
                               value: _Action.cancel,
                               child: ListTile(
-                                leading: Icon(Icons.alarm_off),
+                                leading: Icon(AppIcons.remindOff),
                                 title: Text('Cancel reminder'),
                               ),
                             ),
@@ -393,11 +390,7 @@ final class NoReplyBadge extends StatelessWidget {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
-          Icons.hourglass_bottom,
-          size: 12,
-          color: FollowUpColors.accent,
-        ),
+        const Icon(AppIcons.noReply, size: 12, color: FollowUpColors.accent),
         const SizedBox(width: 3),
         Text(
           'No reply yet',

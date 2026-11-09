@@ -12,6 +12,7 @@ import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import 'accounts_page.dart';
+import 'app_icons.dart';
 import 'appointments_page.dart';
 import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
@@ -115,7 +116,7 @@ final class Sidebar extends StatelessWidget {
                               ? IconButton(
                                   tooltip: 'Lock now',
                                   icon: Icon(
-                                    Icons.lock_outline,
+                                    AppIcons.lock,
                                     color: colors.muted,
                                   ),
                                   onPressed: controller.services.lock.lockNow,
@@ -124,10 +125,7 @@ final class Sidebar extends StatelessWidget {
                         ),
                         IconButton(
                           tooltip: 'Settings',
-                          icon: Icon(
-                            Icons.settings_outlined,
-                            color: colors.muted,
-                          ),
+                          icon: Icon(AppIcons.settings, color: colors.muted),
                           onPressed: () {
                             onNavigated?.call();
                             Navigator.of(context).push(
@@ -152,7 +150,7 @@ final class Sidebar extends StatelessWidget {
                                     color: colors.muted,
                                   ),
                                 )
-                              : Icon(Icons.sync, color: colors.muted),
+                              : Icon(AppIcons.sync, color: colors.muted),
                         ),
                       ],
                     ),
@@ -170,7 +168,7 @@ final class Sidebar extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                           ),
                           onPressed: compose,
-                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          icon: const Icon(AppIcons.compose, size: 20),
                           label: const Text('New message'),
                         ),
                       ),
@@ -191,7 +189,7 @@ final class Sidebar extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 2, bottom: 8),
                         children: [
                           _Entry(
-                            icon: Icons.inbox,
+                            icon: AppIcons.inbox,
                             label: 'Inbox',
                             bold: true,
                             badge: counts.inboxUnread,
@@ -199,14 +197,14 @@ final class Sidebar extends StatelessWidget {
                             onTap: () => go(const InboxLocation()),
                           ),
                           _Entry(
-                            icon: Icons.push_pin_outlined,
+                            icon: AppIcons.pins,
                             label: 'Pins',
                             selected: here == const PinsLocation(),
                             onTap: () => go(const PinsLocation()),
                           ),
                           if (counts.outbox > 0)
                             _Entry(
-                              icon: Icons.outbox_outlined,
+                              icon: AppIcons.outbox,
                               label: 'Outbox',
                               badge: counts.outbox,
                               selected: here == const OutboxLocation(),
@@ -215,7 +213,7 @@ final class Sidebar extends StatelessWidget {
                           // While something is snoozed.
                           if (counts.snoozed > 0)
                             _Entry(
-                              icon: Icons.snooze,
+                              icon: AppIcons.snoozed,
                               label: 'Snoozed',
                               selected: here == const SnoozedLocation(),
                               onTap: () => go(const SnoozedLocation()),
@@ -223,7 +221,7 @@ final class Sidebar extends StatelessWidget {
                           // While a sent email waits for a reply.
                           if (counts.followUps > 0)
                             _Entry(
-                              icon: Icons.hourglass_empty,
+                              icon: AppIcons.waiting,
                               label: 'Waiting for a reply',
                               selected: here == const FollowUpsLocation(),
                               onTap: () => go(const FollowUpsLocation()),
@@ -256,7 +254,7 @@ final class Sidebar extends StatelessWidget {
                                 // inbox.
                                 if (several)
                                   _Entry(
-                                    icon: Icons.inbox,
+                                    icon: AppIcons.inbox,
                                     indent: 1,
                                     label: 'Inbox',
                                     badge:
@@ -313,7 +311,7 @@ final class Sidebar extends StatelessWidget {
                     eventOf: controller.lastEvent,
                   ),
                   _Entry(
-                    icon: Icons.person_add_alt,
+                    icon: AppIcons.addAccount,
                     label: 'Add account',
                     onTap: onAddAccount,
                   ),
@@ -335,27 +333,27 @@ final class Sidebar extends StatelessWidget {
       title: 'Found in your mail',
       pages: [
         (
-          icon: Icons.autorenew,
+          icon: AppIcons.subscriptions,
           label: 'Subscriptions',
           page: (_) => SubscriptionsPage(controller: controller),
         ),
         (
-          icon: Icons.local_shipping_outlined,
+          icon: AppIcons.deliveries,
           label: 'Deliveries',
           page: (_) => DeliveriesPage(controller: controller),
         ),
         (
-          icon: Icons.luggage_outlined,
+          icon: AppIcons.trips,
           label: 'Trips',
           page: (_) => TripsPage(controller: controller),
         ),
         (
-          icon: Icons.event_available_outlined,
+          icon: AppIcons.appointments,
           label: 'Appointments',
           page: (_) => AppointmentsPage(controller: controller),
         ),
         (
-          icon: Icons.badge_outlined,
+          icon: AppIcons.onlineAccounts,
           label: 'Online accounts',
           page: (_) => AccountsPage(controller: controller),
         ),
@@ -366,12 +364,12 @@ final class Sidebar extends StatelessWidget {
       title: 'Tools',
       pages: [
         (
-          icon: Icons.cleaning_services_outlined,
+          icon: AppIcons.cleanUp,
           label: 'Clean up',
           page: (_) => SenderCleanupPage(controller: controller),
         ),
         (
-          icon: Icons.shield_outlined,
+          icon: AppIcons.privacyReport,
           label: 'Privacy report',
           page: (_) => PrivacyReportPage(
             services: controller.services,
@@ -775,7 +773,7 @@ final class _FoldHeader extends StatelessWidget {
                 turns: open ? 0 : -0.25,
                 duration: _Size.fold,
                 child: Icon(
-                  Icons.expand_more,
+                  AppIcons.expand,
                   size: _Size.icon,
                   color: colors.muted,
                 ),
@@ -994,7 +992,11 @@ final class _AccountBlock extends StatelessWidget {
         ),
         trailing: PopupMenuButton<void>(
           tooltip: 'Account',
-          icon: Icon(Icons.more_horiz, size: _Size.icon, color: colors.muted),
+          icon: Icon(
+            AppIcons.moreHorizontal,
+            size: _Size.icon,
+            color: colors.muted,
+          ),
           style: IconButton.styleFrom(
             fixedSize: const Size.square(_Size.row),
             minimumSize: const Size.square(_Size.row),

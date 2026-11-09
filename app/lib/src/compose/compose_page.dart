@@ -6,6 +6,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:mail_compose/mail_compose.dart';
 
+import '../ui/app_icons.dart';
 import '../ui/citusmail_theme.dart';
 import '../ui/follow_up_sheet.dart';
 import '../ui/mail_shell.dart';
@@ -189,7 +190,7 @@ final class _ComposePageState extends State<ComposePage> {
                     children: [
                       IconButton(
                         tooltip: 'Close (keeps the draft)',
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(AppIcons.close),
                         onPressed: _close,
                       ),
                       const SizedBox(width: 4),
@@ -217,8 +218,8 @@ final class _ComposePageState extends State<ComposePage> {
                         label: 'Receipt',
                         labelled: !phone,
                         selected: draft.requestReceipt,
-                        icon: Icons.mark_email_read_outlined,
-                        selectedIcon: Icons.mark_email_read,
+                        icon: AppIcons.receipt,
+                        selectedIcon: AppIcons.receiptOn,
                         onPressed: () =>
                             _c.setRequestReceipt(!draft.requestReceipt),
                       ),
@@ -233,18 +234,18 @@ final class _ComposePageState extends State<ComposePage> {
                         label: 'Remind me',
                         labelled: !phone,
                         selected: _c.followUp != null,
-                        icon: Icons.alarm_add_outlined,
-                        selectedIcon: Icons.alarm_on,
+                        icon: AppIcons.remind,
+                        selectedIcon: AppIcons.remindOn,
                         onPressed: _chooseFollowUp,
                       ),
                       IconButton(
                         tooltip: 'Attach files',
-                        icon: const Icon(Icons.attach_file),
+                        icon: const Icon(AppIcons.attachment),
                         onPressed: _attach,
                       ),
                       IconButton(
                         tooltip: 'Discard',
-                        icon: const Icon(Icons.delete_outline),
+                        icon: const Icon(AppIcons.delete),
                         onPressed: _discard,
                       ),
                       const SizedBox(width: 8),
@@ -354,7 +355,7 @@ final class _ComposePageState extends State<ComposePage> {
                         children: [
                           for (final file in draft.attachments)
                             InputChip(
-                              avatar: const Icon(Icons.attach_file, size: 18),
+                              avatar: const Icon(AppIcons.attachment, size: 18),
                               label: Text(
                                 '${file.fileName} · ${MailText.size(file.bytes.length)}',
                               ),
@@ -502,7 +503,7 @@ final class _SendButton extends StatelessWidget {
                   borderRadius: BorderRadius.horizontal(left: radius),
                 ),
               ),
-              child: const Icon(Icons.send, size: 18),
+              child: const Icon(AppIcons.send, size: 18),
             ),
           )
         else
@@ -514,7 +515,7 @@ final class _SendButton extends StatelessWidget {
                 borderRadius: BorderRadius.horizontal(left: radius),
               ),
             ),
-            icon: const Icon(Icons.send, size: 18),
+            icon: const Icon(AppIcons.send, size: 18),
             label: const Text('Send'),
           ),
         const SizedBox(width: 2),
@@ -531,7 +532,7 @@ final class _SendButton extends StatelessWidget {
                 borderRadius: BorderRadius.horizontal(right: radius),
               ),
             ),
-            child: const Icon(Icons.schedule_send, size: 20),
+            child: const Icon(AppIcons.sendLater, size: 20),
           ),
         ),
       ],

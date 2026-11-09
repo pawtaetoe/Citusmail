@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'mail_shell.dart';
 import 'mail_text.dart';
@@ -296,7 +297,7 @@ final class _MoreMenu extends StatelessWidget {
     if (domain == null) return const SizedBox(width: 8);
     return PopupMenuButton<bool>(
       tooltip: 'More choices',
-      icon: const Icon(Icons.more_vert),
+      icon: const Icon(AppIcons.more),
       onSelected: (letIn) => letIn
           ? controller.letIn(sender, wholeDomain: true)
           : controller.screenOut(sender, wholeDomain: true),
@@ -437,7 +438,7 @@ final class _ScreenedSendersPageState extends State<ScreenedSendersPage> {
               ? (isIn
                     ? Icons.domain_verification_outlined
                     : Icons.domain_disabled_outlined)
-              : (isIn ? Icons.how_to_reg_outlined : Icons.person_off_outlined),
+              : (isIn ? AppIcons.screener : Icons.person_off_outlined),
         ),
         title: Text(domain ? 'Everyone at ${s.value}' : s.value),
         subtitle: Text(
@@ -445,7 +446,7 @@ final class _ScreenedSendersPageState extends State<ScreenedSendersPage> {
         ),
         trailing: PopupMenuButton<_Change>(
           tooltip: 'Change',
-          icon: const Icon(Icons.more_vert),
+          icon: const Icon(AppIcons.more),
           onSelected: (c) => _change(s, c),
           itemBuilder: (_) => [
             if (isIn)

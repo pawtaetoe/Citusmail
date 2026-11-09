@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
 import 'citusmail_theme.dart';
@@ -211,15 +212,13 @@ final class _MessageTileState extends State<MessageTile> {
       background: _SwipeBackground(
         alignment: Alignment.centerLeft,
         color: canArchive ? const Color(0xFF2E9E5B) : colors.primary,
-        icon: canArchive
-            ? Icons.archive_outlined
-            : Icons.mark_email_read_outlined,
+        icon: canArchive ? AppIcons.archive : AppIcons.markRead,
         label: canArchive ? 'Archive' : (_m.flags.seen ? 'Unread' : 'Read'),
       ),
       secondaryBackground: const _SwipeBackground(
         alignment: Alignment.centerRight,
         color: Color(0xFFD64545),
-        icon: Icons.delete_outline,
+        icon: AppIcons.delete,
         label: 'Delete',
       ),
       confirmDismiss: (direction) async {
@@ -255,7 +254,7 @@ final class _MessageTileState extends State<MessageTile> {
           child: Row(
             children: [
               if (_m.flags.flagged) ...[
-                const Icon(Icons.push_pin, size: 14, color: MailText.pinColor),
+                const Icon(AppIcons.pinOn, size: 14, color: MailText.pinColor),
                 const SizedBox(width: 4),
               ],
               Expanded(
@@ -274,11 +273,11 @@ final class _MessageTileState extends State<MessageTile> {
                 if (_m.hasAttachments)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
-                    child: Icon(Icons.attach_file, size: 14, color: muted),
+                    child: Icon(AppIcons.attachment, size: 14, color: muted),
                   ),
                 if (_c.snoozedUntil(_m) case final until?) ...[
                   // In the Snoozed list: when it comes back.
-                  Icon(Icons.snooze, size: 14, color: MailText.snoozeColor),
+                  Icon(AppIcons.snooze, size: 14, color: MailText.snoozeColor),
                   const SizedBox(width: 4),
                   Text(
                     SnoozeSheet.describe(context, until),
@@ -293,7 +292,7 @@ final class _MessageTileState extends State<MessageTile> {
                       padding: EdgeInsets.only(right: 6),
                       child: AppBadge(
                         'Snoozed',
-                        icon: Icons.snooze,
+                        icon: AppIcons.snooze,
                         tint: MailText.snoozeColor,
                       ),
                     ),
@@ -477,37 +476,35 @@ final class _QuickActions extends StatelessWidget {
         if (archive != null && archive.id != message.mailboxId)
           button(
             'Archive (E)',
-            Icons.archive_outlined,
+            AppIcons.archive,
             () => controller.archive([message]),
           ),
         if (!controller.isInTrash(message))
           button(
             'Move to Trash (#)',
-            Icons.delete_outline,
+            AppIcons.delete,
             () => controller.delete([message]),
           ),
         if (controller.snoozedUntil(message) != null)
           button(
             'Unsnooze',
-            Icons.alarm_off,
+            AppIcons.unsnooze,
             () => controller.unsnooze([message]),
           )
         else if (controller.canSnooze(message))
           button(
             'Snooze (B)',
-            Icons.snooze,
+            AppIcons.snooze,
             () => SnoozeSheet.show(context, controller, [message]),
           ),
         button(
           message.flags.flagged ? 'Unpin (S)' : 'Pin (S)',
-          message.flags.flagged ? Icons.push_pin : Icons.push_pin_outlined,
+          message.flags.flagged ? AppIcons.pinOn : AppIcons.pinOff,
           () => controller.togglePin([message]),
         ),
         button(
           message.flags.seen ? 'Mark as unread (U)' : 'Mark as read (U)',
-          message.flags.seen
-              ? Icons.mark_email_unread_outlined
-              : Icons.mark_email_read_outlined,
+          message.flags.seen ? AppIcons.markUnread : AppIcons.markRead,
           () => controller.toggleRead([message]),
         ),
       ],

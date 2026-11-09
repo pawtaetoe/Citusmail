@@ -8,6 +8,7 @@ import 'package:mail_sort/mail_sort.dart';
 import '../mail/mail_controller.dart';
 import '../mail/trips_model.dart';
 import '../services/app_services.dart';
+import 'app_icons.dart';
 import 'badge.dart';
 import 'booking_detail_page.dart';
 import 'booking_text.dart';
@@ -249,11 +250,7 @@ final class _Overview extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            Icon(
-              Icons.luggage_outlined,
-              size: 32,
-              color: theme.colorScheme.primary,
-            ),
+            Icon(AppIcons.trips, size: 32, color: theme.colorScheme.primary),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -492,7 +489,7 @@ final class _TimelineRow extends StatelessWidget {
                 const Center(
                   child: AppBadge('Changed', tone: BadgeTone.warning),
                 ),
-              const Center(child: Icon(Icons.chevron_right)),
+              const Center(child: Icon(AppIcons.chevron)),
             ],
           ),
         ),
@@ -522,7 +519,7 @@ final class _ReadOffer extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.luggage_outlined),
+                const Icon(AppIcons.trips),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -613,7 +610,7 @@ final class _Empty extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.luggage_outlined,
+            AppIcons.trips,
             size: 40,
             color: theme.colorScheme.onSurfaceVariant,
           ),

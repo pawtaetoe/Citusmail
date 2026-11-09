@@ -9,6 +9,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/sender_cleanup_model.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
 import 'block_dialog.dart';
@@ -244,7 +245,7 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
                         ?.checked,
                     leading: IconButton(
                       tooltip: 'Cancel selection',
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(AppIcons.close),
                       onPressed: _clearSelection,
                     ),
                     title: Text('${picked.length} selected'),
@@ -558,15 +559,15 @@ final class _SenderTile extends StatelessWidget {
                         ),
                       const PopupMenuItem(
                         value: _Action.archive,
-                        child: _MenuRow(Icons.archive_outlined, 'Archive all'),
+                        child: _MenuRow(AppIcons.archive, 'Archive all'),
                       ),
                       const PopupMenuItem(
                         value: _Action.delete,
-                        child: _MenuRow(Icons.delete_outline, 'Delete all'),
+                        child: _MenuRow(AppIcons.delete, 'Delete all'),
                       ),
                       const PopupMenuItem(
                         value: _Action.block,
-                        child: _MenuRow(Icons.block, 'Block sender'),
+                        child: _MenuRow(AppIcons.block, 'Block sender'),
                       ),
                       const PopupMenuItem(
                         value: _Action.keep,
@@ -664,9 +665,9 @@ final class _ActionBar extends StatelessWidget {
             Icons.unsubscribe_outlined,
             'Unsubscribe',
           ),
-        button(_Action.archive, Icons.archive_outlined, 'Archive all'),
-        button(_Action.delete, Icons.delete_outline, 'Delete all'),
-        if (one != null) button(_Action.block, Icons.block, 'Block sender'),
+        button(_Action.archive, AppIcons.archive, 'Archive all'),
+        button(_Action.delete, AppIcons.delete, 'Delete all'),
+        if (one != null) button(_Action.block, AppIcons.block, 'Block sender'),
         button(_Action.keep, Icons.check, 'Keep'),
       ],
     );
@@ -686,7 +687,7 @@ final class _Empty extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.cleaning_services_outlined,
+            AppIcons.cleanUp,
             size: 40,
             color: theme.colorScheme.onSurfaceVariant,
           ),

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'app_icons.dart';
+
 /// User-facing names, icons and dates for mail, in one place.
 abstract final class MailText {
   /// The colour of pins everywhere.
@@ -26,12 +28,12 @@ abstract final class MailText {
   static const snoozeColor = Color(0xFFD6409F);
 
   static IconData sectionIcon(SmartSection section) => switch (section) {
-    SmartSection.pinned => Icons.push_pin,
+    SmartSection.pinned => AppIcons.pins,
     SmartSection.codes => Icons.password,
-    SmartSection.screener => Icons.how_to_reg_outlined,
-    SmartSection.snoozed => Icons.schedule,
+    SmartSection.screener => AppIcons.screener,
+    SmartSection.snoozed => AppIcons.snoozed,
     SmartSection.important => Icons.label_important_outline,
-    SmartSection.general => Icons.mail_outline,
+    SmartSection.general => AppIcons.mail,
     SmartSection.notifications => Icons.notifications_none,
     SmartSection.newsletters => Icons.rss_feed,
   };
@@ -65,12 +67,12 @@ abstract final class MailText {
         };
 
   static IconData folderIcon(StoredMailbox mailbox) => mailbox.isInbox
-      ? Icons.inbox_outlined
+      ? AppIcons.inbox
       : switch (mailbox.specialUse) {
-          SpecialUse.sent => Icons.send_outlined,
+          SpecialUse.sent => AppIcons.sent,
           SpecialUse.drafts => Icons.edit_note,
-          SpecialUse.archive => Icons.archive_outlined,
-          SpecialUse.trash => Icons.delete_outline,
+          SpecialUse.archive => AppIcons.archive,
+          SpecialUse.trash => AppIcons.delete,
           SpecialUse.junk => Icons.report_gmailerrorred,
           SpecialUse.all => Icons.all_inbox_outlined,
           SpecialUse.flagged => Icons.star_outline,

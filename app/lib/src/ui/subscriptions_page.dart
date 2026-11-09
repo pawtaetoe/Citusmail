@@ -9,6 +9,7 @@ import '../mail/mail_controller.dart';
 import '../mail/subscriptions_model.dart';
 import '../services/app_services.dart';
 import '../services/reminders.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
 import 'read_ahead.dart';
@@ -748,7 +749,7 @@ final class _SubscriptionTile extends StatelessWidget {
               ],
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right),
+            const Icon(AppIcons.chevron),
           ],
         ),
       ),
@@ -782,8 +783,8 @@ final class _ReminderTile extends StatelessWidget {
     final amount = r.amount;
     final (IconData icon, String what) = switch (r.kind) {
       ReminderKind.billDue => (Icons.receipt_long_outlined, 'Bill'),
-      ReminderKind.trialEnds => (Icons.hourglass_bottom, 'Free trial'),
-      ReminderKind.renewal => (Icons.autorenew, 'Renewal'),
+      ReminderKind.trialEnds => (AppIcons.noReply, 'Free trial'),
+      ReminderKind.renewal => (AppIcons.subscriptions, 'Renewal'),
       ReminderKind.returnBy => (Icons.keyboard_return, 'Return'),
       ReminderKind.appointment => (Icons.event_outlined, 'Appointment'),
     };
@@ -888,7 +889,7 @@ final class _Empty extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.autorenew,
+            AppIcons.subscriptions,
             size: 40,
             color: theme.colorScheme.onSurfaceVariant,
           ),
