@@ -8,15 +8,19 @@ publishes the GitHub release with them. Nothing to tag by hand.
 
 | Platform | Package | Built by |
 | --- | --- | --- |
-| Android (GitHub) | `citusmail-<version>.apk` | `flutter build apk --release --flavor github` |
+| Android (GitHub) | `citusmail-<version>.apk` (arm64, nearly every phone), `citusmail-<version>-armeabi-v7a.apk`, `citusmail-<version>-x86_64.apk` | `flutter build apk --release --flavor github --split-per-abi` |
 | Android (Google Play) | `citusmail-<version>.aab` | `flutter build appbundle --release --flavor play` |
 | Linux | `citusmail_<version>-<build>_amd64.deb` | `packaging/linux/build-deb.sh` |
 | Linux | `citusmail-<version>.flatpak` | `packaging/flatpak/build-flatpak.sh` |
 | Windows | `citusmail-setup-<version>.exe` | `packaging/windows/citusmail.iss` (Inno Setup) |
 
-The release also has `SHA256SUMS`. Both Android files are signed with the
+The release also has `SHA256SUMS`. The Android files are signed with the
 same key and built with the same `--dart-define`s; the `.aab` is the one
-to upload to Google Play (see [Google Play](#google-play) below).
+to upload to Google Play (see [Google Play](#google-play) below). The
+APK comes in one file per processor type (a third of the size of one
+carrying all three): the arm64 one has the plain name and is the one
+the website links to; `armeabi-v7a` is for 32-bit phones from before
+about 2016 and `x86_64` for emulators and Chromebooks.
 
 To release:
 
@@ -177,7 +181,7 @@ so every Android build needs `--flavor`:
 
 | Flavor | Built as | Goes to | Instant mail |
 | --- | --- | --- | --- |
-| `github` (default in Android Studio) | `citusmail-<version>.apk` | GitHub releases | yes |
+| `github` (default in Android Studio) | `citusmail-<version>.apk` (+ one per other processor type) | GitHub releases | yes |
 | `play` | `citusmail-<version>.aab` | Google Play | yes (declared in Play Console) |
 
 The two builds are the same app today. Instant mail is a foreground
@@ -188,11 +192,13 @@ flavors stay so the Play build can differ again if Play ever asks.
 `packaging/android/check-play-bundle.sh <file.aab>` reads the bundle's
 manifest and fails if Instant mail (its service, the special-use
 permission and type, the boot receiver) or WorkManager's check is
-missing. CI runs it on every Android build, and checks that the GitHub
+missing. CI runs it on every Android build, and checks that each GitHub
 APK has Instant mail too.
 
-Outputs of a flavored build: `app/build/app/outputs/flutter-apk/app-github-release.apk`
-and `app/build/app/outputs/bundle/playRelease/app-play-release.aab`.
+Outputs of a flavored build: `app/build/app/outputs/flutter-apk/app-<abi>-github-release.apk`
+(`arm64-v8a`, `armeabi-v7a`, `x86_64`, with `--split-per-abi`; one
+`app-github-release.apk` without it) and
+`app/build/app/outputs/bundle/playRelease/app-play-release.aab`.
 
 ## Google Play
 

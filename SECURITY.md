@@ -19,8 +19,11 @@ public issue. We aim to reply within 7 days.
 1. **Encrypted connections only.** TLS 1.2 or newer with full certificate
    and hostname checks. Plain-text IMAP and SMTP are refused. If STARTTLS
    is expected but not offered, the connection fails rather than
-   continuing in plain text. A self-signed certificate is accepted only after an
-   explicit warning, and then only that exact certificate (pinned by SHA-256).
+   continuing in plain text. A certificate that fails these checks is
+   refused outright: there is no way to accept a self-signed or otherwise
+   untrusted certificate, and nothing is pinned. When a certificate names
+   a different host, setup suggests that name so the user can connect to
+   the server under the name its certificate is valid for.
 2. **Secrets live in the system keychain only** (libsecret, Windows
    Credential Manager, Android Keystore). Never in the database, settings,
    logs or error messages. If no keychain is available the app refuses to
@@ -64,8 +67,16 @@ public issue. We aim to reply within 7 days.
    `tool/dependency_policy.txt`. Versions are locked, CI scans them with OSV,
    and analytics, crash-reporting and ad SDKs are denied outright.
 8. **Least privilege.** The Android app requests only the permissions it
-   needs, blocks plain-text traffic, trusts only system certificate
-   authorities and disables cloud backup of app data.
+   needs, trusts only system certificate authorities and disables cloud
+   backup of app data. Its manifest also refuses plain-text traffic, but
+   that governs only Android's own networking: the app's connections are
+   made by Dart, which the manifest does not restrict, so rules 1 and 9
+   are what keep them encrypted. The one unencrypted request the app ever
+   makes is for a provider's settings file during account setup, when
+   nothing encrypted answered; its answer is used only when it names
+   servers of the user's own domain or of the domain's mail host (by MX
+   record), each then checked with a real TLS connection, and the user
+   is told where the settings came from.
 9. **Requests to servers named inside mail go through `packages/mail_web`
    only** (CI enforces this). That client uses https on port 443 to
    public addresses only: names that resolve into a private network

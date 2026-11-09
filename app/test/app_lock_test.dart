@@ -33,6 +33,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late TestApp app;
   late DateTime now;
+  // The device's uptime, as Android reports it; null for a desktop.
+  int? uptime;
   late _FakeBiometrics biometrics;
   late AppLock lock;
 
@@ -41,6 +43,7 @@ void main() {
     app.services.secrets,
     biometrics: biometrics,
     now: () => now,
+    elapsedMillis: () async => uptime,
     desktop: desktop,
     pinRounds: 1000,
   );
@@ -48,6 +51,7 @@ void main() {
   setUp(() async {
     app = await TestApp.create();
     now = DateTime.utc(2026, 10, 23, 12);
+    uptime = null;
     biometrics = _FakeBiometrics();
     lock = newLock();
   });
@@ -114,6 +118,71 @@ void main() {
       expect((await lock.verify('000000') as WrongPin).wait, Duration.zero);
     },
   );
+
+  test('the wait follows the device\'s uptime, not the date', () async {
+    uptime = 5 * 60 * 1000;
+    await lock.setPin('482910');
+    await lock.start();
+    for (var i = 0; i < AppLock.freeTries; i++) {
+      await lock.unlock('000000');
+    }
+    expect(await lock.currentWait(), const Duration(seconds: 30));
+
+    // Setting the date a day ahead clears nothing.
+    now = now.add(const Duration(days: 1));
+    expect(await lock.unlock('482910'), isA<MustWait>());
+    expect(await lock.currentWait(), const Duration(seconds: 30));
+    expect(
+      lock.waitRemaining,
+      const Duration(seconds: 30),
+      reason: 'the countdown shown follows the real wait',
+    );
+    // Nor does setting it back.
+    now = now.subtract(const Duration(days: 2));
+    expect(await lock.unlock('482910'), isA<MustWait>());
+    expect(newLock().waitRemaining, const Duration(seconds: 30));
+
+    // Only the device's own uptime counts.
+    uptime = uptime! + 31 * 1000;
+    expect(await lock.unlock('482910'), isA<Unlocked>());
+    expect(await lock.currentWait(), Duration.zero);
+  });
+
+  test('a restart starts the wait over instead of ending it', () async {
+    uptime = 60 * 60 * 1000;
+    await lock.setPin('482910');
+    await lock.start();
+    for (var i = 0; i < AppLock.freeTries; i++) {
+      await lock.unlock('000000');
+    }
+    // Rebooted: the uptime is small again, and the date was set ahead.
+    uptime = 20 * 1000;
+    now = now.add(const Duration(hours: 2));
+    final restarted = newLock();
+    await restarted.start();
+    expect(
+      (await restarted.unlock('482910') as MustWait).wait,
+      const Duration(seconds: 30),
+    );
+    uptime = uptime! + 31 * 1000;
+    expect(await restarted.unlock('482910'), isA<Unlocked>());
+    restarted.dispose();
+  });
+
+  test('biometrics wait on the uptime too', () async {
+    uptime = 1000;
+    await lock.setPin('482910');
+    lock.useBiometrics = true;
+    await lock.start();
+    for (var i = 0; i < AppLock.freeTries; i++) {
+      await lock.unlock('000000');
+    }
+    now = now.add(const Duration(hours: 1));
+    expect(await lock.unlockWithBiometrics('x'), isFalse);
+    expect(biometrics.asked, 0);
+    uptime = 40 * 1000;
+    expect(await lock.unlockWithBiometrics('x'), isTrue);
+  });
 
   test('the waits grow to an hour', () {
     expect(

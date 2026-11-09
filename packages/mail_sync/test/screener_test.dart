@@ -186,5 +186,17 @@ void main() {
       receive(9, 'promo@deals.example', messageId: 'm1@x.example');
       expect(ScreenerArchiver(store).apply(account), 0);
     });
+
+    test('a pass looks only at mail that arrived since the last one', () {
+      store.screener.outPlace = ScreenOutPlace.archive;
+      receive(5, 'ana@studio.example');
+      expect(ScreenerArchiver(store).apply(account), 0);
+      receive(3, 'promo@deals.example'); // older mail, downloaded later
+      receive(6, 'promo@deals.example');
+      expect(ScreenerArchiver(store).apply(account), 1);
+      expect(moves().single.uids, [6]);
+      expect(ScreenerArchiver(store).apply(account, everything: true), 1);
+      expect(store.messages.uids(inbox.id), [5]);
+    });
   });
 }

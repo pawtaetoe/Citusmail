@@ -1103,6 +1103,59 @@ void main() {
       expect(section(SmartSection.important), hasLength(1));
     });
 
+    test('mail from the user to themselves is not Important for that', () {
+      // Alice mails herself: the Sent copy, the copy that arrives in the
+      // inbox, and a reply to it. Being her own recipient makes nothing
+      // Important (and would otherwise look up every inbox address);
+      // the reply still is, as a reply to her sent message.
+      store.messages.upsertSummaries(sent.id, [
+        MessageSummary(
+          uid: 1,
+          receivedAt: DateTime.utc(2026),
+          messageId: 'self@x',
+          from: address('alice@citusmail.test'),
+          to: [address('Alice@citusmail.test')],
+        ),
+      ]);
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 1,
+          subject: 'note to self',
+          receivedAt: DateTime.utc(2026),
+          messageId: 'self@x',
+          from: address('alice@citusmail.test'),
+        ),
+        MessageSummary(
+          uid: 2,
+          subject: 'reply to self',
+          receivedAt: DateTime.utc(2026, 2),
+          inReplyTo: 'self@x',
+          from: address('alice@citusmail.test'),
+        ),
+      ]);
+      expect(section(SmartSection.general), {'note to self'});
+      expect(section(SmartSection.important), {'reply to self'});
+      expect(store.messages.byUid(sent.id, 1)!.section, SmartSection.general);
+    });
+
+    test('flag changes on many messages refresh every section', () {
+      store.messages.upsertSummaries(inbox.id, [
+        for (var i = 1; i <= 1200; i++) summary(i),
+      ]);
+      final pin = MessageFlags.fromImap([r'\Flagged']);
+      store.messages.updateFlags(inbox.id, [
+        for (var i = 1; i <= 1200; i++) (uid: i, flags: pin, modSeq: null),
+      ]);
+      expect(store.messages.sectionCounts()[SmartSection.pinned]!.total, 1200);
+      store.messages.updateFlags(inbox.id, [
+        for (var i = 1; i <= 1200; i++)
+          (uid: i, flags: MessageFlags.none, modSeq: null),
+      ]);
+      final counts = store.messages.sectionCounts();
+      expect(counts[SmartSection.pinned]!.total, 0);
+      expect(counts[SmartSection.general]!.total, 1200);
+    });
+
     test('lists read an index in date order, never the whole folder', () {
       for (final query in [
         const MessageQuery.smart(SmartSection.general),
@@ -1175,7 +1228,7 @@ void main() {
       final starred = folders['[Gmail].Starred']!;
       expect(starred.isView, isTrue);
       expect(folders['[Gmail].Important']!.isView, isTrue);
-      expect(all.isView, isFalse);
+      expect(all.isView, isTrue);
       expect(folders['INBOX']!.isView, isFalse);
 
       final pin = MessageFlags.fromImap([r'\Flagged']);
@@ -1278,6 +1331,58 @@ void main() {
         expect(MessageCategory.fromStorage(c.storageName), c);
       }
       expect(() => MessageCategory.fromStorage('x'), throwsFormatException);
+    });
+  });
+
+  group('undo snapshots', () {
+    test('bodies are kept while they fit; the rest come back undownloaded', () {
+      final account = temp.addAccount();
+      final inbox = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+      ]).single;
+      store.messages.upsertSummaries(inbox.id, [
+        summary(1, subject: 'first invoice'),
+        summary(2, subject: 'second invoice'),
+        summary(3, subject: 'quarterly budget'),
+      ]);
+      final ids = [
+        for (var uid = 1; uid <= 3; uid++)
+          store.messages.byUid(inbox.id, uid)!.id,
+      ];
+      for (final id in ids) {
+        store.messages.saveBody(
+          id,
+          Uint8List(1000),
+          searchableText: 'uniquebodyword$id',
+        );
+      }
+      final all = store.messages.snapshot(ids);
+      expect(all.bodies, hasLength(3));
+      expect(all.bodiesLeftOut, 0);
+
+      // 2,500 bytes: the first two bodies fit, the third does not.
+      final some = store.messages.snapshot(ids, bodyBytes: 2500);
+      expect(some.bodies.map((b) => b['message_id']), [ids[0], ids[1]]);
+      expect(some.bodiesLeftOut, 1);
+      expect(some.messages, hasLength(3), reason: 'every summary is kept');
+
+      store.messages.removeUids(inbox.id, [1, 2, 3]);
+      final back = store.messages.restore(some);
+      expect(back.keys, unorderedEquals(ids));
+      expect(store.messages.body(ids[0]), hasLength(1000));
+      expect(
+        store.messages.body(ids[2]),
+        isNull,
+        reason: 'downloaded again when opened',
+      );
+      expect(
+        store.messages.search('uniquebodyword${ids[0]}').map((m) => m.id),
+        [ids[0]],
+      );
+      expect(store.messages.search('uniquebodyword${ids[2]}'), isEmpty);
+      expect(store.messages.search('quarterly').map((m) => m.id), [
+        ids[2],
+      ], reason: 'the subject stays searchable');
     });
   });
 
@@ -1457,6 +1562,13 @@ void main() {
         'per_cent@x.example',
       ]);
       expect(store.messages.suggestAddresses('  '), isEmpty);
+      // Read once while writing a message, in the same order.
+      expect(store.messages.suggestionCandidates().map((m) => m.address), [
+        'carol@x.example',
+        'caroline@x.example',
+        'per_cent@x.example',
+      ]);
+      expect(store.messages.suggestionCandidates(limit: 1), hasLength(1));
     });
   });
 
@@ -2024,6 +2136,93 @@ void main() {
         });
       },
     );
+  });
+
+  group('sender totals', () {
+    test('per address (any case): counts, opened, newest, unsubscribe', () {
+      final account = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+        folder('Sent', use: 'Sent'),
+        folder('Junk', use: 'Junk'),
+        folder('Archive', use: 'Archive'),
+      ]);
+      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      MailAddress shop(String name, [String address = 'news@shop.example']) =>
+          MailAddress(
+            displayName: name,
+            localPart: address.split('@').first,
+            domain: address.split('@').last,
+          );
+      store.messages.upsertSummaries(id('INBOX'), [
+        MessageSummary(
+          uid: 1,
+          subject: 'Weekly deals',
+          receivedAt: DateTime.utc(2026, 10, 2),
+          from: shop('Shop News'),
+          category: MessageCategory.newsletters,
+          headers: const {
+            'list-unsubscribe': ['<https://shop.example/u/1>'],
+          },
+        ),
+        MessageSummary(
+          uid: 2,
+          subject: 'Deals again',
+          receivedAt: DateTime.utc(2026, 10, 5),
+          from: shop('Shop', 'News@Shop.example'),
+          category: MessageCategory.newsletters,
+          flags: MessageFlags.fromImap([r'\Seen']),
+        ),
+        MessageSummary(
+          uid: 3,
+          subject: 'Sale',
+          receivedAt: DateTime.utc(2026, 10, 1),
+          from: shop('Shop News'),
+          category: MessageCategory.notifications,
+          flags: MessageFlags.fromImap([r'\Seen']),
+          headers: const {
+            'list-unsubscribe': ['<https://shop.example/u/3>'],
+          },
+        ),
+        summary(4, subject: 'Lunch?'),
+        summary(5, subject: 'Too old', at: DateTime.utc(2025, 1)),
+      ]);
+      store.messages.upsertSummaries(id('Archive'), [summary(6)]);
+      store.messages.upsertSummaries(id('Junk'), [summary(7)]);
+      store.messages.upsertSummaries(id('Sent'), [
+        MessageSummary(
+          uid: 8,
+          receivedAt: DateTime.utc(2026, 10, 3),
+          from: const MailAddress(localPart: 'me', domain: 'x.example'),
+          to: const [MailAddress(localPart: 'carol', domain: 'x.example')],
+        ),
+      ]);
+      final inbox = id('INBOX');
+      int uid(int u, [int? box]) => store.messages.byUid(box ?? inbox, u)!.id;
+
+      final stats = store.messages.senderStats(DateTime.utc(2026, 9));
+      expect(stats.map((s) => s.from.address), [
+        'News@Shop.example', // as the newest message spelt it
+        'sender6@x.example',
+        'sender4@x.example',
+      ]);
+      final news = stats.first;
+      expect(news.from.displayName, 'Shop News', reason: 'the name used most');
+      expect(news.count, 3);
+      expect(news.opened, 2);
+      expect(news.newsletters, 2);
+      expect(news.notifications, 1);
+      expect(news.last, DateTime.utc(2026, 10, 5));
+      expect(news.newestId, uid(2));
+      expect(news.unsubscribeId, uid(1), reason: 'the newest with the header');
+      expect(news.unsubscribeAt, DateTime.utc(2026, 10, 2));
+      final lunch = stats.last;
+      expect(lunch.count, 1);
+      expect(lunch.opened, 0);
+      expect(lunch.newestId, uid(4));
+      expect(lunch.unsubscribeId, isNull);
+      expect(lunch.from.displayName, 'Sender 4');
+    });
   });
 
   group('privacy report candidates', () {

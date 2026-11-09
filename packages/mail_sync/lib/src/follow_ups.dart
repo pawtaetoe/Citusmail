@@ -174,14 +174,29 @@ final class FollowUpReminders {
   /// At most this many are kept (the oldest returned ones go first).
   static const maxKept = 500;
 
-  /// Every follow-up, soonest due first.
+  /// Every follow-up, soonest due first (unmodifiable).
   List<FollowUp> all() {
     final raw = _store.settings.read(_key);
     if (raw == null || raw.isEmpty) return const [];
+    // The mail screen asks several times on every refresh: the list is
+    // decoded again only when it changed.
+    if (_decoded case (final text, final list) when text == raw) return list;
+    final list = _decode(raw);
+    _decoded = (raw, list);
+    return list;
+  }
+
+  /// The stored text last decoded, and what it held.
+  static (String, List<FollowUp>)? _decoded;
+
+  static List<FollowUp> _decode(String raw) {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List) return const [];
-      return [for (final j in decoded) ?FollowUp.fromJson(j)]..sort(_byDue);
+      return List<FollowUp>.unmodifiable(
+        <FollowUp>[for (final j in decoded) ?FollowUp.fromJson(j)]
+          ..sort(_byDue),
+      );
     } on FormatException {
       return const [];
     }

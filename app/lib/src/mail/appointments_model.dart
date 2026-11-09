@@ -14,6 +14,7 @@ import 'package:mail_view/mail_view.dart';
 import '../services/app_services.dart';
 import '../services/auto_reader.dart';
 import 'corrections.dart';
+import 'message_reads.dart';
 
 /// What [findAppointments] found: every appointment the rules found
 /// ([hidden] and [learned] ones too, by key), and the emails worth
@@ -45,9 +46,7 @@ Future<AppointmentsFound> findAppointments(
     since: now.subtract(AppointmentsModel.lookBack),
   );
   // Message text, markup and calendar files off the UI thread.
-  final read = await compute(_read, [
-    for (final m in candidates) (store.messages.body(m.id), m.snippet),
-  ]);
+  final read = await _reads.read(store, candidates);
   final emails = <AppointmentEmail>[
     for (final (i, m) in candidates.indexed)
       if (m.from case final from?)
@@ -142,7 +141,7 @@ List<int> appointmentMailToRead(
           m.category != MessageCategory.newsletters &&
           !known.contains(m.id) &&
           !skip.contains(m.id) &&
-          store.messages.body(m.id) == null &&
+          !MessageReads.downloaded(store, m.id) &&
           AppointmentFinder.looksLikeAppointment(m.subject ?? ''))
         m.id,
   ].take(AppointmentsModel.readMax).toList();
@@ -347,6 +346,9 @@ typedef _Read = ({
   AppointmentInvite? invite,
   List<MailLink> links,
 });
+
+/// What the Appointments page has read of each message.
+final _reads = MessageReads<_Read>(_read, size: (r) => r.text.length);
 
 /// Each message's text (the downloaded body, capped, else its preview),
 /// the schema.org data in its raw HTML part (read before the HTML is made

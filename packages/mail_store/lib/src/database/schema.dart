@@ -427,4 +427,36 @@ const List<Migration> schemaMigrations = [
       changed_at INTEGER NOT NULL
     ) STRICT''',
   ]),
+
+  // Speed (Screener): the sender's domain is stored, so a domain decision
+  // or block is found by probing its index instead of comparing every
+  // decision against every message; and a message's References are
+  // stored one per row, so "is this a reply to something the user sent"
+  // is an index lookup instead of a search through every sent message.
+  // See SectionSql. Both are filled from the columns they come from.
+  Migration(16, [
+    'ALTER TABLE messages ADD COLUMN from_domain TEXT',
+    '''
+    UPDATE messages SET from_domain = lower(substr(from_address,
+      length(rtrim(from_address, replace(from_address, '@', ''))) + 1))
+      WHERE from_address IS NOT NULL AND instr(from_address, '@') > 0''',
+    'CREATE INDEX messages_by_from_domain ON messages (from_domain) WHERE from_domain IS NOT NULL',
+    '''
+    CREATE TABLE message_references (
+      message_id INTEGER NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
+      ref TEXT NOT NULL,
+      PRIMARY KEY (message_id, ref)
+    ) STRICT''',
+    'CREATE INDEX message_references_by_ref ON message_references (ref)',
+    '''
+    WITH RECURSIVE split (message_id, ref, rest) AS (
+      SELECT id, '', thread_references || ' ' FROM messages
+        WHERE coalesce(thread_references, '') != ''
+      UNION ALL
+      SELECT message_id, substr(rest, 1, instr(rest, ' ') - 1), substr(rest, instr(rest, ' ') + 1)
+        FROM split WHERE rest != ''
+    )
+    INSERT OR IGNORE INTO message_references (message_id, ref)
+      SELECT message_id, ref FROM split WHERE length(ref) > 0''',
+  ]),
 ];

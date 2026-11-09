@@ -22,6 +22,7 @@ import 'screener_archiver.dart';
 import 'sender_blocker.dart';
 import 'server_rules.dart';
 import 'summary_mapper.dart';
+import 'sync_connections.dart';
 
 /// Something the UI may want to show.
 sealed class SyncEvent {
@@ -75,7 +76,8 @@ final class SyncEngine {
        _loader = MessageLoader(_store),
        _files = FileLookup(_store),
        _onDemand = OnDemandConnections(_connector),
-       _background = OnDemandConnections(_connector) {
+       _background = OnDemandConnections(_connector),
+       _syncConnections = SyncConnections(_connector) {
     _synchronizer = AccountSynchronizer(
       _store,
       _connector,
@@ -86,6 +88,7 @@ final class SyncEngine {
       screener: ScreenerArchiver(_store),
       appData: appData,
       serverRules: ServerRules(_store, _connector.sieve),
+      connections: _syncConnections,
     );
   }
 
@@ -103,6 +106,10 @@ final class SyncEngine {
   /// (reading receipts ahead of time), so a message the user opens never
   /// queues behind it.
   final OnDemandConnections _background;
+
+  /// Connections kept between syncs, so the frequent inbox check does
+  /// not log in every time.
+  final SyncConnections _syncConnections;
   late final AccountSynchronizer _synchronizer;
 
   /// How often every folder is synced while running.
@@ -209,6 +216,7 @@ final class SyncEngine {
     if (_stop == null) return;
     final old = _stopWatching;
     if (old != null && !old.isCompleted) old.complete();
+    unawaited(_syncConnections.closeAll());
     _watch();
   }
 
@@ -252,6 +260,7 @@ final class SyncEngine {
     _stop = null;
     if (stop != null && !stop.isCompleted) stop.complete();
     await Future.wait(_running.values);
+    await _syncConnections.closeAll();
   }
 
   Future<void> dispose() async {
@@ -363,6 +372,7 @@ final class SyncEngine {
   Future<void> accountChanged(int accountId) async {
     await _onDemand.close(accountId);
     await _background.close(accountId);
+    await _syncConnections.close(accountId);
   }
 
   Account _accountOfMessage(int messageId) {

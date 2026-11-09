@@ -43,10 +43,18 @@ final class Resorter {
 
   /// Re-sorts every stored message. Safe to interrupt: the version is
   /// recorded only at the end, so an interrupted run starts again.
-  Future<int> resortAll() async {
+  ///
+  /// Waits [pause] between batches (so the UI keeps drawing), and ends
+  /// early, without recording the version, once [stopped] says so (the
+  /// app is closing).
+  Future<int> resortAll({
+    Duration pause = Duration.zero,
+    bool Function()? stopped,
+  }) async {
     var afterId = 0;
     var count = 0;
     while (true) {
+      if (stopped?.call() ?? false) return count;
       // Reading and writing in one transaction keeps each batch atomic.
       final last = _store.transaction(() {
         final batch = _store.messages.sortable(
@@ -62,7 +70,7 @@ final class Resorter {
       });
       if (last == null) break;
       afterId = last;
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(pause);
     }
     _store.settings.write(versionKey, '${classifier.version}');
     return count;

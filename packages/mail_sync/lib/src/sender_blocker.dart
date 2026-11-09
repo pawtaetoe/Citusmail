@@ -15,7 +15,9 @@ import 'mail_actions.dart';
 /// Runs before the folder rules: a block wins. Like the rules, it moves
 /// only mail received since the block (with [FolderRuleApplier]'s clock
 /// tolerance) and never moves a message twice (by Message-ID), so mail
-/// the user brings back stays where they put it.
+/// the user brings back stays where they put it. Each pass looks only at
+/// mail that arrived since the last one, unless the blocks changed
+/// ([InboxPass]).
 final class SenderBlocker {
   SenderBlocker(this._store) : _actions = MailActions(_store);
 
@@ -27,8 +29,9 @@ final class SenderBlocker {
       store.mailboxes.bySpecialUse(accountId, SpecialUse.junk) ??
       store.mailboxes.bySpecialUse(accountId, SpecialUse.trash);
 
-  /// Moves blocked inbox mail of [account]; returns how many.
-  int apply(Account account) {
+  /// Moves blocked inbox mail of [account]; returns how many. With
+  /// [everything], every message since the oldest block is looked at.
+  int apply(Account account, {bool everything = false}) {
     // Address blocks first: the more specific one is reported.
     final blocks = [..._store.blocks.all()]
       ..sort((a, b) => a.kind.index.compareTo(b.kind.index));
@@ -41,8 +44,19 @@ final class SenderBlocker {
         b.since.subtract(FolderRuleApplier.clockTolerance);
     final earliest = blocks.map(start).reduce((a, b) => a.isBefore(b) ? a : b);
 
+    final pass = InboxPass.start(
+      _store,
+      'blocks',
+      inbox,
+      InboxPass.digest([
+        target.id,
+        for (final b in blocks)
+          [b.id, b.kind.name, b.value, b.since.millisecondsSinceEpoch],
+      ]),
+      everything: everything,
+    );
     final moving = <StoredMessage>[];
-    for (final message in InboxScan.since(_store, inbox, earliest)) {
+    for (final message in pass.messages(earliest)) {
       final from = message.from?.address;
       if (from == null) continue;
       final block = blocks.where((b) => b.matches(from)).firstOrNull;
@@ -51,15 +65,17 @@ final class SenderBlocker {
       if (id != null && _store.folderRules.wasMoved(account.id, id)) continue;
       moving.add(message);
     }
-    if (moving.isEmpty) return 0;
-    _store.transaction(() {
-      _actions.move(moving, target);
-      for (final m in moving) {
-        if (m.messageId case final id?) {
-          _store.folderRules.recordMoved(account.id, id);
+    if (moving.isNotEmpty) {
+      _store.transaction(() {
+        _actions.move(moving, target);
+        for (final m in moving) {
+          if (m.messageId case final id?) {
+            _store.folderRules.recordMoved(account.id, id);
+          }
         }
-      }
-    });
+      });
+    }
+    pass.finish();
     return moving.length;
   }
 }

@@ -245,7 +245,8 @@ final class ScreenerRepository {
   }
 
   /// The decision that applies to mail from [address] (an address
-  /// decision before a domain one), if any.
+  /// decision before a domain one, and the most specific domain first,
+  /// as [SectionSql] decides sections), if any.
   ScreenedSender? matching(String? address) {
     if (address == null) return null;
     final lower = address.toLowerCase();
@@ -260,7 +261,7 @@ final class ScreenerRepository {
       'SELECT $_columns FROM screener_senders '
       "WHERE (kind = 'address' AND value = ?) "
       "OR (kind = 'domain' AND value IN (${List.filled(domains.length, '?').join(', ')})) "
-      "ORDER BY kind = 'domain', id LIMIT 1",
+      "ORDER BY kind = 'domain', length(value) DESC, id LIMIT 1",
       [lower, ...domains],
     );
     return rows.isEmpty ? null : _fromRow(rows.first);
@@ -345,8 +346,8 @@ final class ScreenerRepository {
     // Domains are [a-z0-9.-] (see BlockedSender.normalize): safe in LIKE.
     ScreenerKind.domain => SectionSql.refresh(
       _db,
-      'from_address LIKE ? OR from_address LIKE ?',
-      ['%@$value', '%.$value'],
+      'from_domain = ? OR from_domain LIKE ?',
+      [value, '%.$value'],
     ),
   };
 

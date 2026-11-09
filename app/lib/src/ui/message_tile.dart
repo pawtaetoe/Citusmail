@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:background_clipboard/background_clipboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mail_store/mail_store.dart';
@@ -419,7 +420,13 @@ final class _CodeLine extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             onTap: () async {
               final messenger = ScaffoldMessenger.maybeOf(context);
-              await Clipboard.setData(ClipboardData(text: code));
+              // Marked sensitive, as from a notification: Android 13+
+              // then keeps it out of its clipboard preview.
+              await BackgroundClipboard.copy(
+                code,
+                label: 'Verification code',
+                sensitive: true,
+              );
               messenger
                 ?..hideCurrentSnackBar()
                 ..showSnackBar(SnackBar(content: Text('Copied $code')));

@@ -16,15 +16,18 @@ import 'mail_actions.dart';
 /// (with [FolderRuleApplier]'s clock tolerance), and a message is never
 /// moved twice (by Message-ID), so mail the user brings back stays.
 /// Pinned mail, codes and replies to the user stay (see
-/// [ScreenerRepository.screenedOutIds]).
+/// [ScreenerRepository.screenedOutIds]). Each pass looks only at mail
+/// that arrived since the last one, unless the Screener's decisions or
+/// settings changed ([InboxPass]).
 final class ScreenerArchiver {
   ScreenerArchiver(this._store) : _actions = MailActions(_store);
 
   final MailStore _store;
   final MailActions _actions;
 
-  /// Moves screened-out inbox mail of [account]; returns how many.
-  int apply(Account account) {
+  /// Moves screened-out inbox mail of [account]; returns how many. With
+  /// [everything], every message since the oldest decision is looked at.
+  int apply(Account account, {bool everything = false}) {
     final screener = _store.screener;
     if (!screener.enabled || screener.outPlace != ScreenOutPlace.archive) {
       return 0;
@@ -41,10 +44,38 @@ final class ScreenerArchiver {
 
     DateTime start(ScreenedSender s) =>
         s.since.subtract(FolderRuleApplier.clockTolerance);
-    final earliest = out.map(start).reduce((a, b) => a.isBefore(b) ? a : b);
+    var earliest = out.map(start).reduce((a, b) => a.isBefore(b) ? a : b);
+
+    final pass = InboxPass.start(
+      _store,
+      'screener',
+      inbox,
+      InboxPass.digest([
+        target.id,
+        for (final s in out)
+          [s.id, s.kind.name, s.value, s.since.millisecondsSinceEpoch],
+      ]),
+      everything: everything,
+    );
+    // Only the new mail, unless everything is looked at: the query then
+    // covers just the time since the oldest of it.
+    Set<int>? only;
+    if (!pass.everything) {
+      final fresh = pass.messages(earliest).toList();
+      if (fresh.isEmpty) {
+        pass.finish();
+        return 0;
+      }
+      only = {for (final m in fresh) m.id};
+      final oldest = fresh
+          .map((m) => m.receivedAt)
+          .reduce((a, b) => a.isBefore(b) ? a : b);
+      if (oldest.isAfter(earliest)) earliest = oldest;
+    }
 
     final moving = <StoredMessage>[];
     for (final id in screener.screenedOutIds(inbox.id, earliest)) {
+      if (only != null && !only.contains(id)) continue;
       final message = _store.messages.byId(id);
       final decision = screener.matching(message?.from?.address);
       if (message == null || decision == null) continue;
@@ -56,13 +87,15 @@ final class ScreenerArchiver {
       }
       moving.add(message);
     }
-    if (moving.isEmpty) return 0;
-    _store.transaction(() {
-      _actions.move(moving, target);
-      for (final m in moving) {
-        _store.folderRules.recordMoved(account.id, m.messageId!);
-      }
-    });
+    if (moving.isNotEmpty) {
+      _store.transaction(() {
+        _actions.move(moving, target);
+        for (final m in moving) {
+          _store.folderRules.recordMoved(account.id, m.messageId!);
+        }
+      });
+    }
+    pass.finish();
     return moving.length;
   }
 }

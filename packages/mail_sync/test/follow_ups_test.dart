@@ -146,6 +146,20 @@ void main() {
     expect(followUps.nextDue(), f.due);
   });
 
+  test('the list is decoded again only when it changed', () {
+    final first = remindIn(const Duration(days: 3));
+    final list = followUps.all();
+    expect(followUps.all(), same(list), reason: 'nothing changed');
+    expect(followUps.waiting().single.messageId, first.messageId);
+    expect(() => list.add(first), throwsUnsupportedError);
+
+    followUps.cancel(first.messageId);
+    expect(followUps.all(), isEmpty);
+    remindIn(const Duration(days: 4));
+    expect(followUps.all(), isNot(same(list)));
+    expect(followUps.all().single.due, isNot(list.single.due));
+  });
+
   test('comes back once when its time comes without a reply', () {
     remindIn(const Duration(days: 3));
     expect(followUps.check(now: DateTime.utc(2026, 11, 4, 9)).isEmpty, isTrue);

@@ -3,8 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_trust/mail_trust.dart';
 
 import 'autoconfig_parser.dart';
+import 'autodiscover_parser.dart';
 import 'discovered_settings.dart';
 import 'dns_srv.dart';
 import 'known_providers.dart';
@@ -13,11 +15,30 @@ import 'verification.dart';
 
 /// A discovery step, for showing progress.
 enum DiscoveryStep {
+  /// The domain's own settings file over HTTPS.
   providerFileSecure,
-  dnsRecords,
-  providerFileUnencrypted,
-  probing,
+
+  /// Mozilla's database (only with consent).
   mozillaDatabase,
+
+  /// The domain's MX records.
+  dnsRecords,
+
+  /// The settings file and Mozilla's entry of the mail host the MX
+  /// records point to.
+  mailHostProviderFile,
+
+  /// The domain's own settings file over plain HTTP.
+  providerFileUnencrypted,
+
+  /// SRV records naming the servers.
+  dnsService,
+
+  /// Common server names.
+  probing,
+
+  /// The domain's Exchange Autodiscover service.
+  autodiscover,
 }
 
 /// The outcome of discovery.
@@ -38,20 +59,32 @@ final class DiscoveryResult {
 
 /// Finds server settings for an email address. Well-known providers
 /// ([KnownProvider]) are answered from the app itself, with no lookup.
-/// Otherwise it tries sources from most to least trustworthy and stops at
-/// the first that works:
+/// Otherwise it tries sources in this order and stops at the first that
+/// works:
 ///
-/// 1. the provider's settings file over HTTPS;
-/// 2. DNS: MX records pointing to Google Workspace or Microsoft 365, then
-///    SRV records (RFC 6186 / 8314);
-/// 3. the provider's settings file over HTTP (cPanel often serves only this);
-/// 4. common host names, each required to have a valid certificate;
-/// 5. Mozilla's database, only if [askMozillaConsent] allows it.
+/// 1. the domain's own settings file over HTTPS
+///    (`autoconfig.<domain>`, then `<domain>/.well-known`);
+/// 2. Mozilla's database, only if [askMozillaConsent] allows it (asked
+///    once per discovery);
+/// 3. DNS MX records: Google Workspace or Microsoft 365 are recognised;
+///    any other mail host's base domain gets steps 1 and 2 again, which
+///    is what finds the settings of a custom domain hosted with a
+///    provider;
+/// 4. the domain's own settings file over plain HTTP (cPanel often
+///    serves only this), used only when it names servers of the domain
+///    or of its mail host, each with a valid certificate;
+/// 5. DNS SRV records (RFC 6186 / 8314);
+/// 6. common host names, each required to have a valid certificate;
+/// 7. the domain's Exchange Autodiscover service (hosted Exchange).
 ///
-/// Only the domain is ever looked up; the full address is never sent.
-/// Results from unauthenticated sources (2-4) are only used if their
-/// servers answer with a valid certificate, and are flagged for the user
-/// to confirm ([DiscoveredSettings.warnings]).
+/// Privacy: the email address itself goes only to the domain's own
+/// servers and to those of its mail host (its provider), in the HTTPS
+/// request for the settings file (some providers need it) and in the
+/// Autodiscover request. Everything else (Mozilla, DNS, the plain-HTTP
+/// request, probing) sees the domain only. Results from unauthenticated
+/// sources (3 to 6) are only used if their servers answer with a valid
+/// certificate, and are flagged for the user to confirm
+/// ([DiscoveredSettings.warnings]).
 final class AccountDiscovery {
   AccountDiscovery({
     SettingsFetcher? fetcher,
@@ -75,6 +108,7 @@ final class AccountDiscovery {
   final String mozillaBase;
 
   static const _parser = AutoconfigParser();
+  static const _autodiscover = AutodiscoverParser();
   static final _email = RegExp(
     r'^[^@\s]+@([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$',
   );
@@ -99,27 +133,73 @@ final class AccountDiscovery {
     }
     var oauthOnly = false;
 
-    DiscoveredSettings? fromFile(String? xml, DiscoverySource source) {
+    DiscoveredSettings? fromFile(
+      String? xml,
+      DiscoverySource source, {
+      String? mailHostDomain,
+    }) {
       if (xml == null) return null;
-      final (settings, problem) = _parser.parse(xml, address, source);
+      final (settings, problem) = _parser.parse(
+        xml,
+        address,
+        source,
+        mailHostDomain: mailHostDomain,
+      );
       if (problem == AutoconfigProblem.oauthOnly) oauthOnly = true;
       return settings;
     }
 
-    onStep?.call(DiscoveryStep.providerFileSecure);
-    for (final uri in [
-      Uri.parse('https://autoconfig.$domain/mail/config-v1.1.xml'),
-      Uri.parse('https://$domain/.well-known/autoconfig/mail/config-v1.1.xml'),
-    ]) {
-      final found = fromFile(
-        await _fetcher.fetch(uri),
-        DiscoverySource.httpsAutoconfig,
-      );
-      if (found != null) return DiscoveryResult(found);
+    // The provider's own file over HTTPS, with the address (some
+    // providers answer per mailbox), then the well-known place.
+    Future<DiscoveredSettings?> providerFiles(
+      String forDomain, {
+      String? mailHostDomain,
+    }) async {
+      for (final uri in [
+        Uri.https('autoconfig.$forDomain', '/mail/config-v1.1.xml', {
+          'emailaddress': address,
+        }),
+        Uri.https(forDomain, '/.well-known/autoconfig/mail/config-v1.1.xml'),
+      ]) {
+        final found = fromFile(
+          await _fetcher.fetch(uri),
+          DiscoverySource.httpsAutoconfig,
+          mailHostDomain: mailHostDomain,
+        );
+        if (found != null) return found;
+      }
+      return null;
     }
 
+    // Mozilla's database: an outside service, so only with consent, asked
+    // once. Only the domain is sent.
+    bool? mozillaAllowed;
+    Future<DiscoveredSettings?> mozilla(
+      String forDomain, {
+      String? mailHostDomain,
+    }) async {
+      if (askMozillaConsent == null) return null;
+      mozillaAllowed ??= await askMozillaConsent(domain);
+      if (!mozillaAllowed!) return null;
+      onStep?.call(DiscoveryStep.mozillaDatabase);
+      return fromFile(
+        await _fetcher.fetch(Uri.parse('$mozillaBase$forDomain')),
+        DiscoverySource.mozillaDatabase,
+        mailHostDomain: mailHostDomain,
+      );
+    }
+
+    // 1 and 2: the domain itself.
+    onStep?.call(DiscoveryStep.providerFileSecure);
+    final own = await providerFiles(domain);
+    if (own != null) return DiscoveryResult(own);
+    final fromMozilla = await mozilla(domain);
+    if (fromMozilla != null) return DiscoveryResult(fromMozilla);
+
+    // 3: where the domain's mail really goes.
     onStep?.call(DiscoveryStep.dnsRecords);
-    switch (MailHost.fromMx(await _mx.lookupMx(domain))) {
+    final mx = await _mx.lookupMx(domain);
+    switch (MailHost.fromMx(mx)) {
       case MailHost.google:
         return DiscoveryResult(
           KnownProvider.gmail.settingsFor(
@@ -133,34 +213,75 @@ final class AccountDiscovery {
       case null:
         break;
     }
-    final fromDns = await _fromSrv(address, domain);
-    if (fromDns != null) return DiscoveryResult(fromDns);
+    final hostDomain = mailHostDomain(domain, mx);
+    if (hostDomain != null) {
+      onStep?.call(DiscoveryStep.mailHostProviderFile);
+      final hosted =
+          await providerFiles(hostDomain, mailHostDomain: hostDomain) ??
+          await mozilla(hostDomain, mailHostDomain: hostDomain);
+      if (hosted != null) return DiscoveryResult(hosted);
+    }
 
+    // 4: unencrypted, so anyone on the network could have written it. It
+    // may only name servers of the domain itself or of its mail host
+    // (each then checked with a real TLS connection); a file that names
+    // anything else is thrown away as if it had not been served. The
+    // address is never sent in the clear.
     onStep?.call(DiscoveryStep.providerFileUnencrypted);
     final fromHttp = fromFile(
       await _fetcher.fetch(
         Uri.parse('http://autoconfig.$domain/mail/config-v1.1.xml'),
       ),
       DiscoverySource.httpAutoconfig,
+      mailHostDomain: hostDomain,
     );
-    if (fromHttp != null && await _reachable(fromHttp)) {
+    if (fromHttp != null &&
+        servesDomain(fromHttp, domain, mx) &&
+        await _reachable(fromHttp)) {
       return DiscoveryResult(fromHttp);
     }
+
+    // 5 and 6: DNS SRV, then guessing.
+    onStep?.call(DiscoveryStep.dnsService);
+    final fromDns = await _fromSrv(address, domain);
+    if (fromDns != null) return DiscoveryResult(fromDns);
 
     onStep?.call(DiscoveryStep.probing);
     final probed = await _probe(address, domain);
     if (probed != null) return DiscoveryResult(probed);
 
-    if (askMozillaConsent != null && await askMozillaConsent(domain)) {
-      onStep?.call(DiscoveryStep.mozillaDatabase);
-      final found = fromFile(
-        await _fetcher.fetch(Uri.parse('$mozillaBase$domain')),
-        DiscoverySource.mozillaDatabase,
-      );
+    // 7: Exchange's own answer, from the domain's servers only.
+    onStep?.call(DiscoveryStep.autodiscover);
+    final request = AutodiscoverParser.request(address);
+    for (final uri in [
+      Uri.https('autodiscover.$domain', '/autodiscover/autodiscover.xml'),
+      Uri.https(domain, '/autodiscover/autodiscover.xml'),
+    ]) {
+      final xml = await _fetcher.post(uri, request);
+      if (xml == null) continue;
+      final found = _autodiscover.parse(xml, address);
       if (found != null) return DiscoveryResult(found);
     }
+
     return DiscoveryResult(null, oauthOnly: oauthOnly);
   }
+
+  /// The base (registrable) domain of the most preferred MX record, when
+  /// it is another domain than [domain]'s own: `privateemail.com` for an
+  /// MX of `mx1.privateemail.com`. Null when the mail is handled within
+  /// the domain itself, or there are no records.
+  static String? mailHostDomain(String domain, List<MxRecord> mx) {
+    final own = Domains.registrable(domain);
+    for (final record in mx) {
+      final base = Domains.registrable(_exchange(record));
+      if (base == null) continue;
+      return base == own ? null : base;
+    }
+    return null;
+  }
+
+  static String _exchange(MxRecord record) =>
+      record.exchange.replaceAll(RegExp(r'\.$'), '').toLowerCase();
 
   Future<DiscoveredSettings?> _fromSrv(String email, String domain) async {
     Future<ServerCandidate?> first(
@@ -228,4 +349,27 @@ final class AccountDiscovery {
   Future<bool> _reachable(DiscoveredSettings s) async =>
       await _prober.imapAvailable(s.imap) &&
       await _prober.smtpAvailable(s.smtp);
+
+  /// Whether every server in [settings] belongs to [domain] or to the
+  /// mail host its [mx] records name: the same registrable domain (by the
+  /// public suffix list, so `mail.example.co.uk` belongs to
+  /// `example.co.uk`, and `imap.hoster.example` to an MX of
+  /// `mx1.hoster.example`). Settings from a source that could have been
+  /// tampered with are used only when this holds.
+  static bool servesDomain(
+    DiscoveredSettings settings,
+    String domain,
+    List<MxRecord> mx,
+  ) {
+    final allowed = <String>{
+      ?Domains.registrable(domain),
+      for (final record in mx) ?Domains.registrable(_exchange(record)),
+    };
+    if (allowed.isEmpty) return false;
+    for (final host in [settings.imap.host, settings.smtp.host]) {
+      final registrable = Domains.registrable(host);
+      if (registrable == null || !allowed.contains(registrable)) return false;
+    }
+    return true;
+  }
 }

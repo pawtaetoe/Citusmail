@@ -8,6 +8,7 @@ import 'package:mail_sync/mail_sync.dart';
 
 import 'mail_location.dart';
 import 'new_since_away.dart';
+import 'store_changes.dart';
 
 /// One Smart Inbox section in the accordion.
 final class SectionState {
@@ -141,11 +142,7 @@ final class MessageListModel extends ChangeNotifier {
     _awayIds = newSinceAway.ids;
     if (newSinceAway.isEmpty) _awayShowAll = false;
     if (showsSections) {
-      final counts = _withoutAway(
-        _store.messages.sectionCounts(
-          accountIds: _accounts(location.accountId),
-        ),
-      );
+      final counts = _withoutAway(sectionCounts(accountId: location.accountId));
       screenerWaiting = _store.screener.waitingCount(
         accountIds: _accounts(location.accountId),
       );
@@ -335,6 +332,23 @@ final class MessageListModel extends ChangeNotifier {
         if (accountId == null || f.accountId == accountId)
           FollowUpRow(f, reminders.sentCopy(f)),
     ];
+  }
+
+  late final _changes = StoreChanges(_store);
+  (int, int)? _countsStamp;
+  final _counts = <int?, Map<SmartSection, SectionCount>>{};
+
+  /// The Smart Inbox section counts of [accountId] (or every account),
+  /// counted again only when something in the store changed since.
+  Map<SmartSection, SectionCount> sectionCounts({int? accountId}) {
+    final stamp = _changes.stamp;
+    if (stamp != _countsStamp) {
+      _counts.clear();
+      _countsStamp = stamp;
+    }
+    return _counts[accountId] ??= _store.messages.sectionCounts(
+      accountIds: _accounts(accountId),
+    );
   }
 
   static List<int>? _accounts(int? accountId) =>

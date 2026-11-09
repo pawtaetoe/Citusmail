@@ -9,11 +9,11 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
-import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
 import '../services/auto_reader.dart';
 import 'corrections.dart';
+import 'message_reads.dart';
 
 /// What [findOnlineAccounts] found: every account the rules found
 /// ([hidden] and [learned] ones too, by company), the user's own
@@ -51,9 +51,7 @@ Future<AccountsFound> findOnlineAccounts(
     limit: 5000,
   );
   // Message text off the UI thread: downloaded bodies are parsed.
-  final texts = await compute(_texts, [
-    for (final m in candidates) (store.messages.body(m.id), m.snippet),
-  ]);
+  final texts = await plainTextReads.read(store, candidates);
   final people = <String, bool>{};
   bool person(MailAddress from, String registrable) =>
       people[from.normalizedAddress] ??=
@@ -129,7 +127,7 @@ List<int> accountMailToRead(
       if (!left.contains(AccountFinder.companyOf(e.company)) &&
           AccountFinder.worthReading(e) &&
           !skip.contains(e.messageId) &&
-          store.messages.body(e.messageId) == null &&
+          !MessageReads.downloaded(store, e.messageId) &&
           (sizes[e.messageId] ?? 0) <= AccountsModel.maxBytes)
         e.messageId,
   ].take(AccountsModel.readMax).toList();
@@ -318,16 +316,3 @@ final class AccountsModel extends ChangeNotifier {
 
   StoredMessage? message(int id) => _store.messages.byId(id);
 }
-
-/// Each message's text: the downloaded body when there is one (capped),
-/// else its preview.
-List<String> _texts(List<(Uint8List?, String?)> messages) => [
-  for (final (raw, snippet) in messages)
-    if (raw != null)
-      () {
-        final text = MessageView.parse(raw).body.plainText;
-        return text.length > 20000 ? text.substring(0, 20000) : text;
-      }()
-    else
-      snippet ?? '',
-];

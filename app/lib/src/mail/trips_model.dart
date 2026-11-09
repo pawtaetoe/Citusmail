@@ -14,6 +14,7 @@ import 'package:mail_view/mail_view.dart';
 import '../services/app_services.dart';
 import '../services/auto_reader.dart';
 import 'corrections.dart';
+import 'message_reads.dart';
 
 /// What [findTrips] found: every booking the rules found ([hidden] and
 /// [learned] ones too, by key), and the emails worth downloading
@@ -44,9 +45,7 @@ Future<TripsFound> findTrips(
     since: now.subtract(TripsModel.lookBack),
   );
   // Message text and markup off the UI thread.
-  final read = await compute(_read, [
-    for (final m in candidates) (store.messages.body(m.id), m.snippet),
-  ]);
+  final read = await _reads.read(store, candidates);
   final emails = <TripEmail>[
     for (final (i, m) in candidates.indexed)
       if (m.from case final from?)
@@ -96,7 +95,7 @@ List<int> bookingMailToRead(
           m.category != MessageCategory.newsletters &&
           !known.contains(m.id) &&
           !skip.contains(m.id) &&
-          store.messages.body(m.id) == null &&
+          !MessageReads.downloaded(store, m.id) &&
           TripFinder.looksLikeBooking(m.subject ?? ''))
         m.id,
   ].take(TripsModel.readMax).toList();
@@ -285,6 +284,9 @@ final class TripsModel extends ChangeNotifier {
 }
 
 typedef _Read = ({String text, List<ReservationInfo> reservations});
+
+/// What the Trips page has read of each message.
+final _reads = MessageReads<_Read>(_read, size: (r) => r.text.length);
 
 /// Each message's text (the downloaded body, capped, else its preview)
 /// and the reservations in its raw HTML part, read before the HTML is

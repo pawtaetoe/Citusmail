@@ -151,6 +151,7 @@ final class TestDevice {
     AccountSyncReport? listing;
     if (!folderNames.every(known.contains)) {
       // Folder ids are only known after the folder list is stored.
+      synchronizer.listFoldersNextTime(account.id);
       listing = await synchronizer.sync(account, mailboxIds: const {});
     }
     final ids = {for (final name in folderNames) mailbox(name).id};

@@ -5,7 +5,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
@@ -85,24 +84,13 @@ final class SenderCleanupModel extends ChangeNotifier {
     kept = {
       ...?_store.settings.read(_keptKey)?.split(',').where((s) => s.isNotEmpty),
     };
-    final now = _now();
-    final received = _store.messages.receivedSince(
-      now.subtract(SenderCleanup.window),
+    // The store adds the mail up per sender; grouping senders by company
+    // happens off the UI thread.
+    final senders = _store.messages.senderStats(
+      _now().subtract(SenderCleanup.window),
     );
-    // Grouping thousands of messages happens off the UI thread.
     final all = await compute(_group, (
-      [
-        for (final r in received)
-          (
-            r.message.id,
-            r.message.from!,
-            r.message.receivedAt,
-            r.message.flags.seen,
-            r.message.category,
-            r.unsubscribe,
-          ),
-      ],
-      now,
+      senders,
       {for (final a in _store.accounts.all()) a.email.toLowerCase()},
       _store.messages.writtenTo(),
     ));
@@ -194,30 +182,11 @@ final class SenderCleanupModel extends ChangeNotifier {
 }
 
 /// Top level, for [compute].
-List<SenderGroup> _group(
-  (
-    List<(int, MailAddress, DateTime, bool, MessageCategory, bool)>,
-    DateTime,
-    Set<String>,
-    Set<String>,
-  )
-  input,
-) {
-  final (rows, now, own, writtenTo) = input;
-  return SenderCleanup.group(
-    [
-      for (final (id, from, at, opened, category, unsubscribe) in rows)
-        SenderMail(
-          messageId: id,
-          from: from,
-          domain: Domains.registrable(from.domain) ?? from.domain.toLowerCase(),
-          at: at,
-          opened: opened,
-          category: category,
-          canUnsubscribe: unsubscribe,
-        ),
-    ],
-    now: now,
+List<SenderGroup> _group((List<SenderStats>, Set<String>, Set<String>) input) {
+  final (senders, own, writtenTo) = input;
+  return SenderCleanup.groupSenders(
+    senders,
+    domainOf: (domain) => Domains.registrable(domain) ?? domain.toLowerCase(),
     own: own,
     writtenTo: writtenTo,
   );

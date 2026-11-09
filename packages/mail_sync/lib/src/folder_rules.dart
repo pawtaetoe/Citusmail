@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -18,6 +21,8 @@ import 'mail_actions.dart';
 ///   so one the user brings back to the inbox stays there. Messages
 ///   without a Message-ID are left alone for that reason.
 /// - The oldest matching rule wins.
+/// - Each pass looks only at mail that arrived since the last one, unless
+///   the rules changed ([InboxPass]).
 final class FolderRuleApplier {
   FolderRuleApplier(this._store) : _actions = MailActions(_store);
 
@@ -26,8 +31,10 @@ final class FolderRuleApplier {
 
   static const clockTolerance = Duration(minutes: 10);
 
-  /// Moves matching inbox messages of [account]; returns how many.
-  int apply(Account account) {
+  /// Moves matching inbox messages of [account]; returns how many. With
+  /// [everything], every message since the oldest rule's start is looked
+  /// at, not only mail that arrived since the last pass.
+  int apply(Account account, {bool everything = false}) {
     final rules = _store.folderRules.forAccount(account.id);
     if (rules.isEmpty) return 0;
     final inbox = _store.mailboxes.inbox(account.id);
@@ -35,8 +42,24 @@ final class FolderRuleApplier {
     final needsRecipients = rules.any((r) => r.field == RuleField.toAddress);
 
     final earliest = rules.map(_start).reduce((a, b) => a.isBefore(b) ? a : b);
+    final pass = InboxPass.start(
+      _store,
+      'rules',
+      inbox,
+      InboxPass.digest([
+        for (final r in rules)
+          [
+            r.id,
+            r.mailboxId,
+            r.field.name,
+            r.value,
+            r.appliesFrom.millisecondsSinceEpoch,
+          ],
+      ]),
+      everything: everything,
+    );
     final moves = <int, List<StoredMessage>>{};
-    for (final message in InboxScan.since(_store, inbox, earliest)) {
+    for (final message in pass.messages(earliest)) {
       final messageId = message.messageId;
       if (messageId == null ||
           _store.folderRules.wasMoved(account.id, messageId)) {
@@ -70,6 +93,7 @@ final class FolderRuleApplier {
       });
       moved += messages.length;
     }
+    pass.finish();
     return moved;
   }
 
@@ -98,6 +122,91 @@ abstract final class InboxScan {
       before = page.last;
     }
   }
+}
+
+/// Which inbox mail one pass of the blocks, the folder rules or the
+/// Screener has to look at.
+///
+/// The first pass, and any pass after what it applies changed (its
+/// [fingerprint]: a rule, block or decision added, changed or removed),
+/// looks at every message since the oldest start, as before. Every other
+/// pass looks only at mail that arrived since the last one: messages with
+/// a UID above the highest one it saw. A pass with `everything` (older
+/// mail was just downloaded) or after the server renumbered the inbox
+/// (UIDVALIDITY) looks at everything again. The mark is kept in the
+/// settings table, per inbox and kind of pass.
+final class InboxPass {
+  InboxPass._(
+    this._store,
+    this._key,
+    this._value,
+    this.inbox,
+    this._seen,
+    this._highest,
+    this.everything,
+  );
+
+  /// Starts a pass of [kind] over [inbox] for what [fingerprint] sums up.
+  factory InboxPass.start(
+    MailStore store,
+    String kind,
+    StoredMailbox inbox,
+    String fingerprint, {
+    bool everything = false,
+  }) {
+    final key = 'scan.$kind.${inbox.id}';
+    final prefix = '${inbox.syncState.uidValidity}:$fingerprint:';
+    final mark = store.settings.read(key);
+    final seen = mark != null && mark.startsWith(prefix)
+        ? int.tryParse(mark.substring(prefix.length))
+        : null;
+    return InboxPass._(
+      store,
+      key,
+      prefix,
+      inbox,
+      seen,
+      store.messages.highestUid(inbox.id) ?? 0,
+      everything || seen == null,
+    );
+  }
+
+  final MailStore _store;
+  final String _key;
+  final String _value;
+  final StoredMailbox inbox;
+  final int? _seen;
+
+  /// Whether this pass looks at every message since the start, rather
+  /// than only at mail that arrived since the last pass.
+  final bool everything;
+
+  /// The highest UID when the pass started.
+  final int _highest;
+
+  /// The messages to look at, received at or after [earliest]. With
+  /// [everything], newest first; else in the order they arrived.
+  Iterable<StoredMessage> messages(DateTime earliest) sync* {
+    if (everything) {
+      yield* InboxScan.since(_store, inbox, earliest);
+      return;
+    }
+    for (final uid in _store.messages.uidsAbove(inbox.id, _seen!)) {
+      if (uid > _highest) break;
+      final message = _store.messages.byUid(inbox.id, uid);
+      if (message != null && !message.receivedAt.isBefore(earliest)) {
+        yield message;
+      }
+    }
+  }
+
+  /// Remembers that every message up to the highest UID at the start
+  /// was looked at.
+  void finish() => _store.settings.write(_key, '$_value$_highest');
+
+  /// A short digest of [parts], for [fingerprint]s.
+  static String digest(Iterable<Object?> parts) =>
+      sha1.convert(utf8.encode(jsonEncode([...parts]))).toString();
 }
 
 /// Whether a message matches a rule.

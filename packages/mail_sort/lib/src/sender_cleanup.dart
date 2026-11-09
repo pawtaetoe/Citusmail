@@ -48,6 +48,7 @@ final class SenderGroup {
     required this.name,
     required this.addresses,
     required this.messageIds,
+    required this.count,
     required this.opened,
     required this.last,
     required this.kind,
@@ -68,8 +69,12 @@ final class SenderGroup {
   /// The addresses in the group (lower case), most mail first.
   final List<String> addresses;
 
-  /// The messages counted, newest first.
+  /// The messages counted, newest first; empty when the store did the
+  /// counting ([SenderCleanup.groupSenders]).
   final List<int> messageIds;
+
+  /// How many messages were counted.
+  final int count;
 
   /// How many of them were opened.
   final int opened;
@@ -83,8 +88,6 @@ final class SenderGroup {
 
   /// The newest message that has unsubscribe headers, if any.
   final int? unsubscribeId;
-
-  int get count => messageIds.length;
 
   /// Opened share, 0 to 1.
   double get openRate => count == 0 ? 0 : opened / count;
@@ -159,31 +162,89 @@ abstract final class SenderCleanup {
     ], SenderOrder.mostMail);
   }
 
+  /// Groups senders the store already added up ([SenderStats], one per
+  /// address, from `MessageRepository.senderStats` for the mail of the
+  /// last [window]) the way [group] groups mail, without reading any
+  /// message. [domainOf] gives the registrable domain of an address's
+  /// domain (`shop.example` for `mail.shop.example`). Most mail first.
+  static List<SenderGroup> groupSenders(
+    Iterable<SenderStats> senders, {
+    required String Function(String domain) domainOf,
+    Set<String> own = const {},
+    Set<String> writtenTo = const {},
+    Set<String> kept = const {},
+  }) {
+    final byKey = <String, List<SenderStats>>{};
+    for (final s in senders) {
+      final address = s.from.address.toLowerCase();
+      if (!address.contains('@')) continue;
+      if (own.contains(address) || writtenTo.contains(address)) continue;
+      final key = keyOf(s.from, domainOf(s.from.domain));
+      if (kept.contains(key)) continue;
+      byKey.putIfAbsent(key, () => []).add(s);
+    }
+    return sort([
+      for (final MapEntry(:key, :value) in byKey.entries)
+        _buildFromStats(key, value),
+    ], SenderOrder.mostMail);
+  }
+
+  /// One message as a sender's totals of one.
+  static SenderStats _one(SenderMail m) => SenderStats(
+    from: m.from,
+    count: 1,
+    opened: m.opened ? 1 : 0,
+    newsletters: m.category == MessageCategory.newsletters ? 1 : 0,
+    notifications: m.category == MessageCategory.notifications ? 1 : 0,
+    last: m.at,
+    newestId: m.messageId,
+    unsubscribeId: m.canUnsubscribe ? m.messageId : null,
+    unsubscribeAt: m.canUnsubscribe ? m.at : null,
+  );
+
   static SenderGroup _build(String key, List<SenderMail> mail) {
     mail.sort((a, b) {
       final c = b.at.compareTo(a.at);
       return c != 0 ? c : b.messageId.compareTo(a.messageId);
     });
+    return _buildFromStats(
+      key,
+      [for (final m in mail) _one(m)],
+      messageIds: [for (final m in mail) m.messageId],
+    );
+  }
+
+  static SenderGroup _buildFromStats(
+    String key,
+    List<SenderStats> senders, {
+    List<int> messageIds = const [],
+  }) {
+    senders.sort((a, b) {
+      final c = b.last.compareTo(a.last);
+      return c != 0 ? c : b.newestId.compareTo(a.newestId);
+    });
     final perAddress = <String, int>{};
     final names = <String, int>{};
-    var newsletters = 0, notifications = 0;
-    for (final m in mail) {
+    var count = 0, opened = 0, newsletters = 0, notifications = 0;
+    SenderStats? unsubscribe;
+    for (final s in senders) {
       perAddress.update(
-        m.from.address.toLowerCase(),
-        (n) => n + 1,
-        ifAbsent: () => 1,
+        s.from.address.toLowerCase(),
+        (n) => n + s.count,
+        ifAbsent: () => s.count,
       );
-      final name = m.from.displayName?.trim();
+      final name = s.from.displayName?.trim();
       if (name != null && name.isNotEmpty) {
-        names.update(name, (n) => n + 1, ifAbsent: () => 1);
+        names.update(name, (n) => n + s.count, ifAbsent: () => s.count);
       }
-      switch (m.category) {
-        case MessageCategory.newsletters:
-          newsletters++;
-        case MessageCategory.notifications:
-          notifications++;
-        case MessageCategory.general || MessageCategory.codes:
-          break;
+      count += s.count;
+      opened += s.opened;
+      newsletters += s.newsletters;
+      notifications += s.notifications;
+      // The newest message with unsubscribe headers.
+      if (s.unsubscribeAt case final at?
+          when unsubscribe == null || at.isAfter(unsubscribe.unsubscribeAt!)) {
+        unsubscribe = s;
       }
     }
     final addresses = perAddress.keys.toList()
@@ -196,7 +257,7 @@ abstract final class SenderCleanup {
               .first
               .key;
     // Bulk when at least half of it is.
-    final kind = (newsletters + notifications) * 2 < mail.length
+    final kind = (newsletters + notifications) * 2 < count
         ? SenderKind.other
         : newsletters >= notifications
         ? SenderKind.newsletter
@@ -206,12 +267,13 @@ abstract final class SenderCleanup {
       byDomain: byDomain,
       name: name,
       addresses: addresses,
-      messageIds: [for (final m in mail) m.messageId],
-      opened: mail.where((m) => m.opened).length,
-      last: mail.first.at,
+      messageIds: messageIds,
+      count: count,
+      opened: opened,
+      last: senders.first.last,
       kind: kind,
-      newestId: mail.first.messageId,
-      unsubscribeId: mail.where((m) => m.canUnsubscribe).firstOrNull?.messageId,
+      newestId: senders.first.newestId,
+      unsubscribeId: unsubscribe?.unsubscribeId,
     );
   }
 

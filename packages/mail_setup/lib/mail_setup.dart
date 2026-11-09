@@ -7,6 +7,7 @@ library;
 
 export 'src/account_discovery.dart';
 export 'src/autoconfig_parser.dart';
+export 'src/autodiscover_parser.dart';
 export 'src/discovered_settings.dart';
 export 'src/dns_srv.dart';
 export 'src/known_providers.dart';

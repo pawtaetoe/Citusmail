@@ -59,6 +59,8 @@ test('the latest release lookup picks each package and survives failure', async 
     json: async () => ({
       tag_name: 'v0.4.5',
       assets: [
+        asset('citusmail-0.4.5-armeabi-v7a.apk'),
+        asset('citusmail-0.4.5-x86_64.apk'),
         asset('citusmail-0.4.5.apk'),
         asset('citusmail_0.4.5-12_amd64.deb'),
         asset('citusmail-0.4.5.flatpak'),
@@ -72,6 +74,7 @@ test('the latest release lookup picks each package and survives failure', async 
   try {
     const release = await latestRelease(ok);
     assert.equal(release.version, '0.4.5');
+    assert.equal(release.apk, 'https://dl/citusmail-0.4.5.apk', 'the arm64 APK, not another processor type');
     assert.equal(release.deb, 'https://dl/citusmail_0.4.5-12_amd64.deb');
     assert.equal(release.exe, 'https://dl/citusmail-setup-0.4.5.exe');
     assert.equal(await latestRelease(async () => { throw new Error('offline'); }), null);

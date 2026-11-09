@@ -250,4 +250,82 @@ void main() {
       }
     });
   });
+
+  test('a pass looks only at mail that arrived since the last one', () {
+    rule(receipts, RuleField.fromDomain, 'shop.example');
+    receive(5, 'carol@x.example');
+    expect(FolderRuleApplier(store).apply(account), 0);
+    // Older mail downloaded later (a lower UID) waits for a pass over
+    // everything, which the sync asks for after downloading older mail.
+    receive(3, 'orders@shop.example');
+    receive(6, 'orders@shop.example');
+    expect(FolderRuleApplier(store).apply(account), 1);
+    expect(inInbox(), [3, 5]);
+    expect(FolderRuleApplier(store).apply(account, everything: true), 1);
+    expect(inInbox(), [5]);
+  });
+
+  test('a changed rule looks at all mail since its start again', () {
+    receive(1, 'orders@shop.example');
+    rule(lists, RuleField.fromDomain, 'other.example');
+    expect(FolderRuleApplier(store).apply(account), 0);
+    rule(receipts, RuleField.fromDomain, 'shop.example');
+    expect(FolderRuleApplier(store).apply(account), 1);
+    expect(inInbox(), isEmpty);
+  });
+
+  group('InboxPass', () {
+    final since = DateTime.utc(2026);
+    List<int> uids(InboxPass pass) => [
+      for (final m in pass.messages(since)) m.uid,
+    ];
+
+    test('everything first, then only new mail', () {
+      receive(1, 'a@x.example');
+      receive(2, 'b@x.example');
+      final first = InboxPass.start(store, 'test', inbox, 'v1');
+      expect(first.everything, isTrue);
+      expect(uids(first), [2, 1]);
+      first.finish();
+
+      final second = InboxPass.start(store, 'test', inbox, 'v1');
+      expect(second.everything, isFalse);
+      expect(uids(second), isEmpty);
+      second.finish();
+
+      receive(3, 'c@x.example');
+      receive(4, 'd@x.example', at: DateTime.utc(2025, 12, 31));
+      final third = InboxPass.start(store, 'test', inbox, 'v1');
+      expect(uids(third), [3], reason: 'received before the start: no');
+      third.finish();
+      expect(uids(InboxPass.start(store, 'test', inbox, 'v1')), isEmpty);
+    });
+
+    test('everything again when what it applies or the inbox changed', () {
+      receive(1, 'a@x.example');
+      InboxPass.start(store, 'test', inbox, 'v1').finish();
+      expect(InboxPass.start(store, 'test', inbox, 'v2').everything, isTrue);
+      expect(
+        InboxPass.start(store, 'other', inbox, 'v1').everything,
+        isTrue,
+        reason: 'each kind of pass on its own',
+      );
+      expect(
+        InboxPass.start(
+          store,
+          'test',
+          inbox,
+          'v1',
+          everything: true,
+        ).everything,
+        isTrue,
+      );
+      store.mailboxes.saveSyncState(
+        inbox.id,
+        const MailboxSyncState(uidValidity: 2),
+      );
+      inbox = store.mailboxes.byId(inbox.id)!;
+      expect(InboxPass.start(store, 'test', inbox, 'v1').everything, isTrue);
+    });
+  });
 }

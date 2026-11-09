@@ -369,6 +369,45 @@ void main() {
       );
     });
 
+    test('version 15 mail gets its sender domain and references rows', () {
+      openAt(15)
+        ..execute(
+          'INSERT INTO messages (id, mailbox_id, uid, received_at, from_address, thread_references) VALUES '
+          "(1, 1, 1, 0, 'Ana@News.Shop.example', '<a@x> <b@x>'), "
+          "(2, 1, 2, 0, 'no-at-sign', NULL), (3, 1, 3, 0, NULL, ''), "
+          "(4, 1, 4, 0, 'x@y.example', '<a@x>')",
+        )
+        ..close();
+      temp.store = MailStore.open(temp.path, temp.key);
+      final db = temp.store.database;
+      expect(
+        db
+            .select('SELECT from_domain FROM messages ORDER BY id')
+            .map((r) => r['from_domain']),
+        ['news.shop.example', null, null, 'y.example'],
+      );
+      expect(
+        db
+            .select(
+              'SELECT message_id, ref FROM message_references ORDER BY message_id, ref',
+            )
+            .map((r) => (r['message_id'], r['ref'])),
+        [(1, '<a@x>'), (1, '<b@x>'), (4, '<a@x>')],
+      );
+      expect(
+        db.select(
+          "SELECT name FROM sqlite_master WHERE name IN ('messages_by_from_domain', 'message_references_by_ref')",
+        ),
+        hasLength(2),
+      );
+      // References go with their message.
+      db.execute('DELETE FROM messages WHERE id = 1');
+      expect(
+        db.select('SELECT count(*) FROM message_references').first.columnAt(0),
+        1,
+      );
+    });
+
     test('a failing migration rolls back completely', () {
       temp.store.close();
       final broken = [

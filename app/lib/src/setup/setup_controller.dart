@@ -444,11 +444,15 @@ abstract final class SetupText {
     null => 'Starting…',
     DiscoveryStep.providerFileSecure =>
       'Asking your provider for its settings…',
+    DiscoveryStep.mozillaDatabase => 'Checking Mozilla\'s database…',
     DiscoveryStep.dnsRecords => 'Checking your domain\'s mail records…',
+    DiscoveryStep.mailHostProviderFile =>
+      'Asking your domain\'s mail host for its settings…',
     DiscoveryStep.providerFileUnencrypted =>
       'Trying your provider\'s settings file…',
+    DiscoveryStep.dnsService => 'Checking your domain\'s service records…',
     DiscoveryStep.probing => 'Trying common server names…',
-    DiscoveryStep.mozillaDatabase => 'Checking Mozilla\'s database…',
+    DiscoveryStep.autodiscover => 'Asking your domain\'s Exchange server…',
   };
 
   static String source(DiscoverySource source) => switch (source) {
@@ -457,6 +461,7 @@ abstract final class SetupText {
     DiscoverySource.httpAutoconfig => 'from your provider\'s settings file',
     DiscoverySource.probed => 'by trying common server names',
     DiscoverySource.mozillaDatabase => 'from Mozilla\'s database',
+    DiscoverySource.autodiscover => 'from your domain\'s Exchange server',
     DiscoverySource.builtIn => 'built into $appName',
     DiscoverySource.mailHost =>
       'from your domain\'s mail records (hosted by Google)',

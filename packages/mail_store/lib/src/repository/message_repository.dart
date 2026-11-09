@@ -130,12 +130,13 @@ final class MessageRepository {
                       .select(
                         'INSERT INTO messages (mailbox_id, uid, message_id_header, in_reply_to, thread_references, '
                         'subject, from_name, from_address, sent_at, received_at, size, flags, keywords, mod_seq, '
-                        'has_attachments, category, category_source, list_id, snippet, code, listed_at) '
-                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                        'has_attachments, category, category_source, list_id, snippet, code, listed_at, from_domain) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                         'ON CONFLICT (mailbox_id, uid) DO UPDATE SET '
                         'message_id_header = excluded.message_id_header, in_reply_to = excluded.in_reply_to, '
                         'thread_references = excluded.thread_references, subject = excluded.subject, '
                         'from_name = excluded.from_name, from_address = excluded.from_address, '
+                        'from_domain = excluded.from_domain, '
                         'sent_at = excluded.sent_at, received_at = excluded.received_at, size = excluded.size, '
                         'flags = excluded.flags, keywords = excluded.keywords, mod_seq = excluded.mod_seq, '
                         'has_attachments = excluded.has_attachments, snippet = excluded.snippet, '
@@ -170,6 +171,7 @@ final class MessageRepository {
                           s.snippet,
                           s.code,
                           s.receivedAt.toUtc().millisecondsSinceEpoch,
+                          _domainOf(s.from),
                         ],
                       )
                       .first
@@ -177,6 +179,7 @@ final class MessageRepository {
                   as int;
           _replaceAddresses(id, s);
           _replaceHeaders(id, s.headers);
+          _replaceReferences(id, s.references);
           _indexSummary(id, s);
           ids.add(id);
         }
@@ -241,10 +244,9 @@ final class MessageRepository {
           ],
       ],
     );
-    // Pinning (and the $Important keyword) changes the section.
-    for (final c in changes) {
-      SectionSql.refresh(_db, 'mailbox_id = ? AND uid = ?', [mailboxId, c.uid]);
-    }
+    // Pinning (and the $Important keyword) changes the section: one
+    // statement per 500 messages, not one per message.
+    SectionSql.refreshUids(_db, mailboxId, [for (final c in changes) c.uid]);
   });
 
   /// Removes messages by UID (with addresses, headers, body and index).
@@ -262,6 +264,16 @@ final class MessageRepository {
       .select('SELECT uid FROM messages WHERE mailbox_id = ? ORDER BY uid', [
         mailboxId,
       ])
+      .map((r) => r.columnAt(0) as int)
+      .toList(growable: false);
+
+  /// Cached UIDs of a folder above [uid], ascending: what arrived since a
+  /// UID was seen.
+  List<int> uidsAbove(int mailboxId, int uid) => _db
+      .select(
+        'SELECT uid FROM messages WHERE mailbox_id = ? AND uid > ? ORDER BY uid',
+        [mailboxId, uid],
+      )
       .map((r) => r.columnAt(0) as int)
       .toList(growable: false);
 
@@ -488,6 +500,28 @@ final class MessageRepository {
         pattern,
         limit.clamp(1, 50),
       ],
+    );
+    return [
+      for (final r in rows)
+        ?_address(r['name'] as String?, r['address'] as String?),
+    ];
+  }
+
+  /// Everyone [suggestAddresses] can offer, in the same order (people
+  /// the user has written to first, most used first), at most [limit]:
+  /// read once while writing a message and searched in memory, instead of
+  /// one query per key press.
+  List<MailAddress> suggestionCandidates({int limit = 5000}) {
+    final rows = _db.select(
+      'SELECT address, max(name) AS name, sum(weight) AS score FROM ('
+      'SELECT a.address AS address, a.name AS name, 10 AS weight FROM message_addresses a '
+      'JOIN messages m ON m.id = a.message_id JOIN mailboxes b ON b.id = m.mailbox_id '
+      "WHERE b.special_use = 'sent' AND a.kind IN ('to', 'cc', 'bcc') "
+      'UNION ALL '
+      'SELECT from_address, from_name, 1 FROM messages '
+      'WHERE from_address IS NOT NULL AND category = ?'
+      ') GROUP BY address COLLATE NOCASE ORDER BY score DESC, address LIMIT ?',
+      [MessageCategory.general.storageName, limit.clamp(1, 20000)],
     );
     return [
       for (final r in rows)
@@ -737,6 +771,90 @@ final class MessageRepository {
       (message: _fromRow(row), unsubscribe: row['unsubscribe'] == 1),
   ];
 
+  /// The mail [receivedSince] lists, added up per sender address (any
+  /// case) by SQLite: how much, how much of it opened, when the newest
+  /// came and which it is, and the newest with a `List-Unsubscribe`
+  /// header. One row per address instead of one object per message, so
+  /// the Clean up page does not read thousands of rows. Most mail first,
+  /// then the most recent.
+  List<SenderStats> senderStats(DateTime since) {
+    const from =
+        '$_from WHERE m.received_at >= ? AND m.from_address IS NOT NULL '
+        "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts', 'trash', 'junk')) ";
+    final at = since.toUtc().millisecondsSinceEpoch;
+    // Per address and display name; the bare columns (id, from_address)
+    // come from the row with the newest received_at, as SQLite defines
+    // for a query with one max().
+    final rows = _db.select(
+      'SELECT lower(m.from_address) AS address, m.from_name AS name, '
+      'count(*) AS n, sum((m.flags & 1) != 0) AS opened, '
+      "sum(m.category = 'newsletters') AS newsletters, "
+      "sum(m.category = 'notifications') AS notifications, "
+      'max(m.received_at) AS last, m.id AS newest_id, m.from_address AS spelled '
+      '$from AND $_notACopy '
+      'GROUP BY lower(m.from_address), m.from_name',
+      [at],
+    );
+    // The newest message with unsubscribe headers, per address.
+    final unsubscribe = {
+      for (final row in _db.select(
+        'SELECT lower(m.from_address) AS address, max(m.received_at) AS last, m.id AS newest_id '
+        '$from AND $_notACopy '
+        'AND EXISTS (SELECT 1 FROM message_headers h '
+        "WHERE h.message_id = m.id AND h.name = 'list-unsubscribe') "
+        'GROUP BY lower(m.from_address)',
+        [at],
+      ))
+        row['address'] as String: (row['newest_id'] as int, row['last'] as int),
+    };
+    final byAddress = <String, _SenderTotals>{};
+    for (final row in rows) {
+      final totals = byAddress.putIfAbsent(
+        row['address'] as String,
+        _SenderTotals.new,
+      );
+      final n = row['n'] as int;
+      final last = row['last'] as int;
+      totals.count += n;
+      totals.opened += row['opened'] as int;
+      totals.newsletters += row['newsletters'] as int;
+      totals.notifications += row['notifications'] as int;
+      if (last > totals.last) {
+        totals.last = last;
+        totals.newestId = row['newest_id'] as int;
+        totals.spelled = row['spelled'] as String;
+      }
+      final name = (row['name'] as String?)?.trim();
+      if (name != null && name.isNotEmpty) {
+        totals.names.update(name, (c) => c + n, ifAbsent: () => n);
+      }
+    }
+    final stats = [
+      for (final MapEntry(key: address, value: t) in byAddress.entries)
+        SenderStats(
+          from: _address(t.mostUsedName, t.spelled)!,
+          count: t.count,
+          opened: t.opened,
+          newsletters: t.newsletters,
+          notifications: t.notifications,
+          last: DateTime.fromMillisecondsSinceEpoch(t.last, isUtc: true),
+          newestId: t.newestId,
+          unsubscribeId: unsubscribe[address]?.$1,
+          unsubscribeAt: switch (unsubscribe[address]?.$2) {
+            final ms? => DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true),
+            null => null,
+          },
+        ),
+    ];
+    stats.sort((a, b) {
+      final byCount = b.count.compareTo(a.count);
+      if (byCount != 0) return byCount;
+      final byLast = b.last.compareTo(a.last);
+      return byLast != 0 ? byLast : a.from.address.compareTo(b.from.address);
+    });
+    return stats;
+  }
+
   List<SortableMessage> _sortable(
     Iterable<Row> rows,
     Iterable<Row> headerRows,
@@ -768,30 +886,78 @@ final class MessageRepository {
     ];
   }
 
+  /// How many bytes of downloaded bodies a [snapshot] keeps unless asked
+  /// otherwise: every body of the mail people undo one or a few at a
+  /// time, and a bound for "archive this whole list".
+  static const defaultSnapshotBodyBytes = 4 << 20;
+
   /// Everything stored about messages [ids] (summary, addresses, headers,
-  /// body, search text), to put them back with [restore] if the user
-  /// undoes a move or delete within a few seconds.
-  MessageSnapshot snapshot(List<int> ids) {
-    List<Map<String, Object?>> rows(String table, String key) => [
-      for (var i = 0; i < ids.length; i += 500)
+  /// search text), to put them back with [restore] if the user undoes a
+  /// move or delete within a few seconds. Downloaded bodies are kept
+  /// while they fit in [bodyBytes], in the order of [ids]; a message
+  /// whose body is left out comes back like one never downloaded (it is
+  /// fetched again when opened), so undoing a move of thousands of
+  /// messages never holds their bodies in memory.
+  MessageSnapshot snapshot(
+    List<int> ids, {
+    int bodyBytes = defaultSnapshotBodyBytes,
+  }) {
+    List<Map<String, Object?>> rows(
+      String table,
+      String key,
+      List<int> keys, [
+      String columns = '*',
+    ]) => [
+      for (var i = 0; i < keys.length; i += 500)
         for (final row in _db.select(
-          'SELECT * FROM $table WHERE $key IN (${_placeholders((ids.length - i).clamp(0, 500))})',
-          ids.sublist(i, (i + 500).clamp(0, ids.length)),
+          'SELECT $columns FROM $table WHERE $key IN (${_placeholders((keys.length - i).clamp(0, 500))})',
+          keys.sublist(i, (i + 500).clamp(0, keys.length)),
         ))
           {for (final column in row.keys) column: row[column]},
     ];
+    final sizes = {
+      for (final row in rows(
+        'message_bodies',
+        'message_id',
+        ids,
+        'message_id, length(raw) AS size',
+      ))
+        row['message_id'] as int: row['size'] as int,
+    };
+    final kept = <int>[];
+    var used = 0;
+    for (final id in ids) {
+      final size = sizes[id];
+      if (size == null || used + size > bodyBytes) continue;
+      kept.add(id);
+      used += size;
+    }
+    // The indexed body text goes with the body.
+    final search = rows(
+      'message_search',
+      'rowid',
+      ids,
+      'rowid AS id, subject, participants',
+    );
+    final bodyText = {
+      for (final row in rows(
+        'message_search',
+        'rowid',
+        kept,
+        'rowid AS id, body',
+      ))
+        row['id'] as int: row['body'],
+    };
+    for (final row in search) {
+      row['body'] = bodyText[row['id']] ?? '';
+    }
     return MessageSnapshot._(
-      messages: rows('messages', 'id'),
-      addresses: rows('message_addresses', 'message_id'),
-      headers: rows('message_headers', 'message_id'),
-      bodies: rows('message_bodies', 'message_id'),
-      search: [
-        for (final row in _db.select(
-          'SELECT rowid AS id, subject, participants, body FROM message_search WHERE rowid IN (${_placeholders(ids.length)})',
-          ids,
-        ))
-          {for (final column in row.keys) column: row[column]},
-      ],
+      messages: rows('messages', 'id', ids),
+      addresses: rows('message_addresses', 'message_id', ids),
+      headers: rows('message_headers', 'message_id', ids),
+      bodies: rows('message_bodies', 'message_id', kept),
+      search: search,
+      bodiesLeftOut: sizes.length - kept.length,
     );
   }
 
@@ -821,7 +987,12 @@ final class MessageRepository {
         'INSERT INTO messages (${columns.join(', ')}) VALUES (${_placeholders(columns.length)})',
         [for (final c in columns) row[c]],
       );
-      newIds[oldId] = idFree ? oldId : _db.lastInsertRowId;
+      final newId = idFree ? oldId : _db.lastInsertRowId;
+      newIds[oldId] = newId;
+      _replaceReferences(
+        newId,
+        ((row['thread_references'] as String?) ?? '').split(' '),
+      );
     }
     void copy(String table, List<Map<String, Object?>> rows) {
       for (final row in rows) {
@@ -1176,6 +1347,29 @@ final class MessageRepository {
     );
   }
 
+  /// Stores the message's References one per row (`message_references`),
+  /// so that "is this a reply to something the user sent" is an index
+  /// lookup. The joined list stays in `messages.thread_references`.
+  void _replaceReferences(int messageId, Iterable<String> references) {
+    _db.execute('DELETE FROM message_references WHERE message_id = ?', [
+      messageId,
+    ]);
+    _db.executeMany(
+      'INSERT OR IGNORE INTO message_references (message_id, ref) VALUES (?, ?)',
+      [
+        for (final ref in references.toSet())
+          if (ref.isNotEmpty) [messageId, ref],
+      ],
+    );
+  }
+
+  /// The sender's domain in lower case (`messages.from_domain`), or null
+  /// without a sender or a domain.
+  static String? _domainOf(MailAddress? from) {
+    final domain = from?.domain.toLowerCase();
+    return domain == null || domain.isEmpty ? null : domain;
+  }
+
   /// Indexes subject and participants, keeping any body text already
   /// indexed for this message.
   void _indexSummary(int messageId, MessageSummary s) {
@@ -1265,6 +1459,65 @@ final class MessageRepository {
   }
 }
 
+/// One sender's received mail, added up by the store (see
+/// [MessageRepository.senderStats]). What the Clean up page counts.
+final class SenderStats {
+  const SenderStats({
+    required this.from,
+    required this.count,
+    required this.opened,
+    required this.newsletters,
+    required this.notifications,
+    required this.last,
+    required this.newestId,
+    this.unsubscribeId,
+    this.unsubscribeAt,
+  });
+
+  /// The address as the newest message spelt it, with the display name
+  /// used most (or none).
+  final MailAddress from;
+
+  /// How many messages, and how many of them were opened.
+  final int count;
+  final int opened;
+
+  /// How many are newsletters, and notifications.
+  final int newsletters;
+  final int notifications;
+
+  /// When the newest came, and its stored id.
+  final DateTime last;
+  final int newestId;
+
+  /// The newest message with a `List-Unsubscribe` header, if any, and
+  /// when it came.
+  final int? unsubscribeId;
+  final DateTime? unsubscribeAt;
+}
+
+/// Running totals of one address while [MessageRepository.senderStats]
+/// adds up its rows (one per display name).
+final class _SenderTotals {
+  int count = 0, opened = 0, newsletters = 0, notifications = 0;
+  int last = -1;
+  int newestId = 0;
+  String spelled = '';
+  final names = <String, int>{};
+
+  String? get mostUsedName {
+    String? best;
+    var most = 0;
+    for (final MapEntry(key: name, value: n) in names.entries) {
+      if (n > most) {
+        best = name;
+        most = n;
+      }
+    }
+    return best;
+  }
+}
+
 /// Stored rows of some messages, kept briefly so a move or delete can be
 /// undone (see [MessageRepository.snapshot]). Lives in memory only.
 final class MessageSnapshot {
@@ -1274,13 +1527,20 @@ final class MessageSnapshot {
     required this.headers,
     required this.bodies,
     required this.search,
+    required this.bodiesLeftOut,
   });
 
   final List<Map<String, Object?>> messages;
   final List<Map<String, Object?>> addresses;
   final List<Map<String, Object?>> headers;
+
+  /// The downloaded bodies that fit the snapshot's size limit.
   final List<Map<String, Object?>> bodies;
   final List<Map<String, Object?>> search;
+
+  /// How many downloaded bodies did not fit: those messages come back
+  /// without one, and are downloaded again when opened.
+  final int bodiesLeftOut;
 
   bool get isEmpty => messages.isEmpty;
 }
