@@ -2,7 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_oauth/mail_oauth.dart';
@@ -111,6 +115,38 @@ final class AppServices {
   /// Receipts, bills and booking emails read ahead of time for the pages
   /// (started by the mail screen).
   final AutoReader autoRead;
+
+  /// Changes when stored mail was sorted again ([resortWhenIdle]): the
+  /// lists and counts are read again.
+  final resorted = ValueNotifier<int>(0);
+
+  /// Sorts mail stored by an older version (or with older rules) again
+  /// from its stored headers, without holding up start-up: after the
+  /// first frame and [idle] more, in small batches with a frame's pause
+  /// between them. Ends when the app closes; an unfinished run starts
+  /// again next time. Returns how many messages were looked at.
+  Future<int> resortWhenIdle({
+    Duration idle = const Duration(seconds: 2),
+  }) async {
+    try {
+      final resorter = Resorter(store, batchSize: 100);
+      if (!resorter.isNeeded) return 0;
+      await SchedulerBinding.instance.endOfFrame;
+      await Future<void>.delayed(idle);
+      bool stopped() => _disposing != null;
+      if (stopped()) return 0;
+      final count = await resorter.resortAll(
+        pause: const Duration(milliseconds: 16),
+        stopped: stopped,
+      );
+      if (!stopped()) resorted.value++;
+      return count;
+    } on Object catch (e) {
+      // Tried again at the next start.
+      debugPrint('resort: ${e.runtimeType}');
+      return 0;
+    }
+  }
 
   /// Saves a verified account: settings in the encrypted store, password in
   /// the keychain. If the keychain write fails, the account is removed
@@ -320,9 +356,6 @@ abstract final class AppStartup {
       final store = MailStore.open(path, key);
       final SyncWorker worker;
       try {
-        // Before the worker starts: mail stored by an older version (or
-        // with older rules) is sorted again from its stored headers.
-        await Resorter(store).resortIfNeeded();
         // Drafts left on the device (the app stopped while writing) go to
         // the server's Drafts folder with the next sync.
         DraftStore(store).moveLeftoversToServer();
@@ -337,6 +370,9 @@ abstract final class AppStartup {
       }
       final services = AppServices(store, keychain, worker, databasePath: path);
       await services.lock.start();
+      // Mail stored by an older version (or with older rules) is sorted
+      // again once the mail screen is up.
+      unawaited(services.resortWhenIdle());
       return StartupReady(services);
     } on SecretStoreUnavailableException catch (e) {
       return StartupKeychainUnavailable(e.message);

@@ -207,6 +207,8 @@ final class MailController {
     : list = MessageListModel(services.store),
       codeCleaner = CodeCleaner(services.store, services.actions) {
     _events = services.worker.events.listen(_onSyncEvent);
+    // Stored mail sorted again after start-up: sections change.
+    services.resorted.addListener(refresh);
     // What arrived since the app was last used (closed, or in the
     // background) is "New since you were away".
     list.away.cameBack();
@@ -1816,6 +1818,7 @@ final class MailController {
     _refreshSoon?.cancel();
     _wakeTimer?.cancel();
     unawaited(_events.cancel());
+    services.resorted.removeListener(refresh);
     list.dispose();
     location.dispose();
     counts.dispose();
