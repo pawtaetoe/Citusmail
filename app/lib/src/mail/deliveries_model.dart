@@ -14,6 +14,7 @@ import 'package:mail_view/mail_view.dart';
 import '../services/app_services.dart';
 import '../services/auto_reader.dart';
 import 'corrections.dart';
+import 'message_reads.dart';
 
 /// What [findDeliveries] found: every delivery the rules found ([hidden]
 /// and [learned] ones too, by key), those the user [marked] delivered,
@@ -99,7 +100,7 @@ List<int> deliveryMailToRead(
       if (m.size <= DeliveriesModel.maxBytes &&
           m.category != MessageCategory.newsletters &&
           !skip.contains(m.id) &&
-          store.messages.body(m.id) == null &&
+          !MessageReads.downloaded(store, m.id) &&
           worthReading(m))
         m.id,
   ].take(DeliveriesModel.readMax).toList();
@@ -394,9 +395,7 @@ Future<DeliveryMail> loadDeliveryMail(MailStore store, DateTime now) async {
     ...DeliveryFinder.subjectWords,
     ...ReturnWindows.subjectWords,
   ], since: now.subtract(DeliveriesModel.lookBack));
-  final read = await compute(_read, [
-    for (final m in candidates) (store.messages.body(m.id), m.snippet),
-  ]);
+  final read = await _reads.read(store, candidates);
   final emails = <DeliveryEmail>[];
   final shipping = <DeliveryEmail>[];
   for (final (i, m) in candidates.indexed) {
@@ -450,6 +449,9 @@ typedef _Read = ({
   List<ParcelDeliveryInfo> parcels,
   List<OrderInfo> orders,
 });
+
+/// What the Deliveries page has read of each message.
+final _reads = MessageReads<_Read>(_read, size: (r) => r.text.length);
 
 /// Each message's text (the downloaded body, capped, else its preview)
 /// and the schema.org data in its raw HTML part, read before the HTML is

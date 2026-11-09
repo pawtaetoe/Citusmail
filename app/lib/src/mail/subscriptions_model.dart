@@ -8,12 +8,12 @@ import 'package:flutter/foundation.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
-import 'package:mail_view/mail_view.dart';
 
 import '../services/app_services.dart';
 import '../services/auto_reader.dart';
 import '../services/reminders.dart';
 import 'corrections.dart';
+import 'message_reads.dart';
 
 /// The mail subscriptions and reminders are read from: receipts, bills,
 /// renewal and trial emails of the last two years.
@@ -33,9 +33,7 @@ Future<SubscriptionMail> loadSubscriptionMail(
     SubscriptionFinder.subjectWords,
     since: now.subtract(SubscriptionsModel.lookBack),
   );
-  final texts = await compute(_texts, [
-    for (final m in candidates) (store.messages.body(m.id), m.snippet),
-  ]);
+  final texts = await plainTextReads.read(store, candidates);
   return (
     messages: candidates,
     emails: <SubscriptionEmail>[
@@ -162,7 +160,7 @@ List<int> subscriptionMailToRead(
   final sizes = {for (final m in mail.messages) m.id: m.size};
   bool wanted(int id) =>
       !skip.contains(id) &&
-      store.messages.body(id) == null &&
+      !MessageReads.downloaded(store, id) &&
       (sizes[id] ?? 0) <= SubscriptionsModel.maxBytes;
   // Bills and trials whose date is known need nothing more.
   final dated = {
@@ -402,16 +400,3 @@ final class SubscriptionsModel extends ChangeNotifier {
 
   StoredMessage? message(int id) => _store.messages.byId(id);
 }
-
-/// Each message's text: the downloaded body when there is one (capped),
-/// else its preview.
-List<String> _texts(List<(Uint8List?, String?)> messages) => [
-  for (final (raw, snippet) in messages)
-    if (raw != null)
-      () {
-        final text = MessageView.parse(raw).body.plainText;
-        return text.length > 20000 ? text.substring(0, 20000) : text;
-      }()
-    else
-      snippet ?? '',
-];
