@@ -161,6 +161,37 @@ void main() {
       expect(store().settings.read(NewSinceAway.awayKey), isNull);
     });
 
+    test('a long day back: later mail is not paged through', () {
+      seedNight();
+      final a = away()..wentAway(_left);
+      a.cameBack(_back);
+      // A thousand messages came in since she is back (more than the
+      // section ever pages through).
+      store().messages.upsertSummaries(inbox().id, [
+        for (var i = 0; i < 1000; i++)
+          MessageSummary(
+            uid: 5000 + i,
+            receivedAt: _back.add(Duration(minutes: i + 1)),
+            subject: 'Later $i',
+            from: _address('bob@x.example', 'Bob'),
+          ),
+      ]);
+      final mail = a.mail();
+      expect(subjects(mail), [
+        'Standup moved to 10',
+        'Contract draft, v3',
+        'Dinner on Friday?',
+      ]);
+      expect(a.mail(), same(mail), reason: 'nothing changed: kept');
+
+      // Read on the phone: listed again, with the new state.
+      final dinner = mail.messages.last;
+      store().messages.updateFlags(inbox().id, [
+        (uid: dinner.uid, flags: const MessageFlags(1), modSeq: null),
+      ]);
+      expect(a.mail().unread, mail.unread - 1);
+    });
+
     test('going away twice keeps the first time', () {
       final a = away()..wentAway(_left);
       a.wentAway(_left.add(const Duration(hours: 3)));

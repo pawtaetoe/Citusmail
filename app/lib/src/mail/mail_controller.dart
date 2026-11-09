@@ -21,6 +21,7 @@ import 'mail_location.dart';
 import 'message_list_model.dart';
 import 'new_since_away.dart';
 import 'send_later_times.dart';
+import 'store_changes.dart';
 
 /// How a sender can be blocked.
 final class BlockChoice {
@@ -338,14 +339,24 @@ final class MailController {
     _scheduleWake();
   }
 
+  /// Counts are read again only when something in the store changed.
+  late final _changes = StoreChanges(_store);
+  (int, int)? _countsStamp;
+
   void _refreshCounts() {
+    final stamp = _changes.stamp;
+    if (stamp == _countsStamp) return;
+    _countsStamp = stamp;
     final accounts = _store.accounts.all();
+    final sections = list.sectionCounts();
     counts.value = MailCounts(
-      sections: _store.messages.sectionCounts(),
+      sections: sections,
       perAccountUnread: {
         for (final a in accounts)
           a.id: MailCounts.unreadIn(
-            _store.messages.sectionCounts(accountIds: [a.id]),
+            accounts.length == 1
+                ? sections
+                : list.sectionCounts(accountId: a.id),
           ),
       },
       folderUnread: _store.messages.unreadCounts(),
