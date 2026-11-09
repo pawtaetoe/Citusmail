@@ -1457,6 +1457,13 @@ void main() {
         'per_cent@x.example',
       ]);
       expect(store.messages.suggestAddresses('  '), isEmpty);
+      // Read once while writing a message, in the same order.
+      expect(store.messages.suggestionCandidates().map((m) => m.address), [
+        'carol@x.example',
+        'caroline@x.example',
+        'per_cent@x.example',
+      ]);
+      expect(store.messages.suggestionCandidates(limit: 1), hasLength(1));
     });
   });
 

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:citusmail/src/compose/compose_page.dart';
+import 'package:citusmail/src/compose/recipient_field.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:flutter/gestures.dart';
@@ -70,6 +71,7 @@ void main() {
       await tester.tap(find.byTooltip('New message (C)'));
       await settle(tester);
       await tester.enterText(toField(), 'car');
+      await tester.pump(RecipientField.pause);
       await tester.pump();
       final suggestion = find.text('carol@x.example');
       expect(suggestion, findsOneWidget);

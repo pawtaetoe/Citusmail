@@ -17,7 +17,10 @@ void main() {
     displayName: 'Tommy Kung',
   );
 
+  var looked = <String>[];
+
   Future<RecipientList> show(WidgetTester tester) async {
+    looked = [];
     final list = RecipientList(const []);
     await tester.pumpWidget(
       MaterialApp(
@@ -28,12 +31,15 @@ void main() {
                 label: 'To',
                 list: list,
                 autofocus: true,
-                suggest: (text) => [
-                  if ('tommy kung tommykung4@gmail.com'.contains(
-                    text.toLowerCase(),
-                  ))
-                    tommy,
-                ],
+                suggest: (text) {
+                  looked.add(text);
+                  return [
+                    if ('tommy kung tommykung4@gmail.com'.contains(
+                      text.toLowerCase(),
+                    ))
+                      tommy,
+                  ];
+                },
               ),
               const TextField(),
             ],
@@ -51,6 +57,7 @@ void main() {
       final platform = defaultTargetPlatform;
       final list = await show(tester);
       await tester.enterText(find.byType(TextField).first, 'tom');
+      await tester.pump(RecipientField.pause);
       await tester.pump();
       expect(find.text('Tommy Kung'), findsOneWidget);
 
@@ -74,4 +81,18 @@ void main() {
       TargetPlatform.windows,
     }),
   );
+
+  testWidgets('suggestions are looked up once typing pauses', (tester) async {
+    await show(tester);
+    final field = find.byType(TextField).first;
+    for (final typed in ['to', 'tom', 'tomm', 'tommy']) {
+      await tester.enterText(field, typed);
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(looked, isEmpty, reason: 'nothing while typing');
+    await tester.pump(RecipientField.pause);
+    await tester.pump();
+    expect(looked, ['tommy']);
+    expect(find.text('Tommy Kung'), findsOneWidget);
+  });
 }

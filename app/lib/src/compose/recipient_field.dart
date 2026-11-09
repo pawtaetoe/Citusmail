@@ -21,6 +21,9 @@ final class RecipientField extends StatefulWidget {
     this.autofocus = false,
   });
 
+  /// How long typing pauses before suggestions are looked up.
+  static const pause = Duration(milliseconds: 150);
+
   final String label;
   final RecipientList list;
   final List<MailAddress> Function(String text) suggest;
@@ -54,6 +57,16 @@ final class _RecipientFieldState extends State<RecipientField> {
   void _commit() {
     widget.list.pending = _text.text;
     if (widget.list.commit()) _text.clear();
+  }
+
+  /// Suggestions once typing pauses: nothing is looked up for the
+  /// letters typed in between.
+  Future<Iterable<MailAddress>> _options(TextEditingValue value) async {
+    final text = value.text;
+    if (text.trim().length < 2) return const [];
+    await Future<void>.delayed(RecipientField.pause);
+    if (!mounted || _text.text != text) return const [];
+    return widget.suggest(text);
   }
 
   void _onChanged(String value) {
@@ -107,9 +120,7 @@ final class _RecipientFieldState extends State<RecipientField> {
                     child: RawAutocomplete<MailAddress>(
                       textEditingController: _text,
                       focusNode: _focus,
-                      optionsBuilder: (value) => value.text.trim().length < 2
-                          ? const []
-                          : widget.suggest(value.text),
+                      optionsBuilder: _options,
                       displayStringForOption: (a) => a.address,
                       onSelected: (address) {
                         widget.list
