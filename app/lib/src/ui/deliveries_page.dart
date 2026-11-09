@@ -13,6 +13,7 @@ import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
 import 'delivery_detail_page.dart';
+import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'returns_section.dart';
 
@@ -101,17 +102,13 @@ final class _DeliveriesPageState extends State<DeliveriesPage> with ReadsAhead {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Deliveries'),
-      actions: [
-        IconButton(
-          tooltip: 'How is this found?',
-          icon: const Icon(Icons.help_outline),
-          onPressed: () => _HowDialog.show(context),
-        ),
-      ],
+  Widget build(BuildContext context) => PageScaffold(
+    title: 'Deliveries',
+    help: (
+      tooltip: 'How is this found?',
+      onPressed: () => _HowDialog.show(context),
     ),
+
     body: SafeArea(
       top: false,
       child: ListenableBuilder(

@@ -15,6 +15,7 @@ import 'badge.dart';
 import 'block_dialog.dart';
 import 'citusmail_theme.dart';
 import 'mail_shell.dart';
+import 'page_scaffold.dart';
 import 'unsubscribe_dialog.dart';
 
 /// Senders whose mail piles up: who sends the most, and whose mail is
@@ -237,7 +238,13 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
             onAction: (a) => _act(a, picked),
             compact: phone,
           );
-          return Scaffold(
+          return PageScaffold(
+            title: 'Clean up',
+            help: (
+              tooltip: 'How is this worked out?',
+              onPressed: () => _HowDialog.show(context),
+            ),
+            maxWidth: 820,
             appBar: selecting
                 ? AppBar(
                     backgroundColor: Theme.of(context)
@@ -251,16 +258,7 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
                     title: Text('${picked.length} selected'),
                     actions: [if (!phone) actions, const SizedBox(width: 8)],
                   )
-                : AppBar(
-                    title: const Text('Clean up'),
-                    actions: [
-                      IconButton(
-                        tooltip: 'How is this worked out?',
-                        icon: const Icon(Icons.help_outline),
-                        onPressed: () => _HowDialog.show(context),
-                      ),
-                    ],
-                  ),
+                : null,
             bottomNavigationBar: phone && selecting
                 ? Material(
                     color: Theme.of(context).colorScheme.surfaceContainer,

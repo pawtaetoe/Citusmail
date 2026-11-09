@@ -119,6 +119,11 @@ void main() {
     // All senders: not Carol, whom the user has written to.
     await tester.tap(find.text('All senders'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Stranger Danger'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('Stranger Danger'), findsOneWidget);
     expect(find.text('Carol'), findsNothing);
   });

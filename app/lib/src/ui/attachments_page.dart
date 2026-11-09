@@ -14,6 +14,7 @@ import '../mail/mail_controller.dart';
 import 'app_icons.dart';
 import 'attachment_save_flow.dart';
 import 'mail_text.dart';
+import 'page_scaffold.dart';
 import 'reader_pane.dart';
 import 'trust_banner.dart';
 
@@ -157,17 +158,13 @@ final class _AttachmentsPageState extends State<AttachmentsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Attachments'),
-      actions: [
-        IconButton(
-          tooltip: 'How is this found?',
-          icon: const Icon(Icons.help_outline),
-          onPressed: () => _HowDialog.show(context),
-        ),
-      ],
+  Widget build(BuildContext context) => PageScaffold(
+    title: 'Attachments',
+    help: (
+      tooltip: 'How is this found?',
+      onPressed: () => _HowDialog.show(context),
     ),
+    maxWidth: 900,
     body: SafeArea(
       top: false,
       child: LayoutBuilder(

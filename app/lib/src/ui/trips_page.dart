@@ -12,6 +12,7 @@ import 'app_icons.dart';
 import 'badge.dart';
 import 'booking_detail_page.dart';
 import 'booking_text.dart';
+import 'page_scaffold.dart';
 import 'read_ahead.dart';
 
 /// Flights, stays, trains, buses, rental cars, tables and tickets found
@@ -93,17 +94,13 @@ final class _TripsPageState extends State<TripsPage> with ReadsAhead {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Trips'),
-      actions: [
-        IconButton(
-          tooltip: 'How is this found?',
-          icon: const Icon(Icons.help_outline),
-          onPressed: () => _HowDialog.show(context),
-        ),
-      ],
+  Widget build(BuildContext context) => PageScaffold(
+    title: 'Trips',
+    help: (
+      tooltip: 'How is this found?',
+      onPressed: () => _HowDialog.show(context),
     ),
+
     body: SafeArea(
       top: false,
       child: ListenableBuilder(

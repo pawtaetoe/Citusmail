@@ -23,6 +23,7 @@ import 'code_cleanup_banner.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
 import 'link_opener.dart';
+import 'page_scaffold.dart';
 import 'privacy_report_page.dart';
 import 'screener_page.dart';
 
@@ -357,8 +358,9 @@ final class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final settings = widget.services.settings;
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+    return PageScaffold(
+      title: 'Settings',
+      boundBody: true,
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [

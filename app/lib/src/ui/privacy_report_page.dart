@@ -12,6 +12,7 @@ import 'app_icons.dart';
 import 'avatar.dart';
 import 'citusmail_theme.dart';
 import 'mail_shell.dart';
+import 'page_scaffold.dart';
 
 /// What the app kept from senders lately, like a browser's "trackers
 /// blocked": trackers, remote images, tracking tags on links, read
@@ -78,8 +79,8 @@ final class _PrivacyReportPageState extends State<PrivacyReportPage> {
         onSelectionChanged: (s) => _model.select(s.single),
       ),
     );
-    return Scaffold(
-      appBar: AppBar(title: const Text('Privacy report')),
+    return PageScaffold(
+      title: 'Privacy report',
       // Phone: the period switch within thumb reach.
       bottomNavigationBar: phone
           ? Material(

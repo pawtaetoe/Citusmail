@@ -47,6 +47,8 @@ void main() {
 
     // About, Privacy still opens the report.
     await tester.scrollUntilVisible(find.text('Privacy'), 200);
+    await tester.ensureVisible(find.text('Privacy'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Privacy'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));

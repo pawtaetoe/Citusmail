@@ -11,6 +11,7 @@ import 'app_icons.dart';
 import 'avatar.dart';
 import 'mail_shell.dart';
 import 'mail_text.dart';
+import 'page_scaffold.dart';
 import 'subscription_detail_page.dart' show EmailPage;
 
 /// What happens to screened-out mail, in words.
@@ -78,8 +79,8 @@ final class _ScreenerPageState extends State<ScreenerPage> {
     final current = _current;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final place = _c.services.store.screener.outPlace;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Screener')),
+    return PageScaffold(
+      title: 'Screener',
       body: SafeArea(
         top: false,
         bottom: !phone,

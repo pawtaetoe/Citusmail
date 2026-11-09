@@ -13,6 +13,7 @@ import 'appointment_detail_page.dart';
 import 'appointment_text.dart';
 import 'badge.dart';
 import 'citusmail_theme.dart';
+import 'page_scaffold.dart';
 import 'read_ahead.dart';
 
 /// Appointments found in booking mail: a dentist, a salon, a car service,
@@ -92,17 +93,13 @@ final class _AppointmentsPageState extends State<AppointmentsPage>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Appointments'),
-      actions: [
-        IconButton(
-          tooltip: 'How is this found?',
-          icon: const Icon(Icons.help_outline),
-          onPressed: () => _HowDialog.show(context),
-        ),
-      ],
+  Widget build(BuildContext context) => PageScaffold(
+    title: 'Appointments',
+    help: (
+      tooltip: 'How is this found?',
+      onPressed: () => _HowDialog.show(context),
     ),
+
     body: SafeArea(
       top: false,
       child: ListenableBuilder(

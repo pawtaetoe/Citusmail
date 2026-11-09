@@ -12,6 +12,7 @@ import '../services/reminders.dart';
 import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
+import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'subscription_detail_page.dart';
 
@@ -127,17 +128,13 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Subscriptions'),
-      actions: [
-        IconButton(
-          tooltip: 'How is this found?',
-          icon: const Icon(Icons.help_outline),
-          onPressed: () => _HowDialog.show(context),
-        ),
-      ],
+  Widget build(BuildContext context) => PageScaffold(
+    title: 'Subscriptions',
+    help: (
+      tooltip: 'How is this found?',
+      onPressed: () => _HowDialog.show(context),
     ),
+
     body: SafeArea(
       top: false,
       child: ListenableBuilder(

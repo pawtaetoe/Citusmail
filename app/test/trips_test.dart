@@ -133,7 +133,13 @@ void main() {
     );
     expect(find.text('Bangkok'), findsOneWidget);
     expect(find.text('TR 616 · SIN 7:00 AM → BKK 8:25 AM'), findsOneWidget);
-    // A booking email not on the device yet is offered for reading.
+    // A booking email not on the device yet is offered for reading, at
+    // the top.
+    await tester.scrollUntilVisible(
+      find.textContaining('found in 1 booking email'),
+      -200,
+      scrollable: list,
+    );
     expect(find.textContaining('found in 1 booking email'), findsOneWidget);
     expect(find.text('Read booking emails'), findsOneWidget);
   });
