@@ -325,9 +325,9 @@ jobs:
           version="$(sed -n 's/^version: *//p' app/pubspec.yaml | cut -d+ -f1)"
           apks=app/build/app/outputs/flutter-apk
           mkdir -p build/packages
-          cp "$apks/app-github-arm64-v8a-release.apk" "build/packages/citusmail-$version.apk"
-          cp "$apks/app-github-armeabi-v7a-release.apk" "build/packages/citusmail-$version-armeabi-v7a.apk"
-          cp "$apks/app-github-x86_64-release.apk" "build/packages/citusmail-$version-x86_64.apk"
+          cp "$apks/app-arm64-v8a-github-release.apk" "build/packages/citusmail-$version.apk"
+          cp "$apks/app-armeabi-v7a-github-release.apk" "build/packages/citusmail-$version-armeabi-v7a.apk"
+          cp "$apks/app-x86_64-github-release.apk" "build/packages/citusmail-$version-x86_64.apk"
           cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
       - name: The Play bundle has Instant mail and the mail check
         run: packaging/android/check-play-bundle.sh build/packages/*.aab
@@ -428,9 +428,9 @@ jobs:
           version="$(sed -n 's/^version: *//p' app/pubspec.yaml | cut -d+ -f1)"
           apks=app/build/app/outputs/flutter-apk
           mkdir -p build/packages
-          cp "$apks/app-github-arm64-v8a-release.apk" "build/packages/citusmail-$version.apk"
-          cp "$apks/app-github-armeabi-v7a-release.apk" "build/packages/citusmail-$version-armeabi-v7a.apk"
-          cp "$apks/app-github-x86_64-release.apk" "build/packages/citusmail-$version-x86_64.apk"
+          cp "$apks/app-arm64-v8a-github-release.apk" "build/packages/citusmail-$version.apk"
+          cp "$apks/app-armeabi-v7a-github-release.apk" "build/packages/citusmail-$version-armeabi-v7a.apk"
+          cp "$apks/app-x86_64-github-release.apk" "build/packages/citusmail-$version-x86_64.apk"
           cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
       - name: The Play bundle has Instant mail and the mail check
         run: packaging/android/check-play-bundle.sh build/packages/*.aab

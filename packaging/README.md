@@ -195,7 +195,7 @@ permission and type, the boot receiver) or WorkManager's check is
 missing. CI runs it on every Android build, and checks that each GitHub
 APK has Instant mail too.
 
-Outputs of a flavored build: `app/build/app/outputs/flutter-apk/app-github-<abi>-release.apk`
+Outputs of a flavored build: `app/build/app/outputs/flutter-apk/app-<abi>-github-release.apk`
 (`arm64-v8a`, `armeabi-v7a`, `x86_64`, with `--split-per-abi`; one
 `app-github-release.apk` without it) and
 `app/build/app/outputs/bundle/playRelease/app-play-release.aab`.
