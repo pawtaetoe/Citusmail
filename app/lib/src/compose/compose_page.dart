@@ -193,7 +193,7 @@ final class _ComposePageState extends State<ComposePage> {
                         icon: const Icon(AppIcons.close),
                         onPressed: _close,
                       ),
-                      const SizedBox(width: 4),
+                      if (!phone) const SizedBox(width: 4),
                       // Phones: no room for a title next to the buttons
                       // (the subject field shows it); Send keeps the edge.
                       if (phone)
@@ -248,7 +248,7 @@ final class _ComposePageState extends State<ComposePage> {
                         icon: const Icon(AppIcons.delete),
                         onPressed: _discard,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: phone ? 2 : 8),
                       _SendButton(
                         onSend: _send,
                         onSendLater: _sendLater,

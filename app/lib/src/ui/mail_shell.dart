@@ -327,6 +327,7 @@ final class _MailShellState extends State<MailShell> {
                         controller: _controller,
                         showBack: true,
                         toolbarAtBottom: true,
+                        replyBar: false,
                       )
                     : list,
               );
