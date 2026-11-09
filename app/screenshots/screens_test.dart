@@ -598,6 +598,23 @@ void main() {
     await shoot(tester, 'desktop_setup');
   });
 
+  testWidgets('setup on a phone', (tester) async {
+    await show(
+      tester,
+      SetupPage(
+        controller: SetupController(
+          discover: (email, {askMozillaConsent, onStep}) async =>
+              const DiscoveryResult(null),
+          verify: (s, p) async => const VerificationResult.success(),
+          save: (s, p, {displayName}) async => throw UnimplementedError(),
+        ),
+        onDone: (_) {},
+      ),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'phone_setup');
+  });
+
   // Old verification codes: the question in the Verification section,
   // the notice after tidying up, and the setting.
   testWidgets('code cleanup', (tester) async {
