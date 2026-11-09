@@ -261,6 +261,10 @@ final class AccountSynchronizer {
     }
   }
 
+  /// Makes the next sync of [accountId] read the folder list, however
+  /// recently it was read (a folder was just added on the server).
+  void listFoldersNextTime(int accountId) => _listedAt.remove(accountId);
+
   /// Reads the folder list when it is older than [listInterval] (or there
   /// is none yet), or when [force]d. Returns whether it did.
   Future<bool> _listFolders(

@@ -119,6 +119,17 @@ void main() {
       expect(server.since(0, 'LIST'), hasLength(2));
     });
 
+    test('can be asked for on the next sync', () async {
+      await synchronizer.sync(account);
+      server.folders['Projects'] = FakeFolder();
+      synchronizer.listFoldersNextTime(account.id);
+      await synchronizer.sync(account, mailboxIds: const {});
+      expect(
+        store.mailboxes.forAccount(account.id).map((m) => m.name),
+        contains('Projects'),
+      );
+    });
+
     test('a folder deleted elsewhere in between is no failure', () async {
       server.folders['Projects'] = FakeFolder()..add(subject: 'plans');
       await synchronizer.sync(account);
