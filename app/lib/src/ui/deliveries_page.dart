@@ -16,6 +16,7 @@ import 'delivery_detail_page.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'returns_section.dart';
+import 'skeleton_rows.dart';
 
 /// Shipped orders found in shop and carrier mail: what is on the way and
 /// when it should arrive, then what arrived lately. Found on the device.
@@ -115,7 +116,10 @@ final class _DeliveriesPageState extends State<DeliveriesPage> with ReadsAhead {
         listenable: _model,
         builder: (context, _) {
           if (_model.loading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonRows(
+              label: 'Finding deliveries…',
+              maxWidth: PageScaffold.width,
+            );
           }
           final onTheWay = _model.onTheWay;
           final delivered = _model.delivered;

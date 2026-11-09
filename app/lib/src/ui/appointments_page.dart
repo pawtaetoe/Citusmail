@@ -15,6 +15,7 @@ import 'badge.dart';
 import 'citusmail_theme.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
+import 'skeleton_rows.dart';
 
 /// Appointments found in booking mail: a dentist, a salon, a car service,
 /// an interview, a class. What is coming up, then the past year, folded.
@@ -106,7 +107,10 @@ final class _AppointmentsPageState extends State<AppointmentsPage>
         listenable: _model,
         builder: (context, _) {
           if (_model.loading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonRows(
+              label: 'Finding appointments…',
+              maxWidth: PageScaffold.width,
+            );
           }
           final upcoming = _model.upcoming;
           final past = _model.past;

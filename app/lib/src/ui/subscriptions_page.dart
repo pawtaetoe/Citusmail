@@ -14,6 +14,7 @@ import 'avatar.dart';
 import 'badge.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
+import 'skeleton_rows.dart';
 import 'subscription_detail_page.dart';
 
 /// Paid subscriptions found in the user's receipts and renewal mail: what
@@ -141,7 +142,10 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
         listenable: _model,
         builder: (context, _) {
           if (_model.loading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonRows(
+              label: 'Finding subscriptions…',
+              maxWidth: PageScaffold.width,
+            );
           }
           final all = _model.subscriptions;
           final soon = _model.renewingSoon.toSet();

@@ -14,6 +14,7 @@ import 'avatar.dart';
 import 'badge.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
+import 'skeleton_rows.dart';
 
 /// Online services the user has an account with, found in welcome,
 /// sign-in, password and security mail on the device: useful after a
@@ -128,7 +129,10 @@ final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
         listenable: _model,
         builder: (context, _) {
           if (_model.loading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonRows(
+              label: 'Finding online accounts…',
+              maxWidth: PageScaffold.width,
+            );
           }
           final all = _model.accounts;
           final addresses = _model.addressesUsed;

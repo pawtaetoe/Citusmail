@@ -14,6 +14,7 @@ import 'booking_detail_page.dart';
 import 'booking_text.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
+import 'skeleton_rows.dart';
 
 /// Flights, stays, trains, buses, rental cars, tables and tickets found
 /// in booking mail, put together into trips: what is coming up, each
@@ -107,7 +108,10 @@ final class _TripsPageState extends State<TripsPage> with ReadsAhead {
         listenable: _model,
         builder: (context, _) {
           if (_model.loading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonRows(
+              label: 'Finding trips…',
+              maxWidth: PageScaffold.width,
+            );
           }
           final upcoming = _model.upcoming;
           final past = _model.past;

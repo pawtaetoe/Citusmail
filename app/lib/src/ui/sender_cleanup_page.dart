@@ -16,6 +16,7 @@ import 'block_dialog.dart';
 import 'citusmail_theme.dart';
 import 'mail_shell.dart';
 import 'page_scaffold.dart';
+import 'skeleton_rows.dart';
 import 'unsubscribe_dialog.dart';
 
 /// Senders whose mail piles up: who sends the most, and whose mail is
@@ -277,7 +278,10 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
 
   Widget _body(BuildContext context) {
     if (_model.loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonRows(
+        label: 'Looking through your mail…',
+        maxWidth: 820,
+      );
     }
     final shown = _model.shown;
     final kept = _model.keptGroups;
