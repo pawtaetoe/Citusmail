@@ -18,6 +18,7 @@ import 'receipt_collector.dart';
 import 'screener_archiver.dart';
 import 'sender_blocker.dart';
 import 'server_rules.dart';
+import 'sync_connections.dart';
 import 'sync_worker.dart';
 
 /// Why a sync could not finish, in terms the app can act on.
@@ -103,7 +104,7 @@ final class AccountSyncReport {
 
 /// One full sync of an account, in a fixed order:
 ///
-/// 1. refresh the folder list;
+/// 1. refresh the folder list (at most every [listInterval]);
 /// 2. replay queued local actions (so the server has the user's changes);
 /// 3. sync each folder (so the cache has everyone else's changes),
 ///    without overwriting changes still waiting in the queue.
@@ -118,7 +119,11 @@ final class AccountSynchronizer {
     this._screener,
     this._appData,
     this._serverRules,
-  });
+    SyncConnections? connections,
+    this.listInterval = const Duration(minutes: 15),
+    DateTime Function()? now,
+  }) : _connections = connections ?? SyncConnections.unpooled(_connector),
+       _now = now ?? DateTime.now;
 
   final MailStore _store;
   final MailConnector _connector;
@@ -129,6 +134,16 @@ final class AccountSynchronizer {
   final ScreenerArchiver? _screener;
   final AppDataSync? _appData;
   final ServerRules? _serverRules;
+  final SyncConnections _connections;
+  final DateTime Function() _now;
+
+  /// How often the folder list is read again. Folders are rarely added
+  /// or removed, and one that disappears in between is noticed when it
+  /// can no longer be opened.
+  final Duration listInterval;
+
+  /// When each account's folders were last listed.
+  final _listedAt = <int, DateTime>{};
 
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled). Without, every
@@ -138,9 +153,9 @@ final class AccountSynchronizer {
     Account account, {
     Set<int>? mailboxIds,
   }) async {
-    final imap = await _connector.imap(account);
+    final imap = await _connections.take(account);
     try {
-      _store.mailboxes.replaceAll(account.id, await imap.listMailboxes());
+      final listed = await _listFolders(account, imap);
       final replay = await _replayer.replay(
         imap,
         account,
@@ -151,6 +166,8 @@ final class AccountSynchronizer {
         account,
         imap,
         foldersToSync(_store.mailboxes.forAccount(account.id), mailboxIds),
+        full: mailboxIds == null,
+        listed: listed,
       );
       // 4. Blocked senders, then the user's folder rules, then screened-out
       // senders (when they go to Archive), on new inbox mail; their moves
@@ -217,9 +234,33 @@ final class AccountSynchronizer {
         appDataFailure: appDataFailure,
         serverRules: serverRules,
       );
+    } on Object {
+      // List again next time, in case a folder changed.
+      _listedAt.remove(account.id);
+      rethrow;
     } finally {
-      await imap.logout();
+      await _connections.give(account, imap);
     }
+  }
+
+  /// Reads the folder list when it is older than [listInterval] (or there
+  /// is none yet), or when [force]d. Returns whether it did.
+  Future<bool> _listFolders(
+    Account account,
+    ImapClient imap, {
+    bool force = false,
+  }) async {
+    final now = _now();
+    final last = _listedAt[account.id];
+    if (!force &&
+        last != null &&
+        now.difference(last) < listInterval &&
+        _store.mailboxes.forAccount(account.id).isNotEmpty) {
+      return false;
+    }
+    _store.mailboxes.replaceAll(account.id, await imap.listMailboxes());
+    _listedAt[account.id] = now;
+    return true;
   }
 
   /// Syncs [folders], the inbox first, over [imap] and up to
@@ -227,16 +268,23 @@ final class AccountSynchronizer {
   /// folder when it is done with one. A connection the server refuses is
   /// simply not used. After a folder fails, no new one is started and the
   /// first failure is thrown once the others are done.
+  ///
+  /// When the folder list was not [listed] in this sync, a folder the
+  /// server refuses to open may have been deleted elsewhere: the list is
+  /// read again, and a folder that is gone is no failure.
   Future<Map<int, MailboxSyncResult>> _syncFolders(
     Account account,
     ImapClient imap,
-    Iterable<StoredMailbox> folders,
-  ) async {
+    Iterable<StoredMailbox> folders, {
+    required bool full,
+    required bool listed,
+  }) async {
     final queue = Queue.of(
       [...folders]..sort((a, b) => (b.isInbox ? 1 : 0) - (a.isInbox ? 1 : 0)),
     );
     final results = <int, MailboxSyncResult>{};
     (Object, StackTrace)? failure;
+    final refused = <StoredMailbox, (Object, StackTrace)>{};
 
     Future<void> work(ImapClient client, MailboxSynchronizer sync) async {
       while (queue.isNotEmpty && failure == null) {
@@ -248,6 +296,10 @@ final class AccountSynchronizer {
             pendingUids: pendingUids(account.id, mailbox.id),
           );
         } on Object catch (e, s) {
+          if (e is ImapCommandException && !listed) {
+            refused[mailbox] = (e, s);
+            continue;
+          }
           failure ??= (e, s);
         }
       }
@@ -256,18 +308,14 @@ final class AccountSynchronizer {
     Future<void> extra() async {
       final ImapClient client;
       try {
-        client = await _connector.imap(account);
+        client = await _connections.take(account);
       } on Object {
         return; // Too many connections, or offline: the others go on.
       }
       try {
         await work(client, _mailboxSync.another());
       } finally {
-        try {
-          await client.logout();
-        } on Object {
-          // Already gone.
-        }
+        await _connections.give(account, client);
       }
     }
 
@@ -277,6 +325,17 @@ final class AccountSynchronizer {
       for (var i = 0; i < extras; i++) extra(),
     ]);
     if (failure case (final e, final s)) Error.throwWithStackTrace(e, s);
+    if (refused.isNotEmpty) {
+      await _listFolders(account, imap, force: true);
+      final names = {
+        for (final m in _store.mailboxes.forAccount(account.id)) m.encodedName,
+      };
+      for (final MapEntry(key: mailbox, value: (e, s)) in refused.entries) {
+        if (names.contains(mailbox.encodedName)) {
+          Error.throwWithStackTrace(e, s);
+        }
+      }
+    }
     return results;
   }
 
