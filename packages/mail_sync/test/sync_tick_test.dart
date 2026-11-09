@@ -7,6 +7,7 @@
 
 import 'dart:io';
 
+import 'package:mail_appsync/mail_appsync.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
@@ -368,4 +369,57 @@ void main() {
       expect(subjectsIn(allMail()), hasLength(5));
     });
   });
+
+  test(
+    'app data is exchanged on the full sync, when something changed',
+    () async {
+      await setUpWith();
+      final engine = SyncEngine(
+        store,
+        server.connector(),
+        syncCodes: _Code(SyncCode.generate().toString()),
+      );
+      var report = await engine.syncAccount(account.id);
+      expect(report!.appData?.published, isTrue);
+      expect(server.since(0, 'APPEND'), hasLength(1));
+
+      // Nothing changed: no download, nothing stored.
+      var mark = server.commands.length;
+      report = await engine.syncAccount(account.id);
+      expect(report!.appData, isNotNull);
+      expect(report.appDataFailure, isNull);
+      expect(server.since(mark, 'SELECT "Citusmail Sync"'), isEmpty);
+      expect(server.since(mark, 'UID'), isEmpty);
+      expect(server.since(mark, 'APPEND'), isEmpty);
+
+      // The inbox check leaves app data alone.
+      mark = server.commands.length;
+      report = await engine.syncAccount(account.id, mailboxIds: {inbox().id});
+      expect(report!.appData, isNull);
+      expect(server.since(mark, 'STATUS'), isEmpty);
+
+      // A change here is published.
+      store.blocks.block(BlockKind.domain, 'spam.example');
+      mark = server.commands.length;
+      report = await engine.syncAccount(account.id);
+      expect(report!.appData?.published, isTrue);
+
+      // Another device's data arriving is read.
+      server.folders['Citusmail Sync']!.add(subject: 'from the laptop');
+      mark = server.commands.length;
+      report = await engine.syncAccount(account.id);
+      expect(server.since(mark, 'UID FETCH'), hasLength(1));
+      expect(report!.appData?.published, isFalse);
+      await engine.dispose();
+    },
+  );
+}
+
+final class _Code implements SyncCodeProvider {
+  _Code(this.code);
+
+  final String code;
+
+  @override
+  Future<String?> syncCode() async => code;
 }

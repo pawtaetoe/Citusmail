@@ -221,11 +221,12 @@ final class AccountSynchronizer {
         }
       }
 
-      // 6. App data with the user's other devices. Its problems never
-      // fail the mail sync.
+      // 6. App data with the user's other devices, on the full sync only
+      // (not the frequent inbox check). Its problems never fail the mail
+      // sync.
       AppDataSyncReport? appData;
       SyncFailure? appDataFailure;
-      if (_appData case final sync?) {
+      if (_appData case final sync? when mailboxIds == null) {
         try {
           appData = await sync.run(imap, account);
         } on Object catch (e) {
