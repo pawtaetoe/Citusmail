@@ -14,6 +14,7 @@ import '../background/background_mail.dart';
 import '../mail/send_later_times.dart';
 import '../services/app_services.dart';
 import '../ui/follow_up_sheet.dart' show FollowUpPick;
+import 'address_book.dart';
 
 /// Addresses in one recipient field, plus text typed but not yet turned
 /// into an address.
@@ -164,9 +165,13 @@ final class ComposeController extends ChangeNotifier {
   /// A recipient list changed.
   void changed() => _update(_withRecipients(_draft));
 
-  /// Address suggestions for what the user is typing.
-  List<MailAddress> suggest(String text) =>
-      services.store.messages.suggestAddresses(text);
+  /// Address suggestions for what the user is typing (read from the
+  /// store once, then matched in memory).
+  List<MailAddress> suggest(String text) => _addressBook.suggest(text);
+
+  late final _addressBook = AddressBook(
+    services.store.messages.suggestionCandidates,
+  );
 
   Draft _withRecipients(Draft d) =>
       d.copyWith(to: to.addresses, cc: cc.addresses, bcc: bcc.addresses);

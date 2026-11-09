@@ -5,6 +5,7 @@
 import 'package:mail_store/mail_store.dart';
 
 import '../services/app_settings.dart';
+import 'store_changes.dart';
 
 /// The time the user was away: from when the app went to the background
 /// (or closed) until they came back.
@@ -111,8 +112,22 @@ final class NewSinceAway {
     if (window == null || !AppSettings(_store).newSinceAway) {
       return AwayMail.none;
     }
+    // Read again only when something in the store changed.
+    final key = (_changes.stamp, accountIds?.join(','), window);
+    if (_last case (final k, final mail) when k == key) return mail;
+    final mail = _read(window, accountIds);
+    _last = (key, mail);
+    return mail;
+  }
+
+  late final _changes = StoreChanges(_store);
+  (((int, int), String?, AwayWindow), AwayMail)? _last;
+
+  AwayMail _read(AwayWindow window, List<int>? accountIds) {
     final candidates = <StoredMessage>[];
-    StoredMessage? before;
+    // Starts where the window ends, not at the newest mail: what came
+    // after the user was back is not paged through on every refresh.
+    StoredMessage? before = _endOf(window);
     while (candidates.length < maxMessages * 3) {
       final page = _store.messages.list(
         MessageQuery.inbox(accountIds: accountIds, before: before, limit: 100),
@@ -133,6 +148,21 @@ final class NewSinceAway {
       blocked: (address) => _store.blocks.matching(address) != null,
     );
   }
+
+  /// A list position just after the last message listed by [window]'s
+  /// end (paging continues before it).
+  static StoredMessage _endOf(AwayWindow window) => StoredMessage(
+    id: 1 << 62,
+    mailboxId: 0,
+    accountId: 0,
+    uid: 1,
+    receivedAt: window.until,
+    size: 0,
+    flags: const MessageFlags(0),
+    hasAttachments: false,
+    category: MessageCategory.general,
+    categorySource: CategorySource.rule,
+  );
 
   /// The messages among [inbox] that belong in the section: received
   /// while away, from someone else, not blocked or waiting in the

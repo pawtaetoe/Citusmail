@@ -145,6 +145,19 @@ void main() {
     expect(store.settings.read(Resorter.versionKey), '99');
   });
 
+  test('stopped between batches: the version waits for the next run', () async {
+    for (var uid = 1; uid <= 5; uid++) {
+      storeUnsorted(uid, shop, const {});
+    }
+    final resorter = Resorter(store, batchSize: 2);
+    var batches = 0;
+    expect(await resorter.resortAll(stopped: () => batches++ == 2), 4);
+    expect(store.settings.read(Resorter.versionKey), isNull);
+    expect(resorter.isNeeded, isTrue);
+    expect(await resorter.resortIfNeeded(), 5, reason: 'starts again');
+    expect(resorter.isNeeded, isFalse);
+  });
+
   test('an empty store just records the version', () async {
     final resorter = Resorter(store);
     expect(await resorter.resortIfNeeded(), 0);

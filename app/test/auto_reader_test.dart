@@ -11,6 +11,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:citusmail/src/background/background_mail.dart';
+import 'package:citusmail/src/mail/message_reads.dart';
 import 'package:citusmail/src/services/auto_reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
@@ -243,6 +244,28 @@ void main() {
     addTearDown(reader.dispose);
     expect(await reader.run(), 0);
     expect(loaded, hasLength(1));
+  });
+
+  test('a run reads only mail that is new or whose body arrived', () async {
+    final ids = bookings(20);
+    final start = MessageReads.readCount;
+    final first = await AutoReader.wanted(app.store, now, cap: 50);
+    final readFirst = MessageReads.readCount - start;
+    expect(readFirst, greaterThanOrEqualTo(20), reason: 'every booking read');
+
+    // Nothing changed: every page's reading is kept, nothing read again.
+    expect(await AutoReader.wanted(app.store, now, cap: 50), first);
+    expect(MessageReads.readCount - start, readFirst);
+
+    // One body arrived and one booking came: only those two are read
+    // again, by each page that looks at them.
+    await download(ids.first);
+    final [added] = bookings(1);
+    final second = await AutoReader.wanted(app.store, now, cap: 50);
+    final readAgain = MessageReads.readCount - start - readFirst;
+    expect(readAgain, inInclusiveRange(2, 2 * 4));
+    expect(second, isNot(contains(ids.first)), reason: 'on the device now');
+    expect(second, contains(added));
   });
 }
 

@@ -11,6 +11,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../mail/accounts_model.dart';
 import '../mail/appointments_model.dart';
 import '../mail/deliveries_model.dart';
+import '../mail/message_reads.dart';
 import '../mail/subscriptions_model.dart';
 import '../mail/trips_model.dart';
 import 'app_settings.dart';
@@ -35,6 +36,10 @@ typedef BodyLoader = Future<void> Function(int messageId);
 /// the next run carries on with the rest. A message that cannot be read
 /// is skipped (offline: the whole account, until the next run) and, after
 /// [ReadFailures.giveUpAfter] failures, no longer tried.
+///
+/// Each page keeps what it read of each message ([MessageReads]), so a
+/// run parses only mail that is new or whose body arrived since the last
+/// one; with nothing new, no body is loaded and no worker is started.
 final class AutoReader extends ChangeNotifier {
   AutoReader(
     this._store,

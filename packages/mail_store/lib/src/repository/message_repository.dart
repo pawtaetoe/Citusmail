@@ -497,6 +497,28 @@ final class MessageRepository {
     ];
   }
 
+  /// Everyone [suggestAddresses] can offer, in the same order (people
+  /// the user has written to first, most used first), at most [limit]:
+  /// read once while writing a message and searched in memory, instead of
+  /// one query per key press.
+  List<MailAddress> suggestionCandidates({int limit = 5000}) {
+    final rows = _db.select(
+      'SELECT address, max(name) AS name, sum(weight) AS score FROM ('
+      'SELECT a.address AS address, a.name AS name, 10 AS weight FROM message_addresses a '
+      'JOIN messages m ON m.id = a.message_id JOIN mailboxes b ON b.id = m.mailbox_id '
+      "WHERE b.special_use = 'sent' AND a.kind IN ('to', 'cc', 'bcc') "
+      'UNION ALL '
+      'SELECT from_address, from_name, 1 FROM messages '
+      'WHERE from_address IS NOT NULL AND category = ?'
+      ') GROUP BY address COLLATE NOCASE ORDER BY score DESC, address LIMIT ?',
+      [MessageCategory.general.storageName, limit.clamp(1, 20000)],
+    );
+    return [
+      for (final r in rows)
+        ?_address(r['name'] as String?, r['address'] as String?),
+    ];
+  }
+
   /// Inbox messages of [accountId] from one list (by [listId]) or, for
   /// mail without one, from one sender: what "archive earlier mail" acts
   /// on after unsubscribing. Newest first, at most [limit].
