@@ -186,6 +186,103 @@ void main() {
     });
   });
 
+  group('from the store\'s totals', () {
+    SenderStats totals(
+      String from, {
+      String? name,
+      required int count,
+      int opened = 0,
+      int newsletters = 0,
+      int daysAgo = 1,
+      int? unsubscribeId,
+      int? unsubscribeDaysAgo,
+    }) => SenderStats(
+      from: address(from, name),
+      count: count,
+      opened: opened,
+      newsletters: newsletters,
+      notifications: 0,
+      last: now.subtract(Duration(days: daysAgo)),
+      newestId: _id++,
+      unsubscribeId: unsubscribeId,
+      unsubscribeAt: unsubscribeDaysAgo == null
+          ? null
+          : now.subtract(Duration(days: unsubscribeDaysAgo)),
+    );
+    String registrable(String domain) =>
+        domain.split('.').reversed.take(2).toList().reversed.join('.');
+
+    test('the same groups, counts and ranking as from the mail itself', () {
+      final groups = SenderCleanup.groupSenders(
+        [
+          totals(
+            'noreply@mail.bank.example',
+            name: 'Bank',
+            count: 6,
+            opened: 6,
+            unsubscribeId: 70,
+            unsubscribeDaysAgo: 9,
+          ),
+          totals(
+            'alerts@bank.example',
+            name: 'Bank Alerts',
+            count: 10,
+            opened: 2,
+            daysAgo: 2,
+            unsubscribeId: 71,
+            unsubscribeDaysAgo: 3,
+          ),
+          totals(
+            'deals@megastore.example',
+            name: 'MegaStore',
+            count: 40,
+            opened: 1,
+            newsletters: 40,
+          ),
+          totals('me@citusmail.test', count: 3),
+          totals('friend@x.example', count: 5),
+        ],
+        domainOf: registrable,
+        own: {'me@citusmail.test'},
+        writtenTo: {'friend@x.example'},
+      );
+      expect(groups.map((g) => g.key), [
+        'deals@megastore.example',
+        '@bank.example',
+      ]);
+      final bank = groups.last;
+      expect(bank.byDomain, isTrue);
+      expect(bank.addresses, [
+        'alerts@bank.example',
+        'noreply@mail.bank.example',
+      ]);
+      expect(bank.name, 'Bank Alerts', reason: 'the name on most mail');
+      expect(bank.count, 16);
+      expect(bank.opened, 8);
+      expect(bank.kind, SenderKind.other, reason: 'not newsletters');
+      expect(bank.last, now.subtract(const Duration(days: 1)));
+      expect(bank.unsubscribeId, 71, reason: 'the newest with the header');
+      expect(bank.messageIds, isEmpty);
+      final deals = groups.first;
+      expect(deals.kind, SenderKind.newsletter);
+      expect(deals.openRate, 1 / 40);
+      expect(SenderCleanup.isRarelyOpened(deals), isTrue);
+      expect(
+        SenderCleanup.sort(groups, SenderOrder.leastOpened).first.key,
+        'deals@megastore.example',
+      );
+    });
+
+    test('kept senders are left out', () {
+      final groups = SenderCleanup.groupSenders(
+        [totals('deals@megastore.example', count: 4)],
+        domainOf: registrable,
+        kept: {'deals@megastore.example'},
+      );
+      expect(groups, isEmpty);
+    });
+  });
+
   group('grouping', () {
     test('a company\'s no-reply senders are grouped by domain', () {
       final groups = SenderCleanup.group([
