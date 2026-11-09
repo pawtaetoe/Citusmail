@@ -27,6 +27,32 @@ abstract final class CitusPalette {
 
   /// Text on paper: a warm near-black.
   static const ink = Color(0xFF1B1A17);
+
+  /// Charts of how one total splits (the year's subscriptions): one
+  /// lagoon ramp, the biggest part darkest on light and brightest on
+  /// dark, so the parts read as one family and stay apart from senders'
+  /// avatar colours. Neighbouring steps can be told apart, the parts are
+  /// split by gaps and named in a legend, so colour is never the only
+  /// clue. Citrus marks a part that is time-sensitive (it renews this
+  /// week), as everywhere else.
+  static const chartLight = [
+    Color(0xFF0B5E51),
+    Color(0xFF0F7A69),
+    Color(0xFF3FA08C),
+    Color(0xFF7BC4B3),
+    Color(0xFFB5E0D5),
+  ];
+  static const chartDark = [
+    Color(0xFF8FE0CE),
+    Color(0xFF5DCAB4),
+    Color(0xFF2FA58F),
+    Color(0xFF1C7E6D),
+    Color(0xFF16594E),
+  ];
+
+  /// [chartLight] or [chartDark].
+  static List<Color> chart(Brightness brightness) =>
+      brightness == Brightness.dark ? chartDark : chartLight;
 }
 
 /// The spacing scale: every gap and padding is one of these, so screens
