@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'certificate_names.dart';
+
 /// Base class for every error the mail protocol layer reports.
 ///
 /// Messages never contain credentials or message content, so they are safe
@@ -49,6 +51,7 @@ final class RejectedCertificate {
     required this.issuer,
     required this.validFrom,
     required this.validUntil,
+    this.dnsNames = const [],
   });
 
   /// e.g. `/CN=*.web-hosting.com`.
@@ -57,9 +60,22 @@ final class RejectedCertificate {
   final DateTime validFrom;
   final DateTime validUntil;
 
+  /// The DNS names of its subject alternative name extension, if any.
+  final List<String> dnsNames;
+
   /// The common name from [subject], if any.
   String? get commonName =>
       RegExp(r'CN=([^/,]+)').firstMatch(subject)?.group(1)?.trim();
+
+  /// The names it is issued for: its DNS names, or, when it has none, its
+  /// common name (as RFC 6125 says).
+  List<String> get names => dnsNames.isNotEmpty
+      ? dnsNames
+      : [?commonName?.replaceFirst(RegExp(r'^DNS:'), '')];
+
+  /// Whether it is issued for [host] (wildcards included; see
+  /// [CertificateNames.covers]).
+  bool covers(String host) => CertificateNames.covers(names, host);
 }
 
 /// The TLS handshake or certificate check failed. The connection was

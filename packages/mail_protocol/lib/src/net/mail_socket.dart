@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'certificate_names.dart';
 import 'line_source.dart';
 import 'mail_exception.dart';
 import 'server_endpoint.dart';
@@ -140,6 +141,7 @@ final class MailSocket implements LineSource {
             issuer: rejected.issuer,
             validFrom: rejected.startValidity,
             validUntil: rejected.endValidity,
+            dnsNames: CertificateNames.fromDer(rejected.der),
           ),
   );
 
