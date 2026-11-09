@@ -159,12 +159,21 @@ void main() {
     final settings = CodeCleanupSettings(store);
     expect(find.text('Clean up old codes'), findsOneWidget);
     expect(
-      find.textContaining('After a day: Archive. Verification codes'),
+      find.textContaining('After a day: Archive.'),
       findsOneWidget,
       reason: 'the default',
     );
-    expect(find.textContaining('Pinned ones are kept'), findsOneWidget);
     expect(find.textContaining('asks you first'), findsOneWidget);
+    // What it does, behind "Learn more".
+    expect(find.textContaining('Pinned ones are kept'), findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(ListTile, 'Clean up old codes'),
+        matching: find.text('Learn more'),
+      ),
+    );
+    await tester.pump();
+    expect(find.textContaining('Pinned ones are kept'), findsOneWidget);
 
     await tester.tap(find.text('Clean up old codes'));
     await tester.pumpAndSettle();
@@ -189,6 +198,6 @@ void main() {
     expect(find.text('What happens'), findsNothing);
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Off. Verification codes'), findsOneWidget);
+    expect(find.text('Off.'), findsOneWidget);
   });
 }

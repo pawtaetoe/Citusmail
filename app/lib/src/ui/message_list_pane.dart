@@ -25,6 +25,7 @@ import 'move_dialog.dart';
 import 'new_since_away_section.dart';
 import 'screener_page.dart';
 import 'send_later_sheet.dart';
+import 'skeleton_rows.dart';
 import 'snooze_sheet.dart';
 
 /// The middle pane: search and compose, the view's header (or the bulk
@@ -561,6 +562,10 @@ final class _MessagesState extends State<_Messages> {
     super.dispose();
   }
 
+  /// Mail has been checked at least once while this list was shown; till
+  /// then an empty list may just be mail on its way.
+  bool _checked = false;
+
   Widget _tile(StoredMessage m) {
     final selection = _c.selection.value;
     return MessageTile(
@@ -580,9 +585,15 @@ final class _MessagesState extends State<_Messages> {
       _c.selection,
       _c.reader,
       _c.codesOffer,
+      _c.status,
     ]),
     builder: (context, _) {
       final list = _c.list;
+      final status = _c.status.value;
+      if (status is SyncIdle && status.lastSynced != null) _checked = true;
+      // The first check for mail: rows on their way, not "empty".
+      const arriving = SkeletonRows(label: 'Checking for mail…');
+      final firstCheck = !_checked && status is SyncRunning;
       // Asks once, in the Verification section, before tidying up codes.
       final codesOffer = _c.codesOffer.value
           ? SliverToBoxAdapter(child: CodeCleanupBanner(controller: _c))
@@ -603,6 +614,7 @@ final class _MessagesState extends State<_Messages> {
             list.screenerWaiting == 0 &&
             list.followUps.isEmpty &&
             list.newSinceAway.isEmpty) {
+          if (firstCheck) return arriving;
           return EmptyState(
             icon: AppIcons.inbox,
             text: 'Your inbox is empty.',
@@ -713,6 +725,7 @@ final class _MessagesState extends State<_Messages> {
                 'Snooze an email to have it come back to the top of your '
                 'inbox later.',
           ),
+          _ when firstCheck => arriving,
           _ => const EmptyState(icon: AppIcons.mail, text: 'No messages here.'),
         };
       }

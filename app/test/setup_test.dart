@@ -250,6 +250,8 @@ void main() {
         find.widgetWithText(TextFormField, 'Password'),
         'pw',
       );
+      // Under the first run's welcome.
+      await tester.ensureVisible(find.text('Continue'));
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       expect(find.text('Settings found'), findsOneWidget);

@@ -26,7 +26,12 @@ class SetupPage extends StatefulWidget {
   final void Function(Account account) onDone;
 
   /// Shown as a close button when there is somewhere to go back to.
+  /// Without it this is the first run, and the page says what $appName
+  /// is before asking for an account.
   final VoidCallback? onCancel;
+
+  /// From this width the first run shows its welcome beside the form.
+  static const twoColumnWidth = 840.0;
 
   @override
   State<SetupPage> createState() => _SetupPageState();
@@ -78,127 +83,159 @@ class _SetupPageState extends State<SetupPage> {
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add account'),
-        automaticallyImplyLeading: false,
-        actions: [
-          if (widget.onCancel != null)
+    final firstRun = widget.onCancel == null;
+    final Widget content = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: switch (controller.state) {
+        EnteringCredentials(:final error) => _CredentialsForm(
+          key: const ValueKey('credentials'),
+          showMark: !firstRun,
+          initialEmail: controller.email,
+          error: error,
+          canSignInWith: controller.canSignInWith,
+          canOffer: controller.canOffer,
+          providerFor: controller.providerFor,
+          optionalProviderFor: (email) =>
+              switch (controller.optionalProviderFor(email)) {
+                final p? when controller.canOffer(p) => p,
+                _ => null,
+              },
+          onOptionalOAuth: (provider, email, name) => controller.signInWithAny(
+            provider,
+            email: email,
+            displayName: name,
+          ),
+          onOwnClient: (provider, email, name) => controller.enterOwnClient(
+            provider,
+            email: email,
+            displayName: name,
+          ),
+          onSubmit: (email, password, name) => controller.start(
+            email: email,
+            password: password,
+            displayName: name,
+            askMozillaConsent: _askMozilla,
+          ),
+          // Built-in sign-in, or the user's own registration.
+          onOAuth: (provider, email, name) => controller.signInWithAny(
+            provider,
+            email: email,
+            displayName: name,
+          ),
+        ),
+        EnteringOwnClient(:final provider, :final error) => _OwnClientForm(
+          key: const ValueKey('own-client'),
+          provider: provider,
+          error: error,
+          onSubmit: (registration) =>
+              controller.useOwnClient(provider, registration),
+          onBack: controller.restart,
+        ),
+        SigningIn(:final provider) => _Busy(
+          key: const ValueKey('signing-in'),
+          text:
+              'Sign in on ${provider.name}\'s page in your browser, then come back '
+              'here.',
+        ),
+        Discovering(:final step) => _Busy(
+          key: const ValueKey('discovering'),
+          text: SetupText.step(step),
+        ),
+        ReviewingSettings(:final settings) => _ReviewSettings(
+          key: const ValueKey('review'),
+          settings: settings,
+          onContinue: () => controller.useSettings(settings),
+          onEdit: () => controller.editSettings(settings),
+        ),
+        EditingSettings(:final prefill, :final notice) => _SettingsForm(
+          key: const ValueKey('edit'),
+          email: controller.email,
+          prefill: prefill,
+          notice: notice,
+          onSubmit: controller.useSettings,
+          onBack: controller.restart,
+        ),
+        Verifying() => const _Busy(
+          key: ValueKey('verifying'),
+          text: 'Signing in to check the settings…',
+        ),
+        VerificationFailed(:final settings, :final result) => _Failed(
+          key: const ValueKey('failed'),
+          settings: settings,
+          result: result,
+          onEdit: () => controller.editSettings(settings),
+          onRestart: controller.restart,
+          onUseSuggested: result.suggestedHost == null
+              ? null
+              : () => controller.useSuggestedHost(
+                  settings,
+                  result.role!,
+                  result.suggestedHost!,
+                ),
+        ),
+        SetupDone() => const _Busy(
+          key: ValueKey('done'),
+          text: 'Account added.',
+        ),
+      },
+    );
+    // The form in a readable column, in the middle of the space it has.
+    Widget column(Widget child) => SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: child,
+          ),
+        ),
+      ),
+    );
+    if (!firstRun) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Add account'),
+          automaticallyImplyLeading: false,
+          actions: [
             IconButton(
               onPressed: widget.onCancel,
               icon: const Icon(Icons.close),
               tooltip: 'Cancel',
             ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: switch (controller.state) {
-                  EnteringCredentials(:final error) => _CredentialsForm(
-                    key: const ValueKey('credentials'),
-                    initialEmail: controller.email,
-                    error: error,
-                    canSignInWith: controller.canSignInWith,
-                    canOffer: controller.canOffer,
-                    providerFor: controller.providerFor,
-                    optionalProviderFor: (email) =>
-                        switch (controller.optionalProviderFor(email)) {
-                          final p? when controller.canOffer(p) => p,
-                          _ => null,
-                        },
-                    onOptionalOAuth: (provider, email, name) =>
-                        controller.signInWithAny(
-                          provider,
-                          email: email,
-                          displayName: name,
-                        ),
-                    onOwnClient: (provider, email, name) =>
-                        controller.enterOwnClient(
-                          provider,
-                          email: email,
-                          displayName: name,
-                        ),
-                    onSubmit: (email, password, name) => controller.start(
-                      email: email,
-                      password: password,
-                      displayName: name,
-                      askMozillaConsent: _askMozilla,
-                    ),
-                    // Built-in sign-in, or the user's own registration.
-                    onOAuth: (provider, email, name) =>
-                        controller.signInWithAny(
-                          provider,
-                          email: email,
-                          displayName: name,
-                        ),
-                  ),
-                  EnteringOwnClient(:final provider, :final error) =>
-                    _OwnClientForm(
-                      key: const ValueKey('own-client'),
-                      provider: provider,
-                      error: error,
-                      onSubmit: (registration) =>
-                          controller.useOwnClient(provider, registration),
-                      onBack: controller.restart,
-                    ),
-                  SigningIn(:final provider) => _Busy(
-                    key: const ValueKey('signing-in'),
-                    text:
-                        'Sign in on ${provider.name}\'s page in your browser, then come back '
-                        'here.',
-                  ),
-                  Discovering(:final step) => _Busy(
-                    key: const ValueKey('discovering'),
-                    text: SetupText.step(step),
-                  ),
-                  ReviewingSettings(:final settings) => _ReviewSettings(
-                    key: const ValueKey('review'),
-                    settings: settings,
-                    onContinue: () => controller.useSettings(settings),
-                    onEdit: () => controller.editSettings(settings),
-                  ),
-                  EditingSettings(:final prefill, :final notice) =>
-                    _SettingsForm(
-                      key: const ValueKey('edit'),
-                      email: controller.email,
-                      prefill: prefill,
-                      notice: notice,
-                      onSubmit: controller.useSettings,
-                      onBack: controller.restart,
-                    ),
-                  Verifying() => const _Busy(
-                    key: ValueKey('verifying'),
-                    text: 'Signing in to check the settings…',
-                  ),
-                  VerificationFailed(:final settings, :final result) => _Failed(
-                    key: const ValueKey('failed'),
-                    settings: settings,
-                    result: result,
-                    onEdit: () => controller.editSettings(settings),
-                    onRestart: controller.restart,
-                    onUseSuggested: result.suggestedHost == null
-                        ? null
-                        : () => controller.useSuggestedHost(
-                            settings,
-                            result.role!,
-                            result.suggestedHost!,
-                          ),
-                  ),
-                  SetupDone() => const _Busy(
-                    key: ValueKey('done'),
-                    text: 'Account added.',
-                  ),
-                },
-              ),
-            ),
-          ),
+          ],
         ),
+        body: column(content),
+      );
+    }
+    // The first thing a new user sees: what the app is, then the form.
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, box) {
+          if (box.maxWidth >= SetupPage.twoColumnWidth) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: box.maxWidth * 0.42,
+                  child: const _Welcome(wide: true),
+                ),
+                Expanded(child: column(content)),
+              ],
+            );
+          }
+          // Narrow: above the form, only on its first step.
+          if (controller.state is! EnteringCredentials) return column(content);
+          return column(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _Welcome(wide: false),
+                const SizedBox(height: 24),
+                content,
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -217,7 +254,12 @@ class _CredentialsForm extends StatefulWidget {
     required this.onOptionalOAuth,
     required this.onOwnClient,
     this.error,
+    this.showMark = true,
   });
+
+  /// The app's mark over the heading; the first run shows it larger in
+  /// its welcome instead.
+  final bool showMark;
 
   final String initialEmail;
   final String? error;
@@ -318,11 +360,13 @@ class _CredentialsFormState extends State<_CredentialsForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: CitusMark(size: 36),
-          ),
-          const SizedBox(height: 20),
+          if (widget.showMark) ...[
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: CitusMark(size: 36),
+            ),
+            const SizedBox(height: 20),
+          ],
           Text(
             'Sign in to your email',
             style: Theme.of(context).textTheme.headlineSmall,
@@ -1005,4 +1049,88 @@ class _SettingsFormState extends State<_SettingsForm> {
       ],
     ),
   );
+}
+
+/// The first run's welcome: the mark, the name and what $appName does,
+/// in a few words. Beside the form on a wide window (on the sidebar's
+/// spruce), above it on a phone.
+final class _Welcome extends StatelessWidget {
+  const _Welcome({required this.wide});
+
+  final bool wide;
+
+  static const promises = [
+    (Icons.shield_outlined, 'Blocks trackers and hides remote images'),
+    (
+      Icons.local_shipping_outlined,
+      'Finds deliveries, bills and trips in your mail',
+    ),
+    (Icons.lock_outline, 'Your password stays on this device'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink = wide ? Colors.white : theme.colorScheme.onSurface;
+    final muted = wide
+        ? Colors.white.withValues(alpha: 0.78)
+        : theme.colorScheme.onSurfaceVariant;
+    final accent = wide ? CitusPalette.citrus : theme.colorScheme.primary;
+    final body = Column(
+      key: const ValueKey('welcome'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CitusMark(size: wide ? 96 : 64),
+        const SizedBox(height: 24),
+        Text(
+          'Welcome to $appName',
+          style:
+              (wide
+                      ? theme.textTheme.headlineMedium
+                      : theme.textTheme.headlineSmall)
+                  ?.copyWith(color: ink),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'A calm, private mail app. It works with the email address you '
+          'already have.',
+          style: theme.textTheme.bodyLarge?.copyWith(color: muted),
+        ),
+        const SizedBox(height: 24),
+        for (final (icon, text) in promises)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: ink),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (!wide) return body;
+    return ColoredBox(
+      color: CitusPalette.spruce,
+      child: SafeArea(
+        right: false,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(48),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: body,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

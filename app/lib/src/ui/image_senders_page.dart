@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../services/app_services.dart';
+import 'page_scaffold.dart';
 
 /// Settings > Images: the senders whose images load without asking.
 final class ImageSendersPage extends StatefulWidget {
@@ -24,8 +25,9 @@ final class _ImageSendersPageState extends State<ImageSendersPage> {
   Widget build(BuildContext context) {
     final senders = _senders.all();
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Images')),
+    return PageScaffold(
+      title: 'Images',
+      boundBody: true,
       body: ListView(
         children: [
           Padding(

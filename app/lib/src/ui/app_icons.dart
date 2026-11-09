@@ -64,6 +64,7 @@ abstract final class AppIcons {
   static const search = Icons.search;
   static const searchOff = Icons.search_off;
   static const settings = Icons.settings_outlined;
+  static const help = Icons.help_outline;
   static const lock = Icons.lock_outline;
   static const sync = Icons.sync;
   static const menu = Icons.menu;

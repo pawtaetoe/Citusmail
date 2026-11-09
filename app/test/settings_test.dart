@@ -47,6 +47,8 @@ void main() {
 
     // About, Privacy still opens the report.
     await tester.scrollUntilVisible(find.text('Privacy'), 200);
+    await tester.ensureVisible(find.text('Privacy'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Privacy'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
@@ -116,13 +118,26 @@ void main() {
     final settings = app.services.settings;
     expect(settings.autoRead, isTrue);
     expect(
-      find.text(
-        'Downloads receipts, bills and booking emails from your mail server '
-        'so Subscriptions, Deliveries and Trips fill in by themselves. They '
-        'stay unread.',
-      ),
+      find.text('So Subscriptions, Deliveries and Trips fill in by themselves'),
       findsOneWidget,
     );
+    // The rest of the explanation is folded.
+    const more =
+        'Downloads receipts, bills and booking emails from your mail '
+        'server. They stay unread.';
+    expect(find.text(more), findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(
+          SwitchListTile,
+          'Read receipts and bookings automatically',
+        ),
+        matching: find.text('Learn more'),
+      ),
+    );
+    await tester.pump();
+    expect(find.text(more), findsOneWidget);
+    expect(settings.autoRead, isTrue, reason: 'Learn more is not a toggle');
     await tester.tap(find.text('Read receipts and bookings automatically'));
     await tester.pump();
     expect(settings.autoRead, isFalse);

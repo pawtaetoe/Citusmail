@@ -12,7 +12,10 @@ import '../services/reminders.dart';
 import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
+import 'citusmail_theme.dart';
+import 'page_scaffold.dart';
 import 'read_ahead.dart';
+import 'skeleton_rows.dart';
 import 'subscription_detail_page.dart';
 
 /// Paid subscriptions found in the user's receipts and renewal mail: what
@@ -127,24 +130,23 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Subscriptions'),
-      actions: [
-        IconButton(
-          tooltip: 'How is this found?',
-          icon: const Icon(Icons.help_outline),
-          onPressed: () => _HowDialog.show(context),
-        ),
-      ],
+  Widget build(BuildContext context) => PageScaffold(
+    title: 'Subscriptions',
+    help: (
+      tooltip: 'How is this found?',
+      onPressed: () => _HowDialog.show(context),
     ),
+
     body: SafeArea(
       top: false,
       child: ListenableBuilder(
         listenable: _model,
         builder: (context, _) {
           if (_model.loading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonRows(
+              label: 'Finding subscriptions…',
+              maxWidth: PageScaffold.width,
+            );
           }
           final all = _model.subscriptions;
           final soon = _model.renewingSoon.toSet();
@@ -182,6 +184,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
                       model: _model,
                       soon: soon.length,
                       onSelect: _select,
+                      today: _today,
                     ),
                   if (_model.reading case final r?)
                     _Reading(
@@ -271,11 +274,13 @@ final class _Overview extends StatelessWidget {
     required this.model,
     required this.soon,
     required this.onSelect,
+    required this.today,
   });
 
   final SubscriptionsModel model;
   final int soon;
   final void Function(Subscription) onSelect;
+  final DateTime today;
 
   @override
   Widget build(BuildContext context) {
@@ -323,6 +328,7 @@ final class _Overview extends StatelessWidget {
                 yearly: Money(total(byCurrency[currency]!), currency),
                 subscriptions: byCurrency[currency]!,
                 onSelect: onSelect,
+                today: today,
               ),
             ],
             if (currencies.length > 1) ...[
@@ -347,34 +353,27 @@ final class _Spend extends StatelessWidget {
     required this.yearly,
     required this.subscriptions,
     required this.onSelect,
+    required this.today,
   });
 
   final Money yearly;
   final List<Subscription> subscriptions;
   final void Function(Subscription) onSelect;
+  final DateTime today;
 
-  /// Categorical colours in a fixed order (checked for colour blindness
-  /// against each mode's surface); a sixth and later go into "Others".
-  static const _light = [
-    Color(0xFF00927A),
-    Color(0xFFE0A030),
-    Color(0xFF4F6FD0),
-    Color(0xFFD0604A),
-    Color(0xFF9A62C0),
-  ];
-  static const _dark = [
-    Color(0xFF14957D),
-    Color(0xFFBA7A12),
-    Color(0xFF5A7BD0),
-    Color(0xFFC9604D),
-    Color(0xFF9A6BC0),
-  ];
+  /// Charges within the coming week are time-sensitive: citrus.
+  bool _thisWeek(Subscription s) {
+    final next = s.nextCharge;
+    if (next == null) return false;
+    final days = next.difference(today).inDays;
+    return days >= 0 && days < 7;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final palette = theme.brightness == Brightness.dark ? _dark : _light;
+    final palette = CitusPalette.chart(theme.brightness);
     final c = yearly.currency;
     final sorted = [...subscriptions]
       ..sort((a, b) => b.yearly!.minor.compareTo(a.yearly!.minor));
@@ -384,7 +383,12 @@ final class _Spend extends StatelessWidget {
     final others = sorted.skip(shown.length).toList();
     final parts = <({String name, int minor, Color color, Subscription? s})>[
       for (final (i, s) in shown.indexed)
-        (name: s.name, minor: s.yearly!.minor, color: palette[i], s: s),
+        (
+          name: s.name,
+          minor: s.yearly!.minor,
+          color: _thisWeek(s) ? CitusPalette.citrus : palette[i],
+          s: s,
+        ),
       if (others.isNotEmpty)
         (
           name: '${others.length} others',
@@ -484,6 +488,11 @@ final class _Spend extends StatelessWidget {
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
+                  if (part.s case final sub? when _thisWeek(sub))
+                    const Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: AppBadge('this week', tone: BadgeTone.accent),
+                    ),
                   Text(
                     '${Prices.format(Money(part.minor, c))} a year',
                     style: theme.textTheme.bodyMedium?.copyWith(

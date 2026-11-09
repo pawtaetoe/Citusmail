@@ -12,7 +12,9 @@ import 'account_detail_page.dart';
 import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
+import 'page_scaffold.dart';
 import 'read_ahead.dart';
+import 'skeleton_rows.dart';
 
 /// Online services the user has an account with, found in welcome,
 /// sign-in, password and security mail on the device: useful after a
@@ -114,24 +116,23 @@ final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Online accounts'),
-      actions: [
-        IconButton(
-          tooltip: 'How is this found?',
-          icon: const Icon(Icons.help_outline),
-          onPressed: () => _HowDialog.show(context),
-        ),
-      ],
+  Widget build(BuildContext context) => PageScaffold(
+    title: 'Online accounts',
+    help: (
+      tooltip: 'How is this found?',
+      onPressed: () => _HowDialog.show(context),
     ),
+
     body: SafeArea(
       top: false,
       child: ListenableBuilder(
         listenable: _model,
         builder: (context, _) {
           if (_model.loading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonRows(
+              label: 'Finding online accounts…',
+              maxWidth: PageScaffold.width,
+            );
           }
           final all = _model.accounts;
           final addresses = _model.addressesUsed;

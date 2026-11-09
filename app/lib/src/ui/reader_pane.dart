@@ -43,6 +43,7 @@ final class ReaderPane extends StatelessWidget {
     required this.controller,
     this.showBack = false,
     this.toolbarAtBottom = false,
+    this.replyBar = true,
   });
 
   final MailController controller;
@@ -53,6 +54,10 @@ final class ReaderPane extends StatelessWidget {
   /// Phones: the actions are in [ReaderControls] at the bottom of the
   /// screen, within reach of the thumb.
   final bool toolbarAtBottom;
+
+  /// Reply, Reply all and Forward under the message. Off on a phone's
+  /// mail screen, where [ReaderControls] has Reply in its one bar.
+  final bool replyBar;
 
   /// Side margins of the pane's bars: they grow a little with the window.
   static double sideMargin(double width, {double least = 20}) =>
@@ -161,7 +166,7 @@ final class ReaderPane extends StatelessWidget {
               },
             ),
           ),
-          if (reader is ReaderReady)
+          if (reader is ReaderReady && replyBar)
             _ReplyBar(controller: controller, reader: reader),
         ],
       );
@@ -169,8 +174,9 @@ final class ReaderPane extends StatelessWidget {
   );
 }
 
-/// The open message's actions at the bottom of a phone screen: back,
-/// archive, delete, move... (the less frequent ones under "More").
+/// The open message's actions at the bottom of a phone screen, in one
+/// bar: back, Reply, archive, delete, snooze... (Reply all, Forward and
+/// the less frequent ones under "More").
 final class ReaderControls extends StatelessWidget {
   const ReaderControls({super.key, required this.controller});
 
@@ -185,6 +191,7 @@ final class ReaderControls extends StatelessWidget {
         reader: reader,
         message: message,
         showBack: true,
+        withReply: true,
       ),
       null => const SizedBox.shrink(),
     },
@@ -318,12 +325,17 @@ final class _Toolbar extends StatelessWidget {
     required this.reader,
     required this.message,
     required this.showBack,
+    this.withReply = false,
   });
 
   final MailController controller;
   final ReaderState reader;
   final StoredMessage message;
   final bool showBack;
+
+  /// Reply as a labelled button after Back, and Reply all and Forward
+  /// first under "More": the phone's one bar.
+  final bool withReply;
 
   @override
   Widget build(BuildContext context) {
@@ -428,18 +440,44 @@ final class _Toolbar extends StatelessWidget {
         ),
       ],
     ];
+    final ready = reader is ReaderReady ? reader as ReaderReady : null;
+    final replying = withReply && ready != null;
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Back button + as many 48dp buttons (and group rules) as fit; the
-        // rest in "More".
-        final room = ((constraints.maxWidth - 64 - 2 * 17) / 48).floor().clamp(
-          2,
-          actions.length,
-        );
-        final shown = room >= actions.length
+        // Back button (+ Reply) + as many 48dp buttons (and 17dp group
+        // rules) as fit; the rest in "More".
+        int fitting(double room) {
+          var used = 0.0;
+          for (final (i, a) in actions.indexed) {
+            used += 48 + (i > 0 && actions[i - 1].group != a.group ? 17 : 0);
+            if (used > room) return i;
+          }
+          return actions.length;
+        }
+
+        // Padding, Back, and Reply (its label at the theme's size).
+        final room = constraints.maxWidth - 16 - 48 - (replying ? 132 : 0);
+        final all = !replying && fitting(room) == actions.length;
+        final shown = all
             ? actions
-            : actions.take(room - 1).toList();
-        final more = actions.skip(shown.length).toList();
+            : actions
+                  .take(fitting(room - 48).clamp(1, actions.length))
+                  .toList();
+        final more = [
+          if (replying) ...[
+            _Action(
+              'Reply all (A)',
+              AppIcons.replyAll,
+              () => controller.replyAll(ready),
+            ),
+            _Action(
+              'Forward (F)',
+              AppIcons.forward,
+              () => controller.forward(ready),
+            ),
+          ],
+          ...actions.skip(shown.length),
+        ];
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(
@@ -449,6 +487,19 @@ final class _Toolbar extends StatelessWidget {
                 icon: Icon(showBack ? AppIcons.back : AppIcons.close),
                 onPressed: controller.closeMessage,
               ),
+              if (replying)
+                Tooltip(
+                  message: 'Reply (R)',
+                  child: FilledButton.tonalIcon(
+                    key: const ValueKey('reply'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    onPressed: () => controller.reply(ready),
+                    icon: const Icon(AppIcons.reply, size: 18),
+                    label: const Text('Reply'),
+                  ),
+                ),
               const Spacer(),
               for (final (i, a) in shown.indexed) ...[
                 if (i > 0 && shown[i - 1].group != a.group)
@@ -472,7 +523,7 @@ final class _Toolbar extends StatelessWidget {
                           children: [
                             Icon(a.icon, size: 20),
                             const SizedBox(width: 12),
-                            Text(a.label),
+                            Flexible(child: Text(a.label)),
                           ],
                         ),
                       ),

@@ -23,6 +23,7 @@ import 'code_cleanup_banner.dart';
 import 'device_sync_page.dart';
 import 'image_senders_page.dart';
 import 'link_opener.dart';
+import 'page_scaffold.dart';
 import 'privacy_report_page.dart';
 import 'screener_page.dart';
 
@@ -137,9 +138,11 @@ final class _SettingsPageState extends State<SettingsPage> {
     return [
       SwitchListTile(
         title: const Text('App lock'),
-        subtitle: Text(
-          'Ask for a PIN to open $appName. While locked, notifications '
-          'show only that there is new mail.',
+        subtitle: const _Explained(
+          'Ask for a PIN to open $appName',
+          more:
+              'While locked, notifications show only that there is new '
+              'mail.',
         ),
         value: enabled,
         onChanged: _setLock,
@@ -184,9 +187,10 @@ final class _SettingsPageState extends State<SettingsPage> {
     return ListTile(
       leading: const Icon(Icons.auto_delete_outlined),
       title: const Text('Clean up old codes'),
-      subtitle: Text(
-        '$choice. ${CodeCleanupText.explanation}'
-        '${waiting ? ' Not on yet: the Verification section asks you first.' : ''}',
+      subtitle: _Explained(
+        '$choice.'
+        '${waiting ? ' Verification asks you first.' : ''}',
+        more: CodeCleanupText.explanation,
       ),
       trailing: const Icon(AppIcons.chevron),
       onTap: () async {
@@ -213,11 +217,12 @@ final class _SettingsPageState extends State<SettingsPage> {
       SwitchListTile(
         secondary: const Icon(AppIcons.screener),
         title: const Text('Screen first-time senders'),
-        subtitle: const Text(
-          'Someone writing for the first time waits in the Screener, at the '
-          'top of your inbox, until you let them in. Everyone you already '
-          'have mail from is let in. Codes and replies to you always come '
-          'straight in.',
+        subtitle: const _Explained(
+          'New senders wait in the Screener until you let them in',
+          more:
+              'The Screener is at the top of your inbox. Everyone you '
+              'already have mail from is let in. Codes and replies to you '
+              'always come straight in.',
         ),
         value: screener.enabled,
         onChanged: (on) {
@@ -357,28 +362,33 @@ final class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final settings = widget.services.settings;
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+    return PageScaffold(
+      title: 'Settings',
+      boundBody: true,
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
-          const _Group('Notifications'),
+          const _Group('Notifications', first: true),
           SwitchListTile(
             title: const Text('New mail notifications'),
-            subtitle: const Text(
-              'One for each new email in Verification, Important, General and '
-              'Notifications, with a Copy code button for codes. Newsletters '
-              'never notify. '
-              'The lock screen shows only that there is new mail.',
+            subtitle: const _Explained(
+              'One for each new email; newsletters never notify',
+              more:
+                  'For new mail in Verification, Important, General and '
+                  'Notifications, with a Copy code button for codes. The '
+                  'lock screen shows only that there is new mail.',
             ),
             value: settings.notifications,
             onChanged: (on) => setState(() => settings.notifications = on),
           ),
           SwitchListTile(
             title: const Text('Also for Notifications'),
-            subtitle: const Text(
-              'Emails from services such as GitHub, your bank or a delivery '
-              'company. Turn off to notify only for mail from people.',
+            subtitle: const _Explained(
+              'Mail from services such as your bank or GitHub',
+              more:
+                  'Emails from services such as GitHub, your bank or a '
+                  'delivery company. Turn off to notify only for mail from '
+                  'people.',
             ),
             value:
                 settings.notifications && settings.notifyNotificationsSection,
@@ -389,9 +399,11 @@ final class _SettingsPageState extends State<SettingsPage> {
           ),
           SwitchListTile(
             title: const Text('Show message previews'),
-            subtitle: const Text(
-              'The first lines of each email under its subject. When off, '
-              'notifications show only the sender and the subject.',
+            subtitle: const _Explained(
+              'The first lines of each email, in the notification',
+              more:
+                  'When off, notifications show only the sender and the '
+                  'subject.',
             ),
             value: settings.notifications && settings.notificationPreviews,
             onChanged: settings.notifications
@@ -400,11 +412,13 @@ final class _SettingsPageState extends State<SettingsPage> {
           ),
           SwitchListTile(
             title: const Text('Bill and trial reminders'),
-            subtitle: const Text(
-              'A few days before a bill is due, a free trial starts charging, '
-              'a yearly subscription renews or a return window closes, and '
-              'the day before an appointment. Found in your mail on this '
-              'device.',
+            subtitle: const _Explained(
+              'A few days before a bill is due or a trial ends',
+              more:
+                  'Also before a free trial starts charging, a yearly '
+                  'subscription renews or a return window closes, and the '
+                  'day before an appointment. Found in your mail on this '
+                  'device.',
             ),
             value: settings.notifications && settings.reminders,
             onChanged: settings.notifications
@@ -421,10 +435,11 @@ final class _SettingsPageState extends State<SettingsPage> {
           ),
           SwitchListTile(
             title: const Text('Follow-up reminders'),
-            subtitle: const Text(
-              'When nobody has answered an email you sent with “Remind me if '
-              'no reply” by the time you chose. It comes back to the top of '
-              'your inbox either way.',
+            subtitle: const _Explained(
+              'When nobody has replied by the time you chose',
+              more:
+                  'For emails you sent with “Remind me if no reply”. The '
+                  'email comes back to the top of your inbox either way.',
             ),
             value: settings.notifications && settings.followUpNotifications,
             onChanged: settings.notifications
@@ -434,12 +449,14 @@ final class _SettingsPageState extends State<SettingsPage> {
           if (_android)
             SwitchListTile(
               title: const Text('Instant mail'),
-              subtitle: const Text(
-                'Keeps a live connection to your mail server so new mail arrives at once, '
-                'also while your phone sleeps. Android requires a quiet, permanent '
-                '"$appName is connected" notification, and it uses a little more battery. '
-                'When off, $appName checks about every 5 minutes, or less often when Android '
-                'saves battery.',
+              subtitle: const _Explained(
+                'New mail at once, also while your phone sleeps',
+                more:
+                    'Keeps a live connection to your mail server. Android '
+                    'requires a quiet, permanent "$appName is connected" '
+                    'notification, and it uses a little more battery. When '
+                    'off, $appName checks about every 5 minutes, or less '
+                    'often when Android saves battery.',
               ),
               value: settings.instantMail,
               onChanged: _setInstant,
@@ -453,9 +470,12 @@ final class _SettingsPageState extends State<SettingsPage> {
           SwitchListTile(
             secondary: const Icon(Icons.waving_hand_outlined),
             title: const Text('New since you were away'),
-            subtitle: const Text(
-              'When you come back to the app, the emails that arrived while '
-              'you were away are shown together at the top of your inbox.',
+            subtitle: const _Explained(
+              'Mail that came while you were away, together at the top',
+              more:
+                  'When you come back to the app, the emails that arrived '
+                  'while you were away are shown together at the top of your '
+                  'inbox.',
             ),
             value: settings.newSinceAway,
             onChanged: (on) {
@@ -469,10 +489,11 @@ final class _SettingsPageState extends State<SettingsPage> {
           ListTile(
             leading: const Icon(Icons.history),
             title: const Text('Keep mail from'),
-            subtitle: Text(
-              '${_keepLabel(KeepMail.read(widget.services.store))}. Older mail '
-              'still loads when you scroll down. Search and Subscriptions see '
-              'what is on this device.',
+            subtitle: _Explained(
+              '${_keepLabel(KeepMail.read(widget.services.store))}.',
+              more:
+                  'Older mail still loads when you scroll down. Search and '
+                  'Subscriptions see what is on this device.',
             ),
             trailing: const Icon(AppIcons.chevron),
             onTap: _chooseKeepMail,
@@ -480,10 +501,11 @@ final class _SettingsPageState extends State<SettingsPage> {
           SwitchListTile(
             secondary: const Icon(Icons.receipt_long_outlined),
             title: const Text('Read receipts and bookings automatically'),
-            subtitle: const Text(
-              'Downloads receipts, bills and booking emails from your mail '
-              'server so Subscriptions, Deliveries and Trips fill in by '
-              'themselves. They stay unread.',
+            subtitle: const _Explained(
+              'So Subscriptions, Deliveries and Trips fill in by themselves',
+              more:
+                  'Downloads receipts, bills and booking emails from your '
+                  'mail server. They stay unread.',
             ),
             value: settings.autoRead,
             onChanged: (on) {
@@ -522,11 +544,13 @@ final class _SettingsPageState extends State<SettingsPage> {
           ListTile(
             leading: const Icon(Icons.shield_outlined),
             title: const Text('Privacy'),
-            subtitle: Text(
-              '$appName has no servers and collects nothing. Mail is stored encrypted on this '
-              'device and goes only to your own mail servers. Remote images and trackers are '
-              'blocked. See what was kept from senders in the Privacy report.',
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            subtitle: const _Explained(
+              '$appName has no servers and collects nothing',
+              more:
+                  'Mail is stored encrypted on this device and goes only to '
+                  'your own mail servers. Remote images and trackers are '
+                  'blocked. See what was kept from senders in the Privacy '
+                  'report.',
             ),
             trailing: const Icon(AppIcons.chevron),
             onTap: _openPrivacyReport,
@@ -843,24 +867,75 @@ final class _CodeCleanupDialogState extends State<_CodeCleanupDialog> {
 }
 
 final class _Group extends StatelessWidget {
-  const _Group(this.text);
+  const _Group(this.text, {this.first = false});
 
   final String text;
+
+  /// The first group has no line above it.
+  final bool first;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Semantics(
-      header: true,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 6),
-        child: Text(
-          text,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.primary,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!first) const Divider(height: 1, indent: 16, endIndent: 16),
+        Semantics(
+          header: true,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16, first ? 8 : 20, 16, 6),
+            child: Text(
+              text,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
           ),
         ),
-      ),
+      ],
+    );
+  }
+}
+
+/// A setting's explanation: one short line, and the rest folded behind
+/// "Learn more", so the page reads as a list of settings rather than a
+/// wall of text.
+final class _Explained extends StatefulWidget {
+  const _Explained(this.summary, {this.more});
+
+  final String summary;
+  final String? more;
+
+  @override
+  State<_Explained> createState() => _ExplainedState();
+}
+
+final class _ExplainedState extends State<_Explained> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final more = widget.more;
+    if (more == null) return Text(widget.summary);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.summary),
+        if (_open)
+          Padding(padding: const EdgeInsets.only(top: 4), child: Text(more)),
+        TextButton(
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 0),
+            minimumSize: const Size(0, 36),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+            textStyle: Theme.of(context).textTheme.labelMedium,
+          ),
+          onPressed: () => setState(() => _open = !_open),
+          child: Text(_open ? 'Show less' : 'Learn more'),
+        ),
+      ],
     );
   }
 }
