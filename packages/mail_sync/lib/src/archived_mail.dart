@@ -68,17 +68,17 @@ final class ArchivedMail {
       for (final m in _store.mailboxes.forAccount(account.id))
         if (m.id == allMail.id || !m.isView) m,
     ];
+    final later = waiting.skip(maxPerSync).toList();
     // Moved to another folder, or already there: nothing to look up.
-    final missing = [
-      for (final id in waiting)
+    final now = [
+      for (final id in waiting.take(maxPerSync))
         if (!ordinary.any(
           (m) => _store.messages.byMessageId(m.id, id).isNotEmpty,
         ))
           id,
     ];
-    final now = missing.take(maxPerSync).toList();
     if (now.isEmpty) {
-      _store.settings.delete(_key(account.id));
+      _write(account, later);
       return 0;
     }
     final selected = await imap.select(allMail.encodedName, readOnly: true);
@@ -99,7 +99,7 @@ final class ArchivedMail {
     final stored = uids.isEmpty
         ? 0
         : await _mailboxSync.fetchUids(imap, allMail, (uids.toList()..sort()));
-    _write(account, missing.skip(now.length).toList());
+    _write(account, later);
     return stored;
   }
 
