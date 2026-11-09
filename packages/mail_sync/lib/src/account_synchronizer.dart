@@ -175,13 +175,16 @@ final class AccountSynchronizer {
       // 4. Blocked senders, then the user's folder rules, then screened-out
       // senders (when they go to Archive), on new inbox mail; their moves
       // go to the server right away, in this session.
+      // Each looks only at mail that arrived since its last pass, unless
+      // older mail was just downloaded.
       var movedByRules = 0;
       final inbox = _store.mailboxes.inbox(account.id);
-      if (inbox != null && results.containsKey(inbox.id)) {
+      if (results[inbox?.id] case final result? when inbox != null) {
+        final everything = result.backfilled > 0;
         movedByRules =
-            (_blocker?.apply(account) ?? 0) +
-            (_rules?.apply(account) ?? 0) +
-            (_screener?.apply(account) ?? 0);
+            (_blocker?.apply(account, everything: everything) ?? 0) +
+            (_rules?.apply(account, everything: everything) ?? 0) +
+            (_screener?.apply(account, everything: everything) ?? 0);
         if (movedByRules > 0) {
           await _replayer.replay(
             imap,
