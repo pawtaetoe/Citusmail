@@ -7,6 +7,7 @@ import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'calendar_files.dart';
 import 'citusmail_theme.dart';
 import 'link_opener.dart';
@@ -187,7 +188,7 @@ final class InvitationCard extends StatelessWidget {
                 if (!isReply)
                   TextButton.icon(
                     onPressed: () => _save(context),
-                    icon: const Icon(Icons.download_outlined, size: 18),
+                    icon: const Icon(AppIcons.save, size: 18),
                     label: const Text('Save .ics'),
                   ),
               ],

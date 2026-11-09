@@ -9,6 +9,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'deliveries_page.dart' show DeliveryText;
 import 'link_opener.dart';
@@ -211,7 +212,7 @@ final class DeliveryDetailPage extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: const Icon(Icons.chevron_right),
+                          trailing: const Icon(AppIcons.chevron),
                           onTap: () => _openEmail(context, r.email.messageId),
                         ),
                       ],

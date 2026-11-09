@@ -629,6 +629,13 @@ void main() {
     await show(tester, shell(), size: const Size(1440, 900));
     await tester.tap(find.byTooltip('New message (C)'));
     await shoot(tester, 'desktop_compose');
+    // A read receipt asked for: the labelled toggle filled in.
+    await tester.tap(find.text('Receipt'));
+    await shoot(tester, 'desktop_compose_receipt');
+    // Let the draft's save timer run out.
+    await tester.tap(find.byTooltip('Close (keeps the draft)'));
+    await settle(tester);
+    await tester.pump(const Duration(seconds: 5));
   });
 
   // The Screener: the entry at the top of the inbox, the page (buttons

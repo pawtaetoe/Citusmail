@@ -17,6 +17,7 @@ import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
 import '../services/link_safety.dart';
 import '../services/virus_total_checks.dart';
+import 'app_icons.dart';
 import 'block_dialog.dart';
 import 'code_cleanup_banner.dart';
 import 'device_sync_page.dart';
@@ -187,7 +188,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         '$choice. ${CodeCleanupText.explanation}'
         '${waiting ? ' Not on yet: the Verification section asks you first.' : ''}',
       ),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: const Icon(AppIcons.chevron),
       onTap: () async {
         await showDialog<void>(
           context: context,
@@ -210,7 +211,7 @@ final class _SettingsPageState extends State<SettingsPage> {
 
     return [
       SwitchListTile(
-        secondary: const Icon(Icons.how_to_reg_outlined),
+        secondary: const Icon(AppIcons.screener),
         title: const Text('Screen first-time senders'),
         subtitle: const Text(
           'Someone writing for the first time waits in the Screener, at the '
@@ -261,7 +262,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               ? 'Senders you let in or screened out'
               : '$decided ${decided == 1 ? 'sender' : 'senders'} you let in or screened out',
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: const Icon(AppIcons.chevron),
         onTap: () async {
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
@@ -473,7 +474,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               'still loads when you scroll down. Search and Subscriptions see '
               'what is on this device.',
             ),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const Icon(AppIcons.chevron),
             onTap: _chooseKeepMail,
           ),
           SwitchListTile(
@@ -498,7 +499,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             leading: const Icon(Icons.image_outlined),
             title: const Text('Images'),
             subtitle: const Text('Senders whose images load automatically'),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const Icon(AppIcons.chevron),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => ImageSendersPage(services: widget.services),
@@ -506,9 +507,9 @@ final class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.block),
+            leading: const Icon(AppIcons.block),
             title: const Text('Blocked senders'),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const Icon(AppIcons.chevron),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => BlockedSendersPage(services: widget.services),
@@ -527,7 +528,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               'blocked. See what was kept from senders in the Privacy report.',
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const Icon(AppIcons.chevron),
             onTap: _openPrivacyReport,
           ),
           _WebPageTile(
@@ -547,7 +548,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               '$appName is free software under the Mozilla Public License 2.0.',
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const Icon(AppIcons.chevron),
             onTap: () =>
                 showLicensePage(context: context, applicationName: appName),
           ),
@@ -558,7 +559,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             subtitle: const Text(
               'Outside link and file checks, rules on your mail server',
             ),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const Icon(AppIcons.chevron),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => AdvancedSettingsPage(services: widget.services),

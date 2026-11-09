@@ -8,8 +8,10 @@ import 'package:mail_sort/mail_sort.dart';
 import '../mail/appointments_model.dart';
 import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
+import 'app_icons.dart';
 import 'appointment_detail_page.dart';
 import 'appointment_text.dart';
+import 'badge.dart';
 import 'citusmail_theme.dart';
 import 'read_ahead.dart';
 
@@ -339,11 +341,11 @@ final class AppointmentTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (a.cancelled)
-              const _Badge('Cancelled', error: true)
+              const AppBadge('Cancelled', tone: BadgeTone.danger)
             else if (a.changed && !over)
-              const _Badge('Moved'),
+              const AppBadge('Moved', tone: BadgeTone.warning),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right),
+            const Icon(AppIcons.chevron),
           ],
         ),
       ),
@@ -410,35 +412,6 @@ final class _DayChip extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// A small label: "Moved", "Cancelled".
-final class _Badge extends StatelessWidget {
-  const _Badge(this.text, {this.error = false});
-
-  final String text;
-  final bool error;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: error ? colors.errorContainer : CitusPalette.citrus,
-        borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
-      ),
-      child: Text(
-        text,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: error ? colors.onErrorContainer : CitusPalette.onCitrus,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }

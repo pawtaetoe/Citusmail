@@ -9,6 +9,7 @@ import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'block_dialog.dart';
 import 'link_opener.dart';
 import 'trust_banner.dart';
@@ -218,7 +219,7 @@ final class UnsubscribeStatus extends StatelessWidget {
           if (controller.blockFor(reader.message) == null &&
               controller.canBlock(reader.message))
             TextButton.icon(
-              icon: const Icon(Icons.block, size: 18),
+              icon: const Icon(AppIcons.block, size: 18),
               label: const Text('Block sender'),
               onPressed: () =>
                   BlockDialog.show(context, controller, reader.message),

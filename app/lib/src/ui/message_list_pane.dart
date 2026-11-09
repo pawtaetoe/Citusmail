@@ -12,9 +12,11 @@ import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../mail/message_list_model.dart';
 import '../mail/send_later_times.dart';
+import 'app_icons.dart';
 import 'attachments_page.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
+import 'empty_state.dart';
 import 'folder_dialogs.dart';
 import 'follow_ups_list.dart';
 import 'mail_text.dart';
@@ -194,7 +196,7 @@ final class _TopBarState extends State<_TopBar> {
                   onSubmitted: widget.controller.search,
                   decoration: InputDecoration(
                     hintText: 'Search mail',
-                    prefixIcon: const Icon(Icons.search, size: 20),
+                    prefixIcon: const Icon(AppIcons.search, size: 20),
                     // Teaches the shortcut where it is used.
                     suffixText: searching ? null : '/',
                     suffixStyle: theme.textTheme.labelMedium?.copyWith(
@@ -211,7 +213,7 @@ final class _TopBarState extends State<_TopBar> {
                               if (location is SearchLocation)
                                 IconButton(
                                   tooltip: 'Clear search',
-                                  icon: const Icon(Icons.close, size: 18),
+                                  icon: const Icon(AppIcons.close, size: 18),
                                   onPressed: () => widget.controller.search(''),
                                 )
                               else
@@ -241,7 +243,7 @@ final class _TopBarState extends State<_TopBar> {
               ),
             ),
             onPressed: compose,
-            icon: const Icon(Icons.edit_outlined),
+            icon: const Icon(AppIcons.compose),
           ),
         ],
       ],
@@ -267,7 +269,7 @@ final class _FilesButton extends StatelessWidget {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       onPressed: onPressed,
-      icon: const Icon(Icons.attach_file, size: 18),
+      icon: const Icon(AppIcons.attachment, size: 18),
       label: const Text('Files'),
     ),
   );
@@ -330,7 +332,7 @@ final class _ViewHeader extends StatelessWidget {
       children: [
         IconButton(
           tooltip: 'Back to Inbox',
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(AppIcons.back),
           onPressed: () => controller.goTo(const InboxLocation()),
         ),
         Flexible(
@@ -344,7 +346,7 @@ final class _ViewHeader extends StatelessWidget {
         if (folder != null && controller.canHaveRules(folder))
           IconButton(
             tooltip: 'Folder rules',
-            icon: const Icon(Icons.filter_alt_outlined),
+            icon: const Icon(AppIcons.folderRules),
             onPressed: () =>
                 FolderRulesDialog.show(context, controller, folder),
           ),
@@ -369,7 +371,7 @@ final class _StatusLine extends StatelessWidget {
         SyncRunning() => ('Updating…', null, colors.onSurfaceVariant),
         SyncProblem(kind: SyncFailureKind.network) => (
           'Offline',
-          Icons.cloud_off,
+          AppIcons.offline,
           colors.onSurfaceVariant,
         ),
         SyncProblem(
@@ -381,10 +383,10 @@ final class _StatusLine extends StatelessWidget {
             oauth
                 ? 'Sign-in ended ($account): sign in again'
                 : 'Password not accepted ($account)',
-            Icons.error_outline,
+            AppIcons.problem,
             colors.error,
           ),
-        SyncProblem() => ('Can\'t update', Icons.error_outline, colors.error),
+        SyncProblem() => ('Can\'t update', AppIcons.problem, colors.error),
         SyncIdle(lastSynced: final at?) => (
           'Updated ${MailText.listDate(context, at)}',
           null,
@@ -462,7 +464,7 @@ final class _SelectionBar extends StatelessWidget {
         children: [
           IconButton(
             tooltip: 'Cancel selection (Esc)',
-            icon: const Icon(Icons.close),
+            icon: const Icon(AppIcons.close),
             onPressed: controller.clearSelection,
           ),
           Expanded(
@@ -478,44 +480,40 @@ final class _SelectionBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Archive (E)',
-            icon: const Icon(Icons.archive_outlined),
+            icon: const Icon(AppIcons.archive),
             onPressed: () => controller.archive(targets),
           ),
           IconButton(
             tooltip: 'Move to Trash (#)',
-            icon: const Icon(Icons.delete_outline),
+            icon: const Icon(AppIcons.delete),
             onPressed: () => controller.delete(targets),
           ),
           if (snoozed)
             IconButton(
               tooltip: 'Unsnooze',
-              icon: const Icon(Icons.alarm_off),
+              icon: const Icon(AppIcons.unsnooze),
               onPressed: () => controller.unsnooze(targets),
             ),
           if (canSnooze)
             IconButton(
               tooltip: snoozed ? 'Change snooze time (B)' : 'Snooze (B)',
-              icon: const Icon(Icons.snooze),
+              icon: const Icon(AppIcons.snooze),
               onPressed: () => SnoozeSheet.show(context, controller, targets),
             ),
           IconButton(
             tooltip: allRead ? 'Mark as unread (U)' : 'Mark as read (U)',
-            icon: Icon(
-              allRead
-                  ? Icons.mark_email_unread_outlined
-                  : Icons.mark_email_read_outlined,
-            ),
+            icon: Icon(allRead ? AppIcons.markUnread : AppIcons.markRead),
             onPressed: () => controller.toggleRead(targets),
           ),
           IconButton(
             tooltip: allPinned ? 'Unpin (S)' : 'Pin (S)',
-            icon: Icon(allPinned ? Icons.push_pin : Icons.push_pin_outlined),
+            icon: Icon(allPinned ? AppIcons.pinOn : AppIcons.pinOff),
             onPressed: () => controller.togglePin(targets),
           ),
           if (oneAccount)
             IconButton(
               tooltip: 'Move to folder (V)',
-              icon: const Icon(Icons.drive_file_move_outline),
+              icon: const Icon(AppIcons.move),
               onPressed: () => MoveDialog.show(context, controller, targets),
             ),
         ],
@@ -605,7 +603,13 @@ final class _MessagesState extends State<_Messages> {
             list.screenerWaiting == 0 &&
             list.followUps.isEmpty &&
             list.newSinceAway.isEmpty) {
-          return const _Empty(Icons.inbox_outlined, 'Your inbox is empty.');
+          return EmptyState(
+            icon: AppIcons.inbox,
+            text: 'Your inbox is empty.',
+            hint: 'Nothing new has arrived.',
+            action: 'Check for new mail',
+            onAction: _c.syncNow,
+          );
         }
         return Scrollbar(
           controller: _scroll,
@@ -697,16 +701,19 @@ final class _MessagesState extends State<_Messages> {
       final messages = list.messages;
       if (messages.isEmpty) {
         return switch (list.location) {
-          SearchLocation() => const _Empty(
-            Icons.search_off,
-            'No messages found.',
+          SearchLocation() => const EmptyState(
+            icon: AppIcons.searchOff,
+            text: 'No messages found.',
+            hint: 'Try other words, or the name of who wrote.',
           ),
-          SnoozedLocation() => const _Empty(
-            Icons.snooze,
-            'Nothing is snoozed. Snooze an email to have it come back '
-            'to the top of your inbox later.',
+          SnoozedLocation() => const EmptyState(
+            icon: AppIcons.snooze,
+            text: 'Nothing is snoozed.',
+            hint:
+                'Snooze an email to have it come back to the top of your '
+                'inbox later.',
           ),
-          _ => const _Empty(Icons.mail_outline, 'No messages here.'),
+          _ => const EmptyState(icon: AppIcons.mail, text: 'No messages here.'),
         };
       }
       return Scrollbar(
@@ -763,7 +770,10 @@ final class _MessagesState extends State<_Messages> {
   Widget _outbox() {
     final entries = _c.outbox;
     if (entries.isEmpty) {
-      return const _Empty(Icons.outbox_outlined, 'Everything has been sent.');
+      return const EmptyState(
+        icon: AppIcons.outbox,
+        text: 'Everything has been sent.',
+      );
     }
     // Scheduled messages ("Send later"): a word on when they really go.
     final note = entries.any((e) => ScheduledSend.of(e) != null);
@@ -812,8 +822,13 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
         MailText.sender(m),
     }.join(', ');
     final total = count.total == 1 ? '1 message' : '${count.total} messages';
-    // Collapsed sections say who wrote, so they can stay collapsed.
-    final summary = state.expanded || senders.isEmpty ? total : senders;
+    // Folded sections say who wrote (or how many), so they can stay
+    // folded; an open section shows its messages, so it says nothing.
+    final summary = state.expanded
+        ? null
+        : senders.isEmpty
+        ? total
+        : senders;
     return Material(
       color: ListColors.of(context).background,
       child: Semantics(
@@ -875,22 +890,23 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
                             ],
                           ],
                         ),
-                        Text(
-                          summary,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            height: 1.3,
+                        if (summary != null)
+                          Text(
+                            summary,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              height: 1.3,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
                   if (count.unread > 0)
                     IconButton(
                       tooltip: 'Mark all ${MailText.section(section)} as read',
-                      icon: const Icon(Icons.done_all, size: 20),
+                      icon: const Icon(AppIcons.markAllRead, size: 20),
                       color: colors.onSurfaceVariant,
                       onPressed: () => controller.markSectionRead(section),
                     ),
@@ -900,7 +916,7 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
                       turns: state.expanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 150),
                       child: Icon(
-                        Icons.expand_more,
+                        AppIcons.expand,
                         color: colors.onSurfaceVariant,
                       ),
                     ),
@@ -992,43 +1008,11 @@ final class _ScreenerEntry extends StatelessWidget {
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Icon(
-                    Icons.chevron_right,
-                    color: colors.onSurfaceVariant,
-                  ),
+                  child: Icon(AppIcons.chevron, color: colors.onSurfaceVariant),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-final class _Empty extends StatelessWidget {
-  const _Empty(this.icon, this.text);
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: colors.outlineVariant),
-            const SizedBox(height: 12),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-          ],
         ),
       ),
     );
@@ -1066,10 +1050,10 @@ final class _OutboxTile extends StatelessWidget {
       key: ValueKey('outbox-${entry.id}'),
       leading: Icon(
         failed
-            ? Icons.error_outline
+            ? AppIcons.problem
             : waiting
             ? Icons.schedule
-            : Icons.schedule_send,
+            : AppIcons.sendLater,
         color: failed ? theme.colorScheme.error : theme.colorScheme.primary,
       ),
       title: Text(
@@ -1093,12 +1077,12 @@ final class _OutboxTile extends StatelessWidget {
               children: [
                 IconButton(
                   tooltip: 'Try again',
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(AppIcons.retry),
                   onPressed: () => controller.retrySend(entry),
                 ),
                 IconButton(
                   tooltip: 'Delete',
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(AppIcons.delete),
                   onPressed: () => controller.discardSend(entry),
                 ),
               ],
@@ -1141,12 +1125,12 @@ final class _ScheduledMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) => PopupMenuButton<_ScheduledAction>(
     tooltip: 'Scheduled message options',
-    icon: const Icon(Icons.more_vert),
+    icon: const Icon(AppIcons.more),
     onSelected: (action) => _act(context, action),
     itemBuilder: (_) => const [
       PopupMenuItem(
         value: _ScheduledAction.sendNow,
-        child: ListTile(leading: Icon(Icons.send), title: Text('Send now')),
+        child: ListTile(leading: Icon(AppIcons.send), title: Text('Send now')),
       ),
       PopupMenuItem(
         value: _ScheduledAction.changeTime,
@@ -1158,7 +1142,7 @@ final class _ScheduledMenu extends StatelessWidget {
       PopupMenuItem(
         value: _ScheduledAction.edit,
         child: ListTile(
-          leading: Icon(Icons.edit_outlined),
+          leading: Icon(AppIcons.compose),
           title: Text('Edit'),
           subtitle: Text('Back to a draft; not sent until you send it'),
         ),

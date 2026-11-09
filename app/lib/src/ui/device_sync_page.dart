@@ -11,6 +11,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../app.dart' show appName;
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
+import 'app_icons.dart';
 
 /// Settings > Sync between devices.
 final class DeviceSyncPage extends StatefulWidget {
@@ -173,7 +174,7 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
       if (_shownCode case final code?) _CodeCard(code: code),
       ListTile(
         leading: Icon(
-          status?.problem == null ? Icons.sync : Icons.sync_problem,
+          status?.problem == null ? AppIcons.sync : Icons.sync_problem,
           color: status?.problem == null ? null : theme.colorScheme.error,
         ),
         title: const Text('Sync is on'),
@@ -366,7 +367,7 @@ final class DeviceSyncTile extends StatelessWidget {
     subtitle: const Text(
       'Blocked and screened senders, unsubscribes, rules, image senders',
     ),
-    trailing: const Icon(Icons.chevron_right),
+    trailing: const Icon(AppIcons.chevron),
     onTap: () => Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => DeviceSyncPage(services: services),

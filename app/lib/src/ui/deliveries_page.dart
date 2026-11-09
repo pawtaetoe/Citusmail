@@ -9,8 +9,9 @@ import 'package:mail_sort/mail_sort.dart';
 import '../mail/deliveries_model.dart';
 import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
-import 'citusmail_theme.dart';
+import 'badge.dart';
 import 'delivery_detail_page.dart';
 import 'read_ahead.dart';
 import 'returns_section.dart';
@@ -267,13 +268,13 @@ abstract final class DeliveryText {
 
   static IconData icon(DeliveryStatus? s) => switch (s) {
     DeliveryStatus.ordered => Icons.shopping_bag_outlined,
-    DeliveryStatus.shipped => Icons.local_shipping_outlined,
+    DeliveryStatus.shipped => AppIcons.deliveries,
     DeliveryStatus.readyForPickup => Icons.storefront_outlined,
     DeliveryStatus.outForDelivery => Icons.delivery_dining_outlined,
     DeliveryStatus.delivered => Icons.check_circle_outline,
-    DeliveryStatus.problem => Icons.error_outline,
+    DeliveryStatus.problem => AppIcons.problem,
     DeliveryStatus.returned => Icons.keyboard_return,
-    null => Icons.mail_outline,
+    null => AppIcons.mail,
   };
 
   /// "Kindle Paperwhite and 2 more".
@@ -314,7 +315,7 @@ final class _Overview extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              Icons.local_shipping_outlined,
+              AppIcons.deliveries,
               size: 32,
               color: theme.colorScheme.primary,
             ),
@@ -415,26 +416,11 @@ final class DeliveryTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (d.status == DeliveryStatus.outForDelivery)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: CitusPalette.citrus,
-                  borderRadius: BorderRadius.circular(
-                    CitusmailTheme.radiusSmall,
-                  ),
-                ),
-                child: Text(
-                  'today',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: CitusPalette.onCitrus,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              )
+              const AppBadge('today', tone: BadgeTone.accent)
             else if (problem)
-              Icon(Icons.error_outline, color: colors.error, size: 20),
+              Icon(AppIcons.problem, color: colors.error, size: 20),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right),
+            const Icon(AppIcons.chevron),
           ],
         ),
       ),
@@ -463,7 +449,7 @@ final class _ReadOffer extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.local_shipping_outlined),
+                const Icon(AppIcons.deliveries),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -554,7 +540,7 @@ final class _Empty extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.local_shipping_outlined,
+            AppIcons.deliveries,
             size: 40,
             color: theme.colorScheme.onSurfaceVariant,
           ),

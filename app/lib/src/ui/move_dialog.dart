@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'mail_text.dart';
 
 /// "Move to…": the folders of the messages' account, with a filter box for
@@ -79,7 +80,7 @@ final class _MoveDialogState extends State<_MoveDialog> {
                 autofocus: true,
                 decoration: const InputDecoration(
                   hintText: 'Find a folder',
-                  prefixIcon: Icon(Icons.search, size: 20),
+                  prefixIcon: Icon(AppIcons.search, size: 20),
                   isDense: true,
                 ),
                 onChanged: (v) => setState(() => _filter = v.trim()),

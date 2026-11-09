@@ -11,6 +11,7 @@ import 'package:mail_view/mail_view.dart';
 
 import '../mail/attachments_model.dart';
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'attachment_save_flow.dart';
 import 'mail_text.dart';
 import 'reader_pane.dart';
@@ -295,7 +296,7 @@ final class _Controls extends StatelessWidget {
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         isDense: true,
-        prefixIcon: const Icon(Icons.search),
+        prefixIcon: const Icon(AppIcons.search),
         hintText: 'Search file names, senders or subjects',
         border: const OutlineInputBorder(
           borderRadius: BorderRadius.all(Radius.circular(24)),
@@ -304,7 +305,7 @@ final class _Controls extends StatelessWidget {
             ? null
             : IconButton(
                 tooltip: 'Clear',
-                icon: const Icon(Icons.close),
+                icon: const Icon(AppIcons.close),
                 onPressed: onClear,
               ),
       ),
@@ -470,7 +471,7 @@ final class _FileTile extends StatelessWidget {
             else
               IconButton(
                 tooltip: file.downloaded ? 'Save to Downloads' : 'Save to Downloads (downloads the email; it stays unread)',
-                icon: const Icon(Icons.download_outlined),
+                icon: const Icon(AppIcons.save),
                 onPressed: onSave,
               ),
           ],
@@ -607,7 +608,7 @@ final class _LookUpOffer extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.attach_file),
+                const Icon(AppIcons.attachment),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -684,7 +685,7 @@ final class _Empty extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            searching ? Icons.search_off : Icons.attach_file,
+            searching ? AppIcons.searchOff : AppIcons.attachment,
             size: 40,
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -850,7 +851,7 @@ final class _FileMessagePageState extends State<_FileMessagePage> {
                               dimension: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.download_outlined, size: 18),
+                          : const Icon(AppIcons.save, size: 18),
                       label: const Text('Save'),
                     ),
                   ],

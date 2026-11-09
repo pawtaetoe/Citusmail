@@ -7,6 +7,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'reader_pane.dart';
 import 'subscriptions_page.dart' show Prices;
@@ -195,7 +196,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            trailing: const Icon(Icons.chevron_right),
+                            trailing: const Icon(AppIcons.chevron),
                             onTap: () =>
                                 _openReceipt(context, r.email.messageId),
                           ),
@@ -249,7 +250,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
     SubscriptionEvent.charge => Icons.receipt_long_outlined,
     SubscriptionEvent.trial => Icons.hourglass_top,
     SubscriptionEvent.cancelled => Icons.cancel_outlined,
-    SubscriptionEvent.notice => Icons.mail_outline,
+    SubscriptionEvent.notice => AppIcons.mail,
   };
 
   static String _label(SubscriptionEvent e) => switch (e) {

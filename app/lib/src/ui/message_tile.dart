@@ -8,7 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'avatar.dart';
+import 'badge.dart';
 import 'citusmail_theme.dart';
 import 'mail_text.dart';
 import 'snooze_sheet.dart';
@@ -43,6 +45,9 @@ final class MessageTile extends StatefulWidget {
 
   /// Selection mode: taps select instead of opening.
   final bool selecting;
+
+  /// The preview line's size (the sender and subject are 14).
+  static const previewSize = 13.0;
 
   /// Rows are laid out with this prototype (the same height for all).
   static StoredMessage prototype = StoredMessage(
@@ -102,7 +107,7 @@ final class _MessageTileState extends State<MessageTile> {
         : widget.open
         ? listColors.selected
         : _hovered
-        ? colors.onSurface.withValues(alpha: 0.04)
+        ? theme.hoverColor
         : Colors.transparent;
 
     final row = Semantics(
@@ -134,45 +139,65 @@ final class _MessageTileState extends State<MessageTile> {
               onTap: _tap,
               onLongPress: () => _c.toggleSelected(_m),
               onSecondaryTapUp: (d) => _menu(d.globalPosition),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Unread: a dot beside the avatar, and bold text.
-                    SizedBox(
-                      width: 16,
-                      height: 36,
-                      child: unread
-                          ? Center(
-                              child: Container(
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  color: listColors.unreadDot,
-                                  shape: BoxShape.circle,
+              child: Stack(
+                children: [
+                  // The open row: a bar at its left, as in the sidebar,
+                  // so it is marked by more than its tint.
+                  if (widget.open)
+                    Positioned(
+                      key: const ValueKey('open-row-bar'),
+                      left: 0,
+                      top: 9,
+                      bottom: 9,
+                      child: Container(
+                        width: 3,
+                        decoration: BoxDecoration(
+                          color: listColors.indicator,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Unread: a dot beside the avatar, and bold text.
+                        SizedBox(
+                          width: 16,
+                          height: 36,
+                          child: unread
+                              ? Center(
+                                  child: Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      color: listColors.unreadDot,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        SizedBox.square(
+                          dimension: 36,
+                          child: showCheckbox
+                              ? Checkbox(
+                                  value: widget.checked,
+                                  onChanged: (_) => _c.toggleSelected(_m),
+                                  semanticLabel: 'Select',
+                                )
+                              : Avatar(
+                                  name: MailText.sender(_m),
+                                  address: _m.from?.address ?? '',
                                 ),
-                              ),
-                            )
-                          : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: _text(context, unread, showActions)),
+                      ],
                     ),
-                    SizedBox.square(
-                      dimension: 36,
-                      child: showCheckbox
-                          ? Checkbox(
-                              value: widget.checked,
-                              onChanged: (_) => _c.toggleSelected(_m),
-                              semanticLabel: 'Select',
-                            )
-                          : Avatar(
-                              name: MailText.sender(_m),
-                              address: _m.from?.address ?? '',
-                            ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(child: _text(context, unread, showActions)),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -188,15 +213,13 @@ final class _MessageTileState extends State<MessageTile> {
       background: _SwipeBackground(
         alignment: Alignment.centerLeft,
         color: canArchive ? const Color(0xFF2E9E5B) : colors.primary,
-        icon: canArchive
-            ? Icons.archive_outlined
-            : Icons.mark_email_read_outlined,
+        icon: canArchive ? AppIcons.archive : AppIcons.markRead,
         label: canArchive ? 'Archive' : (_m.flags.seen ? 'Unread' : 'Read'),
       ),
       secondaryBackground: const _SwipeBackground(
         alignment: Alignment.centerRight,
         color: Color(0xFFD64545),
-        icon: Icons.delete_outline,
+        icon: AppIcons.delete,
         label: 'Delete',
       ),
       confirmDismiss: (direction) async {
@@ -216,7 +239,10 @@ final class _MessageTileState extends State<MessageTile> {
     );
   }
 
-  /// Sender and date (or hover actions), subject, preview.
+  /// Sender and date (or hover actions), subject, preview. Unread: the
+  /// sender and subject in semibold ink; read: the subject drops to
+  /// regular weight and the muted colour, so unread mail stands out at a
+  /// glance.
   Widget _text(BuildContext context, bool unread, bool showActions) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
@@ -229,7 +255,7 @@ final class _MessageTileState extends State<MessageTile> {
           child: Row(
             children: [
               if (_m.flags.flagged) ...[
-                const Icon(Icons.push_pin, size: 14, color: MailText.pinColor),
+                const Icon(AppIcons.pinOn, size: 14, color: MailText.pinColor),
                 const SizedBox(width: 4),
               ],
               Expanded(
@@ -248,11 +274,11 @@ final class _MessageTileState extends State<MessageTile> {
                 if (_m.hasAttachments)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
-                    child: Icon(Icons.attach_file, size: 14, color: muted),
+                    child: Icon(AppIcons.attachment, size: 14, color: muted),
                   ),
                 if (_c.snoozedUntil(_m) case final until?) ...[
                   // In the Snoozed list: when it comes back.
-                  Icon(Icons.snooze, size: 14, color: MailText.snoozeColor),
+                  Icon(AppIcons.snooze, size: 14, color: MailText.snoozeColor),
                   const SizedBox(width: 4),
                   Text(
                     SnoozeSheet.describe(context, until),
@@ -262,7 +288,15 @@ final class _MessageTileState extends State<MessageTile> {
                     ),
                   ),
                 ] else ...[
-                  if (_m.backFromSnooze) const _SnoozedBadge(),
+                  if (_m.backFromSnooze)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: AppBadge(
+                        'Snoozed',
+                        icon: AppIcons.snooze,
+                        tint: MailText.snoozeColor,
+                      ),
+                    ),
                   Text(
                     MailText.listDate(context, _m.listedAt),
                     style: theme.textTheme.labelMedium?.copyWith(
@@ -280,6 +314,7 @@ final class _MessageTileState extends State<MessageTile> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodyMedium?.copyWith(
+            color: unread ? colors.onSurface : muted,
             fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
             height: 1.35,
           ),
@@ -287,7 +322,10 @@ final class _MessageTileState extends State<MessageTile> {
         if (_m.shownCode case final code?)
           _CodeLine(
             code: code,
-            style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontSize: MessageTile.previewSize,
+              height: 1.35,
+            ),
           )
         else
           Text(
@@ -296,6 +334,7 @@ final class _MessageTileState extends State<MessageTile> {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(
               color: muted,
+              fontSize: MessageTile.previewSize,
               height: 1.35,
             ),
           ),
@@ -444,71 +483,40 @@ final class _QuickActions extends StatelessWidget {
         if (archive != null && archive.id != message.mailboxId)
           button(
             'Archive (E)',
-            Icons.archive_outlined,
+            AppIcons.archive,
             () => controller.archive([message]),
           ),
         if (!controller.isInTrash(message))
           button(
             'Move to Trash (#)',
-            Icons.delete_outline,
+            AppIcons.delete,
             () => controller.delete([message]),
           ),
         if (controller.snoozedUntil(message) != null)
           button(
             'Unsnooze',
-            Icons.alarm_off,
+            AppIcons.unsnooze,
             () => controller.unsnooze([message]),
           )
         else if (controller.canSnooze(message))
           button(
             'Snooze (B)',
-            Icons.snooze,
+            AppIcons.snooze,
             () => SnoozeSheet.show(context, controller, [message]),
           ),
         button(
           message.flags.flagged ? 'Unpin (S)' : 'Pin (S)',
-          message.flags.flagged ? Icons.push_pin : Icons.push_pin_outlined,
+          message.flags.flagged ? AppIcons.pinOn : AppIcons.pinOff,
           () => controller.togglePin([message]),
         ),
         button(
           message.flags.seen ? 'Mark as unread (U)' : 'Mark as read (U)',
-          message.flags.seen
-              ? Icons.mark_email_unread_outlined
-              : Icons.mark_email_read_outlined,
+          message.flags.seen ? AppIcons.markUnread : AppIcons.markRead,
           () => controller.toggleRead([message]),
         ),
       ],
     );
   }
-}
-
-/// "Snoozed" beside the time of mail that came back from snooze.
-final class _SnoozedBadge extends StatelessWidget {
-  const _SnoozedBadge();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(right: 6),
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-    decoration: BoxDecoration(
-      color: MailText.snoozeColor.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(4),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.snooze, size: 12, color: MailText.snoozeColor),
-        const SizedBox(width: 3),
-        Text(
-          'Snoozed',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: MailText.snoozeColor,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 final class _SwipeBackground extends StatelessWidget {

@@ -12,6 +12,7 @@ import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import 'accounts_page.dart';
+import 'app_icons.dart';
 import 'appointments_page.dart';
 import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
@@ -115,7 +116,7 @@ final class Sidebar extends StatelessWidget {
                               ? IconButton(
                                   tooltip: 'Lock now',
                                   icon: Icon(
-                                    Icons.lock_outline,
+                                    AppIcons.lock,
                                     color: colors.muted,
                                   ),
                                   onPressed: controller.services.lock.lockNow,
@@ -124,10 +125,7 @@ final class Sidebar extends StatelessWidget {
                         ),
                         IconButton(
                           tooltip: 'Settings',
-                          icon: Icon(
-                            Icons.settings_outlined,
-                            color: colors.muted,
-                          ),
+                          icon: Icon(AppIcons.settings, color: colors.muted),
                           onPressed: () {
                             onNavigated?.call();
                             Navigator.of(context).push(
@@ -152,7 +150,7 @@ final class Sidebar extends StatelessWidget {
                                     color: colors.muted,
                                   ),
                                 )
-                              : Icon(Icons.sync, color: colors.muted),
+                              : Icon(AppIcons.sync, color: colors.muted),
                         ),
                       ],
                     ),
@@ -170,7 +168,7 @@ final class Sidebar extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                           ),
                           onPressed: compose,
-                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          icon: const Icon(AppIcons.compose, size: 20),
                           label: const Text('New message'),
                         ),
                       ),
@@ -191,7 +189,7 @@ final class Sidebar extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 2, bottom: 8),
                         children: [
                           _Entry(
-                            icon: Icons.inbox,
+                            icon: AppIcons.inbox,
                             label: 'Inbox',
                             bold: true,
                             badge: counts.inboxUnread,
@@ -199,14 +197,14 @@ final class Sidebar extends StatelessWidget {
                             onTap: () => go(const InboxLocation()),
                           ),
                           _Entry(
-                            icon: Icons.push_pin_outlined,
+                            icon: AppIcons.pins,
                             label: 'Pins',
                             selected: here == const PinsLocation(),
                             onTap: () => go(const PinsLocation()),
                           ),
                           if (counts.outbox > 0)
                             _Entry(
-                              icon: Icons.outbox_outlined,
+                              icon: AppIcons.outbox,
                               label: 'Outbox',
                               badge: counts.outbox,
                               selected: here == const OutboxLocation(),
@@ -215,7 +213,7 @@ final class Sidebar extends StatelessWidget {
                           // While something is snoozed.
                           if (counts.snoozed > 0)
                             _Entry(
-                              icon: Icons.snooze,
+                              icon: AppIcons.snoozed,
                               label: 'Snoozed',
                               selected: here == const SnoozedLocation(),
                               onTap: () => go(const SnoozedLocation()),
@@ -223,7 +221,7 @@ final class Sidebar extends StatelessWidget {
                           // While a sent email waits for a reply.
                           if (counts.followUps > 0)
                             _Entry(
-                              icon: Icons.hourglass_empty,
+                              icon: AppIcons.waiting,
                               label: 'Waiting for a reply',
                               selected: here == const FollowUpsLocation(),
                               onTap: () => go(const FollowUpsLocation()),
@@ -256,7 +254,7 @@ final class Sidebar extends StatelessWidget {
                                 // inbox.
                                 if (several)
                                   _Entry(
-                                    icon: Icons.inbox,
+                                    icon: AppIcons.inbox,
                                     indent: 1,
                                     label: 'Inbox',
                                     badge:
@@ -306,14 +304,14 @@ final class Sidebar extends StatelessWidget {
                   ),
                   Divider(color: colors.selected, height: 1),
                   const SizedBox(height: 2),
-                  // One line for all accounts; a problem names the
-                  // account (its block shows it too).
+                  // One line for all accounts (a single problem shows
+                  // only on its account's block).
                   _SyncSummary(
                     accounts: accounts,
                     eventOf: controller.lastEvent,
                   ),
                   _Entry(
-                    icon: Icons.person_add_alt,
+                    icon: AppIcons.addAccount,
                     label: 'Add account',
                     onTap: onAddAccount,
                   ),
@@ -335,27 +333,27 @@ final class Sidebar extends StatelessWidget {
       title: 'Found in your mail',
       pages: [
         (
-          icon: Icons.autorenew,
+          icon: AppIcons.subscriptions,
           label: 'Subscriptions',
           page: (_) => SubscriptionsPage(controller: controller),
         ),
         (
-          icon: Icons.local_shipping_outlined,
+          icon: AppIcons.deliveries,
           label: 'Deliveries',
           page: (_) => DeliveriesPage(controller: controller),
         ),
         (
-          icon: Icons.luggage_outlined,
+          icon: AppIcons.trips,
           label: 'Trips',
           page: (_) => TripsPage(controller: controller),
         ),
         (
-          icon: Icons.event_available_outlined,
+          icon: AppIcons.appointments,
           label: 'Appointments',
           page: (_) => AppointmentsPage(controller: controller),
         ),
         (
-          icon: Icons.badge_outlined,
+          icon: AppIcons.onlineAccounts,
           label: 'Online accounts',
           page: (_) => AccountsPage(controller: controller),
         ),
@@ -366,12 +364,12 @@ final class Sidebar extends StatelessWidget {
       title: 'Tools',
       pages: [
         (
-          icon: Icons.cleaning_services_outlined,
+          icon: AppIcons.cleanUp,
           label: 'Clean up',
           page: (_) => SenderCleanupPage(controller: controller),
         ),
         (
-          icon: Icons.shield_outlined,
+          icon: AppIcons.privacyReport,
           label: 'Privacy report',
           page: (_) => PrivacyReportPage(
             services: controller.services,
@@ -450,6 +448,15 @@ final class _SectionHeading extends StatelessWidget {
 
   final String text;
 
+  /// Small, muted, a little spaced: also the style of the folding group
+  /// headings below the accounts.
+  static TextStyle style(SidebarColors colors) => TextStyle(
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.4,
+  );
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 12, 12, 2),
@@ -459,12 +466,7 @@ final class _SectionHeading extends StatelessWidget {
         text,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: SidebarColors.of(context).muted,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.4,
-        ),
+        style: style(SidebarColors.of(context)),
       ),
     ),
   );
@@ -727,12 +729,17 @@ final class _FoldHeader extends StatelessWidget {
     this.problem,
     this.badge = 0,
     this.trailing,
+    this.heading = false,
   });
 
   final String title;
 
   /// What folds, for screen readers: "Show $what".
   final String what;
+
+  /// A group heading (small, muted, like [_SectionHeading]) rather than
+  /// an account's name.
+  final bool heading;
   final bool open;
 
   /// Null when it doesn't fold: then it is a plain heading.
@@ -766,7 +773,7 @@ final class _FoldHeader extends StatelessWidget {
                 turns: open ? 0 : -0.25,
                 duration: _Size.fold,
                 child: Icon(
-                  Icons.expand_more,
+                  AppIcons.expand,
                   size: _Size.icon,
                   color: colors.muted,
                 ),
@@ -790,11 +797,13 @@ final class _FoldHeader extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.text,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: heading
+                          ? _SectionHeading.style(colors)
+                          : TextStyle(
+                              color: colors.text,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
                     ),
                   ),
                   if (problem != null)
@@ -855,9 +864,9 @@ typedef _Feature = ({IconData icon, String label, WidgetBuilder page});
 /// A folding group of pages, such as "Tools".
 typedef _FeatureGroup = ({String id, String title, List<_Feature> pages});
 
-/// Pages about your mail, apart from the places to read it: a tinted band
-/// below the accounts, so they read as features, not folders. Each group
-/// folds (folded at first; remembered).
+/// Pages about your mail, apart from the places to read it: below the
+/// accounts, under small muted headings, so they read as features, not
+/// folders. Each group folds (folded at first; remembered).
 final class _FeaturePanel extends StatelessWidget {
   const _FeaturePanel({
     required this.memory,
@@ -870,46 +879,36 @@ final class _FeaturePanel extends StatelessWidget {
   final void Function(WidgetBuilder page) onOpen;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = SidebarColors.of(context);
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: colors.hover,
-        border: Border(
-          top: BorderSide(color: colors.selected),
-          bottom: BorderSide(color: colors.selected),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final group in groups)
-            _Fold(
-              key: ValueKey('group-${group.id}'),
-              memory: memory,
-              id: group.id,
-              header: (open, toggle) => _FoldHeader(
-                title: group.title,
-                what: group.title,
-                open: open,
-                onToggle: toggle,
-              ),
-              children: [
-                for (final page in group.pages)
-                  _Entry(
-                    icon: page.icon,
-                    label: page.label,
-                    indent: 1,
-                    onTap: () => onOpen(page.page),
-                  ),
-              ],
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: CitusSpace.l),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final group in groups)
+          _Fold(
+            key: ValueKey('group-${group.id}'),
+            memory: memory,
+            id: group.id,
+            header: (open, toggle) => _FoldHeader(
+              title: group.title,
+              what: group.title,
+              open: open,
+              onToggle: toggle,
+              heading: true,
             ),
-        ],
-      ),
-    );
-  }
+            children: [
+              for (final page in group.pages)
+                _Entry(
+                  icon: page.icon,
+                  label: page.label,
+                  indent: 1,
+                  onTap: () => onOpen(page.page),
+                ),
+            ],
+          ),
+      ],
+    ),
+  );
 }
 
 /// What an account's last sync says, in a few words, and whether it is a
@@ -993,7 +992,11 @@ final class _AccountBlock extends StatelessWidget {
         ),
         trailing: PopupMenuButton<void>(
           tooltip: 'Account',
-          icon: Icon(Icons.more_horiz, size: _Size.icon, color: colors.muted),
+          icon: Icon(
+            AppIcons.moreHorizontal,
+            size: _Size.icon,
+            color: colors.muted,
+          ),
           style: IconButton.styleFrom(
             fixedSize: const Size.square(_Size.row),
             minimumSize: const Size.square(_Size.row),
@@ -1018,7 +1021,8 @@ final class _AccountBlock extends StatelessWidget {
 }
 
 /// The accounts' sync status in one line: "All accounts up to date", or
-/// the problem to look at.
+/// how many accounts need looking at. A single account's problem is not
+/// repeated here: its block shows it.
 final class _SyncSummary extends StatelessWidget {
   const _SyncSummary({required this.accounts, required this.eventOf});
 
@@ -1037,9 +1041,9 @@ final class _SyncSummary extends StatelessWidget {
     final String text;
     final Color dot;
     if (failed.length == 1) {
-      text =
-          '${failed.single.email}: ${_statusOf(failed.single, eventOf(failed.single.id)).$1}';
-      dot = colors.problem;
+      // Its block says what is wrong, right under its address: saying it
+      // again here would be noise.
+      return const SizedBox.shrink();
     } else if (failed.length > 1) {
       text = '${failed.length} accounts need attention';
       dot = colors.problem;

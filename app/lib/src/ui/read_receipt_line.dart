@@ -7,6 +7,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'mail_text.dart';
 import 'subscription_detail_page.dart' show EmailPage;
 
@@ -120,7 +121,7 @@ final class ReadReceiptLine extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.done_all, size: 16, color: muted),
+                    Icon(AppIcons.markAllRead, size: 16, color: muted),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(

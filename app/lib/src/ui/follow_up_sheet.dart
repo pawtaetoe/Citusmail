@@ -8,6 +8,7 @@ import 'package:mail_store/mail_store.dart';
 import '../mail/follow_up_times.dart';
 import '../mail/mail_controller.dart';
 import '../mail/snooze_times.dart';
+import 'app_icons.dart';
 import 'snooze_sheet.dart';
 
 /// What the user chose: a time, or no reminder ([at] null).
@@ -176,7 +177,7 @@ final class _FollowUpPanel extends StatelessWidget {
           ListTile(
             key: const ValueKey('follow-up-off'),
             contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-            leading: const Icon(Icons.alarm_off),
+            leading: const Icon(AppIcons.remindOff),
             title: const Text('Don\'t remind me'),
             onTap: () => Navigator.pop(context, const FollowUpPick(null)),
           ),

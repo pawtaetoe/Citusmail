@@ -6,20 +6,38 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-/// The app's colours, in one place. A deep spruce sidebar, a calm lagoon
-/// green for actions and selection, and one citrus accent kept for what
-/// asks for attention first (new mail counts, the "New message" button).
+/// The app's colours, in one place: "paper and lagoon". Warm, paper-like
+/// neutrals for everything you read, a deep spruce sidebar as the one cool
+/// dark element, lagoon green strictly for what you can act on (buttons,
+/// links, the open row) and one citrus accent strictly for what is
+/// time-sensitive (new mail counts, "today", "in 2 days", the "New
+/// message" button).
 ///
 /// Text colours meet WCAG AA (4.5:1) on the backgrounds they are used on.
 abstract final class CitusPalette {
   static const spruce = Color(0xFF15332E);
-  static const spruceDark = Color(0xFF0E1A18);
+  static const spruceDark = Color(0xFF111917);
   static const citrus = Color(0xFFF4B740);
   static const onCitrus = Color(0xFF2B1D00);
   static const lagoon = Color(0xFF0F7A69);
   static const lagoonLight = Color(0xFF5DCAB4);
-  static const paper = Color(0xFFF3F6F5);
-  static const ink = Color(0xFF17201E);
+
+  /// The message list's background: a warm off-white.
+  static const paper = Color(0xFFF4F2EC);
+
+  /// Text on paper: a warm near-black.
+  static const ink = Color(0xFF1B1A17);
+}
+
+/// The spacing scale: every gap and padding is one of these, so screens
+/// share a rhythm.
+abstract final class CitusSpace {
+  static const xs = 4.0;
+  static const s = 8.0;
+  static const m = 12.0;
+  static const l = 16.0;
+  static const xl = 24.0;
+  static const xxl = 32.0;
 }
 
 /// The app's look: Material 3, set in IBM Plex Sans (bundled, so it looks
@@ -31,10 +49,18 @@ abstract final class CitusmailTheme {
   /// Kept for callers that want "the brand colour".
   static const accent = CitusPalette.lagoon;
 
-  /// Corner radii: small controls, list rows and fields, dialogs.
+  /// Corner radii, from small to large: badges, chips and text buttons,
+  /// controls (buttons, fields, list rows), cards, dialogs and sheets.
+  static const radiusBadge = 6.0;
   static const radiusSmall = 8.0;
   static const radius = 10.0;
+  static const radiusCard = 12.0;
   static const radiusLarge = 20.0;
+
+  /// The widest a column of text gets, so lines stay readable on wide
+  /// windows: a message being read, a message being written.
+  static const readingWidth = 720.0;
+  static const writingWidth = 760.0;
 
   /// A field without a box, for writing mail: the lines between fields
   /// do the separating.
@@ -68,7 +94,7 @@ abstract final class CitusmailTheme {
           primary: light ? CitusPalette.lagoon : CitusPalette.lagoonLight,
           onPrimary: light ? Colors.white : const Color(0xFF00201A),
           primaryContainer: light
-              ? const Color(0xFFD3EDE6)
+              ? const Color(0xFFD6EFE7)
               : const Color(0xFF1C3E37),
           onPrimaryContainer: light
               ? const Color(0xFF06322B)
@@ -76,30 +102,33 @@ abstract final class CitusmailTheme {
           secondaryContainer: light
               ? const Color(0xFFDDEAE6)
               : const Color(0xFF243532),
-          surface: light ? Colors.white : const Color(0xFF161E1D),
-          onSurface: light ? CitusPalette.ink : const Color(0xFFE4ECEA),
+          // Surfaces: warm neutrals in light mode (paper, not clinic
+          // white); in dark mode they get lighter as they rise, so cards
+          // sit on top of the page rather than sinking into it.
+          surface: light ? const Color(0xFFFCFBF8) : const Color(0xFF171C1B),
+          onSurface: light ? CitusPalette.ink : const Color(0xFFECEAE4),
           onSurfaceVariant: light
-              ? const Color(0xFF55635F)
-              : const Color(0xFFA3B2AE),
+              ? const Color(0xFF5C5A53)
+              : const Color(0xFFA9A79F),
           surfaceContainerLowest: light
               ? Colors.white
-              : const Color(0xFF101716),
+              : const Color(0xFF121615),
           surfaceContainerLow: light
               ? CitusPalette.paper
-              : const Color(0xFF121918),
+              : const Color(0xFF1D2321),
           surfaceContainer: light
-              ? const Color(0xFFECF1EF)
-              : const Color(0xFF1B2422),
+              ? const Color(0xFFECE9E1)
+              : const Color(0xFF242A28),
           surfaceContainerHigh: light
-              ? const Color(0xFFE5ECE9)
-              : const Color(0xFF212B29),
+              ? const Color(0xFFE6E2D9)
+              : const Color(0xFF2A312E),
           surfaceContainerHighest: light
-              ? const Color(0xFFDEE6E3)
-              : const Color(0xFF28332F),
-          outline: light ? const Color(0xFF7A8985) : const Color(0xFF7F8F8B),
+              ? const Color(0xFFDFDBD1)
+              : const Color(0xFF333A37),
+          outline: light ? const Color(0xFF7D7B73) : const Color(0xFF83857F),
           outlineVariant: light
-              ? const Color(0xFFD9E1DE)
-              : const Color(0xFF2D3936),
+              ? const Color(0xFFE3DFD5)
+              : const Color(0xFF343B38),
           surfaceTint: Colors.transparent,
         );
 
@@ -119,7 +148,28 @@ abstract final class CitusmailTheme {
       textTheme: text,
       scaffoldBackgroundColor: colors.surface,
       focusColor: colors.primary.withValues(alpha: 0.14),
-      hoverColor: colors.onSurface.withValues(alpha: 0.04),
+      hoverColor: colors.onSurface.withValues(alpha: 0.06),
+      // Desktop: pages fade forward into place rather than zooming in
+      // like a phone app. Android and iOS keep their own transitions.
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          ...const PageTransitionsTheme().builders,
+          TargetPlatform.linux: const FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.windows: const FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
+      // Flat cards: a white (or, in the dark, a lighter) surface with a
+      // hairline, no shadow, so they read the same in a screenshot and on
+      // screen.
+      cardTheme: CardThemeData(
+        elevation: 0,
+        color: light ? colors.surfaceContainerLowest : colors.surfaceContainer,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusCard),
+          side: BorderSide(color: colors.outlineVariant),
+        ),
+      ),
       dividerTheme: DividerThemeData(
         color: colors.outlineVariant,
         space: 1,
@@ -289,7 +339,8 @@ abstract final class CitusmailTheme {
         ),
         ListColors(
           background: colors.surfaceContainerLow,
-          selected: light ? const Color(0xFFDCECE7) : const Color(0xFF1D3531),
+          selected: colors.primaryContainer,
+          indicator: colors.primary,
           checked: colors.primaryContainer,
           unreadDot: colors.primary,
         ),
@@ -405,6 +456,7 @@ final class ListColors extends ThemeExtension<ListColors> {
   const ListColors({
     required this.background,
     required this.selected,
+    required this.indicator,
     required this.checked,
     required this.unreadDot,
   });
@@ -414,6 +466,10 @@ final class ListColors extends ThemeExtension<ListColors> {
 
   /// The row open in the reader.
   final Color selected;
+
+  /// The bar at the left of the open row (as in the sidebar), so the row
+  /// is marked by more than its tint.
+  final Color indicator;
 
   /// Rows picked for a bulk action.
   final Color checked;

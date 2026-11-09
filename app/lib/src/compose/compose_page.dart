@@ -6,6 +6,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:mail_compose/mail_compose.dart';
 
+import '../ui/app_icons.dart';
 import '../ui/citusmail_theme.dart';
 import '../ui/follow_up_sheet.dart';
 import '../ui/mail_shell.dart';
@@ -20,6 +21,10 @@ final class ComposePage extends StatefulWidget {
   const ComposePage({super.key, required this.controller});
 
   final ComposeController controller;
+
+  /// From this window width the fields are a bounded column in the
+  /// middle; narrower windows use the full width.
+  static const wideWidth = 900.0;
 
   @override
   State<ComposePage> createState() => _ComposePageState();
@@ -185,7 +190,7 @@ final class _ComposePageState extends State<ComposePage> {
                     children: [
                       IconButton(
                         tooltip: 'Close (keeps the draft)',
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(AppIcons.close),
                         onPressed: _close,
                       ),
                       const SizedBox(width: 4),
@@ -206,17 +211,19 @@ final class _ComposePageState extends State<ComposePage> {
                             ),
                           ),
                         ),
-                      IconButton(
+                      _Toggle(
                         tooltip: draft.requestReceipt
                             ? 'Read receipt requested (tap to cancel)'
                             : 'Ask for a read receipt',
-                        isSelected: draft.requestReceipt,
-                        icon: const Icon(Icons.mark_email_read_outlined),
-                        selectedIcon: const Icon(Icons.mark_email_read),
+                        label: 'Receipt',
+                        labelled: !phone,
+                        selected: draft.requestReceipt,
+                        icon: AppIcons.receipt,
+                        selectedIcon: AppIcons.receiptOn,
                         onPressed: () =>
                             _c.setRequestReceipt(!draft.requestReceipt),
                       ),
-                      IconButton(
+                      _Toggle(
                         key: const ValueKey('compose-follow-up'),
                         tooltip: switch (_c.followUp?.at) {
                           final at? =>
@@ -224,19 +231,21 @@ final class _ComposePageState extends State<ComposePage> {
                                 '(tap to change)',
                           null => 'Remind me if no reply',
                         },
-                        isSelected: _c.followUp != null,
-                        icon: const Icon(Icons.alarm_add_outlined),
-                        selectedIcon: const Icon(Icons.alarm_on),
+                        label: 'Remind me',
+                        labelled: !phone,
+                        selected: _c.followUp != null,
+                        icon: AppIcons.remind,
+                        selectedIcon: AppIcons.remindOn,
                         onPressed: _chooseFollowUp,
                       ),
                       IconButton(
                         tooltip: 'Attach files',
-                        icon: const Icon(Icons.attach_file),
+                        icon: const Icon(AppIcons.attachment),
                         onPressed: _attach,
                       ),
                       IconButton(
                         tooltip: 'Discard',
-                        icon: const Icon(Icons.delete_outline),
+                        icon: const Icon(AppIcons.delete),
                         onPressed: _discard,
                       ),
                       const SizedBox(width: 8),
@@ -250,6 +259,134 @@ final class _ComposePageState extends State<ComposePage> {
                   ),
                 ),
               );
+              // On a wide window the fields stay a readable column in the
+              // middle; the toolbar keeps the full width.
+              final fields = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (accounts.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 44,
+                            child: Text(
+                              'From',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          DropdownButton<int>(
+                            value: draft.accountId,
+                            underline: const SizedBox.shrink(),
+                            items: [
+                              for (final a in accounts)
+                                DropdownMenuItem(
+                                  value: a.id,
+                                  child: Text(a.email),
+                                ),
+                            ],
+                            onChanged: (id) {
+                              if (id != null) _c.setAccount(id);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  RecipientField(
+                    label: 'To',
+                    list: _c.to,
+                    suggest: _c.suggest,
+                    autofocus: draft.to.isEmpty,
+                    trailing: TextButton(
+                      onPressed: _c.toggleCopies,
+                      child: const Text('Cc · Bcc'),
+                    ),
+                  ),
+                  if (_c.showCopies) ...[
+                    const Divider(indent: 16),
+                    RecipientField(
+                      label: 'Cc',
+                      list: _c.cc,
+                      suggest: _c.suggest,
+                    ),
+                    const Divider(indent: 16),
+                    RecipientField(
+                      label: 'Bcc',
+                      list: _c.bcc,
+                      suggest: _c.suggest,
+                    ),
+                  ],
+                  const Divider(indent: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      controller: _subject,
+                      onChanged: _c.setSubject,
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _bodyFocus.requestFocus(),
+                      decoration: CitusmailTheme.bareField(hintText: 'Subject'),
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ),
+                  const Divider(),
+                  if (_c.problems.isNotEmpty)
+                    Container(
+                      color: theme.colorScheme.errorContainer,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      child: Text(
+                        _c.problems.map(_problem).join(' '),
+                        style: TextStyle(
+                          color: theme.colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  if (draft.attachments.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final file in draft.attachments)
+                            InputChip(
+                              avatar: const Icon(AppIcons.attachment, size: 18),
+                              label: Text(
+                                '${file.fileName} · ${MailText.size(file.bytes.length)}',
+                              ),
+                              onDeleted: () => _c.removeAttachment(file),
+                            ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        controller: _body,
+                        focusNode: _bodyFocus,
+                        autofocus: draft.to.isNotEmpty,
+                        onChanged: _c.setBody,
+                        maxLines: null,
+                        expands: true,
+                        keyboardType: TextInputType.multiline,
+                        textAlignVertical: TextAlignVertical.top,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          height: 1.45,
+                        ),
+                        decoration: CitusmailTheme.bareField(
+                          hintText: 'Write your message',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
               return Padding(
                 padding: EdgeInsets.only(
                   bottom: phone ? MediaQuery.viewInsetsOf(context).bottom : 0,
@@ -258,126 +395,15 @@ final class _ComposePageState extends State<ComposePage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (!phone) ...[actions, const Divider()],
-                    if (accounts.length > 1)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 44,
-                              child: Text(
-                                'From',
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                            DropdownButton<int>(
-                              value: draft.accountId,
-                              underline: const SizedBox.shrink(),
-                              items: [
-                                for (final a in accounts)
-                                  DropdownMenuItem(
-                                    value: a.id,
-                                    child: Text(a.email),
-                                  ),
-                              ],
-                              onChanged: (id) {
-                                if (id != null) _c.setAccount(id);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    RecipientField(
-                      label: 'To',
-                      list: _c.to,
-                      suggest: _c.suggest,
-                      autofocus: draft.to.isEmpty,
-                      trailing: TextButton(
-                        onPressed: _c.toggleCopies,
-                        child: const Text('Cc Bcc'),
-                      ),
-                    ),
-                    if (_c.showCopies) ...[
-                      const Divider(indent: 16),
-                      RecipientField(
-                        label: 'Cc',
-                        list: _c.cc,
-                        suggest: _c.suggest,
-                      ),
-                      const Divider(indent: 16),
-                      RecipientField(
-                        label: 'Bcc',
-                        list: _c.bcc,
-                        suggest: _c.suggest,
-                      ),
-                    ],
-                    const Divider(indent: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextField(
-                        controller: _subject,
-                        onChanged: _c.setSubject,
-                        textInputAction: TextInputAction.next,
-                        onSubmitted: (_) => _bodyFocus.requestFocus(),
-                        decoration: CitusmailTheme.bareField(
-                          hintText: 'Subject',
-                        ),
-                        style: theme.textTheme.titleSmall,
-                      ),
-                    ),
-                    const Divider(),
-                    if (_c.problems.isNotEmpty)
-                      Container(
-                        color: theme.colorScheme.errorContainer,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Text(
-                          _c.problems.map(_problem).join(' '),
-                          style: TextStyle(
-                            color: theme.colorScheme.onErrorContainer,
-                          ),
-                        ),
-                      ),
-                    if (draft.attachments.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final file in draft.attachments)
-                              InputChip(
-                                avatar: const Icon(Icons.attach_file, size: 18),
-                                label: Text(
-                                  '${file.fileName} · ${MailText.size(file.bytes.length)}',
-                                ),
-                                onDeleted: () => _c.removeAttachment(file),
-                              ),
-                          ],
-                        ),
-                      ),
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: TextField(
-                          controller: _body,
-                          focusNode: _bodyFocus,
-                          autofocus: draft.to.isNotEmpty,
-                          onChanged: _c.setBody,
-                          maxLines: null,
-                          expands: true,
-                          keyboardType: TextInputType.multiline,
-                          textAlignVertical: TextAlignVertical.top,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            height: 1.45,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: width >= ComposePage.wideWidth
+                                ? CitusmailTheme.writingWidth
+                                : double.infinity,
                           ),
-                          decoration: CitusmailTheme.bareField(
-                            hintText: 'Write your message',
-                          ),
+                          child: fields,
                         ),
                       ),
                     ),
@@ -388,6 +414,58 @@ final class _ComposePageState extends State<ComposePage> {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A setting of the message that is on or off (a read receipt, a
+/// reminder): an icon button on phones, a labelled button where there is
+/// room, filled in while it is on.
+final class _Toggle extends StatelessWidget {
+  const _Toggle({
+    super.key,
+    required this.tooltip,
+    required this.label,
+    required this.labelled,
+    required this.selected,
+    required this.icon,
+    required this.selectedIcon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final String label;
+  final bool labelled;
+  final bool selected;
+  final IconData icon;
+  final IconData selectedIcon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!labelled) {
+      return IconButton(
+        tooltip: tooltip,
+        isSelected: selected,
+        icon: Icon(icon),
+        selectedIcon: Icon(selectedIcon),
+        onPressed: onPressed,
+      );
+    }
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: TextButton.icon(
+        style: selected
+            ? TextButton.styleFrom(
+                backgroundColor: colors.primaryContainer,
+                foregroundColor: colors.onPrimaryContainer,
+              )
+            : TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
+        onPressed: onPressed,
+        icon: Icon(selected ? selectedIcon : icon, size: 20),
+        label: Text(label),
       ),
     );
   }
@@ -425,7 +503,7 @@ final class _SendButton extends StatelessWidget {
                   borderRadius: BorderRadius.horizontal(left: radius),
                 ),
               ),
-              child: const Icon(Icons.send, size: 18),
+              child: const Icon(AppIcons.send, size: 18),
             ),
           )
         else
@@ -437,7 +515,7 @@ final class _SendButton extends StatelessWidget {
                 borderRadius: BorderRadius.horizontal(left: radius),
               ),
             ),
-            icon: const Icon(Icons.send, size: 18),
+            icon: const Icon(AppIcons.send, size: 18),
             label: const Text('Send'),
           ),
         const SizedBox(width: 2),
@@ -454,7 +532,7 @@ final class _SendButton extends StatelessWidget {
                 borderRadius: BorderRadius.horizontal(right: radius),
               ),
             ),
-            child: const Icon(Icons.schedule_send, size: 20),
+            child: const Icon(AppIcons.sendLater, size: 20),
           ),
         ),
       ],

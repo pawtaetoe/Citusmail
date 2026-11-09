@@ -21,6 +21,7 @@ import '../services/new_mail_announcer.dart';
 import '../services/secret_store.dart';
 import '../setup/oauth_browser.dart';
 import '../setup/reconnect.dart';
+import 'app_icons.dart';
 import 'keyboard_shortcuts.dart';
 import 'message_list_pane.dart';
 import 'reader_pane.dart';
@@ -272,7 +273,7 @@ final class _MailShellState extends State<MailShell> {
         final phone = width < MailShell.mediumWidth;
         final menu = IconButton(
           tooltip: 'Folders',
-          icon: const Icon(Icons.menu),
+          icon: const Icon(AppIcons.menu),
           onPressed: () => _scaffold.currentState?.openDrawer(),
         );
         final list = MessageListPane(

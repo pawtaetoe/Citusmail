@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../mail/mail_controller.dart';
 import '../mail/new_since_away.dart';
+import 'app_icons.dart';
 import 'citusmail_theme.dart';
 
 /// The words of "New since you were away".
@@ -135,7 +136,7 @@ final class NewSinceAwayHeader extends SliverPersistentHeaderDelegate {
               if (mail.unread > 0)
                 IconButton(
                   tooltip: 'Mark all as read',
-                  icon: const Icon(Icons.done_all, size: 20),
+                  icon: const Icon(AppIcons.markAllRead, size: 20),
                   color: colors.onSurfaceVariant,
                   onPressed: controller.markAwayRead,
                 ),
