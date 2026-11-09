@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:convert';
+
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -136,17 +138,31 @@ final class MailboxSynchronizer {
   /// UIDs whose flags must not be overwritten during the current sync.
   Set<int> _pending = const {};
 
+  /// How often removals are looked for by comparing every UID, even when
+  /// the folder's counts say nothing was removed: a safety net.
+  static const removalCheckInterval = Duration(hours: 1);
+
   /// Syncs [mailbox]. Flags of messages in [pendingUids] (local changes
   /// still queued for the server) are not overwritten, so the user's change
   /// does not flicker back before the queue reaches the server.
+  ///
+  /// A folder that did not change costs a SELECT and nothing else: new
+  /// mail is looked for only when UIDNEXT moved, changed flags only when
+  /// the mod-sequence moved (CONDSTORE), removals only when the message
+  /// count says some are gone (QRESYNC reports them with SELECT), and
+  /// older mail only until the folder reaches back far enough. On a
+  /// server without CONDSTORE, every message's flags are compared only
+  /// with [refreshFlags] (the full sync, not the frequent inbox check).
   Future<MailboxSyncResult> sync(
     ImapClient imap,
     StoredMailbox mailbox, {
     Set<int> pendingUids = const {},
+    bool refreshFlags = true,
   }) async {
     _pending = pendingUids;
     final cached = mailbox.syncState;
-    final knownUids = _store.messages.uids(mailbox.id);
+    final lowest = _store.messages.lowestUid(mailbox.id);
+    final highest = _store.messages.highestUid(mailbox.id);
     final canQresync =
         imap.enabled.contains('QRESYNC') &&
         cached.uidValidity != null &&
@@ -158,7 +174,11 @@ final class MailboxSynchronizer {
           ? QresyncParameters(
               uidValidity: cached.uidValidity!,
               highestModSeq: cached.highestModSeq!,
-              knownUids: knownUids.isEmpty ? null : SequenceSet.of(knownUids),
+              // The range of cached UIDs: a superset is allowed, and it
+              // spares reading every UID of the folder.
+              knownUids: lowest == null || highest == null
+                  ? null
+                  : SequenceSet.range(lowest, highest),
             )
           : null,
     );
@@ -170,11 +190,41 @@ final class MailboxSynchronizer {
         _store.mailboxes.resetForUidValidity(mailbox.id, selected.uidValidity);
       }
       final added = await _fullSync(imap, mailbox, selected);
+      _FolderMemo(
+        uidValidity: selected.uidValidity,
+        uidNext: selected.uidNext,
+        exists: selected.exists,
+        removalsCheckedAt: DateTime.now(),
+      ).save(_store, mailbox.id);
       return MailboxSyncResult(
         method: SyncMethod.full,
         added: added,
         wasReset: wasReset,
       );
+    }
+
+    final memo = _FolderMemo.read(_store, mailbox.id, cached);
+    final newUids = await _newUids(imap, mailbox, cached, selected);
+    var removalsCheckedAt = memo?.removalsCheckedAt;
+    // Whether messages may have been removed: the count at the last sync,
+    // plus the new ones the server had at this SELECT, minus its count
+    // now. Any doubt (no count kept, or it is old) means looking.
+    bool mayHaveRemovals() {
+      final now = DateTime.now();
+      final uidNext = selected.uidNext;
+      final checkedAt = removalsCheckedAt;
+      if (memo == null ||
+          uidNext == null ||
+          checkedAt == null ||
+          now.difference(checkedAt) > removalCheckInterval ||
+          now.isBefore(checkedAt)) {
+        removalsCheckedAt = now;
+        return true;
+      }
+      final arrived = newUids.where((uid) => uid < uidNext).length;
+      if (memo.exists + arrived - selected.exists == 0) return false;
+      removalsCheckedAt = now;
+      return true;
     }
 
     final (method, updated, removed) = switch (_methodFor(
@@ -183,12 +233,32 @@ final class MailboxSynchronizer {
       usedQresync: canQresync,
     )) {
       SyncMethod.qresync => await _applyQresync(mailbox, selected),
-      SyncMethod.condstore => await _condstoreChanges(imap, mailbox, cached),
-      _ => await _plainChanges(imap, mailbox),
+      SyncMethod.condstore => await _condstoreChanges(
+        imap,
+        mailbox,
+        cached,
+        selected,
+        mayHaveRemovals,
+      ),
+      _ when refreshFlags => await _plainChanges(imap, mailbox, () {
+        removalsCheckedAt = DateTime.now();
+      }),
+      _ => await _plainRemovals(imap, mailbox, mayHaveRemovals),
     };
-    final added = await _fetchNew(imap, mailbox, cached, selected);
+    final added = await _fetchSummaries(imap, mailbox, newUids);
     _saveState(mailbox, selected);
-    final backfilled = await _backfill(imap, mailbox);
+    var backfillDone = memo?.backfillDone;
+    final keep = KeepMail.read(_store).storageName;
+    final backfilled = backfillDone == keep
+        ? 0
+        : await _backfill(imap, mailbox, () => backfillDone = keep);
+    _FolderMemo(
+      uidValidity: selected.uidValidity,
+      uidNext: selected.uidNext,
+      exists: selected.exists,
+      removalsCheckedAt: removalsCheckedAt,
+      backfillDone: backfillDone,
+    ).save(_store, mailbox.id);
     return MailboxSyncResult(
       method: method,
       added: added,
@@ -222,12 +292,20 @@ final class MailboxSynchronizer {
 
   /// Older messages, newest first, back to [KeepMail]'s date (on the
   /// server's INTERNALDATE): at most [SyncSettings.backfillBatch] a time,
-  /// so a sync stays short; the next one goes on. Nothing once the folder
-  /// reaches back far enough. Not on a folder's first sync, which shows
-  /// its newest mail first.
-  Future<int> _backfill(ImapClient imap, StoredMailbox mailbox) async {
+  /// so a sync stays short; the next one goes on. Calls [done] when the
+  /// folder reaches back far enough, so later syncs stop looking (until
+  /// the user keeps more). Not on a folder's first sync, which shows its
+  /// newest mail first.
+  Future<int> _backfill(
+    ImapClient imap,
+    StoredMailbox mailbox,
+    void Function() done,
+  ) async {
+    if (settings.backfillBatch <= 0) return 0;
     final lowest = _store.messages.lowestUid(mailbox.id);
-    if (lowest == null || lowest <= 1 || settings.backfillBatch <= 0) {
+    if (lowest == null || lowest <= 1) {
+      // Nothing older can appear: new mail always gets a higher UID.
+      done();
       return 0;
     }
     final since = KeepMail.read(_store).since(DateTime.now());
@@ -237,6 +315,7 @@ final class MailboxSynchronizer {
           ? range
           : SearchCriteria.and([range, SearchCriteria.since(since)]),
     )).matches.toList();
+    if (older.length <= settings.backfillBatch) done();
     if (older.isEmpty) return 0;
     return _fetchSummaries(
       imap,
@@ -299,22 +378,31 @@ final class MailboxSynchronizer {
     return (SyncMethod.qresync, changes.length, removed.length);
   }
 
-  /// CONDSTORE: flags changed since the cached mod-sequence; removals by
-  /// comparing cached UIDs with the server's.
+  /// CONDSTORE: flags changed since the cached mod-sequence (nothing to
+  /// ask when it did not move); removals by comparing cached UIDs with
+  /// the server's, when [mayHaveRemovals].
   Future<(SyncMethod, int, int)> _condstoreChanges(
     ImapClient imap,
     StoredMailbox mailbox,
     MailboxSyncState cached,
+    SelectedMailbox selected,
+    bool Function() mayHaveRemovals,
   ) async {
     final lowest = _store.messages.lowestUid(mailbox.id);
     if (lowest == null) return (SyncMethod.condstore, 0, 0);
-    final changed = await imap.uidFetch(
-      SequenceSet.range(lowest),
-      FetchItems.flagsOnly(modSeq: true),
-      changedSince: cached.highestModSeq,
-    );
-    final changes = _flagChanges(mailbox, changed.messages);
-    final removed = await _removedSince(imap, mailbox, lowest);
+    final changes = selected.highestModSeq == cached.highestModSeq
+        ? const <({int uid, MessageFlags flags, int? modSeq})>[]
+        : _flagChanges(
+            mailbox,
+            (await imap.uidFetch(
+              SequenceSet.range(lowest),
+              FetchItems.flagsOnly(modSeq: true),
+              changedSince: cached.highestModSeq,
+            )).messages,
+          );
+    final removed = mayHaveRemovals()
+        ? await _removedSince(imap, mailbox, lowest)
+        : const <int>[];
     _store.transaction(() {
       if (removed.isNotEmpty) _store.messages.removeUids(mailbox.id, removed);
       if (changes.isNotEmpty) _store.messages.updateFlags(mailbox.id, changes);
@@ -322,13 +410,30 @@ final class MailboxSynchronizer {
     return (SyncMethod.condstore, changes.length, removed.length);
   }
 
-  /// No change tracking: compare every cached message's flags.
+  /// No change tracking, only removals: by comparing cached UIDs with
+  /// the server's, when [mayHaveRemovals].
+  Future<(SyncMethod, int, int)> _plainRemovals(
+    ImapClient imap,
+    StoredMailbox mailbox,
+    bool Function() mayHaveRemovals,
+  ) async {
+    final lowest = _store.messages.lowestUid(mailbox.id);
+    if (lowest == null || !mayHaveRemovals()) return (SyncMethod.plain, 0, 0);
+    final removed = await _removedSince(imap, mailbox, lowest);
+    if (removed.isNotEmpty) _store.messages.removeUids(mailbox.id, removed);
+    return (SyncMethod.plain, 0, removed.length);
+  }
+
+  /// No change tracking: compare every cached message's flags (which
+  /// also shows what was removed; [checked] is told so).
   Future<(SyncMethod, int, int)> _plainChanges(
     ImapClient imap,
     StoredMailbox mailbox,
+    void Function() checked,
   ) async {
     final lowest = _store.messages.lowestUid(mailbox.id);
     if (lowest == null) return (SyncMethod.plain, 0, 0);
+    checked();
     final current = await imap.uidFetch(
       SequenceSet.range(lowest),
       FetchItems.flagsOnly(),
@@ -357,8 +462,8 @@ final class MailboxSynchronizer {
     return (SyncMethod.plain, changes.length, removed.length);
   }
 
-  /// Messages that arrived since the last sync.
-  Future<int> _fetchNew(
+  /// UIDs of messages that arrived since the last sync.
+  Future<List<int>> _newUids(
     ImapClient imap,
     StoredMailbox mailbox,
     MailboxSyncState cached,
@@ -366,15 +471,14 @@ final class MailboxSynchronizer {
   ) async {
     final from =
         cached.uidNext ?? ((_store.messages.highestUid(mailbox.id) ?? 0) + 1);
-    if (selected.uidNext != null && selected.uidNext! <= from) return 0;
-    if (selected.exists == 0) return 0;
+    if (selected.uidNext != null && selected.uidNext! <= from) return const [];
+    if (selected.exists == 0) return const [];
     // "UID n:*" also matches the highest UID when it is below n (RFC 9051
     // 6.4.8), so filter the result.
     final found = (await imap.uidSearch(
       SearchCriteria.uids(SequenceSet.range(from)),
     )).matches;
-    final uids = found.toList().where((uid) => uid >= from).toList();
-    return _fetchSummaries(imap, mailbox, uids);
+    return found.toList().where((uid) => uid >= from).toList();
   }
 
   /// UIDs cached from [lowest] up that the server no longer has.
@@ -425,6 +529,7 @@ final class MailboxSynchronizer {
     StoredMailbox mailbox,
     List<FetchedMessage> messages,
   ) {
+    if (messages.isEmpty) return const [];
     final cached = _store.messages.flagsByUid(mailbox.id);
     return [
       for (final m in messages)
@@ -456,4 +561,70 @@ final class MailboxSynchronizer {
       ),
     );
   }
+}
+
+/// What a folder's last sync saw, beyond its sync state, so the next one
+/// can tell what it may skip: the server's message count, when removals
+/// were last looked for by comparing UIDs, and whether older mail is
+/// complete for a [KeepMail] choice. Kept in the settings (one small
+/// value per folder) and only trusted while it matches the folder's
+/// stored sync state.
+final class _FolderMemo {
+  const _FolderMemo({
+    required this.uidValidity,
+    required this.uidNext,
+    required this.exists,
+    this.removalsCheckedAt,
+    this.backfillDone,
+  });
+
+  final int uidValidity;
+  final int? uidNext;
+  final int exists;
+  final DateTime? removalsCheckedAt;
+
+  /// The [KeepMail.storageName] older mail was complete for.
+  final String? backfillDone;
+
+  static String _key(int mailboxId) => 'sync.folder.$mailboxId';
+
+  static _FolderMemo? read(
+    MailStore store,
+    int mailboxId,
+    MailboxSyncState state,
+  ) {
+    final text = store.settings.read(_key(mailboxId));
+    if (text == null) return null;
+    try {
+      final json = jsonDecode(text) as Map<String, Object?>;
+      final memo = _FolderMemo(
+        uidValidity: json['v']! as int,
+        uidNext: json['n'] as int?,
+        exists: json['e']! as int,
+        removalsCheckedAt: switch (json['r']) {
+          final int ms => DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true),
+          _ => null,
+        },
+        backfillDone: json['b'] as String?,
+      );
+      if (memo.uidValidity != state.uidValidity ||
+          memo.uidNext != state.uidNext) {
+        return null; // from another time: trust nothing in it
+      }
+      return memo;
+    } on Object {
+      return null;
+    }
+  }
+
+  void save(MailStore store, int mailboxId) => store.settings.write(
+    _key(mailboxId),
+    jsonEncode({
+      'v': uidValidity,
+      'n': uidNext,
+      'e': exists,
+      if (removalsCheckedAt case final at?) 'r': at.millisecondsSinceEpoch,
+      'b': ?backfillDone,
+    }),
+  );
 }

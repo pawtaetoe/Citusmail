@@ -294,6 +294,10 @@ final class AccountSynchronizer {
             client,
             mailbox,
             pendingUids: pendingUids(account.id, mailbox.id),
+            // Without change tracking on the server, comparing every
+            // message's flags waits for the full sync: the frequent
+            // inbox check only looks for new and removed mail.
+            refreshFlags: full || !mailbox.isInbox,
           );
         } on Object catch (e, s) {
           if (e is ImapCommandException && !listed) {
