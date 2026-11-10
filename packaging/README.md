@@ -207,6 +207,34 @@ Upload `citusmail-<version>.aab` from the GitHub release (or from
 key, so the Play app and the GitHub APK cannot update each other:
 switching between them means uninstalling first.
 
+### Automatic upload to internal testing
+
+Each release also goes to Play's **internal testing** track by itself:
+CI's "Publish to Google Play (internal testing)" job runs after the
+GitHub release and uploads the bundle with
+`packaging/android/upload-play.py` (Python's standard library and
+openssl only, so no third-party code sees the key). Once set up:
+
+1. **Service account**: in Google Cloud, a service account with a JSON
+   key, and the Google Play Android Developer API enabled in the same
+   project.
+2. **Its access in Play Console**: Users and permissions > Invite new
+   users > the service account's email (`...@...iam.gserviceaccount.com`),
+   with the app's **Release apps to testing tracks** permission (and
+   **View app information**). It can take a few minutes to work.
+3. **The key in GitHub**: Settings > Environments > release (or Secrets
+   and variables > Actions) > new secret `CITUSMAIL_PLAY_SERVICE_ACCOUNT_JSON`
+   holding the whole JSON key file. Without it the job just says it
+   skipped the upload.
+4. **The first bundle by hand**: Google only accepts API uploads for an
+   app that already has one uploaded in Play Console.
+
+While the app has never been published, Google only takes **draft**
+releases; the script then makes a draft by itself, to roll out in
+Play Console (Testing > Internal testing). After that, releases go out
+to internal testers straight away. Set `PLAY_TRACK` or
+`PLAY_RELEASE_STATUS` on the job to change the track or keep drafts.
+
 Play Console checklist (closed or open testing):
 
 - **App signing**: Play App Signing on; the key in the CI secrets is the
