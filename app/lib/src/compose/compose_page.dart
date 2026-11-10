@@ -5,6 +5,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:mail_compose/mail_compose.dart';
+import 'package:mail_store/mail_store.dart' show SignOff;
 
 import '../ui/app_icons.dart';
 import '../ui/citusmail_theme.dart';
@@ -12,6 +13,7 @@ import '../ui/follow_up_sheet.dart';
 import '../ui/mail_shell.dart';
 import '../ui/mail_text.dart';
 import '../ui/send_later_sheet.dart';
+import '../ui/sign_offs_page.dart';
 import 'compose_controller.dart';
 import 'recipient_field.dart';
 
@@ -35,7 +37,11 @@ final class _ComposePageState extends State<ComposePage> {
     text: widget.controller.draft.subject,
   );
   late final _body = TextEditingController(text: widget.controller.draft.body);
+  late final _quote = TextEditingController(
+    text: widget.controller.draft.quote,
+  );
   final _bodyFocus = FocusNode();
+  final _signOffMenu = GlobalKey<PopupMenuButtonState<Object>>();
 
   ComposeController get _c => widget.controller;
 
@@ -50,6 +56,7 @@ final class _ComposePageState extends State<ComposePage> {
   void dispose() {
     _subject.dispose();
     _body.dispose();
+    _quote.dispose();
     _bodyFocus.dispose();
     super.dispose();
   }
@@ -76,6 +83,36 @@ final class _ComposePageState extends State<ComposePage> {
     if (picked == null || !mounted) return;
     _c.setFollowUp(picked);
   }
+
+  /// "Write a new sign-off…": kept in the list unless "Save for later"
+  /// is unticked.
+  Future<void> _writeSignOff() async {
+    final written = await SignOffEditor.show(context, offerSaveForLater: true);
+    if (written == null || !mounted) return;
+    _c.writeSignOff(
+      text: written.text,
+      name: written.name,
+      separator: written.separator,
+      save: written.save,
+    );
+  }
+
+  Future<void> _manageSignOffs() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SignOffsPage(services: _c.services),
+      ),
+    );
+    if (mounted) _c.signOffsChanged();
+  }
+
+  void _pickSignOff(Object picked) => switch (picked) {
+    final SignOff s => _c.chooseSignOff(s),
+    _SignOffAction.none => _c.chooseSignOff(null),
+    _SignOffAction.write => _writeSignOff(),
+    _SignOffAction.manage => _manageSignOffs(),
+    _ => null,
+  };
 
   Future<void> _discard() async {
     final confirmed = await showDialog<bool>(
@@ -365,24 +402,61 @@ final class _ComposePageState extends State<ComposePage> {
                       ),
                     ),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextField(
-                        controller: _body,
-                        focusNode: _bodyFocus,
-                        autofocus: draft.to.isNotEmpty,
-                        onChanged: _c.setBody,
-                        maxLines: null,
-                        expands: true,
-                        keyboardType: TextInputType.multiline,
-                        textAlignVertical: TextAlignVertical.top,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          height: 1.45,
+                    // What the user writes, then the sign-off, then the
+                    // quote of a reply; the space below focuses the text.
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverList.list(
+                            children: [
+                              TextField(
+                                controller: _body,
+                                focusNode: _bodyFocus,
+                                autofocus: draft.to.isNotEmpty,
+                                onChanged: _c.setBody,
+                                minLines: 4,
+                                maxLines: null,
+                                keyboardType: TextInputType.multiline,
+                                textAlignVertical: TextAlignVertical.top,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  height: 1.45,
+                                ),
+                                decoration: CitusmailTheme.bareField(
+                                  hintText: 'Write your message',
+                                ),
+                              ),
+                              _SignOffBlock(
+                                menuKey: _signOffMenu,
+                                signOff: draft.signOff,
+                                signOffs: _c.signOffs,
+                                onSelected: _pickSignOff,
+                              ),
+                              if (_quote.text.isNotEmpty)
+                                TextField(
+                                  key: const ValueKey('compose-quote'),
+                                  controller: _quote,
+                                  onChanged: _c.setQuote,
+                                  maxLines: null,
+                                  keyboardType: TextInputType.multiline,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    height: 1.45,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  decoration: CitusmailTheme.bareField(),
+                                ),
+                            ],
+                          ),
                         ),
-                        decoration: CitusmailTheme.bareField(
-                          hintText: 'Write your message',
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _bodyFocus.requestFocus,
+                            child: const SizedBox(height: 48),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
@@ -415,6 +489,111 @@ final class _ComposePageState extends State<ComposePage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+enum _SignOffAction { none, write, manage }
+
+/// The sign-off at the end of the message, marked as such: a small
+/// button above it says which it is and offers the others, none, a new
+/// one, or managing the list.
+final class _SignOffBlock extends StatelessWidget {
+  const _SignOffBlock({
+    required this.menuKey,
+    required this.signOff,
+    required this.signOffs,
+    required this.onSelected,
+  });
+
+  final GlobalKey<PopupMenuButtonState<Object>> menuKey;
+  final SignOff? signOff;
+  final List<SignOff> signOffs;
+  final ValueChanged<Object> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final current = signOff;
+    final label = switch (current) {
+      null => signOffs.isEmpty ? 'Add a sign-off' : 'No sign-off',
+      final s when !s.isSaved => 'Sign-off: this email only',
+      final s => 'Sign-off: ${s.name}',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: CitusSpace.s),
+        PopupMenuButton<Object>(
+          key: menuKey,
+          tooltip: 'Choose the sign-off (signature)',
+          onSelected: onSelected,
+          itemBuilder: (_) => [
+            for (final s in signOffs)
+              CheckedPopupMenuItem<Object>(
+                value: s,
+                checked: current?.id == s.id,
+                child: Text(s.name),
+              ),
+            CheckedPopupMenuItem<Object>(
+              value: _SignOffAction.none,
+              checked: current == null,
+              child: const Text('None'),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem<Object>(
+              value: _SignOffAction.write,
+              child: Text('Write a new sign-off…'),
+            ),
+            const PopupMenuItem<Object>(
+              value: _SignOffAction.manage,
+              child: Text('Manage sign-offs…'),
+            ),
+          ],
+          child: Container(
+            key: const ValueKey('compose-sign-off'),
+            padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(signOffIcon, size: 16, color: colors.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                Icon(Icons.arrow_drop_down, color: colors.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+        if (current != null)
+          GestureDetector(
+            onTap: () => menuKey.currentState?.showButtonMenu(),
+            child: Container(
+              key: const ValueKey('compose-sign-off-text'),
+              margin: const EdgeInsets.only(top: CitusSpace.s, bottom: 4),
+              padding: const EdgeInsets.only(left: CitusSpace.m),
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: colors.outlineVariant, width: 2),
+                ),
+              ),
+              child: Text(
+                current.block,
+                style: theme.textTheme.bodyLarge?.copyWith(height: 1.45),
+              ),
+            ),
+          ),
+        const SizedBox(height: CitusSpace.m),
+      ],
     );
   }
 }
