@@ -46,6 +46,11 @@ Website: **https://citusmail.fluminaris.com** · Download:
 - **A calm sidebar**: each account folds away with its unread count in
   sight, and what was found in your mail and the Tools (Clean up, the
   Privacy report) sit apart, folded until you need them.
+- **Easy to find your way**: Settings grouped by what you want to do,
+  with a search that knows your words ("dark mode", "PIN", "spam"); each
+  feature's options where you use it; a short tip the first time a
+  feature could help; "What's new" after an update; and every feature in
+  one place under Tools, All features.
 - **Locked down**: encrypted storage, passwords in the system keychain,
   app lock with PIN or fingerprint, end-to-end encrypted sync between
   your devices.
@@ -69,7 +74,7 @@ Website: **https://citusmail.fluminaris.com** · Download:
 <td align="center" width="25%"><img src="docs/screenshots/readme_invitation.png" alt="A meeting invitation: the date in your time zone, with Accept, Maybe and Decline"><br><sub>Meeting invitations</sub></td>
 <td align="center" width="25%"><img src="docs/screenshots/readme_phone_reader.png" alt="A scam from a real, verified address, with a red warning that lists why"><br><sub>Phishing warnings that explain</sub></td>
 <td align="center" width="25%"><img src="docs/screenshots/readme_phone_compose.png" alt="Writing on a phone, with Send at the bottom"><br><sub>Writing, with Send in thumb reach</sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: notifications, how far back mail is kept, app lock"><br><sub>Plain settings</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: a search, then groups such as Notifications, Inbox, Privacy"><br><sub>Settings by task, with search</sub></td>
 </tr>
 </table>
 
