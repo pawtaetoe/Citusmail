@@ -209,4 +209,67 @@ void main() {
     await tester.pump();
     expect(inInbox('deals@megastore.example'), 3);
   });
+
+  testWidgets('Delete all takes mail from every folder, and the sender '
+      'leaves the list; Undo brings both back', (tester) async {
+    seed('deals@megastore.example', 'MegaStore', uid: 300, count: 3);
+    seed('weekly@paper.example', 'The Paper', uid: 400, count: 4, pinned: 1);
+    final archive = app.store.mailboxes.bySpecialUse(
+      inbox.accountId,
+      SpecialUse.archive,
+    )!;
+    final now = DateTime.now().toUtc();
+    app.store.messages.upsertSummaries(archive.id, [
+      for (var i = 0; i < 2; i++)
+        MessageSummary(
+          uid: 50 + i,
+          receivedAt: now.subtract(Duration(days: 10 + i)),
+          subject: 'MegaStore archived ${i + 1}',
+          from: const MailAddress(
+            displayName: 'MegaStore',
+            localPart: 'deals',
+            domain: 'megastore.example',
+          ),
+          category: MessageCategory.newsletters,
+        ),
+    ]);
+    int inArchive() => app.store.messages.uids(archive.id).length;
+    const megaStore = ValueKey('sender-deals@megastore.example');
+    const paper = ValueKey('sender-weekly@paper.example');
+    await openCleanUp(tester);
+    expect(find.textContaining('5 emails · none opened'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('What to do with MegaStore'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete all'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete 5 emails?'), findsOneWidget);
+    expect(find.textContaining('to Trash, from every folder'), findsOneWidget);
+    await tester.tap(find.text('Move to Trash'));
+    await tester.pump();
+    expect(find.text('Moved 5 to Trash'), findsOneWidget);
+    expect(inInbox('deals@megastore.example'), 0);
+    expect(inArchive(), 0);
+    // Gone from the list at once, without waiting for a sync.
+    await settle(tester);
+    expect(find.byKey(megaStore), findsNothing);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pump();
+    expect(inInbox('deals@megastore.example'), 3);
+    expect(inArchive(), 2);
+    await settle(tester);
+    expect(find.byKey(megaStore), findsOneWidget);
+
+    // Only a pinned email left: the sender isn't listed for it.
+    await tester.tap(find.byTooltip('What to do with The Paper'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete all'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete 3 emails?'), findsOneWidget);
+    await tester.tap(find.text('Move to Trash'));
+    await settle(tester);
+    expect(inInbox('weekly@paper.example'), 1);
+    expect(find.byKey(paper), findsNothing);
+  });
 }

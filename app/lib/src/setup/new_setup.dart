@@ -27,5 +27,6 @@ SetupController newSetupController(AppServices services) {
     saveOAuth: services.addOAuthAccount,
     ownClient: OwnOAuthClients(services.secrets).read,
     saveOwnClient: OwnOAuthClients(services.secrets).save,
+    findHostingServer: HostingServerFinder().find,
   );
 }
