@@ -2223,6 +2223,129 @@ void main() {
       expect(lunch.unsubscribeId, isNull);
       expect(lunch.from.displayName, 'Sender 4');
     });
+
+    test('mail in every folder, pinned mail not counted, and none once in '
+        'Trash', () {
+      final account = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+        folder('Archive', use: 'Archive'),
+        folder('Receipts'),
+        folder('Trash', use: 'Trash'),
+        folder('Junk', use: 'Junk'),
+      ]);
+      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      const shop = MailAddress(
+        displayName: 'Shop',
+        localPart: 'news',
+        domain: 'shop.example',
+      );
+      MessageSummary mail(int uid, String subject, {bool pinned = false}) =>
+          MessageSummary(
+            uid: uid,
+            subject: subject,
+            receivedAt: DateTime.utc(2026, 10, uid),
+            from: shop,
+            flags: pinned
+                ? MessageFlags.fromImap([r'\Flagged'])
+                : MessageFlags.none,
+          );
+      store.messages.upsertSummaries(id('INBOX'), [
+        mail(1, 'Weekly deals'),
+        mail(2, 'Your order', pinned: true),
+        summary(9, subject: 'Lunch?'),
+      ]);
+      store.messages.upsertSummaries(id('Archive'), [mail(3, 'Old deals')]);
+      store.messages.upsertSummaries(id('Receipts'), [mail(4, 'Receipt')]);
+      store.messages.upsertSummaries(id('Junk'), [mail(5, 'Spammy')]);
+      store.messages.upsertSummaries(id('Trash'), [mail(6, 'Gone')]);
+
+      expect(
+        store.messages
+            .receivedFrom(['NEWS@shop.example'])
+            .map((m) => m.subject),
+        ['Receipt', 'Old deals', 'Your order', 'Weekly deals'],
+        reason: 'every folder but Trash and Junk, any case',
+      );
+      final news = store.messages
+          .senderStats(DateTime.utc(2026, 9))
+          .firstWhere((s) => s.from.address == 'news@shop.example');
+      expect(news.count, 3, reason: 'the pinned one is not counted');
+
+      // Delete all: everything but the pinned one is in Trash (as after
+      // the next sync).
+      store.messages
+        ..removeUids(id('INBOX'), [1])
+        ..removeUids(id('Archive'), [3])
+        ..removeUids(id('Receipts'), [4])
+        ..upsertSummaries(id('Trash'), [
+          mail(11, 'Weekly deals'),
+          mail(13, 'Old deals'),
+          mail(14, 'Receipt'),
+        ]);
+      expect(
+        store.messages
+            .senderStats(DateTime.utc(2026, 9))
+            .map((s) => s.from.address),
+        ['sender9@x.example'],
+        reason: 'only pinned mail is left from the shop',
+      );
+    });
+
+    test('Gmail: each message once, and the copies of a message', () {
+      final account = temp.addAccount();
+      final other = temp.addAccount('bob@citusmail.test');
+      final boxes = store.mailboxes.replaceAll(account.id, [
+        folder('INBOX'),
+        folder('[Gmail]/All Mail', use: 'All'),
+        folder('[Gmail]/Starred', use: 'Flagged'),
+        folder('[Gmail]/Trash', use: 'Trash'),
+      ]);
+      final otherInbox = store.mailboxes.replaceAll(other.id, [
+        folder('INBOX'),
+      ]).single;
+      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      MessageSummary mail(int uid, String messageId, String subject) =>
+          MessageSummary(
+            uid: uid,
+            subject: subject,
+            messageId: messageId,
+            receivedAt: DateTime.utc(2026, 10, uid),
+            from: const MailAddress(localPart: 'news', domain: 'shop.example'),
+          );
+      store.messages
+        ..upsertSummaries(id('INBOX'), [mail(1, 'a@shop', 'In the inbox')])
+        ..upsertSummaries(id('[Gmail]/All Mail'), [
+          mail(2, 'a@shop', 'In the inbox'),
+          mail(3, 'b@shop', 'Archived'),
+        ])
+        ..upsertSummaries(id('[Gmail]/Starred'), [
+          mail(4, 'a@shop', 'In the inbox'),
+        ])
+        ..upsertSummaries(otherInbox.id, [mail(5, 'a@shop', 'For Bob too')]);
+
+      final found = store.messages.receivedFrom(['news@shop.example']);
+      expect(
+        [for (final m in found) (m.mailboxId, m.subject)],
+        [
+          (otherInbox.id, 'For Bob too'),
+          (id('[Gmail]/All Mail'), 'Archived'),
+          (id('INBOX'), 'In the inbox'),
+        ],
+        reason: 'the original, not its copies; per account',
+      );
+
+      final inboxed = store.messages.byUid(id('INBOX'), 1)!;
+      expect(
+        [
+          for (final c in store.messages.copiesOf([inboxed])) c.mailboxId,
+        ]..sort(),
+        [id('[Gmail]/All Mail'), id('[Gmail]/Starred')],
+        reason: 'not the message itself, nor another account\'s',
+      );
+      final archived = store.messages.byUid(id('[Gmail]/All Mail'), 3)!;
+      expect(store.messages.copiesOf([archived]), isEmpty);
+    });
   });
 
   group('privacy report candidates', () {
