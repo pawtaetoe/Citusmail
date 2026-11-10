@@ -27,6 +27,7 @@ import 'package:citusmail/src/ui/appointments_page.dart';
 import 'package:citusmail/src/ui/attachments_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/deliveries_page.dart';
+import 'package:citusmail/src/ui/device_sync_page.dart';
 import 'package:citusmail/src/ui/discover_page.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
@@ -596,6 +597,16 @@ void main() {
       size: const Size(390, 844),
     );
     await shoot(tester, 'phone_settings');
+  });
+
+  // Sync between devices: what syncs and what stays on each device.
+  testWidgets('device sync', (tester) async {
+    await show(
+      tester,
+      DeviceSyncPage(services: app.services),
+      size: const Size(390, 1100),
+    );
+    await shoot(tester, 'phone_device_sync');
   });
 
   // Easier to find: Settings by what people want to do, with a search;

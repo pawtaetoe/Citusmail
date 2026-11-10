@@ -143,6 +143,7 @@ final class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    widget.services.settings.syncedChanges.addListener(_syncedElsewhere);
     _lock.biometrics.isAvailable().then((available) {
       if (mounted) setState(() => _biometricsAvailable = available);
     });
@@ -155,9 +156,15 @@ final class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void dispose() {
+    widget.services.settings.syncedChanges.removeListener(_syncedElsewhere);
     _scroll.dispose();
     _revision.dispose();
     super.dispose();
+  }
+
+  /// A preference changed on another device and was applied here.
+  void _syncedElsewhere() {
+    if (mounted) setState(() {});
   }
 
   @override

@@ -2,15 +2,30 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:flutter/foundation.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 /// The user's app settings, stored encrypted with everything else (so the
 /// background job on Android reads the same values).
+///
+/// Some of them (reminders, learning, reading ahead, "New since you were
+/// away") sync between the user's devices with sync between devices on:
+/// which ones is decided in one place, `SyncedPreferences` in mail_store.
+/// The rest stay on this device.
 final class AppSettings {
   AppSettings(this._store);
 
   final MailStore _store;
+
+  /// Changes when preferences from the user's other devices were applied
+  /// here, so what shows them reads them again.
+  final syncedChanges = ValueNotifier<int>(0);
+
+  /// After an exchange with the user's other devices.
+  void syncApplied(AppliedChanges changes) {
+    if (changes.preferences.isNotEmpty) syncedChanges.value++;
+  }
 
   static const _notifications = 'app.notifications';
   static const _instantMail = 'app.instantMail';
