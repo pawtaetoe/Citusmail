@@ -12,6 +12,8 @@ import '../app.dart' show appName;
 import '../background/background_mail.dart';
 import '../mail/corrections.dart';
 import '../mail/mail_controller.dart';
+import '../pairing/receive_accounts_page.dart';
+import '../pairing/send_accounts_page.dart';
 import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
@@ -349,6 +351,15 @@ final class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _addFromPhone() async {
+    final added = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ReceiveAccountsPage(services: widget.services),
+      ),
+    );
+    if (added == true) widget.controller?.refresh();
+  }
+
   void _openPrivacyReport() => Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => PrivacyReportPage(
@@ -517,6 +528,28 @@ final class _SettingsPageState extends State<SettingsPage> {
           ..._lockSettings(),
           const _Group('Senders and devices'),
           DeviceSyncTile(services: widget.services),
+          if (_android)
+            ListTile(
+              leading: const Icon(Icons.qr_code_scanner),
+              title: const Text('Send accounts to a computer'),
+              subtitle: const Text(
+                'Scan the code on your computer to sign in there',
+              ),
+              trailing: const Icon(AppIcons.chevron),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SendAccountsPage(services: widget.services),
+                ),
+              ),
+            )
+          else if (widget.isAndroid != null || ReceiveAccountsPage.supported)
+            ListTile(
+              leading: const Icon(Icons.qr_code_2),
+              title: const Text('Add accounts from your phone'),
+              subtitle: const Text('Scan a code with $appName on your phone'),
+              trailing: const Icon(AppIcons.chevron),
+              onTap: _addFromPhone,
+            ),
           ListTile(
             leading: const Icon(Icons.image_outlined),
             title: const Text('Images'),

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The only files another app may be given: the invitation the user
-     chose to open in their calendar app (see MainActivity). -->
+     chose to open in their calendar app, and the sealed accounts file the
+     user chose to send to their computer (see MainActivity). -->
 <paths>
     <cache-path name="events" path="events/"/>
+    <cache-path name="pairing" path="pairing/"/>
 </paths>

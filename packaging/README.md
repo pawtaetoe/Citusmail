@@ -249,6 +249,13 @@ Play Console checklist (closed or open testing):
   off until the user turns them on and send only what the privacy policy
   lists; read Play's data safety help on user-initiated transfers to
   confirm "not shared" still fits before submitting.
+- **Camera permission**: used only by "Send accounts to a computer", to
+  scan the QR code the desktop app shows; Android asks when the scanner
+  first opens. Nothing is recorded, stored or sent. In Data safety, the
+  account transfer is user-initiated, device to device on the user's own
+  network, end-to-end encrypted, and reaches no server: not "collected"
+  or "shared". The camera plugin's microphone and storage permissions are
+  removed in the manifest; check the bundle has no RECORD_AUDIO.
 - **Content rating**: fill in the questionnaire. It is an email app, so
   users can exchange messages with other people (with addresses they
   choose); no ads, no purchases, no location.

@@ -1,6 +1,6 @@
 # Citusmail Privacy Policy
 
-Effective date: 5 November 2026
+Effective date: 10 November 2026
 
 Citusmail is an email app published by **Fluminaris**. This policy explains
 what the app does with your information. Questions or requests:
@@ -15,7 +15,8 @@ what the app does with your information. Questions or requests:
   tracking.
 - Your mail, contacts and settings stay **on your device, encrypted**, and
   travel only between your device and the services you use: your own mail
-  provider, and optional services you turn on yourself.
+  provider, optional services you turn on yourself, and your own computer
+  when you send it your accounts.
 
 ## The data the app handles
 
@@ -75,6 +76,16 @@ rules and image choices are kept the same on your devices. They travel
 through a folder in **your own mail account**, never through a server of
 ours, and are end-to-end encrypted with a code only your devices hold.
 
+## Adding accounts from your phone (optional)
+
+If you choose "Send accounts to a computer" on your phone and scan the
+code your computer shows, the accounts you pick (address, name, server
+settings and password, or Google sign-in tokens) go straight from your
+phone to your computer over your own local network, end-to-end encrypted,
+after you confirm. Nothing goes through the internet or a server of ours.
+If the phone can't reach the computer, it can make an encrypted file
+instead that only that computer can open, while its code is showing.
+
 ## Android permissions
 
 | Permission | Why |
@@ -84,8 +95,9 @@ ours, and are end-to-end encrypted with a code only your devices hold.
 | Foreground service, start at boot | To keep a live connection to your mail server ("Instant mail", on unless you turn it off), or check for new mail in the background |
 | Run in the background without battery limits | Asked once, with Android's own dialog, so Instant mail keeps its connection while the phone sleeps |
 | Fingerprint or face unlock | Only if you turn on the app lock; checked by Android, the app only learns "yes" or "no" |
+| Camera | Only while you scan your computer's code in "Send accounts to a computer"; Android asks the first time. Nothing is recorded or kept |
 
-The app does not use your location, camera, microphone, contacts list or
+The app does not use your location, microphone, contacts list or
 advertising ID.
 
 ## Security

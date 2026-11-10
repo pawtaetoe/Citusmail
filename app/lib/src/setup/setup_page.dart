@@ -22,6 +22,7 @@ class SetupPage extends StatefulWidget {
     required this.controller,
     required this.onDone,
     this.onCancel,
+    this.onAddFromPhone,
   });
 
   final SetupController controller;
@@ -31,6 +32,10 @@ class SetupPage extends StatefulWidget {
   /// Without it this is the first run, and the page says what $appName
   /// is before asking for an account.
   final VoidCallback? onCancel;
+
+  /// On computers: "Add accounts from your phone" (scan a QR code with
+  /// the phone app), offered under the first step.
+  final VoidCallback? onAddFromPhone;
 
   /// From this width the first run shows its welcome beside the form.
   static const twoColumnWidth = 840.0;
@@ -145,7 +150,7 @@ class _SetupPageState extends State<SetupPage> {
   Widget _page(BuildContext context) {
     final controller = widget.controller;
     final firstRun = widget.onCancel == null;
-    final Widget content = AnimatedSwitcher(
+    final Widget form = AnimatedSwitcher(
       duration: const Duration(milliseconds: 200),
       child: switch (controller.state) {
         EnteringCredentials(:final error) => _CredentialsForm(
@@ -248,6 +253,33 @@ class _SetupPageState extends State<SetupPage> {
         ),
       },
     );
+    final fromPhone = widget.onAddFromPhone;
+    final Widget content =
+        fromPhone == null || controller.state is! EnteringCredentials
+        ? form
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              form,
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 12),
+              const Text(
+                'Already use $appName on your phone? Bring all your accounts '
+                'over by scanning a code.',
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  key: const Key('add-from-phone'),
+                  onPressed: fromPhone,
+                  icon: const Icon(Icons.qr_code_2),
+                  label: const Text('Add accounts from your phone'),
+                ),
+              ),
+            ],
+          );
     // The form in a readable column, in the middle of the space it has.
     Widget column(Widget child) => SafeArea(
       child: Center(

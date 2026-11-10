@@ -5,14 +5,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:mail_oauth/mail_oauth.dart';
-import 'package:mail_setup/mail_setup.dart';
-import 'package:mail_web/mail_web.dart';
 
+import 'pairing/receive_accounts_page.dart';
 import 'security/lock_screen.dart';
 import 'services/app_services.dart';
-import 'services/secret_store.dart';
-import 'setup/oauth_browser.dart';
+import 'setup/new_setup.dart';
 import 'setup/setup_controller.dart';
 import 'setup/setup_page.dart';
 import 'ui/citusmail_theme.dart';
@@ -177,22 +174,17 @@ class _HomeState extends State<_Home> {
     _setup = null;
   });
 
-  SetupController _newSetup() {
-    final discovery = AccountDiscovery();
-    const verifier = AccountVerifier();
-    final browser = OAuthBrowser(TokenClient(WebClient()));
-    return SetupController(
-      discover: discovery.discover,
-      verify: verifier.verify,
-      save: widget.services.addAccount,
-      oauthSignIn: browser.signIn,
-      verifyOAuth: (settings, token) =>
-          verifier.verify(settings, token, oauth: true),
-      saveOAuth: widget.services.addOAuthAccount,
-      ownClient: OwnOAuthClients(widget.services.secrets).read,
-      saveOwnClient: OwnOAuthClients(widget.services.secrets).save,
-      findHostingServer: HostingServerFinder().find,
+  SetupController _newSetup() => newSetupController(widget.services);
+
+  /// Desktops: adds the accounts from the user's phone (QR code).
+  Future<void> _addFromPhone() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ReceiveAccountsPage(services: widget.services),
+      ),
     );
+    if (!mounted) return;
+    if (widget.services.store.accounts.all().isNotEmpty) _closeSetup();
   }
 
   @override
@@ -203,6 +195,7 @@ class _HomeState extends State<_Home> {
         controller: _setup ??= _newSetup(),
         onDone: (_) => _closeSetup(),
         onCancel: hasAccounts ? _closeSetup : null,
+        onAddFromPhone: ReceiveAccountsPage.supported ? _addFromPhone : null,
       );
     }
     return MailShell(

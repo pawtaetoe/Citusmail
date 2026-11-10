@@ -14,6 +14,7 @@ workspace:
   - packages/mail_extract
   - packages/mail_lookup
   - packages/mail_oauth
+  - packages/mail_pairing
   - packages/mail_protocol
   - packages/mail_setup
   - packages/mail_sort

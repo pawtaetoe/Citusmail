@@ -17,6 +17,8 @@ import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/mail/new_since_away.dart';
 import 'package:citusmail/src/mail/send_later_times.dart';
+import 'package:citusmail/src/pairing/receive_accounts_page.dart';
+import 'package:citusmail/src/pairing/send_accounts_page.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
 import 'package:citusmail/src/ui/accounts_page.dart';
@@ -36,6 +38,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_compose/mail_compose.dart';
+import 'package:mail_pairing/mail_pairing.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_sort/mail_sort.dart';
@@ -579,6 +582,84 @@ void main() {
       size: const Size(390, 844),
     );
     await shoot(tester, 'phone_settings');
+  });
+
+  // Add accounts from your phone: the computer's code, and the phone
+  // choosing what to send once connected.
+  testWidgets('add accounts from your phone', (tester) async {
+    final host = (await tester.runAsync(
+      () => PairingHost.start(
+        computerName: 'alice-laptop',
+        addresses: [InternetAddress.loopbackIPv4],
+        receive: (t) async => const [],
+      ),
+    ))!;
+    await show(
+      tester,
+      ReceiveAccountsPage(services: app.services, startHost: (_) async => host),
+      size: const Size(1440, 900),
+    );
+    await shoot(tester, 'desktop_add_from_phone');
+
+    final phoneHost = (await tester.runAsync(
+      () => PairingHost.start(
+        computerName: 'alice-laptop',
+        addresses: [InternetAddress.loopbackIPv4],
+        receive: (t) async => const [],
+      ),
+    ))!;
+    final store = app.store;
+    for (final (email, name, host) in [
+      ('alice@posteo.example', 'Alice (Posteo)', 'posteo.example'),
+      ('alice.martin@work.example', 'Alice Martin', 'mail.work.example'),
+    ]) {
+      final account = store.accounts.add(
+        NewAccount(
+          email: email,
+          displayName: name,
+          username: email,
+          imap: ServerSettings(
+            host: host,
+            port: 993,
+            security: ConnectionSecurity.implicitTls,
+          ),
+          smtp: ServerSettings(
+            host: host,
+            port: 465,
+            security: ConnectionSecurity.implicitTls,
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => app.services.secrets.write(account.keychainKey, 'pw'),
+      );
+    }
+    await tester.runAsync(
+      () => app.services.secrets.write(
+        store.accounts.all().first.keychainKey,
+        'pw',
+      ),
+    );
+    await show(
+      tester,
+      SendAccountsPage(
+        services: app.services,
+        phoneName: 'Pixel 8',
+        scanner: (context, onCode) =>
+            _AutoScan(text: phoneHost.offer.encode(), onCode: onCode),
+      ),
+      size: const Size(390, 844),
+    );
+    for (
+      var i = 0;
+      i < 40 && find.text('Accounts to send').evaluate().isEmpty;
+      i++
+    ) {
+      await settle(tester);
+    }
+    await shoot(tester, 'phone_send_accounts');
+    await tester.runAsync(host.close);
+    await tester.runAsync(phoneHost.close);
   });
 
   testWidgets('setup', (tester) async {
@@ -1711,6 +1792,30 @@ void _seedDemo(MailStore store) {
 }
 
 /// Lets isolates (message parsing) finish and animations end.
+/// A scanner that "reads" [text] as soon as it shows.
+final class _AutoScan extends StatefulWidget {
+  const _AutoScan({required this.text, required this.onCode});
+
+  final String text;
+  final ValueChanged<String> onCode;
+
+  @override
+  State<_AutoScan> createState() => _AutoScanState();
+}
+
+final class _AutoScanState extends State<_AutoScan> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => widget.onCode(widget.text),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const ColoredBox(color: Colors.black);
+}
+
 Future<void> settle(WidgetTester tester) async {
   for (var i = 0; i < 4; i++) {
     await tester.runAsync(

@@ -15,6 +15,15 @@
     <!-- Instant mail: asks once, with Android's one-tap dialog, to keep its
          connection while the phone sleeps (no push server of ours). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- "Send accounts to a computer": the camera reads the computer's QR
+         code. Android asks only when the scanner opens; nothing is recorded
+         or kept. The camera plugin's other permissions (microphone, old
+         storage) are removed: the app never records. Phones without a
+         camera can still install the app. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" tools:replace="android:required"/>
     <!-- Privacy: strip the advertising ID permission even if a library adds it. -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove"/>
 

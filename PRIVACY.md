@@ -22,6 +22,8 @@ no analytics, no crash reporting and no advertising.
 | The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline on the invitation | An email from your account with your answer (and your note, if you wrote one) and the event's calendar details, through your own mail server; a copy is kept in Sent. No one else on the invitation gets it |
 | Your calendar app | Only when you tap "Open in calendar app" on an invitation | The invitation's .ics file, written to a private folder of the app's own data and removed a couple of minutes later, handed to the app your system chooses on this device |
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
+| Your computer, on your own local network | Only when you scan the computer's code in "Send accounts to a computer" and confirm (with your PIN or fingerprint if the app lock is on) | The accounts you choose: address, name, server settings and password or sign-in, and, if you tick it, the sync code. Straight from the phone to the computer over your Wi-Fi, end-to-end encrypted, never through the internet or a server of ours. See "Adding accounts from your phone" |
+| An app you choose in the share sheet | Only if your phone couldn't reach the computer and you choose "Send as a file instead" | The same accounts, sealed in a file only that computer can open while its code is showing |
 | Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, Screener decisions, snoozed emails (which message, by its Message-ID, and when it comes back), unsubscribes, folder rules and image senders, end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
 | Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
@@ -102,6 +104,40 @@ access to your mailbox, sees only sealed data plus which of your devices
 wrote it. The code is a random 128-bit secret kept only in each device's
 system keychain; with the app lock on, showing it asks for your PIN. App
 settings, the app lock and your PIN never sync.
+
+## Adding accounts from your phone
+
+On a computer, "Add accounts from your phone" shows a QR code; on the
+phone, Settings > Send accounts to a computer scans it. The code holds
+the computer's local network addresses, a one-time public key and a
+random one-time token. The phone connects straight to the computer over
+your own network: nothing goes through the internet or any server (there
+is none of ours), and a code naming an address outside your local network
+is refused. Both screens show the same six-digit check code. You choose
+the accounts and confirm (with your PIN or fingerprint if the app lock is
+on) before anything is sent.
+
+What is sent, end-to-end encrypted (X25519, HKDF-SHA256,
+ChaCha20-Poly1305) with keys only the two devices have: each chosen
+account's address, name, server settings and password, or for Google its
+sign-in tokens; your own OAuth client IDs if you entered any; and, if you
+tick it, the code of Sync between devices. Outlook / Microsoft 365
+sign-ins are never sent: Microsoft renews them in a way two devices can't
+share, so the computer signs in itself. The computer checks each account
+with a real sign-in before saving it, and keeps passwords and tokens only
+in its system keychain.
+
+A code works once and stops after 5 minutes on the network (15 for a
+file); the computer then forgets its key. The camera is used only while
+the scanner is open; nothing is recorded or kept.
+
+If the phone can't reach the computer, it can make a file instead
+(`citusmail-accounts.cmpair`), which you send to the computer yourself
+with any app (Quick Share, a cable, a message to yourself). The file is
+sealed to the key of the code the computer is showing, which never leaves
+the computer's memory: only that computer can open it, and only while
+the code is still showing. After that the file is useless; the phone
+deletes its copy after 15 minutes.
 
 ## Notifications
 
