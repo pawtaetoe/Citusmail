@@ -59,6 +59,37 @@ void main() {
     },
   );
 
+  test('pairing connects and listens only in its two reviewed files', () {
+    expect(
+      checker.check(
+        'packages/mail_pairing/lib/src/pairing_host.dart',
+        'await ServerSocket.bind(address, port);',
+      ),
+      isEmpty,
+    );
+    expect(
+      checker.check(
+        'packages/mail_pairing/lib/src/pairing_client.dart',
+        'await Socket.connect(address, port);',
+      ),
+      isEmpty,
+    );
+    expect(
+      checker.check(
+        'packages/mail_pairing/lib/src/frames.dart',
+        'await Socket.connect(address, port);',
+      ),
+      hasLength(1),
+    );
+    expect(
+      checker.check(
+        'packages/mail_pairing/lib/src/pairing_client.dart',
+        'ServerSocket.bind(a, 1)',
+      ),
+      hasLength(1),
+    );
+  });
+
   test('only the OAuth receiver may listen for connections', () {
     expect(
       checker.check('app/lib/a.dart', 'await HttpServer.bind(a, 0);'),

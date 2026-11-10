@@ -57,8 +57,12 @@ final class ImportChecker {
       RegExp(
         r'\b(RawSocket|Socket|SecureSocket|RawSecureSocket)\s*\.\s*(connect|startConnect|secure)\s*\(',
       ),
-      'connections are opened only by MailSocket in mail_protocol (TLS rules)',
-      allowedIn: ['packages/mail_protocol/lib/'],
+      'connections are opened only by MailSocket in mail_protocol (TLS rules), '
+      'and by the phone to a computer on the local network when pairing',
+      allowedIn: [
+        'packages/mail_protocol/lib/',
+        'packages/mail_pairing/lib/src/pairing_client.dart',
+      ],
     ),
     ImportRule(
       RegExp(r'\bRawDatagramSocket\s*\.\s*bind\s*\('),
@@ -67,8 +71,12 @@ final class ImportChecker {
     ),
     ImportRule(
       RegExp(r'\b(HttpServer|ServerSocket|SecureServerSocket)\s*\.\s*bind'),
-      'the only listening socket is the one-time OAuth sign-in receiver',
-      allowedIn: ['packages/mail_oauth/lib/'],
+      'the only listening sockets are the one-time OAuth sign-in receiver '
+      'and the one-time pairing listener on the local network',
+      allowedIn: [
+        'packages/mail_oauth/lib/',
+        'packages/mail_pairing/lib/src/pairing_host.dart',
+      ],
     ),
     ImportRule(
       RegExp(r'\bMailSocket\s*\.\s*connect\s*\('),
