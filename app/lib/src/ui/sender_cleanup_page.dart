@@ -129,10 +129,12 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
     );
   }
 
+  /// Every message from them that this page counts (any folder but Sent,
+  /// Drafts, Trash and Junk) goes to Trash; Undo puts it back.
   Future<void> _delete(List<SenderGroup> groups) async {
-    final mail = _model.inboxMail(groups);
+    final mail = _model.allMail(groups);
     if (mail.isEmpty) {
-      _notice('Nothing from ${_who(groups)} is in your Inbox.');
+      _notice('Only pinned emails from ${_who(groups)} are left.');
       return;
     }
     final sure = await showDialog<bool>(
@@ -140,8 +142,9 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
       builder: (context) => AlertDialog(
         title: Text('Delete ${_emails(mail.length)}?'),
         content: Text(
-          'The ${_emails(mail.length)} from ${_who(groups)} in your Inbox '
-          'go to Trash. Pinned emails stay where they are.',
+          '${mail.length == 1 ? 'The email' : 'All ${_emails(mail.length)}'} '
+          'from ${_who(groups)} go${mail.length == 1 ? 'es' : ''} to Trash, '
+          'from every folder. Pinned emails stay where they are.',
         ),
         actions: [
           TextButton(
@@ -726,9 +729,11 @@ final class _HowDialog extends StatelessWidget {
       'company\'s no-reply addresses count as one sender. People you have '
       'written to and your own addresses are never listed. Nothing is sent '
       'anywhere.\n\n'
-      'Archive all and Delete all move the sender\'s mail in your Inbox; '
-      'pinned emails stay. Keep takes a sender off this page; you can list '
-      'them again at the bottom.',
+      'Archive all moves the sender\'s mail in your Inbox to Archive. '
+      'Delete all moves all of the sender\'s mail to Trash, from every '
+      'folder. Pinned emails stay where they are and aren\'t counted. Keep '
+      'takes a sender off this page; you can list them again at the '
+      'bottom.',
     ),
     actions: [
       TextButton(
