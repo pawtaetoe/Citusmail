@@ -402,11 +402,17 @@ final class _SendAccountsPageState extends State<SendAccountsPage> {
                     on == true ? _chosen.add(a.id) : _chosen.remove(a.id);
                   }),
                   title: Text(a.displayName ?? a.email),
-                  subtitle: Text(
+                  subtitle: switch ((
+                    a.displayName == null ? null : a.email,
                     _signInAgain.contains(a.id)
-                        ? '${a.email}\nYou sign in again on the computer.'
-                        : a.email,
-                  ),
+                        ? 'You sign in again on the computer.'
+                        : null,
+                  )) {
+                    (null, null) => null,
+                    (final email?, null) => Text(email),
+                    (null, final note?) => Text(note),
+                    (final email?, final note?) => Text('$email\n$note'),
+                  },
                 ),
               if (_syncOn)
                 SwitchListTile(

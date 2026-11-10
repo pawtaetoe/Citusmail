@@ -276,10 +276,7 @@ void main() {
     final shown = tester.widget<Text>(find.byKey(const Key('check-code'))).data;
     expect(shown, (host.state as HostConnected).checkCode);
     // Microsoft signs in again on the computer.
-    expect(
-      find.text('bob@outlook.example\nYou sign in again on the computer.'),
-      findsOneWidget,
-    );
+    expect(find.text('You sign in again on the computer.'), findsOneWidget);
     expect(find.text('Send 4 accounts'), findsOneWidget);
     await tester.tap(find.text('Bob'));
     await tester.pump();
