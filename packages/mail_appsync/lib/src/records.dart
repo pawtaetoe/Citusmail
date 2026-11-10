@@ -23,6 +23,13 @@ enum RecordKind {
 
   /// Which sign-offs an account starts messages with.
   signOffDefaults,
+
+  /// A mail-handling preference (Screener on or off, reminders, code
+  /// clean-up, Clean up's Keep list...), keyed by the setting's name. Only
+  /// the preferences on the allowlist in mail_store's `SyncedPreferences`
+  /// sync; every other setting stays on its device. A device on a version
+  /// from before this kind can't read snapshots that contain it.
+  preference,
 }
 
 /// One piece of app data, or the fact that it was removed.

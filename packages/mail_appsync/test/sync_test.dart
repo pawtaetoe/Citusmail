@@ -174,6 +174,43 @@ void main() {
     });
   });
 
+  test('a preference record round-trips, its value and time intact', () {
+    final keys = SyncCode.generate(Random(3)).keys;
+    final snapshot = SyncSnapshot(
+      device: 'phone',
+      createdAt: 1761300000000,
+      records: [
+        SyncRecord(
+          key: 'pref:["reminders.on"]',
+          kind: RecordKind.preference,
+          changedAt: 1761299999000,
+          device: 'phone',
+          data: {'key': 'reminders.on', 'value': 'off'},
+        ),
+        SyncRecord(
+          key: 'pref:["cleanup.kept","news@shop.example"]',
+          kind: RecordKind.preference,
+          changedAt: 1761299998000,
+          device: 'phone',
+          deleted: true,
+        ),
+      ],
+    );
+    final opened = SnapshotSealer(keys)
+        .open(SnapshotSealer(keys).seal(snapshot), device: 'phone');
+    final [value, removed] = opened.records;
+    expect(value.kind, RecordKind.preference);
+    expect(value.key, 'pref:["reminders.on"]');
+    expect(value.changedAt, 1761299999000);
+    expect(value.data, {'key': 'reminders.on', 'value': 'off'});
+    expect(removed.kind, RecordKind.preference);
+    expect(removed.deleted, isTrue);
+    expect(
+      SyncRecord.fromJson(jsonDecode(jsonEncode(value.toJson()))).data,
+      value.data,
+    );
+  });
+
   test('records reject junk', () {
     for (final json in [
       null,
