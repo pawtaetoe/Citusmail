@@ -123,7 +123,7 @@ public issue. We aim to reply within 7 days.
     is checked with a real login before it replaces the old one, and an
     account signs in again only with the client that signed it in (or,
     with no earlier tokens, the build's or the user's own). Only the
-    OAuth package may open a listening
+    OAuth package and the pairing listener (rule 15) may open a listening
     socket (CI enforces this).
 
 13. **Rules on the mail server change only the app's own script.** When
@@ -149,6 +149,35 @@ public issue. We aim to reply within 7 days.
     looked up by SHA-256 and never uploaded, links are looked up and never
     submitted. Its API key is the only extra header `mail_web` can send,
     and only as a validated `X-` header.
+
+15. **Adding accounts from the phone stays on the local network and is
+    end-to-end encrypted** (`packages/mail_pairing`). The computer's QR
+    code carries its local addresses, a random port, a one-time X25519
+    key and a random 128-bit token. The phone refuses codes naming
+    addresses outside private IPv4 ranges, IPv4 link-local, IPv6 unique
+    local or loopback, so a crafted code can't make it send anything to
+    the internet; the computer listens only on its local addresses and
+    drops connections from anywhere else. Both derive two direction keys
+    and a six-digit check code with HKDF-SHA256 from the X25519 secret,
+    with the token as salt; every message after the phone's key is sealed
+    with ChaCha20-Poly1305 under a message number (replays, drops and
+    changes fail). The phone's first sealed message proves it scanned the
+    code; the computer's answer proves it holds the code's private key, so
+    nobody on the network can sit in the middle. One transfer per code:
+    the listener closes when a phone has connected, after 5 minutes, or
+    after 5 wrong tries, and the key is wiped when done. Sending needs the
+    user's confirmation and, with the app lock on, the PIN or fingerprint.
+    The computer checks each account with a real sign-in before saving it.
+    Microsoft refresh tokens are never sent (Microsoft replaces them on
+    use, so sharing one would sign both devices out); Google tokens only
+    when the computer renews them with the client that issued them. The
+    file route seals the same data to the code's key (a new phone X25519
+    key, HKDF with the token, the header as associated data); the private
+    key exists only in the computer's memory, so the file can be opened
+    only by that computer while the code is showing (15 minutes). X25519
+    is our own code, checked against RFC 7748 vectors; it is not
+    constant-time, which is acceptable for one-use keys. Only the two
+    reviewed pairing files may connect or listen (CI enforces this).
 
 ## Releases
 

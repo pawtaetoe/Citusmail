@@ -40,6 +40,9 @@ Website: **https://citusmail.fluminaris.com** · Download:
   under Files in search, and old codes tidied away.
 - **Every account in one inbox**: Gmail, Outlook / Microsoft 365 and any
   IMAP provider.
+- **Add accounts from your phone**: on the computer, scan a code with the
+  phone app and your accounts sign in there, sent straight over your
+  Wi-Fi (or as a file), end-to-end encrypted.
 - **A calm sidebar**: each account folds away with its unread count in
   sight, and what was found in your mail and the Tools (Clean up, the
   Privacy report) sit apart, folded until you need them.
