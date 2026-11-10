@@ -107,6 +107,9 @@ final class MailActions {
           targetMailboxId: target.id,
         ),
         skip: target.id,
+        dropCopies:
+            target.specialUse == SpecialUse.trash ||
+            target.specialUse == SpecialUse.junk,
       );
 
   /// Deletes messages: to Trash, or for good when already in Trash.
@@ -117,6 +120,7 @@ final class MailActions {
       uidValidity: _validity(mailbox),
       uids: [for (final m in group) m.uid],
     ),
+    dropCopies: true,
   );
 
   RemovalReceipt _remove(
@@ -124,6 +128,7 @@ final class MailActions {
     UidAction Function(StoredMailbox mailbox, List<StoredMessage> group)
     action, {
     int? skip,
+    bool dropCopies = false,
   }) {
     final undoUntil = DateTime.now().add(undoWindow);
     final entries = <int>[];
@@ -135,6 +140,20 @@ final class MailActions {
           if (mailbox.id != skip) (mailbox, group),
       ];
       for (final (_, group) in groups) {
+        ids.addAll(group.map((m) => m.id));
+      }
+      // Mail going to Trash or Spam leaves Gmail's All Mail, Starred and
+      // Important on the server; their local copies go now too (only
+      // here: the server does it itself), else a copy would stay listed
+      // until that folder is opened again. Undo puts them back.
+      final copies = dropCopies
+          ? _byMailbox(
+              _store.messages.copiesOf([
+                for (final (_, group) in groups) ...group,
+              ]),
+            )
+          : const <(StoredMailbox, List<StoredMessage>)>[];
+      for (final (_, group) in copies) {
         ids.addAll(group.map((m) => m.id));
       }
       final snapshot = _store.messages.snapshot(ids);
@@ -154,6 +173,9 @@ final class MailActions {
               .id,
         );
         accounts.add(mailbox.accountId);
+      }
+      for (final (mailbox, group) in copies) {
+        _store.messages.removeUids(mailbox.id, group.map((m) => m.uid));
       }
       return RemovalReceipt._(accounts, entries, snapshot, undoUntil, snoozes);
     });
