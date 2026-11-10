@@ -226,20 +226,18 @@ abstract final class SettingsCatalog {
         'delete',
       ],
     ),
-    // Writing (Sign-offs lands here).
+    // Writing.
+    SettingEntry(
+      'signOffs',
+      'writing',
+      'Sign-offs',
+      words: ['signature', 'sign-off', 'sign off', 'closing', 'regards'],
+    ),
     SettingEntry(
       'writing',
       'writing',
       'Writing tools',
-      words: [
-        'signature',
-        'sign-off',
-        'compose',
-        'send later',
-        'schedule',
-        'read receipt',
-        'remind me',
-      ],
+      words: ['compose', 'send later', 'schedule', 'read receipt', 'remind me'],
     ),
     // Accounts.
     SettingEntry(

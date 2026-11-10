@@ -102,10 +102,14 @@ final class ComposeController extends ChangeNotifier {
       to = RecipientList(initial.to),
       cc = RecipientList(initial.cc),
       bcc = RecipientList(initial.bcc),
-      showCopies = initial.cc.isNotEmpty || initial.bcc.isNotEmpty {
+      showCopies = initial.cc.isNotEmpty || initial.bcc.isNotEmpty,
+      // A draft written before (on the device, in the Drafts folder,
+      // taken back from the Outbox) keeps the sign-off it has.
+      signOffChosen = initial.id != null || initial.savedMessageId != null {
     for (final list in [to, cc, bcc]) {
       list.addListener(changed);
     }
+    if (!signOffChosen) _draft = _withDefaultSignOff(_draft);
   }
 
   final AppServices services;
@@ -131,8 +135,98 @@ final class ComposeController extends ChangeNotifier {
 
   Account? get account => services.store.accounts.byId(_draft.accountId);
 
-  void setAccount(int accountId) =>
-      _update(_draft.copyWith(accountId: accountId));
+  /// Sending from another account starts with that account's sign-off,
+  /// unless the user chose one for this message.
+  void setAccount(int accountId) {
+    final next = _draft.copyWith(accountId: accountId);
+    _update(signOffChosen ? next : _withDefaultSignOff(next));
+  }
+
+  // ----------------------------------------------------------- sign-offs
+
+  /// The user's sign-offs, in their order.
+  List<SignOff> get signOffs => services.store.signOffs.all();
+
+  /// The sign-off this message ends with, or null for none.
+  SignOff? get signOff => _draft.signOff;
+
+  /// The user picked the sign-off for this message (so it stays when the
+  /// account changes).
+  bool signOffChosen;
+
+  /// A reply or forward (which may have a sign-off of its own).
+  bool get answers =>
+      _draft.inReplyTo != null ||
+      _draft.quote.isNotEmpty ||
+      _draft.attachments.any((a) => a.mimeType == 'message/rfc822');
+
+  Draft _withDefaultSignOff(Draft d) {
+    final email = services.store.accounts.byId(d.accountId)?.email;
+    final signOff = email == null
+        ? null
+        : services.store.signOffs.defaultFor(email, reply: answers);
+    return _withSignOff(d, signOff);
+  }
+
+  static Draft _withSignOff(Draft d, SignOff? signOff) => signOff == null
+      ? d.copyWith(clearSignOff: true)
+      : d.copyWith(signOff: signOff);
+
+  /// Ends the message with [signOff] instead (null: none). What the user
+  /// wrote stays as it is.
+  void chooseSignOff(SignOff? signOff) {
+    signOffChosen = true;
+    _update(_withSignOff(_draft, signOff));
+  }
+
+  /// A sign-off written while writing: kept in the list when [save] (and
+  /// returned), else used for this message only.
+  SignOff writeSignOff({
+    required String text,
+    String name = '',
+    bool separator = false,
+    bool save = true,
+  }) {
+    final signOff = save
+        ? services.store.signOffs.add(
+            name: name.trim().isEmpty ? defaultName(text) : name,
+            text: text,
+            separator: separator,
+          )
+        : SignOff.oneOff(text: text, separator: separator);
+    chooseSignOff(signOff);
+    return signOff;
+  }
+
+  /// A name for a sign-off saved without one: its first line.
+  static String defaultName(String text) {
+    final first = text.trim().split('\n').first.trim();
+    if (first.isEmpty) return 'Sign-off';
+    return first.length <= 30 ? first : '${first.substring(0, 29)}…';
+  }
+
+  /// After the list was managed: the sign-off in use follows its edits;
+  /// one that was removed stays in this message as it was.
+  void signOffsChanged() {
+    final current = _draft.signOff;
+    if (current == null || !current.isSaved) {
+      notifyListeners();
+      return;
+    }
+    final stored = services.store.signOffs.byId(current.id);
+    if (stored == current) {
+      notifyListeners();
+      return;
+    }
+    _update(
+      _withSignOff(
+        _draft,
+        stored ??
+            SignOff.oneOff(text: current.text, separator: current.separator),
+      ),
+    );
+  }
+
   void setSubject(String subject) => _update(_draft.copyWith(subject: subject));
 
   /// "Remind me if no reply": when, or null for no reminder.
@@ -149,6 +243,10 @@ final class ComposeController extends ChangeNotifier {
       _update(_draft.copyWith(requestReceipt: on));
   void setBody(String body) =>
       _update(_draft.copyWith(body: body), notify: false);
+
+  /// The quoted or forwarded text below the sign-off (it can be trimmed).
+  void setQuote(String quote) =>
+      _update(_draft.copyWith(quote: quote), notify: false);
 
   void addAttachments(List<DraftAttachment> files) =>
       _update(_draft.copyWith(attachments: [..._draft.attachments, ...files]));

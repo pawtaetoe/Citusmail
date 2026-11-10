@@ -23,7 +23,7 @@ void main() {
 
     test('finds settings by other names', () {
       expect(ids('dark mode').first, 'theme');
-      expect(ids('signature').first, 'writing');
+      expect(ids('signature').first, 'signOffs');
       expect(ids('PIN'), containsAll(['appLock', 'changePin']));
       expect(ids('spam'), containsAll(['screener', 'blockedSenders']));
       expect(ids('push').first, 'notifications');

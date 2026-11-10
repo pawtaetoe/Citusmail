@@ -110,6 +110,30 @@ final class AppDataSnapshotter {
         ),
       );
     }
+    for (final s in _store.signOffs.all()) {
+      put(
+        SyncRecord(
+          key: AppDataKeys.signOff(s.id),
+          kind: RecordKind.signOff,
+          changedAt: s.changedAt.millisecondsSinceEpoch,
+          device: me,
+          data: s.toJson(),
+        ),
+      );
+    }
+    for (final MapEntry(key: email, value: d)
+        in _store.signOffs.allDefaults().entries) {
+      if (_account(email) == null) continue; // an account removed here
+      put(
+        SyncRecord(
+          key: AppDataKeys.signOffDefaults(email),
+          kind: RecordKind.signOffDefaults,
+          changedAt: d.changedAt.millisecondsSinceEpoch,
+          device: me,
+          data: {'account': email, ...d.toJson()},
+        ),
+      );
+    }
     for (final account in _store.accounts.all()) {
       for (final u in _store.unsubscriptions.forAccount(account.id)) {
         put(
@@ -298,6 +322,10 @@ final class AppDataSnapshotter {
           );
           changes.added++;
         }
+      case RecordKind.signOff:
+        _applySignOff(r, at, changes);
+      case RecordKind.signOffDefaults:
+        _applySignOffDefaults(r, at, changes);
       case RecordKind.folderRule:
         final email = r.deleted ? _keyPart(r.key, 0) : _text(r, 'account');
         final folderName = r.deleted ? _keyPart(r.key, 1) : _text(r, 'folder');
@@ -339,6 +367,57 @@ final class AppDataSnapshotter {
           changes.added++;
         }
     }
+  }
+
+  void _applySignOff(SyncRecord r, DateTime at, AppliedChanges changes) {
+    final id = r.deleted ? _keyPart(r.key, 0) : _text(r, 'id');
+    final existing = _store.signOffs.byId(id);
+    if (r.deleted) {
+      // Kept if it was changed here after it was removed there.
+      if (existing != null &&
+          existing.changedAt.millisecondsSinceEpoch <= r.changedAt) {
+        _store.signOffs.remove(id, at: at, device: r.device);
+        changes.removed++;
+      }
+      return;
+    }
+    if (existing != null &&
+        existing.changedAt.millisecondsSinceEpoch >= r.changedAt) {
+      return;
+    }
+    final signOff = SignOff.fromJson(r.data);
+    if (signOff == null || signOff.id != id) {
+      throw const FormatException('malformed sign-off');
+    }
+    // The record's time, exactly: never newer than the change.
+    _store.signOffs.restore(signOff.copyWith(changedAt: at));
+    changes.added++;
+  }
+
+  void _applySignOffDefaults(
+    SyncRecord r,
+    DateTime at,
+    AppliedChanges changes,
+  ) {
+    if (r.deleted) return; // defaults are changed, never removed
+    final account = _account(_text(r, 'account'));
+    if (account == null) {
+      changes.skipped++;
+      return;
+    }
+    final existing = _store.signOffs.defaultsFor(account.email);
+    if (existing.changedAt.millisecondsSinceEpoch >= r.changedAt) return;
+    final defaults = SignOffDefaults.fromJson(r.data);
+    _store.signOffs.setDefaults(
+      account.email,
+      SignOffDefaults(
+        newMail: defaults.newMail,
+        repliesSameAsNew: defaults.repliesSameAsNew,
+        replies: defaults.replies,
+        changedAt: at,
+      ),
+    );
+    changes.added++;
   }
 
   (BlockKind, String) _blockOf(SyncRecord r) => r.deleted

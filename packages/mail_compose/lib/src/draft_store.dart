@@ -133,15 +133,23 @@ final class DraftStore {
   Draft fromDraftsFolder(StoredMessage message, Uint8List raw) {
     final view = MessageView.parse(raw);
     final parsed = view.message;
+    // The sign-off it was written with, if it is one of the user's: the
+    // text above it is what they wrote, below it the quote.
+    final text = Draft.split(
+      view.isHtml
+          ? view.body.plainText
+          : (parsed.textBody?.decodeText().text ?? ''),
+      _store.signOffs.all(),
+    );
     return Draft(
       accountId: message.accountId,
       to: parsed.to,
       cc: parsed.cc,
       bcc: parsed.bcc,
       subject: parsed.subject ?? '',
-      body: view.isHtml
-          ? view.body.plainText
-          : (parsed.textBody?.decodeText().text ?? ''),
+      body: text.body,
+      signOff: text.signOff,
+      quote: text.quote,
       attachments: [
         for (final a in view.attachments)
           DraftAttachment(

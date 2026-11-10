@@ -84,7 +84,7 @@ final class OutgoingMessages {
     cc: draft.cc,
     bcc: draft.bcc,
     subject: draft.subject.trim(),
-    textBody: draft.body,
+    textBody: draft.text,
     attachments: [
       for (final a in draft.attachments)
         OutgoingAttachment(

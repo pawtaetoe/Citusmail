@@ -20,6 +20,7 @@ import 'image_senders_page.dart';
 import 'privacy_report_page.dart';
 import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
+import 'sign_offs_page.dart';
 import 'subscriptions_page.dart';
 import 'trips_page.dart';
 
@@ -253,6 +254,17 @@ abstract final class Features {
       title: 'Ask for a read receipt',
       sentence: 'Ask to be told when your email is read.',
       open: (context, c) => c.compose(),
+    ),
+    Feature(
+      id: 'signOffs',
+      group: FeatureGroup.writing,
+      icon: signOffIcon,
+      title: 'Sign-offs',
+      sentence:
+          'Several endings for your emails, a default per account, and a '
+          'quick switch while you write.',
+      open: (context, c) =>
+          _push(context, (_) => SignOffsPage(services: c.services)),
     ),
     Feature(
       id: 'images',

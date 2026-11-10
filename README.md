@@ -38,6 +38,9 @@ Website: **https://citusmail.fluminaris.com** · Download:
 - **Inbox tools**: Snooze, Send later, "remind me if no reply", a
   Screener for new senders, clean-up of busy senders, every attachment
   under Files in search, and old codes tidied away.
+- **Sign-offs**: keep several (a signature for work, a short one for
+  replies), give each account its defaults, and switch or write a new
+  one while you write.
 - **Every account in one inbox**: Gmail, Outlook / Microsoft 365 and any
   IMAP provider.
 - **Add accounts from your phone**: on the computer, scan a code with the

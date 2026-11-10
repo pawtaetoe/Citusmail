@@ -31,6 +31,7 @@ import 'link_opener.dart';
 import 'page_scaffold.dart';
 import 'privacy_report_page.dart';
 import 'settings_catalog.dart';
+import 'sign_offs_page.dart';
 import 'tips.dart';
 import 'whats_new.dart';
 
@@ -692,7 +693,22 @@ final class _SettingsPageState extends State<SettingsPage> {
         subtitle: Text('In the new message window, next to Send'),
       ),
     ),
-    // Sign-offs: its tile goes here.
+    _find(
+      'signOffs',
+      ListTile(
+        leading: const Icon(signOffIcon),
+        title: const Text('Sign-offs'),
+        subtitle: const Text(
+          'The text that ends your emails, like a signature',
+        ),
+        trailing: const Icon(AppIcons.chevron),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => SignOffsPage(services: widget.services),
+          ),
+        ),
+      ),
+    ),
   ];
 
   List<Widget> _accountSettings() => [

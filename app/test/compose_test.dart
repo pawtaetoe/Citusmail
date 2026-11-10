@@ -195,9 +195,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(InputChip, 'Stranger Danger'), findsOneWidget);
     expect(find.text('Re: Hello there'), findsWidgets);
+    // The reply is written above the quote.
     final body = tester.widget<TextField>(field('Write your message'));
-    expect(body.controller!.text, contains('wrote:'));
-    expect(body.controller!.text, contains('> Visible'));
+    expect(body.controller!.text, isEmpty);
+    final quote = tester.widget<TextField>(
+      find.byKey(const ValueKey('compose-quote')),
+    );
+    expect(quote.controller!.text, contains('wrote:'));
+    expect(quote.controller!.text, contains('> Visible'));
   });
 
   testWidgets('a draft in the Drafts folder opens for editing', (tester) async {
