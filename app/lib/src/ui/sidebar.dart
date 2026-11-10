@@ -16,6 +16,8 @@ import 'app_icons.dart';
 import 'appointments_page.dart';
 import 'citusmail_theme.dart';
 import 'deliveries_page.dart';
+import 'discover_page.dart';
+import 'feature_settings.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
 import 'privacy_report_page.dart';
@@ -134,6 +136,7 @@ final class Sidebar extends StatelessWidget {
                                   services: controller.services,
                                   controller: controller,
                                   onShowMail: controller.search,
+                                  onAddAccount: onAddAccount,
                                 ),
                               ),
                             );
@@ -309,6 +312,10 @@ final class Sidebar extends StatelessWidget {
                   _SyncSummary(
                     accounts: accounts,
                     eventOf: controller.lastEvent,
+                    onTap: () {
+                      onNavigated?.call();
+                      CheckingMailSheet.show(context, controller);
+                    },
                   ),
                   _Entry(
                     icon: AppIcons.addAccount,
@@ -375,6 +382,11 @@ final class Sidebar extends StatelessWidget {
             services: controller.services,
             onShowMail: controller.search,
           ),
+        ),
+        (
+          icon: Icons.explore_outlined,
+          label: 'All features',
+          page: (_) => DiscoverPage(controller: controller),
         ),
       ],
     ),
@@ -1024,10 +1036,17 @@ final class _AccountBlock extends StatelessWidget {
 /// how many accounts need looking at. A single account's problem is not
 /// repeated here: its block shows it.
 final class _SyncSummary extends StatelessWidget {
-  const _SyncSummary({required this.accounts, required this.eventOf});
+  const _SyncSummary({
+    required this.accounts,
+    required this.eventOf,
+    required this.onTap,
+  });
 
   final List<Account> accounts;
   final SyncEvent? Function(int accountId) eventOf;
+
+  /// Notifications and how mail is checked.
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1038,12 +1057,13 @@ final class _SyncSummary extends StatelessWidget {
         if (eventOf(a.id) is AccountSyncFailed) a,
     ];
     final checking = accounts.any((a) => eventOf(a.id) is AccountSyncStarted);
-    final String text;
-    final Color dot;
+    String text;
+    Color? dot;
     if (failed.length == 1) {
       // Its block says what is wrong, right under its address: saying it
       // again here would be noise.
-      return const SizedBox.shrink();
+      text = 'Notifications & checking mail';
+      dot = null;
     } else if (failed.length > 1) {
       text = '${failed.length} accounts need attention';
       dot = colors.problem;
@@ -1054,30 +1074,46 @@ final class _SyncSummary extends StatelessWidget {
       text = accounts.length == 1 ? 'Up to date' : 'All accounts up to date';
       dot = const Color(0xFF6FD6A8);
     } else {
-      return const SizedBox.shrink();
+      text = 'Notifications & checking mail';
+      dot = null;
     }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 12, 4),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: failed.isEmpty ? colors.muted : colors.problem,
-                fontSize: 12.5,
+    // A tap: notifications and how mail is checked (Instant mail).
+    return Tooltip(
+      message: 'Notifications and checking mail',
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 6, 8, 4),
+          child: Row(
+            children: [
+              if (dot != null)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+                )
+              else
+                Icon(
+                  Icons.notifications_outlined,
+                  size: 14,
+                  color: colors.muted,
+                ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: failed.length > 1 ? colors.problem : colors.muted,
+                    fontSize: 12.5,
+                  ),
+                ),
               ),
-            ),
+              Icon(Icons.tune, size: 16, color: colors.muted),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

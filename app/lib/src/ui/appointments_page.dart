@@ -13,6 +13,7 @@ import 'appointment_detail_page.dart';
 import 'appointment_text.dart';
 import 'badge.dart';
 import 'citusmail_theme.dart';
+import 'feature_settings.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'skeleton_rows.dart';
@@ -98,7 +99,9 @@ final class _AppointmentsPageState extends State<AppointmentsPage>
     title: 'Appointments',
     help: (
       tooltip: 'How is this found?',
-      onPressed: () => _HowDialog.show(context),
+      onPressed: () => _HowDialog.show(context, services).then((_) {
+        if (mounted) setState(() {});
+      }),
     ),
 
     body: SafeArea(
@@ -553,27 +556,40 @@ final class _Empty extends StatelessWidget {
 }
 
 final class _HowDialog extends StatelessWidget {
-  const _HowDialog();
+  const _HowDialog(this.services);
 
-  static Future<void> show(BuildContext context) =>
-      showDialog<void>(context: context, builder: (_) => const _HowDialog());
+  final AppServices services;
+
+  static Future<void> show(BuildContext context, AppServices services) =>
+      showDialog<void>(context: context, builder: (_) => _HowDialog(services));
 
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('How is this found?'),
-    content: const Text(
-      'Citusmail looks at booking emails from the last year, on this '
-      'device. Some clinics, salons and booking sites add the details to '
-      'their emails for mail apps to read, or attach a calendar event; for '
-      'the others, a confirmation with a date and a time is read from the '
-      'email. When unsure, it leaves the email out.\n\n'
-      'A change, a cancellation or a reminder from the same place updates '
-      'the appointment, and the newest time counts. Restaurant tables and '
-      'event tickets are under Trips; meeting invitations from colleagues '
-      'stay in your inbox.\n\n'
-      'Nothing is sent anywhere. Links from the email open only after '
-      'asking. If something listed is not an appointment, open it and '
-      'choose "Not an appointment".',
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Citusmail looks at booking emails from the last year, on this '
+            'device. Some clinics, salons and booking sites add the details to '
+            'their emails for mail apps to read, or attach a calendar event; for '
+            'the others, a confirmation with a date and a time is read from the '
+            'email. When unsure, it leaves the email out.\n\n'
+            'A change, a cancellation or a reminder from the same place updates '
+            'the appointment, and the newest time counts. Restaurant tables and '
+            'event tickets are under Trips; meeting invitations from colleagues '
+            'stay in your inbox.\n\n'
+            'Nothing is sent anywhere. Links from the email open only after '
+            'asking. If something listed is not an appointment, open it and '
+            'choose "Not an appointment".',
+          ),
+          const SizedBox(height: 12),
+          // Its own switch, here where it fills the page.
+          AutoReadSwitch(services: services),
+        ],
+      ),
     ),
     actions: [
       TextButton(

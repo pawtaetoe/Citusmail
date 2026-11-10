@@ -185,7 +185,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Privacy'), 200);
+    // A phone: the groups first, then Help & about.
+    await tester.tap(find.text('Help & about'));
+    await settle(tester);
     await tester.ensureVisible(find.text('Privacy'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Privacy'));

@@ -9,6 +9,7 @@ import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
 import 'app_icons.dart';
 import 'avatar.dart';
+import 'feature_settings.dart';
 import 'mail_shell.dart';
 import 'mail_text.dart';
 import 'page_scaffold.dart';
@@ -81,6 +82,16 @@ final class _ScreenerPageState extends State<ScreenerPage> {
     final place = _c.services.store.screener.outPlace;
     return PageScaffold(
       title: 'Screener',
+      actions: [
+        IconButton(
+          tooltip: 'Screener options',
+          icon: const Icon(Icons.tune),
+          onPressed: () async {
+            await ScreenerOptions.show(context, _c);
+            if (mounted) setState(_load);
+          },
+        ),
+      ],
       body: SafeArea(
         top: false,
         bottom: !phone,
@@ -98,7 +109,7 @@ final class _ScreenerPageState extends State<ScreenerPage> {
                     'Let them in and their mail goes to your inbox. Screen '
                     'them out and it goes to ${screenOutText(place)}, '
                     'without notifications. Nothing is deleted, and you can '
-                    'change your mind in Settings.',
+                    'change your mind under Screener options (top right).',
                     style: TextStyle(color: muted),
                   ),
                 ),

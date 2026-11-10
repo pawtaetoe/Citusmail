@@ -69,8 +69,10 @@ void main() {
 
   testWidgets('a line between groups', (tester) async {
     await show(tester);
-    final notifications = tester.getTopLeft(find.text('Notifications')).dy;
-    final inbox = tester.getTopLeft(find.text('Inbox')).dy;
+    final notifications = tester
+        .getTopLeft(find.text('Notifications & checking mail').last)
+        .dy;
+    final inbox = tester.getTopLeft(find.text('Inbox & sorting').last).dy;
     final dividers = tester
         .widgetList<Divider>(find.byType(Divider))
         .where((d) => d.indent == 16)

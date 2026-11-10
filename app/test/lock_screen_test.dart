@@ -176,6 +176,9 @@ void main() {
       MaterialApp(home: SettingsPage(services: app.services, isAndroid: false)),
     );
     await tester.pump();
+    // Under Privacy & security.
+    await tester.ensureVisible(find.text('App lock'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('App lock'));
     await tester.pumpAndSettle();
 

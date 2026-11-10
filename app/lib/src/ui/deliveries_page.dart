@@ -13,6 +13,7 @@ import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
 import 'delivery_detail_page.dart';
+import 'feature_settings.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'returns_section.dart';
@@ -107,7 +108,9 @@ final class _DeliveriesPageState extends State<DeliveriesPage> with ReadsAhead {
     title: 'Deliveries',
     help: (
       tooltip: 'How is this found?',
-      onPressed: () => _HowDialog.show(context),
+      onPressed: () => _HowDialog.show(context, services).then((_) {
+        if (mounted) setState(() {});
+      }),
     ),
 
     body: SafeArea(
@@ -563,32 +566,45 @@ final class _Empty extends StatelessWidget {
 }
 
 final class _HowDialog extends StatelessWidget {
-  const _HowDialog();
+  const _HowDialog(this.services);
 
-  static Future<void> show(BuildContext context) =>
-      showDialog<void>(context: context, builder: (_) => const _HowDialog());
+  final AppServices services;
+
+  static Future<void> show(BuildContext context, AppServices services) =>
+      showDialog<void>(context: context, builder: (_) => _HowDialog(services));
 
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('How is this found?'),
-    content: const Text(
-      'Citusmail looks at order and shipping emails from the last year, on '
-      'this device. Many shops and delivery companies add order details to '
-      'their emails for mail apps to read; for the others, tracking '
-      'numbers, order numbers and words such as "shipped" or "out for '
-      'delivery" are read from the email. Emails with the same tracking '
-      'number, or the same order number from the same shop, are one '
-      'delivery.\n\n'
-      'An order is listed once it ships. One with no news for a month is '
-      'moved to Delivered as "probably delivered". Nothing is sent '
-      'anywhere: tracking pages open only when you choose "Track", after '
-      'asking. If something listed is not a delivery, open it and choose '
-      '"Not a delivery".\n\n'
-      'Return deadlines come from the return policy an order confirmation, '
-      'receipt or delivery email states, such as "return within 30 days of '
-      'delivery" or "free returns until 15 Dec". None is guessed when the '
-      'email doesn\'t say. Orders marked final sale, and those returned or '
-      'refunded, are left out.',
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Citusmail looks at order and shipping emails from the last year, on '
+            'this device. Many shops and delivery companies add order details to '
+            'their emails for mail apps to read; for the others, tracking '
+            'numbers, order numbers and words such as "shipped" or "out for '
+            'delivery" are read from the email. Emails with the same tracking '
+            'number, or the same order number from the same shop, are one '
+            'delivery.\n\n'
+            'An order is listed once it ships. One with no news for a month is '
+            'moved to Delivered as "probably delivered". Nothing is sent '
+            'anywhere: tracking pages open only when you choose "Track", after '
+            'asking. If something listed is not a delivery, open it and choose '
+            '"Not a delivery".\n\n'
+            'Return deadlines come from the return policy an order confirmation, '
+            'receipt or delivery email states, such as "return within 30 days of '
+            'delivery" or "free returns until 15 Dec". None is guessed when the '
+            'email doesn\'t say. Orders marked final sale, and those returned or '
+            'refunded, are left out.',
+          ),
+          const SizedBox(height: 12),
+          // Its own switch, here where it fills the page.
+          AutoReadSwitch(services: services),
+        ],
+      ),
     ),
     actions: [
       TextButton(

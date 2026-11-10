@@ -27,6 +27,7 @@ import 'screener_page.dart';
 import 'send_later_sheet.dart';
 import 'skeleton_rows.dart';
 import 'snooze_sheet.dart';
+import 'whats_new.dart';
 
 /// The middle pane: search and compose, the view's header (or the bulk
 /// action bar while selecting), then the messages.
@@ -84,6 +85,8 @@ final class MessageListPane extends StatelessWidget {
             ),
           ),
         ],
+        // After an update: what is new, once.
+        WhatsNewCard(controller: controller),
         Expanded(child: _Messages(controller: controller)),
       ],
     ),
@@ -722,8 +725,15 @@ final class _MessagesState extends State<_Messages> {
             icon: AppIcons.snooze,
             text: 'Nothing is snoozed.',
             hint:
-                'Snooze an email to have it come back to the top of your '
-                'inbox later.',
+                'Snooze an email (the clock button, or B) to have it come '
+                'back to the top of your inbox when you choose.',
+          ),
+          PinsLocation() => const EmptyState(
+            icon: AppIcons.pins,
+            text: 'Nothing is pinned.',
+            hint:
+                'Pin an email (the pin button, or S) to keep it here, at '
+                'hand.',
           ),
           _ when firstCheck => arriving,
           _ => const EmptyState(icon: AppIcons.mail, text: 'No messages here.'),

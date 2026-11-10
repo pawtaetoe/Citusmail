@@ -12,6 +12,7 @@ import 'account_detail_page.dart';
 import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
+import 'feature_settings.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'skeleton_rows.dart';
@@ -120,7 +121,9 @@ final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
     title: 'Online accounts',
     help: (
       tooltip: 'How is this found?',
-      onPressed: () => _HowDialog.show(context),
+      onPressed: () => _HowDialog.show(context, services).then((_) {
+        if (mounted) setState(() {});
+      }),
     ),
 
     body: SafeArea(
@@ -527,24 +530,37 @@ final class _Empty extends StatelessWidget {
 }
 
 final class _HowDialog extends StatelessWidget {
-  const _HowDialog();
+  const _HowDialog(this.services);
 
-  static Future<void> show(BuildContext context) =>
-      showDialog<void>(context: context, builder: (_) => const _HowDialog());
+  final AppServices services;
+
+  static Future<void> show(BuildContext context, AppServices services) =>
+      showDialog<void>(context: context, builder: (_) => _HowDialog(services));
 
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('How is this found?'),
-    content: const Text(
-      'Citusmail looks at the mail on this device for welcome and "confirm '
-      'your email" messages, sign-in codes, password resets, new sign-in '
-      'alerts, account changes and receipts. Each company is listed once, '
-      'with the address its mail was sent to.\n\n'
-      'Mail from people, replies and forwards, newsletters and one-off shop '
-      'receipts are left out. Older mail that is no longer on this device '
-      'cannot be seen, so some accounts may be missing. Nothing is sent '
-      'anywhere. If something listed is not an account, open it and choose '
-      '"Not an account".',
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Citusmail looks at the mail on this device for welcome and "confirm '
+            'your email" messages, sign-in codes, password resets, new sign-in '
+            'alerts, account changes and receipts. Each company is listed once, '
+            'with the address its mail was sent to.\n\n'
+            'Mail from people, replies and forwards, newsletters and one-off shop '
+            'receipts are left out. Older mail that is no longer on this device '
+            'cannot be seen, so some accounts may be missing. Nothing is sent '
+            'anywhere. If something listed is not an account, open it and choose '
+            '"Not an account".',
+          ),
+          const SizedBox(height: 12),
+          // Its own switch, here where it fills the page.
+          AutoReadSwitch(services: services),
+        ],
+      ),
     ),
     actions: [
       TextButton(
