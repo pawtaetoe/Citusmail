@@ -34,4 +34,5 @@ export 'src/repository/search_query.dart';
 export 'src/repository/settings_repository.dart';
 export 'src/repository/sign_off_repository.dart';
 export 'src/repository/snooze_repository.dart';
+export 'src/repository/synced_preferences.dart';
 export 'src/repository/unsubscribe_repository.dart';
