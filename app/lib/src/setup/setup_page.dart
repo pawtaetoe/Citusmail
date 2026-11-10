@@ -159,20 +159,28 @@ class _SetupPageState extends State<SetupPage> {
           key: ValueKey('verifying'),
           text: 'Signing in to check the settings…',
         ),
-        VerificationFailed(:final settings, :final result) => _Failed(
-          key: const ValueKey('failed'),
-          settings: settings,
-          result: result,
-          onEdit: () => controller.editSettings(settings),
-          onRestart: controller.restart,
-          onUseSuggested: result.suggestedHost == null
-              ? null
-              : () => controller.useSuggestedHost(
-                  settings,
-                  result.role!,
-                  result.suggestedHost!,
-                ),
-        ),
+        VerificationFailed(
+          :final settings,
+          :final result,
+          :final hostingServer,
+          :final suggestedHost,
+        ) =>
+          _Failed(
+            key: const ValueKey('failed'),
+            settings: settings,
+            result: result,
+            hostingServer: hostingServer,
+            suggestedHost: suggestedHost,
+            onEdit: () => controller.editSettings(settings),
+            onRestart: controller.restart,
+            onUseSuggested: suggestedHost == null
+                ? null
+                : () => controller.useSuggestedHost(
+                    settings,
+                    result.role!,
+                    suggestedHost,
+                  ),
+          ),
         SetupDone() => const _Busy(
           key: ValueKey('done'),
           text: 'Account added.',
@@ -804,11 +812,19 @@ class _Failed extends StatelessWidget {
     required this.result,
     required this.onEdit,
     required this.onRestart,
+    this.hostingServer,
+    this.suggestedHost,
     this.onUseSuggested,
   });
 
   final DiscoveredSettings settings;
   final VerificationResult result;
+
+  /// The shared hosting server's own (checked) name, if found.
+  final String? hostingServer;
+
+  /// The name [onUseSuggested] switches to.
+  final String? suggestedHost;
   final VoidCallback onEdit;
   final VoidCallback onRestart;
   final VoidCallback? onUseSuggested;
@@ -822,11 +838,18 @@ class _Failed extends StatelessWidget {
         style: Theme.of(context).textTheme.headlineSmall,
       ),
       const SizedBox(height: 16),
-      _Notice(text: SetupText.problem(result, settings), warning: true),
+      _Notice(
+        text: SetupText.problem(result, settings, hostingServer: hostingServer),
+        warning: true,
+      ),
       if (onUseSuggested != null) ...[
         FilledButton(
           onPressed: onUseSuggested,
-          child: Text('Use ${result.suggestedHost} instead'),
+          child: Text(
+            hostingServer != null
+                ? 'Use $hostingServer'
+                : 'Use $suggestedHost instead',
+          ),
         ),
         const SizedBox(height: 8),
       ],

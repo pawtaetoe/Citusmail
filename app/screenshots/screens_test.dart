@@ -615,6 +615,62 @@ void main() {
     await shoot(tester, 'phone_setup');
   });
 
+  // Shared hosting: the certificate is for the hosting server, whose own
+  // name is offered.
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    testWidgets('setup hosting server $name', (tester) async {
+      final controller = SetupController(
+        discover: (email, {askMozillaConsent, onStep}) async =>
+            const DiscoveryResult(null),
+        verify: (s, p) async => VerificationResult.failure(
+          ServerRole.imap,
+          VerificationProblem.certificate,
+          'Hostname mismatch',
+          tlsFailure: TlsFailure.hostnameMismatch,
+          certificate: RejectedCertificate(
+            subject: '/CN=*.web-hosting.com',
+            issuer: '/CN=Sectigo RSA Domain Validation',
+            validFrom: DateTime(2026),
+            validUntil: DateTime(2027),
+          ),
+        ),
+        save: (s, p, {displayName}) async => throw UnimplementedError(),
+        findHostingServer: (s, r) async => 'business905-5.web-hosting.com',
+      );
+      await controller.start(
+        email: 'me@tommykung.cc',
+        password: 'pw',
+        askMozillaConsent: (_) async => false,
+      );
+      await controller.useSettings(
+        DiscoveredSettings(
+          email: 'me@tommykung.cc',
+          imap: const ServerCandidate(
+            'mail.tommykung.cc',
+            993,
+            ConnectionSecurity.implicitTls,
+          ),
+          smtp: const ServerCandidate(
+            'mail.tommykung.cc',
+            465,
+            ConnectionSecurity.implicitTls,
+          ),
+          username: 'me@tommykung.cc',
+          source: DiscoverySource.manual,
+        ),
+      );
+      await show(
+        tester,
+        SetupPage(controller: controller, onDone: (_) {}),
+        size: size,
+      );
+      await shoot(tester, '${name}_setup_hosting_server');
+    });
+  }
+
   // Old verification codes: the question in the Verification section,
   // the notice after tidying up, and the setting.
   testWidgets('code cleanup', (tester) async {

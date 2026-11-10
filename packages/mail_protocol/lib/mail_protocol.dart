@@ -38,6 +38,7 @@ export 'src/mime/mime_message.dart';
 export 'src/mime/mime_parser.dart';
 export 'src/mime/mime_part.dart';
 export 'src/mime/transfer_encoding.dart';
+export 'src/net/certificate_names.dart';
 export 'src/net/line_source.dart';
 export 'src/net/mail_exception.dart';
 export 'src/net/mail_socket.dart';

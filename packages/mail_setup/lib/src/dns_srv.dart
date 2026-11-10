@@ -40,6 +40,56 @@ abstract interface class SrvResolver {
   Future<List<SrvRecord>> lookup(String name);
 }
 
+/// Looks up a host's addresses and an address's host names (PTR), to find
+/// the name a shared hosting server goes by. Answers are not
+/// authenticated: a name found this way is only a suggestion, and the
+/// connection to it is checked like any other.
+abstract interface class HostNameResolver {
+  /// The system's resolvers (the same ones SRV and MX lookups use), or,
+  /// where they cannot be found, the system's own lookup functions.
+  static HostNameResolver system() => switch (UdpSrvResolver.system()) {
+    final UdpSrvResolver udp => udp,
+    _ => const SystemHostNameResolver(),
+  };
+
+  /// The IPv4 and IPv6 addresses of [host]. Empty when there are none or
+  /// the lookup failed.
+  Future<List<InternetAddress>> lookupAddresses(String host);
+
+  /// The host names [address] points back to, without a trailing dot.
+  /// Empty when there are none or the lookup failed.
+  Future<List<String>> lookupPtr(InternetAddress address);
+}
+
+/// [HostNameResolver] through the operating system (getaddrinfo and
+/// getnameinfo), which asks the device's own configured DNS servers.
+final class SystemHostNameResolver implements HostNameResolver {
+  const SystemHostNameResolver();
+
+  @override
+  Future<List<InternetAddress>> lookupAddresses(String host) async {
+    try {
+      return await InternetAddress.lookup(host);
+    } on SocketException {
+      return const [];
+    }
+  }
+
+  @override
+  Future<List<String>> lookupPtr(InternetAddress address) async {
+    try {
+      final named = await address.reverse();
+      final name = named.host.replaceFirst(RegExp(r'\.$'), '').toLowerCase();
+      // Without a PTR record, the address comes back as its own text.
+      return name.isEmpty || InternetAddress.tryParse(name) != null
+          ? const []
+          : [name];
+    } on SocketException {
+      return const [];
+    }
+  }
+}
+
 /// Used where the system's DNS servers cannot be found (Android, Windows):
 /// SRV discovery is skipped there rather than sending the domain to a
 /// public DNS provider.
@@ -53,9 +103,11 @@ final class NoSrvResolver implements SrvResolver, MxResolver {
   Future<List<MxRecord>> lookupMx(String domain) async => const [];
 }
 
-/// A minimal DNS client (RFC 1035) for SRV and MX queries over UDP to the
-/// system's own resolvers, so the domain is not sent to anyone else.
-final class UdpSrvResolver implements SrvResolver, MxResolver {
+/// A minimal DNS client (RFC 1035) for SRV, MX, A, AAAA and PTR queries
+/// over UDP to the system's own resolvers, so the domain is not sent to
+/// anyone else.
+final class UdpSrvResolver
+    implements SrvResolver, MxResolver, HostNameResolver {
   UdpSrvResolver(
     this.nameservers, {
     this.timeout = const Duration(seconds: 3),
@@ -85,6 +137,38 @@ final class UdpSrvResolver implements SrvResolver, MxResolver {
 
   static const _typeSrv = 33;
   static const _typeMx = 15;
+  static const _typeA = 1;
+  static const _typeAaaa = 28;
+  static const _typePtr = 12;
+
+  @override
+  Future<List<InternetAddress>> lookupAddresses(String host) async => [
+    ...await _first(host, _typeA, DnsMessage.parseAddressAnswer),
+    ...await _first(host, _typeAaaa, DnsMessage.parseAddressAnswer),
+  ];
+
+  @override
+  Future<List<String>> lookupPtr(InternetAddress address) {
+    final name = DnsMessage.reverseName(address);
+    return _first(name, _typePtr, DnsMessage.parsePtrAnswer);
+  }
+
+  /// The answer of the first server that gives one.
+  Future<List<T>> _first<T>(
+    String name,
+    int type,
+    List<T> Function(Uint8List data, int id, String name) parse,
+  ) async {
+    for (final server in nameservers) {
+      try {
+        final data = await _query(server, name, type);
+        if (data != null) return parse(data.$1, data.$2, name);
+      } on Object {
+        // try the next server
+      }
+    }
+    return const [];
+  }
 
   @override
   Future<List<MxRecord>> lookupMx(String domain) async {
@@ -168,8 +252,61 @@ final class UdpSrvResolver implements SrvResolver, MxResolver {
   }
 }
 
-/// DNS message encoding and decoding for SRV and MX queries.
+/// DNS message encoding and decoding for SRV, MX, A, AAAA and PTR
+/// queries.
 abstract final class DnsMessage {
+  /// The name a PTR query for [address] asks about:
+  /// `125.67.74.209.in-addr.arpa`, or the reversed nibbles under
+  /// `ip6.arpa`.
+  static String reverseName(InternetAddress address) {
+    final bytes = address.rawAddress;
+    if (address.type == InternetAddressType.IPv4) {
+      return '${bytes.reversed.join('.')}.in-addr.arpa';
+    }
+    final nibbles = [
+      for (final b in bytes.reversed) ...[
+        (b & 0x0F).toRadixString(16),
+        (b >> 4).toRadixString(16),
+      ],
+    ];
+    return '${nibbles.join('.')}.ip6.arpa';
+  }
+
+  /// The A and AAAA addresses in [data], checked like [parseSrvAnswer].
+  /// Addresses that follow a CNAME in the answer are included.
+  static List<InternetAddress> parseAddressAnswer(
+    Uint8List data,
+    int id,
+    String name,
+  ) {
+    final records = <InternetAddress>[];
+    _answers(data, id, name, (type, length, reader) {
+      if ((type == 1 && length == 4) || (type == 28 && length == 16)) {
+        records.add(
+          InternetAddress.fromRawAddress(
+            Uint8List.fromList(
+              data.sublist(reader.position, reader.position + length),
+            ),
+          ),
+        );
+      }
+    });
+    return records;
+  }
+
+  /// The host names in the PTR records of [data], checked like
+  /// [parseSrvAnswer], lower-cased.
+  static List<String> parsePtrAnswer(Uint8List data, int id, String name) {
+    final records = <String>[];
+    _answers(data, id, name, (type, length, reader) {
+      if (type == 12 && length >= 1) {
+        final target = reader.name();
+        if (target.isNotEmpty) records.add(target.toLowerCase());
+      }
+    });
+    return records;
+  }
+
   static Uint8List query(int id, String name, int type) {
     final out = BytesBuilder();
     out.add([

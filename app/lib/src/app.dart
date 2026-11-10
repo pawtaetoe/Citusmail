@@ -181,6 +181,7 @@ class _HomeState extends State<_Home> {
       saveOAuth: widget.services.addOAuthAccount,
       ownClient: OwnOAuthClients(widget.services.secrets).read,
       saveOwnClient: OwnOAuthClients(widget.services.secrets).save,
+      findHostingServer: HostingServerFinder().find,
     );
   }
 

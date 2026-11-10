@@ -74,10 +74,17 @@ final class Verifying extends SetupState {
 
 /// The check failed.
 final class VerificationFailed extends SetupState {
-  const VerificationFailed(this.settings, this.result);
+  const VerificationFailed(this.settings, this.result, {this.hostingServer});
 
   final DiscoveredSettings settings;
   final VerificationResult result;
+
+  /// For a certificate issued to a shared hosting server: that server's
+  /// own name, which its certificate is valid for (checked), to offer.
+  final String? hostingServer;
+
+  /// The host name to offer instead of the failing one, if any.
+  String? get suggestedHost => hostingServer ?? result.suggestedHost;
 }
 
 /// The account is saved.
@@ -101,6 +108,14 @@ typedef SaveFn = Future<Account> Function(
   String password, {
   String? displayName,
 });
+
+/// After a host name mismatch: the shared hosting server's own name, if
+/// the certificate covers it and it passes the certificate check
+/// ([HostingServerFinder.find]).
+typedef FindHostingServerFn = Future<String?> Function(
+  DiscoveredSettings settings,
+  VerificationResult failure,
+);
 
 /// Signs in on a provider's page and returns the tokens.
 typedef OAuthSignInFn = Future<OAuthTokens> Function(
@@ -144,6 +159,7 @@ final class SetupController extends ChangeNotifier {
     this._saveOAuth,
     this._ownClient,
     this._saveOwnClient,
+    this._findHostingServer,
     this.providerFor = defaultProviderFor,
     this.hostedProvider = defaultHostedProvider,
     this.optionalProviderFor = defaultOptionalProviderFor,
@@ -157,6 +173,7 @@ final class SetupController extends ChangeNotifier {
   final SaveOAuthFn? _saveOAuth;
   final OwnClientFn? _ownClient;
   final SaveOwnClientFn? _saveOwnClient;
+  final FindHostingServerFn? _findHostingServer;
 
   /// A provider an address may sign in with instead of a password (Gmail:
   /// Google), whether or not this build has a registration for it.
@@ -394,10 +411,35 @@ final class SetupController extends ChangeNotifier {
   Future<void> useSettings(DiscoveredSettings settings) async {
     _set(Verifying(settings));
     final result = await _verify(settings, _password);
-    if (!result.succeeded) return _set(VerificationFailed(settings, result));
+    if (!result.succeeded) {
+      return _set(
+        VerificationFailed(
+          settings,
+          result,
+          hostingServer: await _hostingServer(settings, result),
+        ),
+      );
+    }
     final account = await _save(settings, _password, displayName: _displayName);
     _password = '';
     _set(SetupDone(account));
+  }
+
+  /// The shared hosting server's own name after a host name mismatch,
+  /// never switched to without the user's say-so.
+  Future<String?> _hostingServer(
+    DiscoveredSettings settings,
+    VerificationResult result,
+  ) async {
+    final find = _findHostingServer;
+    if (find == null || result.tlsFailure != TlsFailure.hostnameMismatch) {
+      return null;
+    }
+    try {
+      return await find(settings, result);
+    } on Object {
+      return null;
+    }
   }
 
   /// Try again with the host the certificate is valid for.
@@ -494,7 +536,34 @@ abstract final class SetupText {
       '${provider.name} needs an app password, not your account password. '
       'Creating one needs 2-Step Verification on your account.';
 
-  static String problem(VerificationResult r, DiscoveredSettings s) {
+  static String _hostnameMismatch(
+    VerificationResult r,
+    ServerCandidate server,
+    String? hostingServer,
+  ) {
+    final issuedTo =
+        r.certificate?.commonName ??
+        r.certificate?.names.firstOrNull ??
+        'a different name';
+    final problem =
+        'The certificate of ${server.host} is for $issuedTo, so $appName '
+        'can\'t be sure it\'s the right server.';
+    if (hostingServer != null) {
+      return '$problem Your mail is hosted on $hostingServer, and its '
+          'certificate is valid for that name.';
+    }
+    return '$problem Shared hosting often uses its own server name for '
+        'mail. Your host\'s control panel shows it (in cPanel: Email '
+        'Accounts → Connect Devices).';
+  }
+
+  /// Why setup couldn't sign in. [hostingServer] is a checked name of the
+  /// shared hosting server, when one was found.
+  static String problem(
+    VerificationResult r,
+    DiscoveredSettings s, {
+    String? hostingServer,
+  }) {
     final server = r.role == ServerRole.smtp ? s.smtp : s.imap;
     final kind = r.role == ServerRole.smtp
         ? 'outgoing (SMTP)'
@@ -513,9 +582,11 @@ abstract final class SetupText {
             'Create an app password${known?.appPasswordUrl == null ? '' : ' at ${_shortUrl(known!.appPasswordUrl!)}'} '
             'and enter it instead.',
       VerificationProblem.certificate => switch (r.tlsFailure) {
-        TlsFailure.hostnameMismatch =>
-          'The certificate of ${server.host} is for ${r.certificate?.commonName ?? 'a different name'}, '
-              'so $appName can\'t be sure it\'s the right server.',
+        TlsFailure.hostnameMismatch => _hostnameMismatch(
+          r,
+          server,
+          hostingServer,
+        ),
         TlsFailure.expired =>
           'The certificate of ${server.host} expired'
               '${r.certificate == null ? '' : ' on ${r.certificate!.validUntil.toLocal().toString().split(' ').first}'}.',
