@@ -27,6 +27,7 @@ import 'package:citusmail/src/ui/appointments_page.dart';
 import 'package:citusmail/src/ui/attachments_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/deliveries_page.dart';
+import 'package:citusmail/src/ui/discover_page.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
 import 'package:citusmail/src/ui/sender_cleanup_page.dart';
@@ -34,6 +35,7 @@ import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:citusmail/src/ui/sign_offs_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:citusmail/src/ui/trips_page.dart';
+import 'package:citusmail/src/ui/whats_new.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -298,6 +300,8 @@ void main() {
       ),
       size: const Size(390, 844),
     );
+    await tester.tap(find.text('Inbox & sorting'));
+    await settle(tester);
     await tester.scrollUntilVisible(
       find.text('Read receipts and bookings automatically'),
       300,
@@ -594,6 +598,89 @@ void main() {
     await shoot(tester, 'phone_settings');
   });
 
+  // Easier to find: Settings by what people want to do, with a search;
+  // all features in one place; what is new after an update; a tip.
+  testWidgets('discoverability', (tester) async {
+    _seedDemo(app.store);
+    final controller = MailController(app.services);
+    Widget settings() => SettingsPage(
+      services: app.services,
+      controller: controller,
+      isAndroid: true,
+    );
+    Future<void> searchFor(String words) async {
+      await tester.tap(find.byKey(const ValueKey('settings-search')));
+      await settle(tester);
+      await tester.enterText(find.byType(TextField), words);
+      await settle(tester);
+    }
+
+    // Phone: the groups, one group, the search.
+    await show(tester, settings(), size: const Size(390, 844));
+    await shoot(tester, 'phone_settings_groups');
+    await tester.tap(find.text('Notifications & checking mail'));
+    await shoot(tester, 'phone_settings_notifications');
+    await tester.pageBack();
+    await settle(tester);
+    await searchFor('dark mode');
+    await shoot(tester, 'phone_settings_search');
+    await tester.tap(find.widgetWithText(ListTile, 'Theme'));
+    await shoot(tester, 'phone_settings_found');
+
+    // Desktop: groups beside the settings; a search, and what it found.
+    await tester.pumpWidget(const SizedBox());
+    await show(tester, settings(), size: const Size(1440, 900));
+    await shoot(tester, 'desktop_settings');
+    await searchFor('pin');
+    await shoot(tester, 'desktop_settings_search');
+    await tester.tap(find.widgetWithText(ListTile, 'App lock').last);
+    await shoot(tester, 'desktop_settings_found');
+    await tester.pumpWidget(const SizedBox());
+    await show(tester, settings(), size: const Size(1440, 900), dark: true);
+    await shoot(tester, 'desktop_settings_dark');
+
+    // All features.
+    await show(
+      tester,
+      DiscoverPage(controller: controller, isAndroid: true),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'phone_discover');
+    await show(
+      tester,
+      DiscoverPage(controller: controller, isAndroid: false),
+      size: const Size(1440, 900),
+    );
+    await shoot(tester, 'desktop_discover');
+
+    // What's new, after an update.
+    app.store.settings.delete(WhatsNew.seenKey);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await shoot(tester, 'desktop_whats_new');
+    await show(tester, shell(), size: const Size(390, 844));
+    await shoot(tester, 'phone_whats_new');
+    await tester.tap(find.textContaining('more'));
+    await shoot(tester, 'phone_whats_new_all');
+    await tester.tap(find.text('Close'));
+    await settle(tester);
+    WhatsNew(app.store).markSeen();
+  });
+
+  // A tip, the first time it helps; the sync line's options.
+  testWidgets('discoverability tip', (tester) async {
+    app.seedFixture(
+      'people/plain-text.eml',
+      subject: 'Your flight booking to Lisbon',
+      uid: 95,
+      receivedAt: DateTime.now().toUtc(),
+    );
+    await show(tester, shell(), size: const Size(1440, 900));
+    await tester.tap(find.text('Your flight booking to Lisbon').first);
+    await shoot(tester, 'desktop_tip');
+    await tester.tap(find.byTooltip('Notifications and checking mail'));
+    await shoot(tester, 'desktop_checking_mail');
+  });
+
   // Add accounts from your phone: the computer's code, and the phone
   // choosing what to send once connected.
   testWidgets('add accounts from your phone', (tester) async {
@@ -783,6 +870,8 @@ void main() {
       ),
       size: const Size(390, 844),
     );
+    await tester.tap(find.text('Inbox & sorting'));
+    await settle(tester);
     await tester.scrollUntilVisible(find.text('Clean up old codes'), 300);
     await shoot(tester, 'phone_code_cleanup_settings');
     await tester.tap(find.text('Clean up old codes'));
@@ -890,6 +979,8 @@ void main() {
       ),
       size: const Size(390, 844),
     );
+    await tester.tap(find.text('Inbox & sorting'));
+    await settle(tester);
     await tester.scrollUntilVisible(
       find.text('Screen first-time senders'),
       300,
@@ -1099,8 +1190,9 @@ void main() {
         ),
         size: size,
       );
-      // The Inbox group, just under the notification settings.
-      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      // The Inbox & sorting group.
+      await tester.tap(find.text('Inbox & sorting'));
+      await settle(tester);
       await shoot(tester, 'new_since_away_${name}_setting');
     });
   }

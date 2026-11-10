@@ -420,7 +420,8 @@ void main() {
       await tester.pump();
       final tile = find.text('Sign-offs');
       await tester.scrollUntilVisible(tile, 200);
-      expect(find.text('Writing'), findsOneWidget);
+      // The Writing group: in the list of groups and as its heading.
+      expect(find.text('Writing'), findsWidgets);
       await tester.tap(tile);
       await tester.pumpAndSettle();
       expect(find.byType(SignOffsPage), findsOneWidget);

@@ -40,7 +40,7 @@ void main() {
     expect(find.text('Clean up senders'), findsNothing);
     expect(find.text('Privacy report'), findsNothing);
     expect(
-      tester.getTopLeft(find.text('Notifications')).dy <
+      tester.getTopLeft(find.text('Notifications & checking mail').last).dy <
           tester.getTopLeft(find.text('New mail notifications')).dy,
       isTrue,
     );
@@ -496,6 +496,9 @@ void main() {
     );
     expect(KeepMail.read(app.store), KeepMail.twoYears);
     expect(find.textContaining('The last 2 years.'), findsOneWidget);
+    // Under Accounts.
+    await tester.ensureVisible(find.text('Keep mail from'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Keep mail from'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Everything'));

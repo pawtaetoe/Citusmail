@@ -12,8 +12,10 @@ import 'services/app_services.dart';
 import 'setup/new_setup.dart';
 import 'setup/setup_controller.dart';
 import 'setup/setup_page.dart';
+import 'ui/appearance.dart';
 import 'ui/citusmail_theme.dart';
 import 'ui/mail_shell.dart';
+import 'ui/whats_new.dart';
 
 /// The product name, in one place so user-facing text never hard-codes it.
 const String appName = 'Citusmail';
@@ -39,15 +41,20 @@ class _CitusmailAppState extends State<CitusmailApp> {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: appName,
-    debugShowCheckedModeBanner: false,
-    theme: CitusmailTheme.light(),
-    darkTheme: CitusmailTheme.dark(),
-    // Above the navigator: the lock covers every page and dialog.
-    builder: (context, child) =>
-        LockGate(host: _lockHost, child: child ?? const SizedBox.shrink()),
-    home: _StartupGate(startup: widget.startup, lockHost: _lockHost),
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    // Settings, Appearance.
+    valueListenable: Appearance.theme,
+    builder: (context, mode, _) => MaterialApp(
+      title: appName,
+      debugShowCheckedModeBanner: false,
+      theme: CitusmailTheme.light(),
+      darkTheme: CitusmailTheme.dark(),
+      themeMode: mode,
+      // Above the navigator: the lock covers every page and dialog.
+      builder: (context, child) =>
+          LockGate(host: _lockHost, child: child ?? const SizedBox.shrink()),
+      home: _StartupGate(startup: widget.startup, lockHost: _lockHost),
+    ),
   );
 }
 
@@ -71,6 +78,7 @@ class _StartupGateState extends State<_StartupGate> {
       .startup()
       .then((result) {
         if (result case StartupReady(:final services)) {
+          Appearance.load(services.store);
           widget.lockHost.attach(
             services.lock,
             reset: () async {
@@ -175,6 +183,15 @@ class _HomeState extends State<_Home> {
   });
 
   SetupController _newSetup() => newSetupController(widget.services);
+
+  @override
+  void initState() {
+    super.initState();
+    // A fresh install has nothing "new" to show.
+    if (widget.services.store.accounts.all().isEmpty) {
+      WhatsNew(widget.services.store).markSeen();
+    }
+  }
 
   /// Desktops: adds the accounts from the user's phone (QR code).
   Future<void> _addFromPhone() async {

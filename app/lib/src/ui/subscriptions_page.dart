@@ -13,6 +13,7 @@ import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
 import 'citusmail_theme.dart';
+import 'feature_settings.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'skeleton_rows.dart';
@@ -134,7 +135,9 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
     title: 'Subscriptions',
     help: (
       tooltip: 'How is this found?',
-      onPressed: () => _HowDialog.show(context),
+      onPressed: () => _HowDialog.show(context, services).then((_) {
+        if (mounted) setState(() {});
+      }),
     ),
 
     body: SafeArea(
@@ -920,29 +923,42 @@ final class _Empty extends StatelessWidget {
 }
 
 final class _HowDialog extends StatelessWidget {
-  const _HowDialog();
+  const _HowDialog(this.services);
 
-  static Future<void> show(BuildContext context) =>
-      showDialog<void>(context: context, builder: (_) => const _HowDialog());
+  final AppServices services;
+
+  static Future<void> show(BuildContext context, AppServices services) =>
+      showDialog<void>(context: context, builder: (_) => _HowDialog(services));
 
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('How is this found?'),
-    content: const Text(
-      'Citusmail looks at receipts, invoices, bills and renewal emails from '
-      'the last two years, on this device. A company is listed once it has '
-      'charged you, and when its mail speaks of a subscription, membership, '
-      'renewal or billing period, or it charged you at a regular interval at '
-      'least three times. A free trial shows once it charges; one-off '
-      'orders and account statements are left out.\n\n'
-      'Prices, how often you pay and the next charge are read from those '
-      'emails, so they are estimates: check the receipt when it matters. '
-      'Nothing is sent anywhere. If something listed is not a subscription, '
-      'open it and choose "Not a subscription".\n\n'
-      'Coming up lists bills that say when they are due (until a payment '
-      'to the same company arrives), free trials that say when they end, '
-      'and yearly subscriptions renewing within a week. Choose "Done" or '
-      '"Not needed" to remove one.',
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Citusmail looks at receipts, invoices, bills and renewal emails from '
+            'the last two years, on this device. A company is listed once it has '
+            'charged you, and when its mail speaks of a subscription, membership, '
+            'renewal or billing period, or it charged you at a regular interval at '
+            'least three times. A free trial shows once it charges; one-off '
+            'orders and account statements are left out.\n\n'
+            'Prices, how often you pay and the next charge are read from those '
+            'emails, so they are estimates: check the receipt when it matters. '
+            'Nothing is sent anywhere. If something listed is not a subscription, '
+            'open it and choose "Not a subscription".\n\n'
+            'Coming up lists bills that say when they are due (until a payment '
+            'to the same company arrives), free trials that say when they end, '
+            'and yearly subscriptions renewing within a week. Choose "Done" or '
+            '"Not needed" to remove one.',
+          ),
+          const SizedBox(height: 12),
+          // Its own switch, here where it fills the page.
+          AutoReadSwitch(services: services),
+        ],
+      ),
     ),
     actions: [
       TextButton(

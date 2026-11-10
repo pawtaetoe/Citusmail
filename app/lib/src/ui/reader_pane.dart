@@ -24,6 +24,7 @@ import 'block_dialog.dart';
 import 'citusmail_theme.dart';
 import 'follow_up_sheet.dart';
 import 'follow_ups_list.dart';
+import 'image_senders_page.dart';
 import 'invitation_card.dart';
 import 'link_opener.dart';
 import 'mail_text.dart';
@@ -31,6 +32,7 @@ import 'move_dialog.dart';
 import 'read_receipt_line.dart';
 import 'rich_document_view.dart';
 import 'snooze_sheet.dart';
+import 'tips.dart';
 import 'trust_banner.dart';
 import 'unsubscribe_dialog.dart';
 
@@ -282,6 +284,20 @@ final class _Header extends StatelessWidget {
         ],
         final ReaderReady ready => [
           TrustBanner(report: ready.trust),
+          // One tip, now and then, when a feature could help here.
+          if (Tips.forMessage(
+                ready.message,
+                canUnsubscribe:
+                    ready.unsubscribe.available && ready.unsubscribed == null,
+              )
+              case final tip?
+              when Tips(controller.services.store)
+                  .take(tip, where: ready.message.id))
+            TipCard(
+              key: ValueKey('tip-${ready.message.id}'),
+              tip: tip,
+              controller: controller,
+            ),
           if (ready.view.invite case final invite?)
             InvitationCard(
               controller: controller,
@@ -850,20 +866,32 @@ final class _PrivacyNotice extends StatelessWidget {
                       style: TextStyle(color: colors.onPrimaryContainer),
                     ),
                   ),
-                if (canLoad)
+                if (canLoad || (body.remoteImages > 0 && reader.imagesShown))
                   Wrap(
                     spacing: 4,
                     children: [
-                      TextButton(
-                        onPressed: () => controller.showImages(reader),
-                        child: const Text('Load images'),
-                      ),
-                      if (reader.trust.verified)
+                      if (canLoad) ...[
                         TextButton(
-                          onPressed: () =>
-                              controller.showImages(reader, always: true),
-                          child: const Text('Always from this sender'),
+                          onPressed: () => controller.showImages(reader),
+                          child: const Text('Load images'),
                         ),
+                        if (reader.trust.verified)
+                          TextButton(
+                            onPressed: () =>
+                                controller.showImages(reader, always: true),
+                            child: const Text('Always from this sender'),
+                          ),
+                      ],
+                      // The senders whose images load, where images are.
+                      TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                ImageSendersPage(services: controller.services),
+                          ),
+                        ),
+                        child: const Text('Image settings'),
+                      ),
                     ],
                   ),
               ],

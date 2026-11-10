@@ -74,11 +74,17 @@ void main() {
 
       final title = find.byKey(const ValueKey('page-title'));
       expect(tester.widget<Text>(title).data, 'Settings');
-      expect(tester.getTopLeft(title).dx, column + 20);
-      // The settings themselves are in the same column.
+      // Settings has a wider column: its groups beside the settings.
+      const settingsColumn = (1400 - 1080) / 2;
+      expect(tester.getTopLeft(title).dx, settingsColumn + 20);
+      // The groups and the settings themselves are in the same column.
+      final search = tester.getRect(
+        find.byKey(const ValueKey('settings-search')).first,
+      );
+      expect(search.left, greaterThanOrEqualTo(settingsColumn));
+      expect(search.left, lessThan(settingsColumn + 24));
       final first = tester.getRect(find.byType(SwitchListTile).first);
-      expect(first.left, column);
-      expect(first.right, 1400 - column);
+      expect(first.right, 1400 - settingsColumn);
     });
   });
 }

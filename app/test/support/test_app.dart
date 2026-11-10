@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:citusmail/src/services/app_services.dart';
 import 'package:citusmail/src/services/secret_store.dart';
+import 'package:citusmail/src/ui/whats_new.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
@@ -95,6 +96,9 @@ final class TestApp {
         ),
       ),
     );
+    // Someone who has used this version already: no "What's new" card
+    // (whats_new_test clears this).
+    WhatsNew(store).markSeen();
     final boxes = store.mailboxes.replaceAll(account.id, [
       ImapMailboxInfo(
         encodedName: 'INBOX',
