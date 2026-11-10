@@ -5,6 +5,7 @@
 package com.fluminaris.citusmail
 
 import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
@@ -118,6 +119,16 @@ class MainActivity : FlutterFragmentActivity() {
                         val bytes = call.argument<ByteArray>("bytes")
                         result.success(bytes != null && openCalendar(name, bytes))
                     }
+                    "shareFile" -> {
+                        val name = call.argument<String>("name") ?: "file"
+                        val bytes = call.argument<ByteArray>("bytes")
+                        val title = call.argument<String>("title") ?: ""
+                        result.success(bytes != null && shareFile(name, bytes, title))
+                    }
+                    "forgetSharedFile" -> {
+                        File(cacheDir, "pairing").deleteRecursively()
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -141,6 +152,33 @@ class MainActivity : FlutterFragmentActivity() {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         return try {
             startActivity(view)
+            true
+        } catch (e: ActivityNotFoundException) {
+            false
+        }
+    }
+
+    // The sealed accounts file for "Send accounts to a computer", handed
+    // to the app the user picks in the share sheet (Quick Share, a
+    // messenger, USB...), with read access to that one file only. Only
+    // the latest is kept; Dart asks to delete it once it can no longer be
+    // opened anyway. False if nothing could take it.
+    private fun shareFile(name: String, bytes: ByteArray, title: String): Boolean {
+        val directory = File(cacheDir, "pairing")
+        directory.deleteRecursively()
+        directory.mkdirs()
+        val safeName = name.replace(Regex("""[/\\\x00-\x1f]"""), "_").ifBlank { "file" }
+        val file = File(directory, safeName)
+        if (file.canonicalFile.parentFile != directory.canonicalFile) return false
+        file.writeBytes(bytes)
+        val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+        val send = Intent(Intent.ACTION_SEND)
+            .setType("application/octet-stream")
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        send.clipData = ClipData.newRawUri(safeName, uri)
+        return try {
+            startActivity(Intent.createChooser(send, title))
             true
         } catch (e: ActivityNotFoundException) {
             false

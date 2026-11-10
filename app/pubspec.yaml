@@ -9,6 +9,7 @@ environment:
 
 dependencies:
   background_clipboard: any
+  camera: ^0.12.2
   crypto: ^3.0.6
   file_selector: ^1.1.0
   flutter:
@@ -20,6 +21,7 @@ dependencies:
   mail_compose: any
   mail_extract: any
   mail_oauth: any
+  mail_pairing: any
   mail_protocol: any
   mail_setup: any
   mail_sort: any
@@ -32,6 +34,7 @@ dependencies:
   mail_web: any
   path_provider: ^2.1.6
   url_launcher: ^6.3.3
+  zxing2: ^0.2.4
 
 dev_dependencies:
   flutter_test:

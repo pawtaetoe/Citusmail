@@ -157,6 +157,25 @@ runtime local_auth_platform_interface     plugin interface (flutter.dev)
 runtime flutter_plugin_android_lifecycle  Android lifecycle access for local_auth (flutter.dev)
 runtime intl                              message formatting used by local_auth (dart.dev)
 
+# --- Runtime: adding accounts from the phone (QR code) ---------------------
+# The phone reads the computer's QR code with the camera. camera (reviewed
+# 0.12.2) uses CameraX on Android (androidx.camera, Apache 2.0, no Google
+# Play services, so it works in the GitHub APK) and has no network code in
+# any part; the app asks for the camera only when the scanner opens, and
+# removes the plugin's microphone and old storage permissions in its
+# manifest (enableAudio: false). zxing2 (reviewed 0.2.4, BSD-3) is a pure
+# Dart port of ZXing: it reads the QR code from camera frames and draws the
+# computer's QR code; no dart:io, no FFI. Desktops need no camera.
+runtime camera                            camera preview and frames for the QR scanner (flutter.dev)
+runtime camera_platform_interface         camera interface (flutter.dev)
+runtime camera_android_camerax            Android backend over CameraX (flutter.dev)
+runtime camera_avfoundation               Apple backend, for later (flutter.dev)
+runtime camera_web                        web backend; never used by this app (flutter.dev)
+runtime stream_transform                  stream helpers used by camera (dart.dev)
+runtime zxing2                            QR code reading and drawing, pure Dart (xvrh, BSD-3)
+runtime fixnum                            64-bit integers used by zxing2 (dart.dev)
+runtime charcode                          character constants used by zxing2 (dart.dev)
+
 # --- Dev only: lints, test runner and their dependencies (dart.dev) --------
 dev _fe_analyzer_shared           analyzer internals for test runner
 dev analyzer                      used by test runner
@@ -202,4 +221,6 @@ dev webkit_inspection_protocol    test runner
 #   androidx.concurrent:concurrent-futures 1.2.0    future adapter for the worker (Google)
 #   androidx.biometric:biometric 1.1.0               fingerprint/face unlock, via local_auth (Google)
 #   androidx.appcompat:appcompat 1.7.0               theme the fingerprint dialog needs (Google)
+#   androidx.camera:camera-* 1.6.2                   QR scanner, via camera_android_camerax (Google)
+#   com.google.guava:guava 33.5.0-android            used by camera_android_camerax (Google)
 #   com.android.tools:desugar_jdk_libs 2.1.5        Java library backports (Google)
