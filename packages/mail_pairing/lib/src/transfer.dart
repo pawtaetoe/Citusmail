@@ -62,11 +62,16 @@ final class PasswordSignIn extends TransferredSignIn {
 /// JSON, opaque here), or null when they can't be used on the computer:
 /// it then signs in with the provider itself.
 final class OAuthSignIn extends TransferredSignIn {
-  const OAuthSignIn(this.provider, {this.tokens});
+  const OAuthSignIn(this.provider, {this.tokens, this.client});
 
   /// `google` or `microsoft`.
   final String provider;
   final String? tokens;
+
+  /// The OAuth client id the tokens were issued to: a refresh token only
+  /// works with that client, so the computer keeps them only if it renews
+  /// with the same one.
+  final String? client;
 }
 
 /// Everything needed to add one account without typing anything.
@@ -95,8 +100,8 @@ final class TransferredAccount {
     'smtp': smtp.toJson(),
     ...switch (signIn) {
       PasswordSignIn(:final password) => {'password': password},
-      OAuthSignIn(:final provider, :final tokens) => {
-        'oauth': {'provider': provider, 'tokens': ?tokens},
+      OAuthSignIn(:final provider, :final tokens, :final client) => {
+        'oauth': {'provider': provider, 'tokens': ?tokens, 'client': ?client},
       },
     },
   };
@@ -116,10 +121,12 @@ final class TransferredAccount {
     } else if (oauth is Map &&
         password == null &&
         oauth['provider'] is String &&
-        (oauth['tokens'] == null || oauth['tokens'] is String)) {
+        (oauth['tokens'] == null || oauth['tokens'] is String) &&
+        (oauth['client'] == null || oauth['client'] is String)) {
       signIn = OAuthSignIn(
         oauth['provider'] as String,
         tokens: oauth['tokens'] as String?,
+        client: oauth['client'] as String?,
       );
     } else {
       throw const PairingFormatException('bad sign-in');

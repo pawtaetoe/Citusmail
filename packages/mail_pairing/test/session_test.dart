@@ -27,7 +27,11 @@ AccountTransfer twoAccounts() => AccountTransfer(
       username: 'alice@gmail.example',
       imap: TransferredServer('imap.gmail.com', 993, 'tls'),
       smtp: TransferredServer('smtp.gmail.com', 587, 'starttls'),
-      signIn: OAuthSignIn('google', tokens: _googleTokens),
+      signIn: OAuthSignIn(
+        'google',
+        tokens: _googleTokens,
+        client: 'desktop-client.apps.googleusercontent.com',
+      ),
     ),
   ],
   syncCode: '7KQ2-M9XD',
@@ -89,7 +93,9 @@ void main() {
     expect(results[1].detail, contains('Google'));
     final got = received.single;
     expect((got.accounts[0].signIn as PasswordSignIn).password, 'p4ssw0rd!');
-    expect((got.accounts[1].signIn as OAuthSignIn).tokens, _googleTokens);
+    final oauth = got.accounts[1].signIn as OAuthSignIn;
+    expect(oauth.tokens, _googleTokens);
+    expect(oauth.client, 'desktop-client.apps.googleusercontent.com');
     expect(got.syncCode, '7KQ2-M9XD');
     await pumpEventQueue();
     expect(computer.state, isA<HostFinished>());
