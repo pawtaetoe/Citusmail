@@ -56,7 +56,9 @@ Website: **https://citusmail.fluminaris.com** · Download:
   one place under Tools, All features.
 - **Locked down**: encrypted storage, passwords in the system keychain,
   app lock with PIN or fingerprint, end-to-end encrypted sync between
-  your devices.
+  your devices (your blocked senders, rules and sign-offs, and how the app
+  handles your mail; notifications, the app lock and the theme stay on
+  each device).
 
 ## A look around
 
