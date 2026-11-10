@@ -771,12 +771,70 @@ final class MessageRepository {
       (message: _fromRow(row), unsubscribe: row['unsubscribe'] == 1),
   ];
 
-  /// The mail [receivedSince] lists, added up per sender address (any
+  /// Mail from [addresses] (any case, any age) in every folder the Clean
+  /// up page counts: not in Sent, Drafts, Trash or Junk, each message
+  /// once across folders (the original, not a Gmail-style copy in All
+  /// Mail, Starred or Important). Newest first, at most [limit]. What
+  /// "Delete all" moves to Trash.
+  List<StoredMessage> receivedFrom(
+    Iterable<String> addresses, {
+    int limit = 20000,
+  }) {
+    final list = {for (final a in addresses) a.toLowerCase()}.toList();
+    if (list.isEmpty) return const [];
+    return _db
+        .select(
+          'SELECT $_columns $_from WHERE lower(m.from_address) IN '
+          '(${_placeholders(list.length)}) '
+          "AND (b.special_use IS NULL OR b.special_use NOT IN ('sent', 'drafts', 'trash', 'junk')) "
+          'AND $_notACopy '
+          'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
+          [...list, limit.clamp(1, 50000)],
+        )
+        .map(_fromRow)
+        .toList(growable: false);
+  }
+
+  /// The Gmail-style copies (in All Mail, Starred or Important) of
+  /// [messages]: the same Message-ID in a copy folder of the same
+  /// account, not [messages] themselves. Gmail drops them on its own when
+  /// a message goes to Trash or Spam, so the app drops them locally too
+  /// (else a stale copy would stand in for the message that left).
+  List<StoredMessage> copiesOf(Iterable<StoredMessage> messages) {
+    final ids = {for (final m in messages) m.id};
+    final byAccount = <int, Set<String>>{};
+    for (final m in messages) {
+      if (m.messageId case final header?) {
+        byAccount.putIfAbsent(m.accountId, () => {}).add(header);
+      }
+    }
+    final uses = StoredMailbox.copyUses.map((u) => "'$u'").join(', ');
+    return [
+      for (final MapEntry(key: accountId, value: headers) in byAccount.entries)
+        for (final chunk in _chunks(headers.toList(), 500))
+          for (final row in _db.select(
+            'SELECT $_columns $_from WHERE b.account_id = ? '
+            'AND b.special_use IN ($uses) '
+            'AND m.message_id_header IN (${_placeholders(chunk.length)})',
+            [accountId, ...chunk],
+          ))
+            if (_fromRow(row) case final copy when !ids.contains(copy.id)) copy,
+    ];
+  }
+
+  static Iterable<List<T>> _chunks<T>(List<T> list, int size) sync* {
+    for (var i = 0; i < list.length; i += size) {
+      yield list.sublist(i, (i + size).clamp(0, list.length));
+    }
+  }
+
+  /// The mail [receivedSince] lists, without pinned mail (the user keeps
+  /// that, so it is not clutter), added up per sender address (any
   /// case) by SQLite: how much, how much of it opened, when the newest
   /// came and which it is, and the newest with a `List-Unsubscribe`
-  /// header. One row per address instead of one object per message, so
-  /// the Clean up page does not read thousands of rows. Most mail first,
-  /// then the most recent.
+  /// header (pinned or not). One row per address instead of one object
+  /// per message, so the Clean up page does not read thousands of rows.
+  /// Most mail first, then the most recent.
   List<SenderStats> senderStats(DateTime since) {
     const from =
         '$_from WHERE m.received_at >= ? AND m.from_address IS NOT NULL '
@@ -791,7 +849,7 @@ final class MessageRepository {
       "sum(m.category = 'newsletters') AS newsletters, "
       "sum(m.category = 'notifications') AS notifications, "
       'max(m.received_at) AS last, m.id AS newest_id, m.from_address AS spelled '
-      '$from AND $_notACopy '
+      '$from AND (m.flags & ${MessageFlags.flaggedBit}) = 0 AND $_notACopy '
       'GROUP BY lower(m.from_address), m.from_name',
       [at],
     );

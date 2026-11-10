@@ -139,8 +139,7 @@ final class SenderCleanupModel extends ChangeNotifier {
   }
 
   /// The mail of [groups] in the inboxes (any age), that "Archive all"
-  /// and "Delete all" move: not pinned mail, and nothing in Sent or
-  /// Drafts.
+  /// moves: not pinned mail.
   List<StoredMessage> inboxMail(Iterable<SenderGroup> groups) {
     final accounts = _store.accounts.all();
     final seen = <int>{};
@@ -156,6 +155,15 @@ final class SenderCleanupModel extends ChangeNotifier {
               if (seen.add(m.id)) m,
     ]);
   }
+
+  /// The mail of [groups] that "Delete all" moves to Trash (any age):
+  /// what this page counts, in every folder but Sent, Drafts, Trash and
+  /// Junk, each message once (the original, not a Gmail copy in All
+  /// Mail); not pinned mail.
+  List<StoredMessage> allMail(Iterable<SenderGroup> groups) =>
+      SenderCleanup.actionable(
+        _store.messages.receivedFrom([for (final g in groups) ...g.addresses]),
+      );
 
   /// The newest message of [group] (for blocking).
   StoredMessage? newest(SenderGroup group) =>
