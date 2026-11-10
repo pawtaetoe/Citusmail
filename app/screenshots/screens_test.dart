@@ -140,13 +140,21 @@ void main() {
 
   Future<void> shoot(WidgetTester tester, String name) async {
     await settle(tester);
+    // Tests draw shadows as solid outlines; a screenshot shows them as the
+    // app does, and the setting is back before the test ends.
     final object =
         boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    debugDisableShadows = false;
+    _repaint(object);
+    await tester.pump();
     final png = await tester.runAsync(() async {
       final image = await object.toImage(pixelRatio: 2);
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       return data!.buffer.asUint8List();
     });
+    debugDisableShadows = true;
+    _repaint(object);
+    await tester.pump();
     File('${out.path}/$name.png').writeAsBytesSync(png!);
   }
 
@@ -2015,4 +2023,11 @@ void _seedAccounts(MailStore store) {
       900,
     ),
   ]);
+}
+
+/// Paints [object] and everything below it again (after a paint setting
+/// changed).
+void _repaint(RenderObject object) {
+  object.markNeedsPaint();
+  object.visitChildren(_repaint);
 }
