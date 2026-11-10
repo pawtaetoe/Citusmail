@@ -1222,7 +1222,7 @@ final class _Rail extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        s.title,
+                        s.shortTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelLarge?.copyWith(
@@ -1232,6 +1232,7 @@ final class _Rail extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 14),
                   ],
                 ),
               ),

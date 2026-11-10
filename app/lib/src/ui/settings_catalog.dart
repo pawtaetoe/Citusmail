@@ -13,10 +13,14 @@ final class SettingsSection {
     required this.title,
     required this.description,
     required this.icon,
-  });
+    String? shortTitle,
+  }) : shortTitle = shortTitle ?? title;
 
   final String id;
   final String title;
+
+  /// In lists of groups, where [title] is too long to fit.
+  final String shortTitle;
 
   /// One line: what is in it.
   final String description;
@@ -55,6 +59,7 @@ abstract final class SettingsCatalog {
     SettingsSection(
       id: 'notifications',
       title: 'Notifications & checking mail',
+      shortTitle: 'Notifications',
       description: 'What you are told about, and how quickly mail arrives',
       icon: Icons.notifications_outlined,
     ),
