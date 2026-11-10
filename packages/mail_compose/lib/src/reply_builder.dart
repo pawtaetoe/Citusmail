@@ -44,7 +44,7 @@ final class ReplyBuilder {
     return Draft(
       accountId: message.accountId,
       subject: _prefixed('Fwd: ', message.subject),
-      body: '\n\n$header\n${_text(view)}',
+      quote: '$header\n${_text(view)}',
       attachments: [
         for (final a in view.attachments)
           DraftAttachment(
@@ -113,7 +113,7 @@ final class ReplyBuilder {
       to: to,
       cc: cc,
       subject: _prefixed('Re: ', message.subject),
-      body: '\n\n$intro\n${_quote(_text(view))}',
+      quote: '$intro\n${_quote(_text(view))}',
       inReplyTo: messageId,
       references: references.length > maxReferences
           ? references.sublist(references.length - maxReferences)

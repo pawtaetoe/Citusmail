@@ -12,6 +12,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:citusmail/src/compose/compose_controller.dart';
 import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
@@ -30,6 +31,7 @@ import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
 import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
+import 'package:citusmail/src/ui/sign_offs_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:citusmail/src/ui/trips_page.dart';
 import 'package:flutter/foundation.dart';
@@ -138,13 +140,21 @@ void main() {
 
   Future<void> shoot(WidgetTester tester, String name) async {
     await settle(tester);
+    // Tests draw shadows as solid outlines; a screenshot shows them as the
+    // app does, and the setting is back before the test ends.
     final object =
         boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    debugDisableShadows = false;
+    _repaint(object);
+    await tester.pump();
     final png = await tester.runAsync(() async {
       final image = await object.toImage(pixelRatio: 2);
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       return data!.buffer.asUint8List();
     });
+    debugDisableShadows = true;
+    _repaint(object);
+    await tester.pump();
     File('${out.path}/$name.png').writeAsBytesSync(png!);
   }
 
@@ -790,6 +800,66 @@ void main() {
     await tester.tap(find.byTooltip('Close (keeps the draft)'));
     await settle(tester);
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  // Sign-offs: a reply with the reply sign-off marked above the quote,
+  // its menu, and the page that manages them (with each account's
+  // defaults).
+  testWidgets('sign-offs', (tester) async {
+    final signOffs = app.store.signOffs;
+    final work = signOffs.add(
+      name: 'Work',
+      text: 'Best regards,\nAlex Rivera\nRivera Studio',
+    );
+    signOffs.add(name: 'Casual', text: 'Cheers,\nAlex');
+    final short = signOffs.add(name: 'Short', text: 'Thanks, Alex');
+    final alice = app.store.accounts.all().single;
+    signOffs.setDefaults(
+      alice.email,
+      SignOffDefaults(
+        newMail: work.id,
+        repliesSameAsNew: false,
+        replies: short.id,
+        changedAt: DateTime.utc(2026, 11, 10),
+      ),
+    );
+
+    for (final (size, name) in [
+      (const Size(1440, 900), 'desktop'),
+      (const Size(390, 844), 'phone'),
+    ]) {
+      final controller = ComposeController(
+        app.services,
+        Draft(
+          accountId: alice.id,
+          to: const [
+            MailAddress(
+              displayName: 'Priya Shah',
+              localPart: 'priya',
+              domain: 'studio.example',
+            ),
+          ],
+          subject: 'Re: Notes from Tuesday',
+          body: 'Hi Priya,\n\nThursday at 10 works for me. See you then!',
+          inReplyTo: 'notes-1@studio.example',
+          quote:
+              'On Tue, 10 Nov 2026 at 16:40, Priya Shah <priya@studio.example> '
+              'wrote:\n> Could we meet on Thursday instead?\n>\n> Priya',
+        ),
+      );
+      addTearDown(controller.dispose);
+      await show(tester, ComposePage(controller: controller), size: size);
+      await shoot(tester, '${name}_sign_off_compose');
+      await tester.tap(find.byKey(const ValueKey('compose-sign-off')));
+      await shoot(tester, '${name}_sign_off_menu');
+      await tester.tap(find.text('Casual').last);
+      await settle(tester);
+      // Let the draft's save timer run out.
+      await tester.pump(const Duration(seconds: 3));
+
+      await show(tester, SignOffsPage(services: app.services), size: size);
+      await shoot(tester, '${name}_sign_offs');
+    }
   });
 
   // The Screener: the entry at the top of the inbox, the page (buttons
@@ -1953,4 +2023,11 @@ void _seedAccounts(MailStore store) {
       900,
     ),
   ]);
+}
+
+/// Paints [object] and everything below it again (after a paint setting
+/// changed).
+void _repaint(RenderObject object) {
+  object.markNeedsPaint();
+  object.visitChildren(_repaint);
 }

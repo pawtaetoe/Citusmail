@@ -287,6 +287,64 @@ void main() {
     expect(laptop.store.folderRules.forMailbox(laptop.receipts.id), isEmpty);
   });
 
+  test('sign-offs and account defaults follow the user, removals too', () {
+    final at = DateTime.utc(2026, 11, 10, 9);
+    final work = phone.store.signOffs.add(
+      name: 'Work',
+      text: 'Best regards,\nCarol Diaz\nFluminaris',
+      separator: true,
+      now: at,
+    );
+    final short = phone.store.signOffs.add(name: 'Short', text: '– C', now: at);
+    phone.store.signOffs.setDefaults(
+      'carol@citusmail.test',
+      SignOffDefaults(
+        newMail: work.id,
+        repliesSameAsNew: false,
+        replies: short.id,
+        changedAt: at,
+      ),
+    );
+    // An account only the phone has: kept for later, not applied.
+    phone.store.signOffs.setDefaults(
+      'gone@citusmail.test',
+      SignOffDefaults(newMail: work.id, changedAt: at),
+    );
+
+    _exchange(phone, laptop);
+
+    expect(laptop.store.signOffs.all(), [work, short]);
+    expect(laptop.store.signOffs.all().first.separator, isTrue);
+    expect(laptop.store.signOffs.all().first.changedAt, at);
+    expect(
+      laptop.store.signOffs.defaultFor('Carol@citusmail.test', reply: true),
+      short,
+    );
+    expect(laptop.store.signOffs.allDefaults().keys, ['carol@citusmail.test']);
+
+    // Edited on the laptop, removed on the phone: both reach the other.
+    laptop.store.signOffs.update(
+      work.copyWith(text: 'Kind regards,\nCarol'),
+      now: at.add(const Duration(hours: 1)),
+    );
+    phone.store.signOffs.remove(short.id, at: at.add(const Duration(hours: 2)));
+    _exchange(phone, laptop);
+    for (final device in [phone, laptop]) {
+      expect(device.store.signOffs.all().map((s) => s.text), [
+        'Kind regards,\nCarol',
+      ]);
+      expect(
+        device.store.signOffs.defaultFor('carol@citusmail.test', reply: true),
+        isNull,
+      );
+    }
+
+    // A second exchange changes nothing.
+    final before = laptop.snapshotter.localRecords().length;
+    _exchange(phone, laptop);
+    expect(laptop.snapshotter.localRecords().length, before);
+  });
+
   test('each device has its own id', () {
     expect(phone.snapshotter.device, hasLength(32));
     expect(

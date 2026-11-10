@@ -28,6 +28,7 @@ import 'link_opener.dart';
 import 'page_scaffold.dart';
 import 'privacy_report_page.dart';
 import 'screener_page.dart';
+import 'sign_offs_page.dart';
 
 /// One account's server rules, in words.
 String serverRulesText(ServerRulesStatus? status) => switch (status?.state) {
@@ -523,6 +524,20 @@ final class _SettingsPageState extends State<SettingsPage> {
               setState(() => settings.autoRead = on);
               if (on) widget.services.autoRead.request();
             },
+          ),
+          const _Group('Writing'),
+          ListTile(
+            leading: const Icon(signOffIcon),
+            title: const Text('Sign-offs'),
+            subtitle: const Text(
+              'The text that ends your emails, like a signature',
+            ),
+            trailing: const Icon(AppIcons.chevron),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SignOffsPage(services: widget.services),
+              ),
+            ),
           ),
           const _Group('Security'),
           ..._lockSettings(),

@@ -17,6 +17,12 @@ enum RecordKind {
   folderRule,
   screener,
   snooze,
+
+  /// A sign-off (the text that ends a message) the user keeps.
+  signOff,
+
+  /// Which sign-offs an account starts messages with.
+  signOffDefaults,
 }
 
 /// One piece of app data, or the fact that it was removed.

@@ -125,8 +125,10 @@ void main() {
       expect(draft.inReplyTo, message.messageId);
       expect(draft.references, ['root@x.example', message.messageId]);
       expect(draft.answeredMessageId, message.id);
-      expect(draft.body, contains('Bob <bob@x.example> wrote:'));
-      expect(draft.body, contains('> First line\n>\n> Second line'));
+      expect(draft.body, isEmpty, reason: 'the user writes above the quote');
+      expect(draft.quote, startsWith('On '));
+      expect(draft.quote, contains('Bob <bob@x.example> wrote:'));
+      expect(draft.quote, contains('> First line\n>\n> Second line'));
     });
 
     test('reply all includes everyone except the user, once each', () {
@@ -153,8 +155,8 @@ void main() {
       expect(draft.subject, 'Fwd: Re: Plans');
       expect(draft.to, isEmpty);
       expect(draft.inReplyTo, isNull);
-      expect(draft.body, contains('Forwarded message'));
-      expect(draft.body, contains('First line'));
+      expect(draft.quote, startsWith('---------- Forwarded message'));
+      expect(draft.quote, contains('First line'));
       expect(draft.attachments.single.fileName, 'plan.txt');
       expect(utf8.decode(draft.attachments.single.bytes), 'the plan');
     });
@@ -796,6 +798,155 @@ void main() {
           reason: fixture,
         );
       }
+    });
+  });
+
+  group('sign-offs', () {
+    late SignOff work;
+    setUp(() {
+      work = store.signOffs.add(
+        name: 'Work',
+        text: 'Best regards,\nTommy Kung\nFluminaris',
+      );
+    });
+
+    test('the sign-off goes below what was written, above the quote', () {
+      final (message, view) = received();
+      final draft = ReplyBuilder(store)
+          .reply(message, view)
+          .copyWith(body: 'Sounds good, see you then.\n\n\n', signOff: work);
+      expect(
+        draft.text,
+        startsWith(
+          'Sounds good, see you then.\n\n'
+          'Best regards,\nTommy Kung\nFluminaris\n\n'
+          'On ',
+        ),
+      );
+      // Nothing else: the text written stays exactly as it is.
+      expect(Draft(accountId: alice.id, body: 'Hi\n').text, 'Hi\n');
+      expect(
+        Draft(accountId: alice.id, signOff: work).text,
+        'Best regards,\nTommy Kung\nFluminaris',
+      );
+    });
+
+    test('a sign-off alone is not worth keeping as a draft', () {
+      expect(Draft(accountId: alice.id, signOff: work).isEmpty, isTrue);
+    });
+
+    test('the sent message carries the sign-off, "-- " only when asked', () {
+      final sender = Sender(store);
+      String sent(SignOff signOff) {
+        final now = DateTime.now();
+        final pending = sender.send(
+          Draft(
+            accountId: alice.id,
+            to: [a('bob@x.example')],
+            subject: 'Numbers',
+            body: 'Attached are the numbers.',
+            signOff: signOff,
+          ),
+          now: now,
+        );
+        final data = store.outbox
+            .due(alice.id, now: pending.undoUntil)
+            .firstWhere((e) => e.id == pending.entryIds.first)
+            .data!;
+        final view = MessageView.parse(data);
+        // The app sends plain text only: there is no HTML part to add to.
+        expect(view.isHtml, isFalse);
+        return view.message.textBody!.decodeText().text.trimRight();
+      }
+
+      expect(
+        sent(work),
+        'Attached are the numbers.\n\n'
+        'Best regards,\nTommy Kung\nFluminaris',
+      );
+      expect(
+        sent(SignOff.oneOff(text: 'Tommy', separator: true)),
+        'Attached are the numbers.\n\n-- \nTommy',
+      );
+    });
+
+    test('kept with the draft on the device and in Send later', () {
+      final drafts_ = DraftStore(store);
+      final oneOff = SignOff.oneOff(text: 'Thanks again!\nT.');
+      final saved = drafts_.save(
+        Draft(
+          accountId: alice.id,
+          to: [a('bob@x.example')],
+          body: 'Hello',
+          signOff: oneOff,
+          quote: '> earlier',
+        ),
+      );
+      final loaded = drafts_.load(saved.id!)!;
+      expect(loaded.signOff, oneOff);
+      expect(loaded.signOff!.isSaved, isFalse);
+      expect(loaded.quote, '> earlier');
+
+      final sender = Sender(store);
+      final scheduled = ScheduledSends(store, sender);
+      final now = DateTime(2026, 11, 4, 9, 10);
+      sender.schedule(
+        loaded.copyWith(signOff: work),
+        DateTime(2026, 11, 5, 8),
+        now: now,
+      );
+      final back = scheduled.edit(scheduled.all().single, now: now)!;
+      expect(back.signOff, work);
+      expect(back.body, 'Hello');
+      expect(back.quote, '> earlier');
+    });
+
+    test('a draft from the Drafts folder finds its sign-off again', () {
+      final short = store.signOffs.add(name: 'Short', text: 'Cheers,\nT');
+      final (message, view) = received();
+      final reply = ReplyBuilder(store)
+          .reply(message, view)
+          .copyWith(body: 'Yes!', signOff: work);
+      final built = const OutgoingMessages().forDraftsFolder(reply, alice);
+      store.messages.upsertSummaries(drafts.id, [
+        MessageSummary(
+          uid: 3,
+          receivedAt: DateTime.utc(2026),
+          messageId: built.messageId,
+          flags: MessageFlags.fromImap([r'\Draft']),
+        ),
+      ]);
+      final reopened = DraftStore(store)
+          .fromDraftsFolder(store.messages.byUid(drafts.id, 3)!, built.bytes);
+      expect(reopened.body, 'Yes!');
+      expect(reopened.signOff, work);
+      expect(reopened.quote, reply.quote);
+      expect(reopened.text, reply.text);
+      expect(short, isNot(reopened.signOff));
+    });
+
+    test('splitting finds a sign-off only on lines of its own', () {
+      final known = [work];
+      // In the middle of a sentence it is just text.
+      final inline = Draft.split(
+        'I wrote Best regards,\nTommy Kung\nFluminarisX',
+        known,
+      );
+      expect(inline.signOff, isNull);
+      expect(inline.body, 'I wrote Best regards,\nTommy Kung\nFluminarisX');
+      // Quoted ("> Best regards,") it isn't the user's own.
+      final quoted = Draft.split(
+        'Hi\n\n> Best regards,\n> Tommy Kung\n> Fluminaris',
+        known,
+      );
+      expect(quoted.signOff, isNull);
+      final found = Draft.split(
+        'Hi\n\nBest regards,\nTommy Kung\nFluminaris\n\nOn Mon, Bob wrote:\n> x',
+        known,
+      );
+      expect(found.body, 'Hi');
+      expect(found.signOff, work);
+      expect(found.quote, 'On Mon, Bob wrote:\n> x');
     });
   });
 }

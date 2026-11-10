@@ -34,6 +34,11 @@ abstract final class AppDataKeys {
     String value,
   ) =>
       'rule:${jsonEncode([accountEmail.toLowerCase(), folder, field.name, value])}';
+
+  static String signOff(String id) => 'signoff:${jsonEncode([id])}';
+
+  static String signOffDefaults(String accountEmail) =>
+      'signoffdefaults:${jsonEncode([accountEmail.toLowerCase()])}';
 }
 
 /// A removal of app data, remembered so other devices learn about it.
@@ -47,8 +52,8 @@ final class Tombstone {
 
   final String key;
 
-  /// `block`, `unsubscribe`, `imageSender`, `folderRule`, `screener` or
-  /// `snooze`.
+  /// `block`, `unsubscribe`, `imageSender`, `folderRule`, `screener`,
+  /// `snooze` or `signOff`.
   final String kind;
   final DateTime deletedAt;
   final String device;
