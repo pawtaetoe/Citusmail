@@ -167,6 +167,16 @@ class _Home extends StatefulWidget {
 class _HomeState extends State<_Home> {
   bool _adding = false;
 
+  /// The add-account flow on screen, kept across rebuilds: the app
+  /// rebuilds this widget for many reasons (theme, lock, window focus),
+  /// and a new flow would throw the user back to the first step.
+  SetupController? _setup;
+
+  void _closeSetup() => setState(() {
+    _adding = false;
+    _setup = null;
+  });
+
   SetupController _newSetup() {
     final discovery = AccountDiscovery();
     const verifier = AccountVerifier();
@@ -190,9 +200,9 @@ class _HomeState extends State<_Home> {
     final hasAccounts = widget.services.store.accounts.all().isNotEmpty;
     if (!hasAccounts || _adding) {
       return SetupPage(
-        controller: _newSetup(),
-        onDone: (_) => setState(() => _adding = false),
-        onCancel: hasAccounts ? () => setState(() => _adding = false) : null,
+        controller: _setup ??= _newSetup(),
+        onDone: (_) => _closeSetup(),
+        onCancel: hasAccounts ? _closeSetup : null,
       );
     }
     return MailShell(

@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_protocol/mail_protocol.dart';
@@ -45,6 +47,15 @@ class _SetupPageState extends State<SetupPage> {
   }
 
   @override
+  void didUpdateWidget(SetupPage old) {
+    super.didUpdateWidget(old);
+    if (old.controller != widget.controller) {
+      old.controller.removeListener(_onChange);
+      widget.controller.addListener(_onChange);
+    }
+  }
+
+  @override
   void dispose() {
     widget.controller.removeListener(_onChange);
     super.dispose();
@@ -82,6 +93,56 @@ class _SetupPageState extends State<SetupPage> {
 
   @override
   Widget build(BuildContext context) {
+    final state = widget.controller.state;
+    return PopScope(
+      // Only the first step of the first run lets Back leave the app.
+      // Elsewhere Back (Android's gesture or button) steps back inside
+      // setup, like the page's own Back button, instead of closing the
+      // app and losing what was entered.
+      canPop: state is EnteringCredentials && widget.onCancel == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_back(state));
+      },
+      child: _page(context),
+    );
+  }
+
+  /// The system Back on [state].
+  Future<void> _back(SetupState state) async {
+    switch (state) {
+      // A check is running: wait for its answer.
+      case Discovering() || Verifying() || SigningIn() || SetupDone():
+        return;
+      case EnteringCredentials():
+        widget.onCancel?.call();
+        return;
+      case EditingSettings():
+        final leave = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Leave the server settings?'),
+            content: const Text('What you typed here will be lost.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Stay'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Leave'),
+              ),
+            ],
+          ),
+        );
+        if (leave != true || !mounted) return;
+        if (widget.controller.state != state) return;
+        widget.controller.restart();
+      case _:
+        widget.controller.restart();
+    }
+  }
+
+  Widget _page(BuildContext context) {
     final controller = widget.controller;
     final firstRun = widget.onCancel == null;
     final Widget content = AnimatedSwitcher(
@@ -1000,6 +1061,8 @@ class _SettingsFormState extends State<_SettingsForm> {
             Expanded(
               child: DropdownButtonFormField<ConnectionSecurity>(
                 initialValue: security,
+                // Long labels shorten instead of overflowing a narrow column.
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Security',
                   border: OutlineInputBorder(),
@@ -1008,7 +1071,10 @@ class _SettingsFormState extends State<_SettingsForm> {
                   for (final s in ConnectionSecurity.values)
                     DropdownMenuItem(
                       value: s,
-                      child: Text(SetupText.security(s)),
+                      child: Text(
+                        SetupText.security(s),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                 ],
                 onChanged: (s) => setState(() => onSecurity(s!)),
