@@ -44,11 +44,14 @@ void main() {
     final whatsNew = WhatsNew(app.store);
     // First start after this update: this version and the 0.5 highlights.
     final first = [for (final f in whatsNew.pending) f.id];
-    expect(first.first, 'pairing');
+    expect(first.first, releaseNotes.first.features.first);
     expect(first, containsAll(['screener', 'snooze', 'appointments']));
 
-    app.store.settings.write(WhatsNew.seenKey, '0.5.9');
-    expect([for (final f in whatsNew.pending) f.id], ['pairing']);
+    // Coming from the version before: only what this one brought.
+    app.store.settings.write(WhatsNew.seenKey, releaseNotes[1].version);
+    expect([
+      for (final f in whatsNew.pending) f.id,
+    ], releaseNotes.first.features);
 
     whatsNew.markSeen();
     expect(whatsNew.pending, isEmpty);

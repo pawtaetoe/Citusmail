@@ -80,7 +80,7 @@ void main() {
       phone.clients['google'],
       'desktop-client.apps.googleusercontent.com',
     );
-    await pumpEventQueue();
+    await until(() => computer.state is HostConnected);
     final connected = computer.state as HostConnected;
     expect(connected.phoneName, 'Pixel 8');
     expect(connected.checkCode, phone.checkCode);
@@ -97,7 +97,7 @@ void main() {
     expect(oauth.tokens, _googleTokens);
     expect(oauth.client, 'desktop-client.apps.googleusercontent.com');
     expect(got.syncCode, '7KQ2-M9XD');
-    await pumpEventQueue();
+    await until(() => computer.state is HostFinished);
     expect(computer.state, isA<HostFinished>());
     expect(states.whereType<HostReceiving>().single.count, 2);
     expect(computer.isOver, isTrue);
@@ -153,7 +153,7 @@ void main() {
     final phone = await PairingClient.connect(real, phoneName: 'Pixel');
     expect(phone.computerName, 'alice-laptop');
     await phone.cancel();
-    await pumpEventQueue();
+    await until(() => computer.state is HostFailed);
     expect((computer.state as HostFailed).problem, HostProblem.cancelled);
   });
 
@@ -191,7 +191,7 @@ void main() {
         throwsA(isA<PairingException>()),
       );
     }
-    await pumpEventQueue();
+    await until(() => computer.state is HostFailed);
     expect((computer.state as HostFailed).problem, HostProblem.tooManyTries);
     await expectLater(
       PairingClient.connect(real, phoneName: 'Pixel'),
@@ -299,4 +299,14 @@ void main() {
       ),
     );
   });
+}
+
+/// Waits until [done] (the other end's socket events arrive in their own
+/// time, later on a busy machine), failing after a few seconds.
+Future<void> until(bool Function() done) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (!done()) {
+    if (DateTime.now().isAfter(deadline)) fail('timed out waiting');
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
 }

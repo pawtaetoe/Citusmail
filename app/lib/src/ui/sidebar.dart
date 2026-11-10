@@ -524,10 +524,20 @@ final class _Entry extends StatelessWidget {
     this.badge = 0,
     this.selected = false,
     this.bold = false,
+    this.detail,
+    this.detailColor,
+    this.dot,
   });
 
   final IconData icon;
   final String label;
+
+  /// A short second line under [label] (a status), in [detailColor].
+  final String? detail;
+  final Color? detailColor;
+
+  /// A status dot at the end of the row.
+  final Color? dot;
   final int indent;
   final int badge;
   final bool selected;
@@ -585,19 +595,45 @@ final class _Entry extends StatelessWidget {
                         ),
                         const SizedBox(width: _Size.iconGap),
                         Expanded(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.text,
-                              fontSize: 14,
-                              fontWeight: bold || selected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.text,
+                                  fontSize: 14,
+                                  fontWeight: bold || selected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                              if (detail != null)
+                                Text(
+                                  detail!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: detailColor ?? colors.muted,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
+                        if (dot != null)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsetsDirectional.only(start: 8),
+                            decoration: BoxDecoration(
+                              color: dot,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
                         if (badge > 0) _Count(badge),
                       ],
                     ),
@@ -1057,63 +1093,33 @@ final class _SyncSummary extends StatelessWidget {
         if (eventOf(a.id) is AccountSyncFailed) a,
     ];
     final checking = accounts.any((a) => eventOf(a.id) is AccountSyncStarted);
-    String text;
+    // A row like the ones around it ("Notification settings", not the
+    // Inbox's Notifications section); a status
+    // only when it says something (one failed account says so on its
+    // own block, right under its address).
+    String? status;
     Color? dot;
-    if (failed.length == 1) {
-      // Its block says what is wrong, right under its address: saying it
-      // again here would be noise.
-      text = 'Notifications & checking mail';
-      dot = null;
-    } else if (failed.length > 1) {
-      text = '${failed.length} accounts need attention';
+    if (failed.length > 1) {
+      status = '${failed.length} accounts need attention';
       dot = colors.problem;
-    } else if (checking) {
-      text = 'Checking for mail…';
+    } else if (failed.isEmpty && checking) {
+      status = 'Checking for mail…';
       dot = colors.badge;
-    } else if (accounts.every((a) => eventOf(a.id) is AccountSynced)) {
-      text = accounts.length == 1 ? 'Up to date' : 'All accounts up to date';
+    } else if (failed.isEmpty &&
+        accounts.every((a) => eventOf(a.id) is AccountSynced)) {
+      status = accounts.length == 1 ? 'Up to date' : 'All accounts up to date';
       dot = const Color(0xFF6FD6A8);
-    } else {
-      text = 'Notifications & checking mail';
-      dot = null;
     }
     // A tap: notifications and how mail is checked (Instant mail).
     return Tooltip(
       message: 'Notifications and checking mail',
-      child: InkWell(
+      child: _Entry(
+        icon: Icons.notifications_outlined,
+        label: 'Notification settings',
+        detail: status,
+        detailColor: failed.length > 1 ? colors.problem : null,
+        dot: dot,
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 6, 8, 4),
-          child: Row(
-            children: [
-              if (dot != null)
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-                )
-              else
-                Icon(
-                  Icons.notifications_outlined,
-                  size: 14,
-                  color: colors.muted,
-                ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  text,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: failed.length > 1 ? colors.problem : colors.muted,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ),
-              Icon(Icons.tune, size: 16, color: colors.muted),
-            ],
-          ),
-        ),
       ),
     );
   }
