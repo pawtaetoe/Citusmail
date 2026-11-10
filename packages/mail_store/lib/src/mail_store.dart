@@ -16,6 +16,7 @@ import 'repository/outbox_repository.dart';
 import 'repository/receipt_repository.dart';
 import 'repository/screener_repository.dart';
 import 'repository/settings_repository.dart';
+import 'repository/sign_off_repository.dart';
 import 'repository/snooze_repository.dart';
 import 'repository/unsubscribe_repository.dart';
 
@@ -36,7 +37,8 @@ final class MailStore {
       appDataSync = AppDataSyncRepository(database),
       receipts = ReceiptRepository(database),
       screener = ScreenerRepository(database),
-      snoozes = SnoozeRepository(database);
+      snoozes = SnoozeRepository(database),
+      signOffs = SignOffRepository(database);
 
   /// Opens (or creates) the store at [path], encrypted with [key].
   /// See [MailDatabase.open] for the errors it can raise.
@@ -58,6 +60,7 @@ final class MailStore {
   final ReceiptRepository receipts;
   final ScreenerRepository screener;
   final SnoozeRepository snoozes;
+  final SignOffRepository signOffs;
 
   /// Runs [action] atomically across repositories.
   T transaction<T>(T Function() action) => database.transaction(action);
