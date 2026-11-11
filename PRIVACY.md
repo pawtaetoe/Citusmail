@@ -24,7 +24,7 @@ no analytics, no crash reporting and no advertising.
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
 | Your computer, on your own local network | Only when you scan the computer's code in "Send accounts to a computer" and confirm (with your PIN or fingerprint if the app lock is on) | The accounts you choose: address, name, server settings and password or sign-in, and, if you tick it, the sync code. Straight from the phone to the computer over your Wi-Fi, end-to-end encrypted, never through the internet or a server of ours. See "Adding accounts from your phone" |
 | An app you choose in the share sheet | Only if your phone couldn't reach the computer and you choose "Send as a file instead" | The same accounts, sealed in a file only that computer can open while its code is showing |
-| Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, Screener decisions, snoozed emails (which message, by its Message-ID, and when it comes back), unsubscribes, folder rules, image senders, and your sign-offs with each account's choice of them, end-to-end encrypted |
+| Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, Screener decisions, snoozed emails (which message, by its Message-ID, and when it comes back), unsubscribes, folder rules, image senders, your sign-offs with each account's choice of them, and your mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off), end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
 | Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
 | VirusTotal (your own API key) | Only with "Ask VirusTotal" turned on, and only when you tap "Check with VirusTotal" on an attachment or link the on-device checks flagged | For a file, its SHA-256 fingerprint only (the file is never uploaded); for a link, the address. Your key goes with it. VirusTotal keeps what it is asked and sees your IP address |
@@ -95,15 +95,19 @@ account and never shown as a notification.
 ## Sync between devices
 
 Off until you turn it on. Then your blocked senders, Screener decisions,
-snoozed emails, unsubscribes, folder
-rules, image senders and sign-offs are kept the same on all your devices. They travel
+snoozed emails, unsubscribes, folder rules, image senders, sign-offs and
+mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off) are kept the same on all your devices. They travel
 through a "Citusmail Sync" folder in your own mail account (one message per
 device), never through a server of ours. Each message is end-to-end
 encrypted with your sync code: your mail provider, and anyone else with
 access to your mailbox, sees only sealed data plus which of your devices
 wrote it. The code is a random 128-bit secret kept only in each device's
-system keychain; with the app lock on, showing it asks for your PIN. App
-settings, the app lock and your PIN never sync.
+system keychain; with the app lock on, showing it asks for your PIN. Other
+app settings never sync: notifications and their previews, instant mail
+and battery settings, the theme and layout, the app lock and your PIN,
+and Safe Browsing and VirusTotal (they send data to another company, so
+each device agrees to them itself). Older versions of the app can't read
+the synced data once it holds these preferences: update every device.
 
 ## Adding accounts from your phone
 

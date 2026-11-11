@@ -39,6 +39,11 @@ abstract final class AppDataKeys {
 
   static String signOffDefaults(String accountEmail) =>
       'signoffdefaults:${jsonEncode([accountEmail.toLowerCase()])}';
+
+  /// A synced preference by its setting's name; [item]: one entry of a
+  /// preference that is a set (Clean up's Keep list).
+  static String preference(String name, [String? item]) =>
+      'pref:${jsonEncode([name, ?item])}';
 }
 
 /// A removal of app data, remembered so other devices learn about it.
@@ -53,7 +58,7 @@ final class Tombstone {
   final String key;
 
   /// `block`, `unsubscribe`, `imageSender`, `folderRule`, `screener`,
-  /// `snooze` or `signOff`.
+  /// `snooze`, `signOff` or `preference`.
   final String kind;
   final DateTime deletedAt;
   final String device;

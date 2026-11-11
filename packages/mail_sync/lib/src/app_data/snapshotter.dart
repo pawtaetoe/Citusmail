@@ -16,6 +16,10 @@ final class AppliedChanges {
   /// have). They are kept and passed on, never lost.
   int skipped = 0;
 
+  /// The synced preferences ([SyncedPreferences]) that changed here, so
+  /// the settings shown can be read again.
+  final preferences = <String>{};
+
   bool get any => added + removed > 0;
 
   @override
@@ -176,6 +180,17 @@ final class AppDataSnapshotter {
         );
       }
     }
+    for (final p in SyncedPreferences(_store.database).entries()) {
+      put(
+        SyncRecord(
+          key: p.key,
+          kind: RecordKind.preference,
+          changedAt: p.changedAt.millisecondsSinceEpoch,
+          device: me,
+          data: p.data,
+        ),
+      );
+    }
     for (final t in _store.appDataSync.tombstones()) {
       final kind = RecordKind.values.where((k) => k.name == t.kind).firstOrNull;
       if (kind == null) continue;
@@ -326,6 +341,14 @@ final class AppDataSnapshotter {
         _applySignOff(r, at, changes);
       case RecordKind.signOffDefaults:
         _applySignOffDefaults(r, at, changes);
+      case RecordKind.preference:
+        // Throws ArgumentError for one this version doesn't sync: skipped.
+        if (SyncedPreferences(
+          _store.database,
+        ).apply(r.key, r.data, deleted: r.deleted, at: at, device: r.device)) {
+          changes.preferences.add(_keyPart(r.key, 0));
+          r.deleted ? changes.removed++ : changes.added++;
+        }
       case RecordKind.folderRule:
         final email = r.deleted ? _keyPart(r.key, 0) : _text(r, 'account');
         final folderName = r.deleted ? _keyPart(r.key, 1) : _text(r, 'folder');

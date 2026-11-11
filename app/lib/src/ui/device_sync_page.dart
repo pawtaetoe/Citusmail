@@ -95,8 +95,9 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
         title: const Text('Turn off sync on this device?'),
         content: const Text(
           'This device stops sharing its blocked senders, Screener decisions, '
-          'snoozed emails, unsubscribes, folder rules and image senders. What it has now stays. Your '
-          'other devices keep syncing with each other.',
+          'snoozed emails, unsubscribes, folder rules, image senders, '
+          'sign-offs and mail settings. What it has now stays. Your other '
+          'devices keep syncing with each other.',
         ),
         actions: [
           TextButton(
@@ -141,10 +142,10 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
 
   static const _what =
       'Keeps your blocked senders, Screener decisions, snoozed emails, '
-      'unsubscribes, folder '
-      'rules and image senders the same on all your devices. They travel through a folder '
-      'in your own mail account, encrypted so that only your devices can '
-      'read them; not even your mail provider can.';
+      'unsubscribes, folder rules, image senders, sign-offs and how the app '
+      'handles your mail the same on all your devices. They travel through '
+      'a folder in your own mail account, encrypted so that only your '
+      'devices can read them; not even your mail provider can.';
 
   List<Widget> _off(BuildContext context) => [
     const Padding(
@@ -163,6 +164,7 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
       subtitle: const Text('Join the sync your other device started.'),
       onTap: _join,
     ),
+    const WhatSyncs(),
   ];
 
   List<Widget> _on(BuildContext context) {
@@ -224,6 +226,7 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
         padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Text(_what),
       ),
+      const WhatSyncs(),
     ];
   }
 
@@ -245,6 +248,63 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
         ? ' ${status.unreadable} stored copies couldn\'t be read.'
         : '';
     return 'Last exchange $day $when. $devices$damaged';
+  }
+}
+
+/// What syncs, and what stays on each device: short lists, in plain words.
+/// (The settings that sync are listed in mail_store's `SyncedPreferences`.)
+final class WhatSyncs extends StatelessWidget {
+  const WhatSyncs({super.key});
+
+  static const synced = [
+    'Blocked and screened senders, unsubscribes, folder rules, image senders',
+    'Snoozed emails and sign-offs',
+    'The Screener on or off, and New since you were away',
+    'Reading receipts and bookings ahead, and learning from corrections',
+    'Bill and trial reminders, monthly renewals and follow-up reminders',
+    'Clean-up of old codes, and Clean up\'s Keep list',
+    'Tips switched off',
+  ];
+
+  static const perDevice = [
+    'Whether this device shows notifications, and their previews',
+    'Instant mail and battery settings',
+    'The app lock and your PIN',
+    'Theme and layout',
+    'Safe Browsing and VirusTotal: each device agrees to them itself',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget list(String title, List<String> items) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const ExcludeSemantics(child: Text('•  ')),
+                  Expanded(child: Text(item)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        list('What syncs', synced),
+        list('What stays on each device', perDevice),
+      ],
+    );
   }
 }
 
@@ -365,7 +425,7 @@ final class DeviceSyncTile extends StatelessWidget {
     leading: const Icon(Icons.devices_outlined),
     title: const Text('Sync between devices'),
     subtitle: const Text(
-      'Blocked and screened senders, unsubscribes, rules, image senders',
+      'Blocked and screened senders, rules, sign-offs, mail settings',
     ),
     trailing: const Icon(AppIcons.chevron),
     onTap: () => Navigator.of(context).push(

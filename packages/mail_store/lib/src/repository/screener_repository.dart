@@ -10,6 +10,7 @@ import '../model/message.dart';
 import 'app_data_sync_repository.dart';
 import 'message_repository.dart';
 import 'section_sql.dart';
+import 'synced_preferences.dart';
 
 /// What a Screener decision names: one address, or everyone at a domain
 /// (and its subdomains).
@@ -149,6 +150,7 @@ final class ScreenerRepository {
     var at = (now ?? DateTime.now()).toUtc().millisecondsSinceEpoch;
     if (newest != null && newest >= at) at = newest + 1;
     _write(sinceKey, '$at');
+    SyncedPreferences(_db).stamp(sinceKey, now ?? DateTime.now());
     SectionSql.refresh(_db, 'received_at >= ?', [at]);
     // Decisions kept from an earlier time apply again.
     for (final s in all()) {
@@ -161,9 +163,10 @@ final class ScreenerRepository {
   /// Turns it off: everything waiting goes to the Smart Inbox, and
   /// screened-out mail back to where it would be. Decisions are kept for
   /// when it is turned on again.
-  void disable() => _db.transaction(() {
+  void disable({DateTime? now}) => _db.transaction(() {
     if (!enabled) return;
     _db.execute('DELETE FROM settings WHERE key = ?', [sinceKey]);
+    SyncedPreferences(_db).stamp(sinceKey, now ?? DateTime.now());
     _refreshScreenerSections();
   });
 

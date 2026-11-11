@@ -75,7 +75,18 @@ final class AppServices {
       sender = Sender(store),
       replies = ReplyBuilder(store),
       settings = AppSettings(store),
-      autoRead = AutoReader(store, worker.loadBodyInBackground);
+      autoRead = AutoReader(store, worker.loadBodyInBackground) {
+    // Preferences synced from the user's other devices show at once.
+    _syncEvents = worker.events.listen((event) {
+      if (event is AccountSynced) {
+        if (event.report.appData case final exchange?) {
+          settings.syncApplied(exchange.changes);
+        }
+      }
+    });
+  }
+
+  late final StreamSubscription<SyncEvent> _syncEvents;
 
   final MailStore store;
   final SecretStore secrets;
@@ -245,6 +256,7 @@ final class AppServices {
   Future<void> dispose() => _disposing ??= _close();
 
   Future<void> _close() async {
+    await _syncEvents.cancel();
     autoRead.stop();
     lock.dispose();
     await worker.close();
