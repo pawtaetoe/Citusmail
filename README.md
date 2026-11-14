@@ -54,6 +54,11 @@ Website: **https://citusmail.fluminaris.com** · Download:
   feature's options where you use it; a short tip the first time a
   feature could help; "What's new" after an update; and every feature in
   one place, All features, always at the bottom of the sidebar.
+- **Ask your mail** (optional, off until you turn it on, with your own AI
+  key): search with a question, like "When does my flight leave?", and
+  get a short answer with the emails it comes from. The search runs on
+  the device; only the few best matches are sent to the AI provider you
+  chose.
 - **Locked down**: encrypted storage, passwords in the system keychain,
   app lock with PIN or fingerprint, end-to-end encrypted sync between
   your devices (your blocked senders, rules and sign-offs, and how the app
