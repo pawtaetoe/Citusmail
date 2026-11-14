@@ -54,9 +54,8 @@ void main() {
     desktop(tester);
     await tester.pumpWidget(shell());
     await tester.pump();
-    // The Tools group, unfolded.
-    await tester.tap(find.text('Tools'));
-    await tester.pumpAndSettle();
+    // In view while the groups are still folded.
+    expect(find.text('Clean up'), findsNothing);
     await tester.tap(find.text('All features'));
     await tester.pumpAndSettle();
     expect(find.byType(DiscoverPage), findsOneWidget);
@@ -76,6 +75,23 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.byType(DeliveriesPage), findsOneWidget);
+  });
+
+  testWidgets('one "All features" row, at the bottom of the sidebar', (
+    tester,
+  ) async {
+    desktop(tester);
+    await tester.pumpWidget(shell());
+    await tester.pump();
+    // Unfolding Tools doesn't add a second one.
+    await tester.tap(find.text('Tools'));
+    await tester.pumpAndSettle();
+    expect(find.text('Clean up'), findsOneWidget);
+    expect(find.text('All features'), findsOneWidget);
+    double top(String label) => tester.getTopLeft(find.text(label)).dy;
+    expect(top('All features'), greaterThan(top('Privacy report')));
+    expect(top('All features'), greaterThan(top('Notification settings')));
+    expect(top('All features'), lessThan(top('Add account')));
   });
 
   testWidgets('a place in the mail: back to the mail, there', (tester) async {

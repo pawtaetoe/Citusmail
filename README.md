@@ -53,7 +53,7 @@ Website: **https://citusmail.fluminaris.com** · Download:
   with a search that knows your words ("dark mode", "PIN", "spam"); each
   feature's options where you use it; a short tip the first time a
   feature could help; "What's new" after an update; and every feature in
-  one place under Tools, All features.
+  one place, All features, always at the bottom of the sidebar.
 - **Locked down**: encrypted storage, passwords in the system keychain,
   app lock with PIN or fingerprint, end-to-end encrypted sync between
   your devices (your blocked senders, rules and sign-offs, and how the app
