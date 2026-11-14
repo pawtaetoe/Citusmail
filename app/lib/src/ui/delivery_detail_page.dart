@@ -155,7 +155,7 @@ final class DeliveryDetailPage extends StatelessWidget {
                             trailing: IconButton(
                               tooltip: 'Copy tracking number',
                               visualDensity: VisualDensity.compact,
-                              icon: const Icon(Icons.copy, size: 18),
+                              icon: const Icon(AppIcons.copy, size: 18),
                               onPressed: () => _copy(context, tracking),
                             ),
                             onTap: () => _copy(context, tracking),
@@ -176,7 +176,7 @@ final class DeliveryDetailPage extends StatelessWidget {
                             alignment: Alignment.centerLeft,
                             child: FilledButton.tonalIcon(
                               onPressed: () => _track(context, url),
-                              icon: const Icon(Icons.open_in_new, size: 18),
+                              icon: const Icon(AppIcons.openExternal, size: 18),
                               label: Text(
                                 'Track on ${d.carrierName ?? url.host}',
                               ),
@@ -230,20 +230,20 @@ final class DeliveryDetailPage extends StatelessWidget {
                           context,
                           DeliveryAction.markDelivered,
                         ),
-                        icon: const Icon(Icons.check, size: 18),
+                        icon: const Icon(AppIcons.done, size: 18),
                         label: const Text('Mark as delivered'),
                       ),
                     if (d.markedDelivered)
                       TextButton.icon(
                         onPressed: () =>
                             Navigator.pop(context, DeliveryAction.notDelivered),
-                        icon: const Icon(Icons.undo, size: 18),
+                        icon: const Icon(AppIcons.undo, size: 18),
                         label: const Text('Not delivered yet'),
                       ),
                     TextButton.icon(
                       onPressed: () =>
                           Navigator.pop(context, DeliveryAction.notADelivery),
-                      icon: const Icon(Icons.visibility_off_outlined, size: 18),
+                      icon: const Icon(AppIcons.hide, size: 18),
                       label: const Text('Not a delivery'),
                     ),
                   ],

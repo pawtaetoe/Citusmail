@@ -138,7 +138,7 @@ final class _ScreenerSettingsState extends State<ScreenerSettings> {
         wrap(
           'screenedSenders',
           ListTile(
-            leading: const Icon(Icons.rule),
+            leading: const Icon(AppIcons.screenedSenders),
             title: const Text('Screened senders'),
             subtitle: Text(
               decided == 0
@@ -249,7 +249,7 @@ final class _CheckingMailSheetState extends State<CheckingMailSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SwitchListTile(
-          secondary: const Icon(Icons.notifications_outlined),
+          secondary: const Icon(AppIcons.notifications),
           title: const Text('New mail notifications'),
           subtitle: const Text('One for each new email'),
           value: settings.notifications,
@@ -257,7 +257,7 @@ final class _CheckingMailSheetState extends State<CheckingMailSheet> {
         ),
         if (android)
           SwitchListTile(
-            secondary: const Icon(Icons.bolt_outlined),
+            secondary: const Icon(AppIcons.instantMail),
             title: const Text('Instant mail'),
             subtitle: Text(
               settings.instantMail

@@ -10,6 +10,7 @@ import 'package:mail_view/mail_view.dart';
 
 import 'draft.dart';
 import 'outgoing.dart';
+import 'sign_off_header.dart';
 
 /// Where a draft ended up when the compose window closed.
 enum DraftOutcome {
@@ -133,13 +134,12 @@ final class DraftStore {
   Draft fromDraftsFolder(StoredMessage message, Uint8List raw) {
     final view = MessageView.parse(raw);
     final parsed = view.message;
-    // The sign-off it was written with, if it is one of the user's: the
-    // text above it is what they wrote, below it the quote.
-    final text = Draft.split(
-      view.isHtml
-          ? view.body.plainText
-          : (parsed.textBody?.decodeText().text ?? ''),
-      _store.signOffs.all(),
+    final whole = view.isHtml
+        ? view.body.plainText
+        : (parsed.textBody?.decodeText().text ?? '');
+    final text = _splitAtSignOff(
+      whole,
+      SignOffHeader.decode(parsed.headers.value(SignOffHeader.name)),
     );
     return Draft(
       accountId: message.accountId,
@@ -161,6 +161,33 @@ final class DraftStore {
       inReplyTo: parsed.inReplyTo.firstOrNull,
       references: parsed.references,
       savedMessageId: parsed.messageId ?? message.messageId,
+    );
+  }
+
+  /// [text] split at the sign-off it was written with: the one its
+  /// private header names (a saved one as it is now, if unchanged), or
+  /// else, for a draft without one, the first of the user's sign-offs in
+  /// it. Above it is what they wrote, below it the quote.
+  ({String body, SignOff? signOff, String quote}) _splitAtSignOff(
+    String text,
+    ({SignOff? signOff})? marked,
+  ) {
+    final saved = _store.signOffs.all();
+    if (marked == null) return Draft.split(text, saved);
+    final noted = marked.signOff;
+    if (noted == null) return (body: text, signOff: null, quote: '');
+    final split = Draft.split(text, [noted]);
+    // Changed in another app: look for the user's sign-offs instead.
+    if (split.signOff == null) return Draft.split(text, saved);
+    final current = noted.isSaved
+        ? saved.where((s) => s.id == noted.id && s.block == noted.block)
+        : const <SignOff>[];
+    return (
+      body: split.body,
+      signOff:
+          current.firstOrNull ??
+          SignOff.oneOff(text: noted.text, separator: noted.separator),
+      quote: split.quote,
     );
   }
 

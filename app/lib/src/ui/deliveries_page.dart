@@ -271,13 +271,13 @@ abstract final class DeliveryText {
   };
 
   static IconData icon(DeliveryStatus? s) => switch (s) {
-    DeliveryStatus.ordered => Icons.shopping_bag_outlined,
+    DeliveryStatus.ordered => AppIcons.ordered,
     DeliveryStatus.shipped => AppIcons.deliveries,
-    DeliveryStatus.readyForPickup => Icons.storefront_outlined,
-    DeliveryStatus.outForDelivery => Icons.delivery_dining_outlined,
-    DeliveryStatus.delivered => Icons.check_circle_outline,
+    DeliveryStatus.readyForPickup => AppIcons.pickup,
+    DeliveryStatus.outForDelivery => AppIcons.outForDelivery,
+    DeliveryStatus.delivered => AppIcons.delivered,
     DeliveryStatus.problem => AppIcons.problem,
-    DeliveryStatus.returned => Icons.keyboard_return,
+    DeliveryStatus.returned => AppIcons.returns,
     null => AppIcons.mail,
   };
 

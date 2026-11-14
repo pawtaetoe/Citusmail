@@ -7,6 +7,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'citusmail_theme.dart';
 import 'features.dart';
 import 'snooze_sheet.dart';
@@ -66,6 +67,14 @@ final class Tips {
     return true;
   }
 
+  /// Whether [tip] could show now at [where], without counting it as
+  /// shown: to skip work for a tip that can't.
+  bool couldTake(Tip tip, {Object? where}) {
+    final shown = _session[_store];
+    if (shown != null) return enabled && shown == (tip.id, where);
+    return enabled && !seen.contains(tip.id);
+  }
+
   /// Whether the tip shown in this session was put away.
   bool dismissed(String id) => _store.settings.read('$seenKey.dismissed') == id;
 
@@ -73,7 +82,7 @@ final class Tips {
 
   static final unsubscribe = Tip(
     id: 'unsubscribe',
-    icon: Icons.unsubscribe_outlined,
+    icon: AppIcons.unsubscribe,
     title: 'Unsubscribe in one tap',
     text:
         'Don\'t want these any more? Unsubscribe, above, stops them. '
@@ -82,7 +91,7 @@ final class Tips {
 
   static final snooze = Tip(
     id: 'snooze',
-    icon: Icons.snooze_outlined,
+    icon: AppIcons.snooze,
     title: 'Not now? Snooze it',
     text:
         'A long conversation can wait: snooze it and it comes back to the '
@@ -98,7 +107,7 @@ final class Tips {
 
   static final trips = Tip(
     id: 'trips',
-    icon: Icons.flight_outlined,
+    icon: AppIcons.trips,
     title: 'Your trips in one place',
     text:
         'Bookings like this one are put together into trips, with times '
@@ -107,10 +116,24 @@ final class Tips {
     onAction: (context, c) => Features.byId('trips')?.open(context, c),
   );
 
-  /// The tip for reading [message], if one could help.
+  static final screener = Tip(
+    id: 'screener',
+    icon: AppIcons.screener,
+    title: 'Decide who reaches your inbox',
+    text:
+        'With the Screener on, people writing to you for the first time '
+        'wait for your OK before their mail reaches your inbox.',
+    action: 'Set up Screener',
+    onAction: (context, c) => Features.byId('screener')?.open(context, c),
+  );
+
+  /// The tip for reading [message], if one could help. [firstTimeSender]
+  /// says whether it comes from someone new while the Screener is off;
+  /// it is asked last, only when no other tip applies.
   static Tip? forMessage(
     StoredMessage message, {
     required bool canUnsubscribe,
+    bool Function()? firstTimeSender,
   }) {
     final subject = message.subject ?? '';
     if (canUnsubscribe) return unsubscribe;
@@ -120,6 +143,11 @@ final class Tips {
     }
     // A conversation of four emails or more.
     if (message.references.length >= 3) return snooze;
+    // Personal mail from someone new, while the Screener is off.
+    if (message.section == SmartSection.general &&
+        (firstTimeSender?.call() ?? false)) {
+      return screener;
+    }
     return null;
   }
 }
@@ -200,7 +228,7 @@ final class _TipCardState extends State<TipCard> {
             ),
             IconButton(
               tooltip: 'Close tip',
-              icon: const Icon(Icons.close, size: 18),
+              icon: const Icon(AppIcons.close, size: 18),
               onPressed: close,
             ),
           ],

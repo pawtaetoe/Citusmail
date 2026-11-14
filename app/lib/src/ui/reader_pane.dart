@@ -284,20 +284,28 @@ final class _Header extends StatelessWidget {
         ],
         final ReaderReady ready => [
           TrustBanner(report: ready.trust),
-          // One tip, now and then, when a feature could help here.
-          if (Tips.forMessage(
-                ready.message,
-                canUnsubscribe:
-                    ready.unsubscribe.available && ready.unsubscribed == null,
-              )
-              case final tip?
-              when Tips(controller.services.store)
-                  .take(tip, where: ready.message.id))
-            TipCard(
-              key: ValueKey('tip-${ready.message.id}'),
-              tip: tip,
-              controller: controller,
-            ),
+          // One tip, now and then, when a feature could help here; never
+          // under a warning, which is what matters then.
+          if (ready.trust.level == TrustLevel.ok)
+            if (Tips.forMessage(
+                  ready.message,
+                  canUnsubscribe:
+                      ready.unsubscribe.available && ready.unsubscribed == null,
+                  // Not on an invitation: its card is what matters there.
+                  firstTimeSender: () =>
+                      ready.view.invite == null &&
+                      Tips(controller.services.store)
+                          .couldTake(Tips.screener, where: ready.message.id) &&
+                      controller.isFirstTimeSender(ready.message),
+                )
+                case final tip?
+                when Tips(controller.services.store)
+                    .take(tip, where: ready.message.id))
+              TipCard(
+                key: ValueKey('tip-${ready.message.id}'),
+                tip: tip,
+                controller: controller,
+              ),
           if (ready.view.invite case final invite?)
             InvitationCard(
               controller: controller,
@@ -323,7 +331,7 @@ final class _Header extends StatelessWidget {
             ),
           if (ready.view.body.truncated)
             const _Notice(
-              icon: Icons.content_cut,
+              icon: AppIcons.truncated,
               text: 'Part of this message was too large or complex to show.',
             ),
         ],
@@ -363,7 +371,7 @@ final class _Toolbar extends StatelessWidget {
       if (controller.isInJunk(message))
         _Action(
           'Not spam',
-          Icons.report_off_outlined,
+          AppIcons.notSpam,
           () => controller.notSpam([message]),
         ),
       if (archive != null && archive.id != message.mailboxId)
@@ -658,7 +666,7 @@ final class _OriginalDialog extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: 'Copy',
-                      icon: const Icon(Icons.copy),
+                      icon: const Icon(AppIcons.copy),
                       onPressed: () async {
                         final messenger = ScaffoldMessenger.maybeOf(context);
                         await Clipboard.setData(ClipboardData(text: text));
@@ -852,7 +860,7 @@ final class _PrivacyNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.shield_outlined, size: 20, color: colors.primary),
+          Icon(AppIcons.privacy, size: 20, color: colors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

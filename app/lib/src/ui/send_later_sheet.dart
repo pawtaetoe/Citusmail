@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../mail/send_later_times.dart';
 import '../mail/snooze_times.dart';
+import 'app_icons.dart';
 import 'snooze_sheet.dart';
 
 /// "Send later": ready-made times with the actual time next to each, and
@@ -97,9 +98,9 @@ final class _SendLaterPanel extends StatelessWidget {
   final DateTime? current;
 
   static IconData _icon(SendLaterKind kind) => switch (kind) {
-    SendLaterKind.morning => Icons.wb_sunny_outlined,
-    SendLaterKind.afternoon => Icons.schedule,
-    SendLaterKind.monday => Icons.date_range_outlined,
+    SendLaterKind.morning => AppIcons.morning,
+    SendLaterKind.afternoon => AppIcons.time,
+    SendLaterKind.monday => AppIcons.week,
   };
 
   @override
@@ -145,7 +146,7 @@ final class _SendLaterPanel extends StatelessWidget {
         ListTile(
           key: const ValueKey('send-later-pick'),
           contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-          leading: const Icon(Icons.edit_calendar_outlined),
+          leading: const Icon(AppIcons.pickTime),
           title: const Text('Pick date & time'),
           onTap: () async {
             final at = await pickDateTime(

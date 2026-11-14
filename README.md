@@ -15,7 +15,7 @@ Website: **https://citusmail.fluminaris.com** · Download:
 > [Exactly what leaves your device](PRIVACY.md)
 
 <p align="center">
-  <img src="docs/screenshots/readme_desktop.png" alt="Citusmail on the desktop: the Smart Inbox with Pinned, Verification (a sign-in code shown in the list), Important and General sections" width="68%">
+  <img src="docs/screenshots/readme_desktop.png" alt="Citusmail on the desktop: the Smart Inbox with Pinned, Verification (a sign-in code shown in the list), Important and General sections, and the sidebar with Notification settings and All features at the bottom" width="68%">
   &nbsp;
   <img src="docs/screenshots/readme_phone.png" alt="Citusmail on a phone: the same Smart Inbox" width="24%">
 </p>
@@ -53,7 +53,7 @@ Website: **https://citusmail.fluminaris.com** · Download:
   with a search that knows your words ("dark mode", "PIN", "spam"); each
   feature's options where you use it; a short tip the first time a
   feature could help; "What's new" after an update; and every feature in
-  one place under Tools, All features.
+  one place, All features, always at the bottom of the sidebar.
 - **Locked down**: encrypted storage, passwords in the system keychain,
   app lock with PIN or fingerprint, end-to-end encrypted sync between
   your devices (your blocked senders, rules and sign-offs, and how the app
@@ -78,7 +78,7 @@ Website: **https://citusmail.fluminaris.com** · Download:
 <tr>
 <td align="center" width="25%"><img src="docs/screenshots/readme_invitation.png" alt="A meeting invitation: the date in your time zone, with Accept, Maybe and Decline"><br><sub>Meeting invitations</sub></td>
 <td align="center" width="25%"><img src="docs/screenshots/readme_phone_reader.png" alt="A scam from a real, verified address, with a red warning that lists why"><br><sub>Phishing warnings that explain</sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/readme_phone_compose.png" alt="Writing on a phone, with Send at the bottom"><br><sub>Writing, with Send in thumb reach</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/readme_phone_compose.png" alt="Writing on a phone, with a sign-off to add and Send at the bottom"><br><sub>Writing, with Send in thumb reach</sub></td>
 <td align="center" width="25%"><img src="docs/screenshots/readme_phone_settings.png" alt="Settings on a phone: a search, then groups such as Notifications, Inbox, Privacy"><br><sub>Settings by task, with search</sub></td>
 </tr>
 </table>

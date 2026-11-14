@@ -8,15 +8,17 @@ import 'package:mail_store/mail_store.dart';
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
+import 'app_icons.dart';
 import 'citusmail_theme.dart';
 import 'features.dart';
 
 /// The app's version, as in app/pubspec.yaml (a test checks they agree).
-const appVersion = '0.5.11';
+const appVersion = '0.5.12';
 
 /// What a version brought that people can see, newest first: feature ids
 /// from [Features]. Only features that shipped.
 const releaseNotes = <({String version, List<String> features})>[
+  (version: '0.5.12', features: ['deviceSync']),
   (version: '0.5.11', features: ['signOffs']),
   (version: '0.5.10', features: ['pairing']),
   // The 0.5 highlights, for the first start after updating to a version
@@ -127,7 +129,7 @@ final class _WhatsNewCardState extends State<WhatsNewCard> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.auto_awesome_outlined, color: colors.primary),
+                  Icon(AppIcons.whatsNew, color: colors.primary),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -137,7 +139,7 @@ final class _WhatsNewCardState extends State<WhatsNewCard> {
                   ),
                   IconButton(
                     tooltip: 'Close What\'s new',
-                    icon: const Icon(Icons.close, size: 18),
+                    icon: const Icon(AppIcons.close, size: 18),
                     onPressed: _close,
                   ),
                 ],

@@ -120,13 +120,20 @@ void main() {
       await tester.tap(find.textContaining('more'));
       await tester.pumpAndSettle();
       expect(find.text('What\'s new'), findsOneWidget);
-      expect(find.widgetWithText(ListTile, 'Snooze'), findsOneWidget);
-      await tester.tap(
-        find.descendant(
-          of: find.widgetWithText(ListTile, 'Snooze'),
-          matching: find.text('Show me'),
-        ),
+      // The list grows with each version: Snooze may be further down.
+      await tester.scrollUntilVisible(
+        find.widgetWithText(ListTile, 'Snooze'),
+        120,
+        scrollable: find.byType(Scrollable).last,
       );
+      expect(find.widgetWithText(ListTile, 'Snooze'), findsOneWidget);
+      final showSnooze = find.descendant(
+        of: find.widgetWithText(ListTile, 'Snooze'),
+        matching: find.text('Show me'),
+      );
+      await tester.ensureVisible(showSnooze);
+      await tester.pumpAndSettle();
+      await tester.tap(showSnooze);
       await tester.pumpAndSettle();
       expect(find.text('Nothing is snoozed.'), findsOneWidget);
       expect(find.text('New in Citusmail'), findsNothing);

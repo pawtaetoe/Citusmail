@@ -185,7 +185,7 @@ abstract final class Features {
     Feature(
       id: 'newSinceAway',
       group: FeatureGroup.inbox,
-      icon: Icons.waving_hand_outlined,
+      icon: AppIcons.newSinceAway,
       title: 'New since you were away',
       sentence: 'Mail that came while you were away, together at the top.',
       open: (context, c) => _setting(context, c, 'newSinceAway'),
@@ -211,7 +211,7 @@ abstract final class Features {
     Feature(
       id: 'unsubscribe',
       group: FeatureGroup.inbox,
-      icon: Icons.unsubscribe_outlined,
+      icon: AppIcons.unsubscribe,
       title: 'Unsubscribe in one tap',
       sentence:
           'Newsletters get an Unsubscribe button at the top; '
@@ -222,7 +222,7 @@ abstract final class Features {
     Feature(
       id: 'codes',
       group: FeatureGroup.inbox,
-      icon: Icons.password,
+      icon: AppIcons.codes,
       title: 'Verification codes',
       sentence:
           'Codes show in the list, ready to copy; old ones can tidy '
@@ -258,7 +258,7 @@ abstract final class Features {
     Feature(
       id: 'signOffs',
       group: FeatureGroup.writing,
-      icon: signOffIcon,
+      icon: AppIcons.signOff,
       title: 'Sign-offs',
       sentence:
           'Several endings for your emails, a default per account, and a '
@@ -269,7 +269,7 @@ abstract final class Features {
     Feature(
       id: 'images',
       group: FeatureGroup.privacy,
-      icon: Icons.image_outlined,
+      icon: AppIcons.image,
       title: 'Images and trackers blocked',
       sentence:
           'Pictures from the web wait until you load them; choose senders '
@@ -297,7 +297,7 @@ abstract final class Features {
     Feature(
       id: 'scamWarnings',
       group: FeatureGroup.privacy,
-      icon: Icons.gpp_maybe_outlined,
+      icon: AppIcons.scam,
       title: 'Scam warnings',
       sentence:
           'Emails that pretend to be someone else, and risky links and '
@@ -307,7 +307,7 @@ abstract final class Features {
     Feature(
       id: 'notifications',
       group: FeatureGroup.devices,
-      icon: Icons.notifications_outlined,
+      icon: AppIcons.notifications,
       title: 'Notifications and reminders',
       sentence:
           'New mail, bills and trials ending, and replies you are '
@@ -317,7 +317,7 @@ abstract final class Features {
     Feature(
       id: 'instantMail',
       group: FeatureGroup.devices,
-      icon: Icons.bolt_outlined,
+      icon: AppIcons.instantMail,
       title: 'Instant mail',
       sentence: 'New mail at once, also while your phone sleeps.',
       open: (context, c) => _setting(context, c, 'instantMail'),
@@ -326,7 +326,7 @@ abstract final class Features {
     Feature(
       id: 'pairing',
       group: FeatureGroup.devices,
-      icon: Icons.qr_code_2,
+      icon: AppIcons.pairing,
       title: 'Add accounts from your phone',
       sentence:
           'Scan a code with your phone to sign in on your computer, '
@@ -336,11 +336,11 @@ abstract final class Features {
     Feature(
       id: 'deviceSync',
       group: FeatureGroup.devices,
-      icon: Icons.devices_outlined,
+      icon: AppIcons.devices,
       title: 'Sync between devices',
       sentence:
-          'Blocked senders, Screener choices and snoozes, the same on all '
-          'your devices.',
+          'Blocked senders, Screener choices, snoozes, sign-offs and how '
+          'your mail is handled, the same on all your devices.',
       open: (context, c) => _setting(context, c, 'deviceSync'),
     ),
   ];

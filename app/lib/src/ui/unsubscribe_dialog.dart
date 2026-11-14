@@ -236,7 +236,7 @@ final class UnsubscribeStatus extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            Icons.unsubscribe_outlined,
+            AppIcons.unsubscribe,
             size: 16,
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -259,7 +259,7 @@ final class UnsubscribeStatus extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           padding: const EdgeInsets.symmetric(horizontal: 8),
         ),
-        icon: const Icon(Icons.unsubscribe_outlined, size: 18),
+        icon: const Icon(AppIcons.unsubscribe, size: 18),
         label: const Text('Unsubscribe'),
         onPressed: () => UnsubscribeDialog.show(context, controller, reader),
       ),

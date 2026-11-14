@@ -153,7 +153,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
                     color: colors.surfaceContainerHigh,
                     child: ListTile(
                       leading: Icon(
-                        change.up ? Icons.trending_up : Icons.trending_down,
+                        change.up ? AppIcons.priceUp : AppIcons.priceDown,
                       ),
                       title: Text(
                         'Price went ${change.up ? 'up' : 'down'} from '
@@ -210,7 +210,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => Navigator.pop(context, true),
-                    icon: const Icon(Icons.visibility_off_outlined, size: 18),
+                    icon: const Icon(AppIcons.hide, size: 18),
                     label: const Text('Not a subscription'),
                   ),
                 ),
@@ -247,9 +247,9 @@ final class SubscriptionDetailPage extends StatelessWidget {
   }
 
   static IconData _icon(SubscriptionEvent e) => switch (e) {
-    SubscriptionEvent.charge => Icons.receipt_long_outlined,
-    SubscriptionEvent.trial => Icons.hourglass_top,
-    SubscriptionEvent.cancelled => Icons.cancel_outlined,
+    SubscriptionEvent.charge => AppIcons.bill,
+    SubscriptionEvent.trial => AppIcons.trial,
+    SubscriptionEvent.cancelled => AppIcons.cancelled,
     SubscriptionEvent.notice => AppIcons.mail,
   };
 

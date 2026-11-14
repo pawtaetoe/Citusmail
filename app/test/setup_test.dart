@@ -7,6 +7,7 @@ import 'package:citusmail/src/services/app_services.dart';
 import 'package:citusmail/src/services/secret_store.dart';
 import 'package:citusmail/src/setup/setup_controller.dart';
 import 'package:citusmail/src/setup/setup_page.dart';
+import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
@@ -498,6 +499,43 @@ void main() {
       );
       expect(field.obscureText, isTrue);
       expect(field.enableSuggestions, isFalse);
+    });
+
+    testWidgets('setup fields use the app\'s standard input style', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final theme = CitusmailTheme.light();
+      final s = Script();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: SetupPage(controller: s.controller, onDone: (_) {}),
+        ),
+      );
+      void expectThemeBorders() {
+        final decorators = tester.widgetList<InputDecorator>(
+          find.byType(InputDecorator),
+        );
+        expect(decorators, isNotEmpty);
+        for (final d in decorators) {
+          // A per-field border would replace the theme's rounded, borderless
+          // fill with a heavier hairline box.
+          expect(
+            d.decoration.border,
+            theme.inputDecorationTheme.border,
+            reason: d.decoration.labelText,
+          );
+        }
+      }
+
+      expectThemeBorders();
+      s.controller.editSettings();
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextFormField, 'Server'), findsWidgets);
+      expectThemeBorders();
     });
   });
 

@@ -479,7 +479,7 @@ final class _SelectionBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Select all shown',
-            icon: const Icon(Icons.select_all),
+            icon: const Icon(AppIcons.selectAll),
             onPressed: controller.selectAllVisible,
           ),
           IconButton(
@@ -1075,7 +1075,7 @@ final class _OutboxTile extends StatelessWidget {
         failed
             ? AppIcons.problem
             : waiting
-            ? Icons.schedule
+            ? AppIcons.time
             : AppIcons.sendLater,
         color: failed ? theme.colorScheme.error : theme.colorScheme.primary,
       ),
@@ -1158,7 +1158,7 @@ final class _ScheduledMenu extends StatelessWidget {
       PopupMenuItem(
         value: _ScheduledAction.changeTime,
         child: ListTile(
-          leading: Icon(Icons.schedule),
+          leading: Icon(AppIcons.time),
           title: Text('Change time'),
         ),
       ),
@@ -1173,7 +1173,7 @@ final class _ScheduledMenu extends StatelessWidget {
       PopupMenuItem(
         value: _ScheduledAction.cancel,
         child: ListTile(
-          leading: Icon(Icons.cancel_schedule_send_outlined),
+          leading: Icon(AppIcons.cancelSend),
           title: Text('Cancel sending'),
           subtitle: Text('Moves it to Drafts'),
         ),
@@ -1201,7 +1201,7 @@ final class _SendLaterNote extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            Icons.info_outline,
+            AppIcons.info,
             size: 20,
             color: theme.colorScheme.onSurfaceVariant,
           ),

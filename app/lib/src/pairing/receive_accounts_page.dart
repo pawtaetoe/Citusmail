@@ -15,6 +15,7 @@ import '../services/app_services.dart';
 import '../setup/new_setup.dart';
 import '../setup/setup_controller.dart';
 import '../setup/setup_page.dart';
+import '../ui/app_icons.dart';
 import 'account_export.dart';
 import 'account_import.dart';
 import 'qr_code.dart';
@@ -372,7 +373,7 @@ final class _ReceiveAccountsPageState extends State<ReceiveAccountsPage> {
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
             onPressed: _openFile,
-            icon: const Icon(Icons.file_open_outlined),
+            icon: const Icon(AppIcons.openFile),
             label: const Text('Open a file from your phone'),
           ),
         ),

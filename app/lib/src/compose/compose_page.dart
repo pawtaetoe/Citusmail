@@ -561,7 +561,11 @@ final class _SignOffBlock extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(signOffIcon, size: 16, color: colors.onSurfaceVariant),
+                Icon(
+                  AppIcons.signOff,
+                  size: 16,
+                  color: colors.onSurfaceVariant,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   label,
@@ -569,7 +573,7 @@ final class _SignOffBlock extends StatelessWidget {
                     color: colors.onSurfaceVariant,
                   ),
                 ),
-                Icon(Icons.arrow_drop_down, color: colors.onSurfaceVariant),
+                Icon(AppIcons.dropDown, color: colors.onSurfaceVariant),
               ],
             ),
           ),

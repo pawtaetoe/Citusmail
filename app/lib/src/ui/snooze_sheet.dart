@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import '../mail/snooze_times.dart';
+import 'app_icons.dart';
 
 /// "Snooze until…": ready-made times with the actual time next to each,
 /// and "Pick date & time". A bottom sheet on phones, a small dialog on
@@ -94,11 +95,11 @@ final class _SnoozePanel extends StatelessWidget {
   final DateTime? current;
 
   static IconData _icon(SnoozeChoiceKind kind) => switch (kind) {
-    SnoozeChoiceKind.laterToday => Icons.schedule,
-    SnoozeChoiceKind.tonight => Icons.nights_stay_outlined,
-    SnoozeChoiceKind.tomorrow => Icons.wb_sunny_outlined,
-    SnoozeChoiceKind.weekend => Icons.weekend_outlined,
-    SnoozeChoiceKind.nextWeek => Icons.date_range_outlined,
+    SnoozeChoiceKind.laterToday => AppIcons.time,
+    SnoozeChoiceKind.tonight => AppIcons.tonight,
+    SnoozeChoiceKind.tomorrow => AppIcons.morning,
+    SnoozeChoiceKind.weekend => AppIcons.weekend,
+    SnoozeChoiceKind.nextWeek => AppIcons.week,
   };
 
   @override
@@ -145,7 +146,7 @@ final class _SnoozePanel extends StatelessWidget {
         ListTile(
           key: const ValueKey('snooze-pick'),
           contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-          leading: const Icon(Icons.edit_calendar_outlined),
+          leading: const Icon(AppIcons.pickTime),
           title: const Text('Pick date & time'),
           onTap: () => _pickDateTime(context),
         ),

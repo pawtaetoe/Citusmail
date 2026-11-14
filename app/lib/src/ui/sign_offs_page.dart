@@ -6,12 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../services/app_services.dart';
+import 'app_icons.dart';
 import 'citusmail_theme.dart';
 import 'empty_state.dart';
 import 'page_scaffold.dart';
-
-/// The icon for sign-offs (Settings, the compose window).
-const signOffIcon = Icons.draw_outlined;
 
 /// What the sign-off editor returns.
 typedef WrittenSignOff = ({
@@ -288,7 +286,7 @@ final class _SignOffsPageState extends State<SignOffsPage> {
         title: 'Sign-offs',
         boundBody: true,
         body: EmptyState(
-          icon: signOffIcon,
+          icon: AppIcons.signOff,
           text: 'No sign-offs yet',
           hint:
               'A sign-off ends your emails, like a signature: "Best '
@@ -323,9 +321,9 @@ final class _SignOffsPageState extends State<SignOffsPage> {
             leading: list.length > 1
                 ? ReorderableDragStartListener(
                     index: i,
-                    child: const Icon(Icons.drag_handle),
+                    child: const Icon(AppIcons.dragHandle),
                   )
-                : const Icon(signOffIcon),
+                : const Icon(AppIcons.signOff),
             title: Text(s.name),
             subtitle: Text(
               s.block,
@@ -356,7 +354,7 @@ final class _SignOffsPageState extends State<SignOffsPage> {
                 alignment: AlignmentDirectional.centerStart,
                 child: FilledButton.tonalIcon(
                   onPressed: _add,
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(AppIcons.add),
                   label: const Text('Add a sign-off'),
                 ),
               ),

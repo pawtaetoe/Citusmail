@@ -315,7 +315,7 @@ final class _Controls extends StatelessWidget {
           onSelected: (_) => model.filter = f,
         ),
       FilterChip(
-        avatar: model.peopleOnly ? null : const Icon(Icons.person_outline),
+        avatar: model.peopleOnly ? null : const Icon(AppIcons.person),
         label: const Text('From people'),
         tooltip: 'Leave out newsletters and notifications',
         selected: model.peopleOnly,
@@ -551,27 +551,18 @@ abstract final class KindStyle {
     final dark = Theme.of(context).brightness == Brightness.dark;
     Color pick(int light, int night) => Color(dark ? night : light);
     return switch (kind) {
-      FileKind.pdf => (
-        pick(0xFFD0453A, 0xFFF08A80),
-        Icons.picture_as_pdf_outlined,
-      ),
-      FileKind.image => (pick(0xFF8A55C0, 0xFFC4A0EA), Icons.image_outlined),
-      FileKind.document => (
-        pick(0xFF3F67C8, 0xFF8FAEF0),
-        Icons.description_outlined,
-      ),
+      FileKind.pdf => (pick(0xFFD0453A, 0xFFF08A80), AppIcons.pdf),
+      FileKind.image => (pick(0xFF8A55C0, 0xFFC4A0EA), AppIcons.image),
+      FileKind.document => (pick(0xFF3F67C8, 0xFF8FAEF0), AppIcons.document),
       FileKind.spreadsheet => (
         pick(0xFF1F8A55, 0xFF7ED0A2),
-        Icons.table_chart_outlined,
+        AppIcons.spreadsheet,
       ),
-      FileKind.archive => (
-        pick(0xFFA06A12, 0xFFE0B060),
-        Icons.folder_zip_outlined,
-      ),
-      FileKind.calendar => (pick(0xFF00897B, 0xFF6CCFC2), Icons.event_outlined),
+      FileKind.archive => (pick(0xFFA06A12, 0xFFE0B060), AppIcons.zip),
+      FileKind.calendar => (pick(0xFF00897B, 0xFF6CCFC2), AppIcons.event),
       FileKind.other => (
         Theme.of(context).colorScheme.onSurfaceVariant,
-        Icons.insert_drive_file_outlined,
+        AppIcons.file,
       ),
     };
   }

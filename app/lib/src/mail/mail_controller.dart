@@ -1397,6 +1397,19 @@ final class MailController {
   List<WaitingSender> waitingSenders({int? accountId}) => _store.screener
       .waiting(accountIds: accountId == null ? null : [accountId]);
 
+  /// Whether [m] comes from someone the Screener would hold back if it
+  /// were on: the only email on the device from them, someone the user
+  /// never wrote to, and not one of the user's own addresses. False while
+  /// the Screener is on (it decides then).
+  bool isFirstTimeSender(StoredMessage m) {
+    if (_store.screener.enabled) return false;
+    final from = m.from?.address.toLowerCase();
+    if (from == null || from.isEmpty) return false;
+    if (ownAddresses.any((a) => a.toLowerCase() == from)) return false;
+    return _store.messages.sortableFrom(from, limit: 2).length <= 1 &&
+        !_store.messages.hasWrittenTo(from);
+  }
+
   /// The domain "everyone at …" choices offer for [address]: a company's
   /// own domain, never a free mail provider's or the user's own.
   String? screenerDomain(String address) {

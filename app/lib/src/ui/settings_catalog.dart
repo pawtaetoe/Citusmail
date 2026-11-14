@@ -61,7 +61,7 @@ abstract final class SettingsCatalog {
       title: 'Notifications & checking mail',
       shortTitle: 'Notifications',
       description: 'What you are told about, and how quickly mail arrives',
-      icon: Icons.notifications_outlined,
+      icon: AppIcons.notifications,
     ),
     SettingsSection(
       id: 'inbox',
@@ -79,31 +79,31 @@ abstract final class SettingsCatalog {
       id: 'accounts',
       title: 'Accounts',
       description: 'Your email addresses, and how much mail is kept',
-      icon: Icons.alternate_email,
+      icon: AppIcons.account,
     ),
     SettingsSection(
       id: 'privacy',
       title: 'Privacy & security',
       description: 'App lock, images from the web, blocked senders',
-      icon: Icons.shield_outlined,
+      icon: AppIcons.privacy,
     ),
     SettingsSection(
       id: 'devices',
       title: 'Devices & sync',
       description: 'Your phone and computers, kept the same',
-      icon: Icons.devices_outlined,
+      icon: AppIcons.devices,
     ),
     SettingsSection(
       id: 'appearance',
       title: 'Appearance',
       description: 'Light or dark',
-      icon: Icons.palette_outlined,
+      icon: AppIcons.appearance,
     ),
     SettingsSection(
       id: 'about',
       title: 'Help & about',
       description: 'All features, tips, privacy, and more options',
-      icon: Icons.help_outline,
+      icon: AppIcons.help,
     ),
   ];
 

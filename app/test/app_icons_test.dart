@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:io';
+
 import 'package:citusmail/src/ui/app_icons.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:citusmail/src/ui/mail_shell.dart';
@@ -25,6 +27,37 @@ void main() {
     expect(AppIcons.receiptOn, Icons.mark_email_read);
     expect(AppIcons.remindOff, Icons.alarm_off_outlined);
     expect(AppIcons.reminder, Icons.alarm_outlined);
+    expect(AppIcons.flight, Icons.flight_outlined);
+    expect(AppIcons.event, Icons.event_outlined);
+    expect(AppIcons.showPassword, Icons.visibility_outlined);
+    expect(AppIcons.answerYes, Icons.check_circle_outline);
+    expect(AppIcons.answeredYes, Icons.check_circle);
+  });
+
+  test('pages take their icons from AppIcons, not Icons directly', () {
+    // Every glyph goes through AppIcons, so one concept keeps one icon
+    // and the outlined style holds. Add a name there rather than an
+    // exception here.
+    final direct = RegExp(r'(?<![A-Za-z_])Icons\.[a-z_0-9]+');
+    final found = <String>[];
+    for (final file in Directory('lib').listSync(recursive: true)) {
+      if (file is! File || !file.path.endsWith('.dart')) continue;
+      if (file.path.endsWith('app_icons.dart')) continue;
+      final lines = file.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        for (final m in direct.allMatches(lines[i])) {
+          found.add('${file.path}:${i + 1} ${m[0]}');
+        }
+      }
+    }
+    expect(found, isEmpty);
+  });
+
+  test('a page means the same thing with the same icon', () {
+    expect(AppIcons.screener, AppIcons.unblock);
+    expect(AppIcons.trips, Icons.luggage_outlined);
+    expect(AppIcons.notifications, Icons.notifications_outlined);
+    expect(AppIcons.appointments, AppIcons.addToCalendar);
   });
 
   test('a Smart Inbox section uses the same icon as its place', () {

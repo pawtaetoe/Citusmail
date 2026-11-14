@@ -317,6 +317,20 @@ final class Sidebar extends StatelessWidget {
                       CheckingMailSheet.show(context, controller);
                     },
                   ),
+                  // Always in view, not inside a folded group, so
+                  // everything the app does is one tap away.
+                  _Entry(
+                    icon: AppIcons.allFeatures,
+                    label: 'All features',
+                    onTap: () {
+                      onNavigated?.call();
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DiscoverPage(controller: controller),
+                        ),
+                      );
+                    },
+                  ),
                   _Entry(
                     icon: AppIcons.addAccount,
                     label: 'Add account',
@@ -382,11 +396,6 @@ final class Sidebar extends StatelessWidget {
             services: controller.services,
             onShowMail: controller.search,
           ),
-        ),
-        (
-          icon: Icons.explore_outlined,
-          label: 'All features',
-          page: (_) => DiscoverPage(controller: controller),
         ),
       ],
     ),
@@ -1114,7 +1123,7 @@ final class _SyncSummary extends StatelessWidget {
     return Tooltip(
       message: 'Notifications and checking mail',
       child: _Entry(
-        icon: Icons.notifications_outlined,
+        icon: AppIcons.notifications,
         label: 'Notification settings',
         detail: status,
         detailColor: failed.length > 1 ? colors.problem : null,

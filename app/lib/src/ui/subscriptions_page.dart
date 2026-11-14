@@ -584,7 +584,7 @@ final class _ReadOffer extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.receipt_long_outlined),
+                const Icon(AppIcons.bill),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -794,11 +794,11 @@ final class _ReminderTile extends StatelessWidget {
     final days = r.daysFrom(now);
     final amount = r.amount;
     final (IconData icon, String what) = switch (r.kind) {
-      ReminderKind.billDue => (Icons.receipt_long_outlined, 'Bill'),
+      ReminderKind.billDue => (AppIcons.bill, 'Bill'),
       ReminderKind.trialEnds => (AppIcons.noReply, 'Free trial'),
       ReminderKind.renewal => (AppIcons.subscriptions, 'Renewal'),
-      ReminderKind.returnBy => (Icons.keyboard_return, 'Return'),
-      ReminderKind.appointment => (Icons.event_outlined, 'Appointment'),
+      ReminderKind.returnBy => (AppIcons.returns, 'Return'),
+      ReminderKind.appointment => (AppIcons.appointments, 'Appointment'),
     };
     final overdue = days < 0;
     return Card(

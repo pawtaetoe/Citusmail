@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
+import 'app_icons.dart';
 
 /// Asks how to block a message's sender.
 final class BlockDialog extends StatefulWidget {
@@ -156,8 +157,8 @@ final class _BlockedSendersPageState extends State<BlockedSendersPage> {
                   ListTile(
                     leading: Icon(
                       block.kind == BlockKind.domain
-                          ? Icons.domain_disabled_outlined
-                          : Icons.person_off_outlined,
+                          ? AppIcons.blockDomain
+                          : AppIcons.blockSender,
                     ),
                     title: Text(
                       block.kind == BlockKind.domain

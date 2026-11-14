@@ -61,12 +61,12 @@ final class InvitationCard extends StatelessWidget {
     final scam = reader.trust.level == TrustLevel.danger;
 
     final (IconData kindIcon, String kind) = cancelled
-        ? (Icons.event_busy, 'This event was cancelled')
+        ? (AppIcons.eventCancelled, 'This event was cancelled')
         : isReply
-        ? (Icons.event_available, 'Answer to your invitation')
+        ? (AppIcons.eventReply, 'Answer to your invitation')
         : invite.method == CalendarMethod.request
-        ? (Icons.event, 'Invitation')
-        : (Icons.event, 'Event');
+        ? (AppIcons.event, 'Invitation')
+        : (AppIcons.event, 'Event');
     final kindColor = cancelled ? colors.error : colors.primary;
     final location = invite.location;
     final link = invite.meetingLink;
@@ -108,15 +108,15 @@ final class InvitationCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             _Line(
-              icon: Icons.schedule,
+              icon: AppIcons.time,
               text: when.when(invite),
               notes: [?when.recurrence(invite), ?when.zoneNote(invite)],
             ),
             if (location != null && location != link?.toString())
-              _Line(icon: Icons.place_outlined, text: location),
+              _Line(icon: AppIcons.place, text: location),
             if (!isReply)
               if (_people(me) case final people?)
-                _Line(icon: Icons.people_outline, text: people),
+                _Line(icon: AppIcons.people, text: people),
             if (isReply)
               for (final guest in invite.attendees.take(5))
                 _Line(
@@ -169,7 +169,7 @@ final class InvitationCard extends StatelessWidget {
                       trust: reader.trust,
                       safety: controller.services.linkSafety.check,
                     ),
-                    icon: const Icon(Icons.videocam_outlined, size: 18),
+                    icon: const Icon(AppIcons.videoCall, size: 18),
                     label: Text(switch (MeetingLinks.service(link)) {
                       final name? => 'Join on $name',
                       null => 'Join online meeting',
@@ -178,7 +178,7 @@ final class InvitationCard extends StatelessWidget {
                 if (!isReply && CalendarFiles.canOpen)
                   TextButton.icon(
                     onPressed: () => _openInCalendar(context),
-                    icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                    icon: const Icon(AppIcons.openInCalendar, size: 18),
                     label: Text(
                       cancelled
                           ? 'Remove in calendar app'
@@ -232,9 +232,9 @@ final class InvitationCard extends StatelessWidget {
   }
 
   static IconData _answerIcon(CalendarAnswer? answer) => switch (answer) {
-    CalendarAnswer.accepted => Icons.check_circle_outline,
-    CalendarAnswer.declined => Icons.cancel_outlined,
-    _ => Icons.help_outline,
+    CalendarAnswer.accepted => AppIcons.answerYes,
+    CalendarAnswer.declined => AppIcons.answerNo,
+    _ => AppIcons.answerMaybe,
   };
 
   String? _comment() {
@@ -345,16 +345,16 @@ final class _YourAnswer extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final (icon, label, color) = switch (answer) {
       CalendarAnswer.accepted => (
-        Icons.check_circle,
+        AppIcons.answeredYes,
         'You accepted',
         CitusmailTheme.accent,
       ),
       CalendarAnswer.tentative => (
-        Icons.help,
+        AppIcons.answeredMaybe,
         'You said maybe',
         colors.onSurfaceVariant,
       ),
-      _ => (Icons.cancel, 'You declined', colors.error),
+      _ => (AppIcons.answeredNo, 'You declined', colors.error),
     };
     return Row(
       children: [
@@ -410,7 +410,7 @@ final class _AnswerButtons extends StatelessWidget {
       ];
       final note = TextButton.icon(
         onPressed: onNote,
-        icon: const Icon(Icons.edit_note, size: 18),
+        icon: const Icon(AppIcons.note, size: 18),
         label: const Text('Add a note'),
       );
       if (narrow) {

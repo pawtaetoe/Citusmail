@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../services/app_services.dart';
 import '../services/auto_reader.dart';
+import 'app_icons.dart';
 
 /// For a page whose emails are read ahead of time ([AutoReader], "Read
 /// receipts and bookings automatically"): emails it still wants are read
@@ -72,7 +73,7 @@ final class ReadingQuietly extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
       child: Row(
         children: [
-          Icon(Icons.downloading_outlined, size: 16, color: color),
+          Icon(AppIcons.downloading, size: 16, color: color),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

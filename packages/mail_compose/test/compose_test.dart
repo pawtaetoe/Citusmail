@@ -925,6 +925,117 @@ void main() {
       expect(short, isNot(reopened.signOff));
     });
 
+    group('a draft opens again with the sign-off it was saved with', () {
+      var uid = 10;
+      Draft roundTrip(Draft draft) {
+        final built = const OutgoingMessages().forDraftsFolder(draft, alice);
+        store.messages.upsertSummaries(drafts.id, [
+          MessageSummary(
+            uid: ++uid,
+            receivedAt: DateTime.utc(2026),
+            messageId: built.messageId,
+            flags: MessageFlags.fromImap([r'\Draft']),
+          ),
+        ]);
+        return DraftStore(
+          store,
+        ).fromDraftsFolder(store.messages.byUid(drafts.id, uid)!, built.bytes);
+      }
+
+      Draft reply({SignOff? signOff}) {
+        final (message, view) = received();
+        final r = ReplyBuilder(store).reply(message, view);
+        return signOff == null
+            ? r.copyWith(body: 'Yes!', clearSignOff: true)
+            : r.copyWith(body: 'Yes!', signOff: signOff);
+      }
+
+      test('a saved one', () {
+        final draft = reply(signOff: work);
+        final reopened = roundTrip(draft);
+        expect(reopened.body, 'Yes!');
+        expect(reopened.signOff, work);
+        expect(reopened.quote, draft.quote);
+        expect(reopened.text, draft.text);
+      });
+
+      test('one for this email only', () {
+        final oneOff = SignOff.oneOff(
+          text: 'Thanks so much,\nTommy',
+          separator: true,
+        );
+        final draft = reply(signOff: oneOff);
+        final reopened = roundTrip(draft);
+        expect(reopened.body, 'Yes!');
+        expect(reopened.signOff, oneOff);
+        expect(reopened.signOff!.isSaved, isFalse);
+        expect(reopened.quote, draft.quote);
+        expect(reopened.text, draft.text);
+      });
+
+      test('none, even with a sign-off\'s words typed in', () {
+        final draft = Draft(
+          accountId: alice.id,
+          to: [a('bob@x.example')],
+          body: 'Yes!\n\nBest regards,\nTommy Kung\nFluminaris',
+        );
+        final reopened = roundTrip(draft);
+        expect(reopened.signOff, isNull);
+        expect(reopened.body.trimRight(), draft.body);
+      });
+
+      test('a saved one changed since stays as it was in the draft', () {
+        final draft = reply(signOff: work);
+        store.signOffs.update(work.copyWith(text: 'Best,\nTommy'));
+        final reopened = roundTrip(draft);
+        expect(reopened.body, 'Yes!');
+        expect(reopened.signOff!.text, work.text);
+        expect(reopened.text, draft.text);
+      });
+
+      test('the note is never on the message sent', () {
+        final oneOff = SignOff.oneOff(text: 'T.');
+        final reopened = roundTrip(
+          reply(signOff: oneOff).copyWith(to: [a('bob@x.example')]),
+        );
+        final built = const OutgoingMessages().forSending(reopened, alice);
+        final raw = latin1.decode(built.bytes).toLowerCase();
+        expect(raw, isNot(contains('x-citusmail')));
+        expect(
+          MessageView.parse(built.bytes).message.textBody!.decodeText().text,
+          contains('Yes!\n\nT.\n\n'),
+        );
+        // The Drafts copy has it.
+        final kept = const OutgoingMessages().forDraftsFolder(reopened, alice);
+        expect(latin1.decode(kept.bytes), contains('X-Citusmail-Sign-off: '));
+      });
+
+      test('a draft without the note (older, or another app\'s): by text', () {
+        final draft = reply(signOff: work);
+        final built = MessageBuilder().build(
+          OutgoingMessage(
+            from: OutgoingMessages.sender(alice),
+            subject: draft.subject,
+            textBody: draft.text,
+          ),
+          draft: true,
+        );
+        store.messages.upsertSummaries(drafts.id, [
+          MessageSummary(
+            uid: 99,
+            receivedAt: DateTime.utc(2026),
+            messageId: built.messageId,
+            flags: MessageFlags.fromImap([r'\Draft']),
+          ),
+        ]);
+        final reopened = DraftStore(
+          store,
+        ).fromDraftsFolder(store.messages.byUid(drafts.id, 99)!, built.bytes);
+        expect(reopened.body, 'Yes!');
+        expect(reopened.signOff, work);
+      });
+    });
+
     test('splitting finds a sign-off only on lines of its own', () {
       final known = [work];
       // In the middle of a sentence it is just text.

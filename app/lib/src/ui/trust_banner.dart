@@ -5,6 +5,8 @@
 import 'package:flutter/material.dart';
 import 'package:mail_trust/mail_trust.dart';
 
+import 'app_icons.dart';
+
 /// Colours and icons for warnings: red for danger, amber for caution.
 final class TrustStyle {
   const TrustStyle._(this.background, this.foreground, this.icon);
@@ -16,12 +18,12 @@ final class TrustStyle {
       TrustLevel.danger => TrustStyle._(
         theme.colorScheme.errorContainer,
         theme.colorScheme.onErrorContainer,
-        Icons.gpp_bad_outlined,
+        AppIcons.untrusted,
       ),
       TrustLevel.caution || TrustLevel.ok => TrustStyle._(
         dark ? const Color(0xFF3D2E0A) : const Color(0xFFFFF1CC),
         dark ? const Color(0xFFFFDFA0) : const Color(0xFF5C3B00),
-        Icons.warning_amber_rounded,
+        AppIcons.warning,
       ),
     };
   }

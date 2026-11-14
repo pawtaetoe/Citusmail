@@ -14,6 +14,7 @@ import '../app.dart' show appName;
 import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/app_services.dart';
+import '../ui/app_icons.dart';
 import 'account_export.dart';
 import 'pairing_share.dart';
 import 'qr_scanner.dart';
@@ -319,7 +320,7 @@ final class _SendAccountsPageState extends State<SendAccountsPage> {
     padding: const EdgeInsets.all(16),
     children: [
       Icon(
-        Icons.wifi_off_outlined,
+        AppIcons.noNetwork,
         size: 40,
         color: Theme.of(context).colorScheme.error,
       ),
@@ -478,7 +479,7 @@ final class _SendAccountsPageState extends State<SendAccountsPage> {
     padding: const EdgeInsets.all(16),
     children: [
       Icon(
-        Icons.file_present_outlined,
+        AppIcons.pairingFile,
         size: 40,
         color: Theme.of(context).colorScheme.primary,
       ),
@@ -513,23 +514,19 @@ final class ResultTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final (icon, color, text) = switch (result.outcome) {
-      TransferOutcome.added => (
-        Icons.check_circle_outline,
-        colors.primary,
-        'Added',
-      ),
+      TransferOutcome.added => (AppIcons.success, colors.primary, 'Added'),
       TransferOutcome.alreadyThere => (
-        Icons.check_circle_outline,
+        AppIcons.success,
         colors.onSurfaceVariant,
         'Already on the computer',
       ),
       TransferOutcome.signInOnComputer => (
-        Icons.login,
+        AppIcons.signIn,
         colors.tertiary,
         'Sign in on the computer to finish',
       ),
       TransferOutcome.failed => (
-        Icons.error_outline,
+        AppIcons.problem,
         colors.error,
         result.detail ?? 'Couldn\'t be added',
       ),
