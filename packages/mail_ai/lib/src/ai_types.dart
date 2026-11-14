@@ -56,6 +56,13 @@ enum AiProviderKind {
     null => null,
   };
 
+  /// The model chosen first when this provider is added, if its models
+  /// list offers it (null: the first model the list names).
+  String? get defaultModel => switch (this) {
+    claude => 'claude-opus-5-5',
+    openai || llama || custom => null,
+  };
+
   /// The stored name, stable across versions.
   String get id => name;
 

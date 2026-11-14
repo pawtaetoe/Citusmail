@@ -393,6 +393,23 @@ abstract final class SettingsCatalog {
         'ai',
       ],
     ),
+    SettingEntry(
+      'aiLimit',
+      'ai',
+      'AI monthly limit',
+      words: [
+        'limit',
+        'cap',
+        'cost',
+        'spend',
+        'spending',
+        'usage',
+        'tokens',
+        'price',
+        'budget',
+        'ai',
+      ],
+    ),
     // Appearance.
     SettingEntry(
       'theme',
