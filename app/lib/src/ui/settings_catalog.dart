@@ -375,6 +375,23 @@ abstract final class SettingsCatalog {
       words: ['summarise', 'summarize', 'summary', 'ai', 'tl;dr', 'tldr'],
     ),
     SettingEntry(
+      'aiLimit',
+      'ai',
+      'AI monthly limit',
+      words: [
+        'limit',
+        'cap',
+        'cost',
+        'spend',
+        'spending',
+        'usage',
+        'tokens',
+        'price',
+        'budget',
+        'ai',
+      ],
+    ),
+    SettingEntry(
       'ai-sorting',
       'ai',
       'Sorting backup',
