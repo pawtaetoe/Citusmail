@@ -83,7 +83,8 @@ void main() {
     );
     expect(summaries.value, isFalse);
     expect(summaries.onChanged, isNull);
-    expect(find.text('Add a provider and key first, above.'), findsOneWidget);
+    // Under every feature's switch.
+    expect(find.text('Add a provider and key first, above.'), findsWidgets);
     expect(find.text('Nothing used this month.'), findsOneWidget);
     expect(find.text('No limit'), findsOneWidget);
     expect(made, isEmpty);

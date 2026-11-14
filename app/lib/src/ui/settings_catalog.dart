@@ -392,6 +392,26 @@ abstract final class SettingsCatalog {
         'ai',
       ],
     ),
+    SettingEntry(
+      'ai-writing',
+      'ai',
+      'Writing help',
+      words: [
+        'write with ai',
+        'writing',
+        'draft',
+        'reply',
+        'rewrite',
+        'shorter',
+        'friendlier',
+        'formal',
+        'tone',
+        'spelling',
+        'grammar',
+        'translate',
+        'ai',
+      ],
+    ),
     // Appearance.
     SettingEntry(
       'theme',
