@@ -10,6 +10,7 @@ import 'authentication_results.dart';
 import 'brands.dart';
 import 'content_signals.dart';
 import 'domains.dart';
+import 'link_wrappers.dart';
 import 'links.dart';
 import 'trust_report.dart';
 
@@ -248,7 +249,9 @@ final class _Check {
     }
   }
 
-  static LinkVerdict? _checkLink(Uri link, String? shownText) {
+  static LinkVerdict? _checkLink(Uri wrapped, String? shownText) {
+    // Where it really goes, under any link protection the provider added.
+    final link = LinkWrappers.unwrap(wrapped);
     if (link.scheme != 'http' && link.scheme != 'https') return null;
     final host = _decoded(link.host);
     if (host.isEmpty) return null;
@@ -306,7 +309,7 @@ final class _Check {
         );
       }
     }
-    return reasons.isEmpty ? null : LinkVerdict(link, level, reasons);
+    return reasons.isEmpty ? null : LinkVerdict(wrapped, level, reasons);
   }
 
   /// Percent-decoded (Dart's Uri encodes non-ASCII hosts); as written if
