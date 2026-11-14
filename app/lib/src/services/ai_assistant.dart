@@ -82,8 +82,16 @@ final class AiAssistant {
   /// Turns [featureId] on or off.
   void setOn(String featureId, bool on) {
     features.setOn(featureId, on);
+    if (!on) _whenOff[featureId]?.call();
     _changed();
   }
+
+  final _whenOff = <String, VoidCallback>{};
+
+  /// Runs [forget] when [featureId] is turned off: a feature forgets
+  /// what it kept from the provider (summaries, say).
+  void whenTurnedOff(String featureId, VoidCallback forget) =>
+      _whenOff[featureId] = forget;
 
   /// The provider and model [featureId] uses, or null when the feature
   /// is off or nothing is set up for it (or its key is gone).
