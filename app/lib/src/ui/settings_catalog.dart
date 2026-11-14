@@ -457,6 +457,22 @@ abstract final class SettingsCatalog {
         'actions',
       ],
     ),
+    SettingEntry(
+      'ai-sorting',
+      'ai',
+      'Sorting backup',
+      words: [
+        'sorting',
+        'sort',
+        'categories',
+        'sections',
+        'ai',
+        'classify',
+        'notifications',
+        'newsletters',
+        'verification',
+      ],
+    ),
     // Appearance.
     SettingEntry(
       'theme',

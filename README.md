@@ -26,6 +26,9 @@ Website: **https://citusmail.fluminaris.com** · Download:
   General, Notifications and Newsletters, with what came while you were
   away on top. Sign-in codes show in the list,
   copied with a tap, and in the notification.
+- **AI sorting backup** (optional, off by default, with your own AI key):
+  new mail the sorting rules can't place is sorted by the assistant, and
+  the email says why; "Not right?" puts it back where you want it.
 - **Finds things in your mail for you**: subscriptions and what they cost,
   bills and trials coming up, deliveries, return-by dates, trips,
   appointments and the online accounts you have.

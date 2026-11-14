@@ -169,6 +169,22 @@ final class AiFeatures {
         'text',
   );
 
+  /// A backup for the sorting rules: new mail they have no signal for
+  /// gets a category from the assistant (with a reason the reader shows).
+  static const sorting = AiFeature(
+    id: 'sorting',
+    title: 'Sorting backup',
+    sentence:
+        'New mail the sorting rules can\'t place is sorted by the assistant '
+        'into Verification, Notifications or Newsletters, and the email '
+        'says why.',
+    sends:
+        'for new mail the rules can\'t place (at most a few each time mail '
+        'is checked, never mail from people you write to): the sender, the '
+        'subject, the first 1,500 characters of the text and whether it '
+        'comes from a mailing list; never attachments',
+  );
+
   /// Every feature, in the order Settings shows them.
   static const all = <AiFeature>[
     summaries,
@@ -177,6 +193,7 @@ final class AiFeatures {
     translate,
     quickReplies,
     ask,
+    sorting,
   ];
 
   static AiFeature? byId(String id) => all.where((f) => f.id == id).firstOrNull;

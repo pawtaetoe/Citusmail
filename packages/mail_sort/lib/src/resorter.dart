@@ -4,6 +4,7 @@
 
 import 'package:mail_store/mail_store.dart';
 
+import 'ai_sorting.dart';
 import 'classification.dart';
 import 'header_rule_classifier.dart';
 import 'learned_classifier.dart';
@@ -12,7 +13,8 @@ import 'verification_codes.dart';
 
 /// Re-sorts stored mail from its stored headers when the rules change
 /// (and once after upgrading from a version without sorting). Nothing is
-/// downloaded.
+/// downloaded. A message the optional AI sorter placed keeps its place
+/// while the rules stay unsure about it ([AiSortLog]).
 final class Resorter {
   /// By default the same sorting as sync: the header rules plus what each
   /// sender's other mail shows.
@@ -60,6 +62,7 @@ final class Resorter {
     final version = '${classifier.version}';
     var afterId = _resumeAfter(version);
     var count = 0;
+    final ai = AiSortLog(_store).applied();
     while (true) {
       if (stopped?.call() ?? false) return count;
       // Reading and writing in one transaction keeps each batch atomic.
@@ -70,7 +73,7 @@ final class Resorter {
         );
         if (batch.isEmpty) return null;
         _store.messages.updateCategories([
-          for (final message in batch) decide(message),
+          for (final message in batch) decide(message, ai: ai),
         ]);
         count += batch.length;
         _store.settings.write(progressKey, '$version:${batch.last.id}');
@@ -92,9 +95,13 @@ final class Resorter {
     return int.tryParse(saved[1]) ?? 0;
   }
 
-  /// The decision for one stored message.
-  CategoryDecision decide(SortableMessage message) {
-    final decision = classifier.classify(
+  /// The decision for one stored message: the rules', or, while they
+  /// are unsure, the AI sorter's in [ai] (by message id).
+  CategoryDecision decide(
+    SortableMessage message, {
+    Map<int, AiSortEntry> ai = const {},
+  }) {
+    var decision = classifier.classify(
       ClassificationInput(
         from: message.from,
         headers: message.headers,
@@ -103,6 +110,16 @@ final class Resorter {
         snippet: message.snippet,
       ),
     );
+    if (decision.unsure) {
+      if (ai[message.id] case AiSortEntry(:final category?, :final outcome)) {
+        decision = Classification(
+          category,
+          outcome == AiSortOutcome.corrected
+              ? SortingReason.userChoice
+              : SortingReason.ai,
+        );
+      }
+    }
     return CategoryDecision(
       messageId: message.id,
       category: decision.category,

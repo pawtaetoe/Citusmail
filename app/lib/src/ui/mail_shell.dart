@@ -102,6 +102,7 @@ final class _MailShellState extends State<MailShell> {
     unawaited(widget.services.worker.start().catchError((Object _) {}));
     widget.services.linkSafety.start();
     widget.services.autoRead.start(widget.services.worker.events);
+    widget.services.aiSort.start(widget.services.worker.events);
     if (widget.notifications) {
       unawaited(_startNotifications());
       unawaited(_startBackground());
@@ -114,6 +115,7 @@ final class _MailShellState extends State<MailShell> {
     _lifecycle.dispose();
     widget.services.linkSafety.stop();
     widget.services.autoRead.stop();
+    widget.services.aiSort.stop();
     _controller.dispose();
     _searchFocus.dispose();
     _shellFocus.dispose();

@@ -27,6 +27,7 @@ no analytics, no crash reporting and no advertising.
 | Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, Screener decisions, snoozed emails (which message, by its Message-ID, and when it comes back), unsubscribes, folder rules, image senders, your sign-offs with each account's choice of them, and your mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off), end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
 | Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
+| The AI provider you choose (your own key): "Sorting backup" | Only with "Sorting backup" turned on and agreed to, after new mail comes: only new inbox mail (less than a day old) the sorting rules can't place, each email once, at most the number you set each time (20 by default); never mail from people you write to | For each such email: the sender, the subject, the first 1,500 characters of its text and whether it comes from a mailing list. Never attachments and never other mail. Your key goes with it. The answer can only choose the email's section |
 | VirusTotal (your own API key) | Only with "Ask VirusTotal" turned on, and only when you tap "Check with VirusTotal" on an attachment or link the on-device checks flagged | For a file, its SHA-256 fingerprint only (the file is never uploaded); for a link, the address. Your key goes with it. VirusTotal keeps what it is asked and sees your IP address |
 | The AI provider you choose, with your own key (Anthropic for Claude, OpenAI for GPT, Meta for Muse, Google for Gemini, or an OpenAI-compatible address you enter, such as a model on your own computer) | Only after you add your key and turn a feature on, it asks once before the first time, and then only when you use the feature (Summarise, Translate, Suggest replies) | What the feature needs and nothing else. Summaries: the email or conversation you ask about (senders, recipients, dates, subjects, the text, and the names of attached files, never the files), and your key. Translate and Quick replies: only the one email you tap them on (its sender, subject and text, no attachments); a suggested reply is only sent if you send it yourself. "Test key" sends only your key, to list the models. The provider's own terms and privacy policy apply to what it receives, and it sees your IP address |
 | The AI provider you chose (your own key): writing help | Only with "Writing help" turned on (it asks first), and only when you tap "Write with AI" and choose a draft or rewrite | For a drafted reply: the email you are answering (its sender, recipients, date, subject and text) and your one-line instruction; for a rewrite: only the text you wrote. Your name goes with it; never the recipients, sign-off, attachments or any other mail. Your key goes with it |
@@ -117,6 +118,14 @@ it receives; some keep requests for a while, for example to check for
 abuse. Google's free tier for Gemini may use what it receives to
 improve Google's products; a paid Gemini key, or another provider, avoids
 that. A model on your own computer or network keeps it all with you.
+
+"Sorting backup" is the one feature that works by itself: once you turn
+it on and agree, after new mail comes it sends, for each new inbox email
+the sorting rules can't place (less than a day old, each once, never
+mail from people you write to), only its sender, subject, the first
+1,500 characters of its text and whether it comes from a mailing list.
+The answer can only choose that email's section. What was decided is
+kept on the device, so no email is sent twice.
 
 Your keys are kept in the system keychain and never synced; Settings
 shows only their last four characters. Summaries are kept on the

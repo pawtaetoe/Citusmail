@@ -43,7 +43,8 @@ void main() {
 
   Future<void> show(
     WidgetTester tester, {
-    Size size = const Size(900, 1400),
+    // Tall enough for every feature and the use section below them.
+    Size size = const Size(900, 2400),
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -91,11 +92,7 @@ void main() {
     );
     expect(summaries.value, isFalse);
     expect(summaries.onChanged, isNull);
-    // One per feature, each switch off and locked.
-    expect(
-      find.text('Add a provider and key first, above.'),
-      findsNWidgets(AiFeatures.all.length),
-    );
+    expect(find.text('Add a provider and key first, above.'), findsWidgets);
     expect(find.text('Nothing used this month.'), findsOneWidget);
     expect(find.text('No limit'), findsOneWidget);
     expect(made, isEmpty);

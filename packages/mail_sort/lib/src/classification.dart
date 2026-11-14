@@ -49,7 +49,8 @@ final class ClassificationInput {
 }
 
 /// Why a message got its category. Kept for tests and for explaining a
-/// decision to the user; not stored.
+/// decision to the user; not stored (an [ai] decision is remembered by
+/// `AiSortLog`).
 enum SortingReason {
   ownMail,
   knownService,
@@ -66,7 +67,18 @@ enum SortingReason {
   /// The sender's other mail is clearly sorted this way (learned on the
   /// device, see `LearnedClassifier`).
   sameSender,
+
+  /// Nothing to go on: General by default. The one decision the rules are
+  /// unsure about ([Classification.unsure]).
   noSignal,
+
+  /// The rules were unsure, and the optional AI assistant (with the
+  /// user's own key, off by default) sorted it (see `AiSortLog`).
+  ai,
+
+  /// The user chose where this message, or the sender's mail, belongs
+  /// when they corrected the AI sorter (see `SenderSortChoices`).
+  userChoice,
 }
 
 /// A classifier's decision.
@@ -81,6 +93,12 @@ final class Classification {
   final SortingReason reason;
 
   final CategorySource source;
+
+  /// Whether the rules had nothing to go on ([SortingReason.noSignal]):
+  /// the message is in General only by default. Every other decision
+  /// rests on a signal (a header, the sender, the subject, the sender's
+  /// other mail). Only these may be offered to the optional AI sorter.
+  bool get unsure => reason == SortingReason.noSignal;
 
   @override
   String toString() => 'Classification(${category.name}, ${reason.name})';

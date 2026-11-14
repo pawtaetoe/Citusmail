@@ -716,6 +716,29 @@ void main() {
     await shoot(tester, 'phone_settings');
   });
 
+  // The AI sorting backup: a sign-in email the rules couldn't place,
+  // sorted into Verification by the assistant, saying why; and its
+  // setting. A fake provider: nothing is sent.
+  testWidgets('ai sorting', (tester) async {
+    await _seedAiSorting(app);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await tester.tap(find.text('Security Notice').first);
+    await shoot(tester, 'desktop_ai_sorting');
+
+    await tester.pumpWidget(const SizedBox());
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await tester.tap(find.text('Security Notice').first);
+    await shoot(tester, 'phone_ai_sorting_dark');
+
+    await tester.pumpWidget(const SizedBox());
+    await show(
+      tester,
+      AiSettingsPage(ai: app.services.ai),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'phone_ai_sorting_setting');
+  });
+
   // The AI assistant with your own key: its settings, and a summary in
   // the reader (a made-up provider; nothing is sent anywhere).
   // SCREEN_OUT=<dir> flutter test screenshots/screens_test.dart --plain-name 'ai assistant'
@@ -2161,6 +2184,58 @@ void _seedOldCodes(MailStore store) {
     code('wingtip.example', 'Wingtip Toys', 'Your one-time code', 75),
     code('northwind.example', 'Northwind Bank', 'Your sign-in code', 98),
   ]);
+}
+
+/// A made-up broker's sign-in email, as the AI sorting backup leaves
+/// it: in Verification with its code, and why.
+Future<void> _seedAiSorting(TestApp app) async {
+  final store = app.store;
+  final ai = app.services.ai;
+  await ai.saveProvider(
+    AiProviderKind.claude,
+    key: 'not-a-real-key',
+    model: 'example-model',
+  );
+  ai.setOn(AiFeatures.sorting.id, true);
+  (await ai.providerFor(AiFeatures.sorting.id))?.confirm();
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  store.messages.upsertSummaries(inbox.id, [
+    MessageSummary(
+      uid: 900,
+      receivedAt: DateTime.now().toUtc().subtract(const Duration(minutes: 4)),
+      subject: 'Security Notice',
+      from: const MailAddress(
+        localPart: 'security',
+        domain: 'northwind-trading.example',
+        displayName: 'Northwind Trading',
+      ),
+      category: MessageCategory.codes,
+      code: '482913',
+    ),
+  ]);
+  final notice = store.messages.byUid(inbox.id, 900)!;
+  store.messages.saveBody(
+    notice.id,
+    utf8.encode(
+      'Subject: Security Notice\r\nContent-Type: text/plain\r\n\r\n'
+      'Dear client,\r\n\r\nSomeone signed in to your account from a new '
+      'device. If this was you, verify this log in with the code '
+      'below.\r\n\r\nYour security code: 482913\r\n',
+    ),
+    searchableText: 'Someone signed in to your account from a new device.',
+  );
+  AiSortLog(store).add(
+    AiSortEntry(
+      messageId: notice.id,
+      outcome: AiSortOutcome.applied,
+      at: DateTime.now(),
+      category: MessageCategory.codes,
+      reason: 'A request to verify a new log in, with a security code.',
+      verification: true,
+      by: 'Anthropic',
+      sender: 'security@northwind-trading.example',
+    ),
+  );
 }
 
 /// Made-up receipts for the Subscriptions screen.

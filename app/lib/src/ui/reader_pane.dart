@@ -18,6 +18,7 @@ import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/summaries.dart';
 import 'ai_quick_replies.dart';
+import 'ai_sort_notice.dart';
 import 'ai_translate.dart';
 import 'app_icons.dart';
 import 'attachment_save_flow.dart';
@@ -287,6 +288,7 @@ final class _Header extends StatelessWidget {
         ),
       if (controller.followUpFor(message) case final f?)
         _FollowUpNotice(controller: controller, message: message, followUp: f),
+      AiSortNotice(controller: controller, message: message),
       ...switch (reader) {
         ReaderLoading() => [
           const Padding(

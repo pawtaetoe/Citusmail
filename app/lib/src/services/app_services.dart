@@ -23,6 +23,7 @@ import '../mail/summaries.dart';
 import '../security/app_lock.dart';
 import '../security/pin_hasher.dart';
 import 'ai_assistant.dart';
+import 'ai_sorter.dart';
 import 'app_settings.dart';
 import 'auto_reader.dart';
 import 'device_sync.dart';
@@ -82,9 +83,11 @@ final class AppServices {
       replies = ReplyBuilder(store),
       settings = AppSettings(store),
       summaries = MessageSummaries(store, ai, loadBody: worker.loadBody),
-      autoRead = AutoReader(store, worker.loadBodyInBackground) {
+      autoRead = AutoReader(store, worker.loadBodyInBackground),
+      aiSort = AiSorter(store, ai, worker.loadBodyInBackground) {
     // Summaries are forgotten when the user turns them off.
     ai.whenTurnedOff(AiFeatures.summaries.id, summaries.forgetAll);
+    aiSort.onSorted = () => resorted.value++;
     // Preferences synced from the user's other devices show at once.
     _syncEvents = worker.events.listen((event) {
       if (event is AccountSynced) {
@@ -143,6 +146,10 @@ final class AppServices {
   /// Receipts, bills and booking emails read ahead of time for the pages
   /// (started by the mail screen).
   final AutoReader autoRead;
+
+  /// The AI assistant's "Sorting backup" (off by default; started by the
+  /// mail screen): new mail the rules can't place, sorted after a sync.
+  final AiSorter aiSort;
 
   /// Changes when stored mail was sorted again ([resortWhenIdle]): the
   /// lists and counts are read again.
@@ -270,6 +277,7 @@ final class AppServices {
   Future<void> _close() async {
     await _syncEvents.cancel();
     autoRead.stop();
+    aiSort.stop();
     lock.dispose();
     await worker.close();
     store.close();
