@@ -104,7 +104,7 @@ final class AiFeatures {
     title: 'Translate',
     sentence:
         'Read an email in your own language: offered when one seems to be '
-        'in another, and shown next to the original.',
+        'in another, with the original a tap away.',
     sends:
         'the email you translate: its sender, subject and text (not its '
         'attachments)',
