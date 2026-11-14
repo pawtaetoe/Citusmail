@@ -11,7 +11,8 @@ import '../transport/ai_http.dart';
 import 'http_errors.dart';
 import 'sse.dart';
 
-/// GPT (OpenAI), Meta's Llama API and any custom endpoint, through the
+/// GPT (OpenAI), Meta's Muse models (Meta Model API) and any custom
+/// endpoint, through the
 /// OpenAI Chat Completions shape that all of them speak:
 ///
 /// - `POST {base}/chat/completions` with `Authorization: Bearer <key>`
@@ -304,8 +305,9 @@ final class OpenAiDialect {
     chatModelsOnly: true,
   );
 
-  /// Meta's Llama API names the limit `max_completion_tokens`.
-  static const llama = OpenAiDialect(maxTokensField: 'max_completion_tokens');
+  /// The Meta Model API follows OpenAI's current Chat Completions:
+  /// `max_completion_tokens`.
+  static const meta = OpenAiDialect(maxTokensField: 'max_completion_tokens');
 
   /// Other endpoints (Ollama, LM Studio, OpenRouter, Groq, Together):
   /// `max_tokens`, which they all accept.
@@ -313,7 +315,7 @@ final class OpenAiDialect {
 
   static OpenAiDialect of(AiProviderKind kind) => switch (kind) {
     AiProviderKind.openai => openai,
-    AiProviderKind.llama => llama,
+    AiProviderKind.meta => meta,
     _ => custom,
   };
 

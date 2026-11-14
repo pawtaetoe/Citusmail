@@ -45,6 +45,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_ai/mail_ai.dart';
+import 'package:mail_ai/testing.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_pairing/mail_pairing.dart';
 import 'package:mail_protocol/mail_protocol.dart';
@@ -108,7 +109,9 @@ void main() {
   late TestApp app;
 
   setUpAll(_loadFonts);
-  setUp(() async => app = await TestApp.create());
+  // A made-up AI provider, for the scenes that set the assistant up.
+  var aiFake = FakeAiProvider();
+  setUp(() async => app = await TestApp.create(aiProviders: (_) => aiFake));
   tearDown(() => app.dispose());
 
   final boundary = GlobalKey();
@@ -624,6 +627,92 @@ void main() {
     );
     await shoot(tester, 'phone_ai_sorting_setting');
   });
+
+  // The AI assistant with your own key: its settings, and a summary in
+  // the reader (a made-up provider; nothing is sent anywhere).
+  // SCREEN_OUT=<dir> flutter test screenshots/screens_test.dart --plain-name 'ai assistant'
+  for (final dark in [false, true]) {
+    final suffix = dark ? '_dark' : '';
+    testWidgets('ai assistant$suffix', (tester) async {
+      aiFake = FakeAiProvider(
+        fallback: const FakeAiReply(
+          'Summary: Stranger Danger introduces a deal and wants a quick '
+          'answer.\n'
+          'Key points:\n'
+          '- They found your address on a public list\n'
+          '- The offer includes a free trial month\n'
+          'Dates:\n'
+          '- Friday 24 October: the offer ends\n'
+          'Amounts:\n'
+          '- \$19.99 a month after the trial\n'
+          'Asked of you:\n'
+          '- Reply by Friday if you are interested',
+          usage: AiUsage(inputTokens: 1840, outputTokens: 160),
+        ),
+      );
+      final ai = app;
+      final assistant = ai.services.ai;
+      await assistant.saveProvider(
+        AiProviderKind.claude,
+        key: 'sk-ant-api03-example-7f2c',
+        model: AiProviderKind.claude.defaultModel,
+      );
+      assistant
+        ..setOn(AiFeatures.summaries.id, true)
+        ..setMonthlyCap(5);
+      for (var i = 0; i < 23; i++) {
+        assistant.ledger.record(
+          AiProviderKind.claude,
+          AiProviderKind.claude.defaultModel!,
+          const AiUsage(inputTokens: 2100, outputTokens: 180),
+        );
+      }
+
+      await show(
+        tester,
+        AiSettingsPage(ai: assistant, summaries: ai.services.summaries),
+        size: const Size(390, 1500),
+        dark: dark,
+      );
+      await shoot(tester, 'phone_ai_settings$suffix');
+
+      await show(
+        tester,
+        MailShell(
+          notifications: false,
+          services: ai.services,
+          onAddAccount: () {},
+          onAccountsChanged: () {},
+        ),
+        size: const Size(1440, 900),
+        dark: dark,
+      );
+      await tester.tap(find.text('Hello there'));
+      await settle(tester);
+      await tester.tap(find.byTooltip('Summarise'));
+      await settle(tester);
+      await shoot(tester, 'desktop_ai_confirm$suffix');
+      await tester.tap(find.byKey(const ValueKey('ai-confirm-send')));
+      await settle(tester);
+      await shoot(tester, 'desktop_ai_summary$suffix');
+
+      await show(
+        tester,
+        MailShell(
+          notifications: false,
+          services: ai.services,
+          onAddAccount: () {},
+          onAccountsChanged: () {},
+        ),
+        size: const Size(390, 844),
+        dark: dark,
+      );
+      await tester.tap(find.text('Hello there'));
+      await settle(tester);
+      // The kept summary shows at once, without asking again.
+      await shoot(tester, 'phone_ai_summary$suffix');
+    });
+  }
 
   // Sync between devices: what syncs and what stays on each device.
   testWidgets('device sync', (tester) async {
@@ -1791,6 +1880,7 @@ Future<void> _seedAiSorting(TestApp app) async {
     model: 'example-model',
   );
   ai.setOn(AiFeatures.sorting.id, true);
+  (await ai.providerFor(AiFeatures.sorting.id))?.confirm();
   final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
   store.messages.upsertSummaries(inbox.id, [
     MessageSummary(
