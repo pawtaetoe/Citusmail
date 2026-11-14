@@ -614,6 +614,66 @@ final class MessageRepository {
         .toList(growable: false);
   }
 
+  /// The conversation [message] is in, oldest first: in its account, the
+  /// messages it answers (by In-Reply-To and References), those that
+  /// answer it or the same earlier messages, and [message] itself; each
+  /// message once (not its copies in other folders), nothing from Trash
+  /// or Junk but [message], and at most the [limit] newest.
+  List<StoredMessage> conversation(StoredMessage message, {int limit = 20}) {
+    final ids = {
+      ?message.messageId,
+      ?message.inReplyTo,
+      ...message.references.where((r) => r.isNotEmpty),
+    }.toList();
+    if (ids.isEmpty) return [message];
+    final marks = _placeholders(ids.length);
+    final rows = _db.select(
+      'SELECT $_columns $_from WHERE b.account_id = ? AND $_notACopy '
+      "AND (m.id = ? OR b.special_use IS NULL OR b.special_use NOT IN ('trash', 'junk')) "
+      'AND (m.id = ? OR m.message_id_header IN ($marks) OR m.in_reply_to IN ($marks) '
+      'OR m.id IN (SELECT message_id FROM message_references WHERE ref IN ($marks))) '
+      'ORDER BY coalesce(m.sent_at, m.received_at) DESC, m.id DESC LIMIT ?',
+      [
+        message.accountId,
+        message.id,
+        message.id,
+        ...ids,
+        ...ids,
+        ...ids,
+        (limit * 2).clamp(1, 1000),
+      ],
+    );
+    final seen = <String>{};
+    final found = <StoredMessage>[];
+    for (final row in rows) {
+      final m = _fromRow(row);
+      final key = m.messageId ?? 'id:${m.id}';
+      if (m.id != message.id && !seen.add(key)) continue;
+      seen.add(key);
+      found.add(m);
+    }
+    // [message] itself always stays, also when its copy came first.
+    found.removeWhere(
+      (m) =>
+          m.id != message.id &&
+          m.messageId != null &&
+          m.messageId == message.messageId,
+    );
+    if (!found.any((m) => m.id == message.id)) found.add(message);
+    final newest = found.take(limit).toList();
+    if (!newest.any((m) => m.id == message.id)) {
+      newest
+        ..removeLast()
+        ..add(message);
+    }
+    DateTime at(StoredMessage m) => m.sentAt ?? m.receivedAt;
+    newest.sort((a, b) {
+      final byTime = at(a).compareTo(at(b));
+      return byTime != 0 ? byTime : a.id.compareTo(b.id);
+    });
+    return newest;
+  }
+
   /// Stored headers of a message: lower-case name -> values.
   Map<String, List<String>> headers(int messageId) {
     final result = <String, List<String>>{};
