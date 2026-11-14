@@ -99,7 +99,7 @@ final class NewSinceAwayHeader extends SliverPersistentHeaderDelegate {
               SizedBox(
                 width: 36,
                 child: Icon(
-                  Icons.waving_hand_outlined,
+                  AppIcons.newSinceAway,
                   size: 18,
                   color: colors.primary,
                 ),

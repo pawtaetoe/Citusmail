@@ -11,6 +11,7 @@ import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../app.dart' show appName;
+import '../ui/app_icons.dart';
 import '../ui/citusmail_theme.dart';
 import '../ui/link_opener.dart';
 import 'setup_controller.dart';
@@ -274,7 +275,7 @@ class _SetupPageState extends State<SetupPage> {
                 child: OutlinedButton.icon(
                   key: const Key('add-from-phone'),
                   onPressed: fromPhone,
-                  icon: const Icon(Icons.qr_code_2),
+                  icon: const Icon(AppIcons.pairing),
                   label: const Text('Add accounts from your phone'),
                 ),
               ),
@@ -300,7 +301,7 @@ class _SetupPageState extends State<SetupPage> {
           actions: [
             IconButton(
               onPressed: widget.onCancel,
-              icon: const Icon(Icons.close),
+              icon: const Icon(AppIcons.close),
               tooltip: 'Cancel',
             ),
           ],
@@ -529,7 +530,9 @@ class _CredentialsFormState extends State<_CredentialsForm> {
                 suffixIcon: IconButton(
                   tooltip: _showPassword ? 'Hide password' : 'Show password',
                   icon: Icon(
-                    _showPassword ? Icons.visibility_off : Icons.visibility,
+                    _showPassword
+                        ? AppIcons.hidePassword
+                        : AppIcons.showPassword,
                   ),
                   onPressed: () =>
                       setState(() => _showPassword = !_showPassword),
@@ -549,7 +552,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   key: const Key('create-app-password'),
-                  icon: const Icon(Icons.open_in_new, size: 18),
+                  icon: const Icon(AppIcons.openExternal, size: 18),
                   label: Text(
                     'Create an app password '
                     '(${Uri.parse(known.appPasswordUrl!).host})',
@@ -597,7 +600,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
             const SizedBox(height: 12),
             OutlinedButton.icon(
               key: const Key('optional-sign-in'),
-              icon: const Icon(Icons.open_in_browser),
+              icon: const Icon(AppIcons.signInWithBrowser),
               label: Text('Sign in with ${_optional!.name} instead'),
               onPressed: () => _withProvider(widget.onOptionalOAuth),
             ),
@@ -713,7 +716,7 @@ class _OwnClientFormState extends State<_OwnClientForm> {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            icon: const Icon(Icons.open_in_new, size: 18),
+            icon: const Icon(AppIcons.openExternal, size: 18),
             label: Text(
               _google
                   ? 'Open Google Cloud (${_googleConsole.host})'
@@ -797,7 +800,7 @@ class _ServerSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
     contentPadding: EdgeInsets.zero,
-    leading: const Icon(Icons.dns_outlined),
+    leading: const Icon(AppIcons.server),
     title: Text('$label: ${server.host}'),
     subtitle: Text(
       'Port ${server.port} · ${SetupText.security(server.security)}',
@@ -825,7 +828,7 @@ class _Notice extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            warning ? Icons.warning_amber_rounded : Icons.info_outline,
+            warning ? AppIcons.warning : AppIcons.info,
             color: warning
                 ? scheme.onErrorContainer
                 : scheme.onSecondaryContainer,
@@ -873,7 +876,7 @@ class _ReviewSettings extends StatelessWidget {
       _ServerSummary(label: 'Outgoing (SMTP)', server: settings.smtp),
       ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.person_outline),
+        leading: const Icon(AppIcons.person),
         title: Text('User name: ${settings.username}'),
       ),
       const SizedBox(height: 16),
@@ -1160,12 +1163,9 @@ final class _Welcome extends StatelessWidget {
   final bool wide;
 
   static const promises = [
-    (Icons.shield_outlined, 'Blocks trackers and hides remote images'),
-    (
-      Icons.local_shipping_outlined,
-      'Finds deliveries, bills and trips in your mail',
-    ),
-    (Icons.lock_outline, 'Your password stays on this device'),
+    (AppIcons.privacy, 'Blocks trackers and hides remote images'),
+    (AppIcons.deliveries, 'Finds deliveries, bills and trips in your mail'),
+    (AppIcons.lock, 'Your password stays on this device'),
   ];
 
   @override

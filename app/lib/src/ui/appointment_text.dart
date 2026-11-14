@@ -16,16 +16,16 @@ import 'booking_text.dart';
 /// written (an appointment is where you are).
 abstract final class AppointmentWords {
   static IconData icon(AppointmentKind kind) => switch (kind) {
-    AppointmentKind.health => Icons.medical_services_outlined,
-    AppointmentKind.beauty => Icons.content_cut,
-    AppointmentKind.car => Icons.car_repair_outlined,
-    AppointmentKind.home => Icons.home_repair_service_outlined,
-    AppointmentKind.official => Icons.account_balance_outlined,
-    AppointmentKind.interview => Icons.work_outline,
-    AppointmentKind.school => Icons.school_outlined,
-    AppointmentKind.lesson => Icons.self_improvement_outlined,
+    AppointmentKind.health => AppIcons.health,
+    AppointmentKind.beauty => AppIcons.beauty,
+    AppointmentKind.car => AppIcons.carRepair,
+    AppointmentKind.home => AppIcons.homeRepair,
+    AppointmentKind.official => AppIcons.official,
+    AppointmentKind.interview => AppIcons.interview,
+    AppointmentKind.school => AppIcons.school,
+    AppointmentKind.lesson => AppIcons.lesson,
     AppointmentKind.delivery => AppIcons.deliveries,
-    AppointmentKind.other => Icons.event_outlined,
+    AppointmentKind.other => AppIcons.event,
   };
 
   /// [t] on this device's clock.

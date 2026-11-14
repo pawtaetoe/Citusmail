@@ -113,7 +113,7 @@ final class BookingDetailPage extends StatelessWidget {
           trailing: IconButton(
             tooltip: 'Copy booking reference',
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.copy, size: 18),
+            icon: const Icon(AppIcons.copy, size: 18),
             onPressed: () => _copy(context, reference, 'Booking reference'),
           ),
           onTap: () => _copy(context, reference, 'Booking reference'),
@@ -306,7 +306,7 @@ final class BookingDetailPage extends StatelessWidget {
                               FilledButton.tonalIcon(
                                 onPressed: () => _addToCalendar(context),
                                 icon: const Icon(
-                                  Icons.event_available_outlined,
+                                  AppIcons.addToCalendar,
                                   size: 18,
                                 ),
                                 label: const Text('Add to calendar'),
@@ -314,7 +314,10 @@ final class BookingDetailPage extends StatelessWidget {
                             if (url != null)
                               OutlinedButton.icon(
                                 onPressed: () => _openPage(context, url),
-                                icon: const Icon(Icons.open_in_new, size: 18),
+                                icon: const Icon(
+                                  AppIcons.openExternal,
+                                  size: 18,
+                                ),
                                 label: const Text('Manage booking'),
                               ),
                           ],
@@ -342,9 +345,9 @@ final class BookingDetailPage extends StatelessWidget {
                           key: ValueKey('booking-email-${r.email.messageId}'),
                           leading: Icon(
                             r.cancels
-                                ? Icons.event_busy_outlined
+                                ? AppIcons.eventCancelled
                                 : r.changes
-                                ? Icons.update
+                                ? AppIcons.eventChanged
                                 : AppIcons.mail,
                           ),
                           title: Text(
@@ -375,7 +378,7 @@ final class BookingDetailPage extends StatelessWidget {
                   child: TextButton.icon(
                     onPressed: () =>
                         Navigator.pop(context, BookingAction.notABooking),
-                    icon: const Icon(Icons.visibility_off_outlined, size: 18),
+                    icon: const Icon(AppIcons.hide, size: 18),
                     label: const Text('Not a booking'),
                   ),
                 ),

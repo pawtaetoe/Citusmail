@@ -153,13 +153,13 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
       child: Text(_what),
     ),
     ListTile(
-      leading: const Icon(Icons.add_circle_outline),
+      leading: const Icon(AppIcons.turnOn),
       title: const Text('Turn on'),
       subtitle: const Text('On your first device. You get a sync code.'),
       onTap: _start,
     ),
     ListTile(
-      leading: const Icon(Icons.vpn_key_outlined),
+      leading: const Icon(AppIcons.syncCode),
       title: const Text('I have a sync code'),
       subtitle: const Text('Join the sync your other device started.'),
       onTap: _join,
@@ -176,7 +176,7 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
       if (_shownCode case final code?) _CodeCard(code: code),
       ListTile(
         leading: Icon(
-          status?.problem == null ? AppIcons.sync : Icons.sync_problem,
+          status?.problem == null ? AppIcons.sync : AppIcons.syncProblem,
           color: status?.problem == null ? null : theme.colorScheme.error,
         ),
         title: const Text('Sync is on'),
@@ -212,13 +212,13 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
         ),
       if (_shownCode == null)
         ListTile(
-          leading: const Icon(Icons.vpn_key_outlined),
+          leading: const Icon(AppIcons.syncCode),
           title: const Text('Show the sync code'),
           subtitle: const Text('To add another device.'),
           onTap: _showCode,
         ),
       ListTile(
-        leading: const Icon(Icons.sync_disabled),
+        leading: const Icon(AppIcons.syncOff),
         title: const Text('Turn off on this device'),
         onTap: _stop,
       ),
@@ -422,7 +422,7 @@ final class DeviceSyncTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListTile(
-    leading: const Icon(Icons.devices_outlined),
+    leading: const Icon(AppIcons.devices),
     title: const Text('Sync between devices'),
     subtitle: const Text(
       'Blocked and screened senders, rules, sign-offs, mail settings',

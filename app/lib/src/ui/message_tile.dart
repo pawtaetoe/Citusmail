@@ -448,7 +448,7 @@ final class _CodeLine extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.copy, size: size, color: colors.primary),
+                Icon(AppIcons.copy, size: size, color: colors.primary),
               ],
             ),
           ),

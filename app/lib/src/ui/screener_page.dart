@@ -85,7 +85,7 @@ final class _ScreenerPageState extends State<ScreenerPage> {
       actions: [
         IconButton(
           tooltip: 'Screener options',
-          icon: const Icon(Icons.tune),
+          icon: const Icon(AppIcons.options),
           onPressed: () async {
             await ScreenerOptions.show(context, _c);
             if (mounted) setState(_load);
@@ -317,14 +317,14 @@ final class _MoreMenu extends StatelessWidget {
         PopupMenuItem(
           value: true,
           child: ListTile(
-            leading: const Icon(Icons.domain_verification_outlined),
+            leading: const Icon(AppIcons.allowDomain),
             title: Text('Let in everyone at $domain'),
           ),
         ),
         PopupMenuItem(
           value: false,
           child: ListTile(
-            leading: const Icon(Icons.domain_disabled_outlined),
+            leading: const Icon(AppIcons.blockDomain),
             title: Text('Screen out everyone at $domain'),
           ),
         ),
@@ -447,10 +447,8 @@ final class _ScreenedSendersPageState extends State<ScreenedSendersPage> {
       return ListTile(
         leading: Icon(
           domain
-              ? (isIn
-                    ? Icons.domain_verification_outlined
-                    : Icons.domain_disabled_outlined)
-              : (isIn ? AppIcons.screener : Icons.person_off_outlined),
+              ? (isIn ? AppIcons.allowDomain : AppIcons.blockDomain)
+              : (isIn ? AppIcons.screener : AppIcons.blockSender),
         ),
         title: Text(domain ? 'Everyone at ${s.value}' : s.value),
         subtitle: Text(

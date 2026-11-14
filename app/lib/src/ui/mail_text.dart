@@ -29,13 +29,13 @@ abstract final class MailText {
 
   static IconData sectionIcon(SmartSection section) => switch (section) {
     SmartSection.pinned => AppIcons.pins,
-    SmartSection.codes => Icons.password,
+    SmartSection.codes => AppIcons.codes,
     SmartSection.screener => AppIcons.screener,
     SmartSection.snoozed => AppIcons.snoozed,
-    SmartSection.important => Icons.label_important_outline,
+    SmartSection.important => AppIcons.important,
     SmartSection.general => AppIcons.mail,
-    SmartSection.notifications => Icons.notifications_none,
-    SmartSection.newsletters => Icons.rss_feed,
+    SmartSection.notifications => AppIcons.notifications,
+    SmartSection.newsletters => AppIcons.newsletters,
   };
 
   static Color sectionColor(SmartSection section, ColorScheme colors) =>
@@ -70,14 +70,14 @@ abstract final class MailText {
       ? AppIcons.inbox
       : switch (mailbox.specialUse) {
           SpecialUse.sent => AppIcons.sent,
-          SpecialUse.drafts => Icons.edit_note,
+          SpecialUse.drafts => AppIcons.drafts,
           SpecialUse.archive => AppIcons.archive,
           SpecialUse.trash => AppIcons.delete,
-          SpecialUse.junk => Icons.report_gmailerrorred,
-          SpecialUse.all => Icons.all_inbox_outlined,
-          SpecialUse.flagged => Icons.star_outline,
-          SpecialUse.important => Icons.label_important_outline,
-          null => Icons.folder_outlined,
+          SpecialUse.junk => AppIcons.junk,
+          SpecialUse.all => AppIcons.allMail,
+          SpecialUse.flagged => AppIcons.starred,
+          SpecialUse.important => AppIcons.important,
+          null => AppIcons.folder,
         };
 
   /// `INBOX.Projects.2026` -> `2026` (the tree shows the rest).

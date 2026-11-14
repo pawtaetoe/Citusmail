@@ -246,7 +246,7 @@ final class _Overview extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              Icons.event_available_outlined,
+              AppIcons.appointments,
               size: 32,
               color: theme.colorScheme.primary,
             ),
@@ -442,7 +442,7 @@ final class _ReadOffer extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.event_outlined),
+                const Icon(AppIcons.event),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -533,7 +533,7 @@ final class _Empty extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.event_outlined,
+            AppIcons.event,
             size: 40,
             color: theme.colorScheme.onSurfaceVariant,
           ),

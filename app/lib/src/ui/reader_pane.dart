@@ -323,7 +323,7 @@ final class _Header extends StatelessWidget {
             ),
           if (ready.view.body.truncated)
             const _Notice(
-              icon: Icons.content_cut,
+              icon: AppIcons.truncated,
               text: 'Part of this message was too large or complex to show.',
             ),
         ],
@@ -363,7 +363,7 @@ final class _Toolbar extends StatelessWidget {
       if (controller.isInJunk(message))
         _Action(
           'Not spam',
-          Icons.report_off_outlined,
+          AppIcons.notSpam,
           () => controller.notSpam([message]),
         ),
       if (archive != null && archive.id != message.mailboxId)
@@ -658,7 +658,7 @@ final class _OriginalDialog extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: 'Copy',
-                      icon: const Icon(Icons.copy),
+                      icon: const Icon(AppIcons.copy),
                       onPressed: () async {
                         final messenger = ScaffoldMessenger.maybeOf(context);
                         await Clipboard.setData(ClipboardData(text: text));
@@ -852,7 +852,7 @@ final class _PrivacyNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.shield_outlined, size: 20, color: colors.primary),
+          Icon(AppIcons.privacy, size: 20, color: colors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

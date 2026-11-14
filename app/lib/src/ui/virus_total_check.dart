@@ -5,6 +5,8 @@
 import 'package:flutter/material.dart';
 import 'package:mail_lookup/mail_lookup.dart';
 
+import 'app_icons.dart';
+
 /// "Check with VirusTotal" in a warning dialog: asks only when tapped,
 /// then says what VirusTotal knows.
 class VirusTotalCheck extends StatefulWidget {
@@ -81,7 +83,7 @@ class _VirusTotalCheckState extends State<VirusTotalCheck> {
               ),
             )
           : TextButton.icon(
-              icon: const Icon(Icons.policy_outlined, size: 18),
+              icon: const Icon(AppIcons.virusTotal, size: 18),
               label: const Text('Check with VirusTotal'),
               onPressed: _check,
             ),

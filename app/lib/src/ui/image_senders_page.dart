@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../services/app_services.dart';
+import 'app_icons.dart';
 import 'page_scaffold.dart';
 
 /// Settings > Images: the senders whose images load without asking.
@@ -50,7 +51,7 @@ final class _ImageSendersPageState extends State<ImageSendersPage> {
             ),
           for (final sender in senders)
             ListTile(
-              leading: const Icon(Icons.image_outlined),
+              leading: const Icon(AppIcons.image),
               title: Text(sender.address),
               trailing: TextButton(
                 onPressed: () {

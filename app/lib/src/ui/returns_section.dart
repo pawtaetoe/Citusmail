@@ -8,6 +8,7 @@ import 'package:mail_sort/mail_sort.dart';
 import '../mail/deliveries_model.dart';
 import '../mail/mail_controller.dart';
 import '../services/reminders.dart' show ReminderWords;
+import 'app_icons.dart';
 import 'avatar.dart';
 import 'subscription_detail_page.dart' show EmailPage;
 
@@ -258,12 +259,12 @@ final class ReturnTile extends StatelessWidget {
               children: [
                 TextButton.icon(
                   onPressed: onReturned,
-                  icon: const Icon(Icons.keyboard_return, size: 18),
+                  icon: const Icon(AppIcons.returns, size: 18),
                   label: const Text('Returned'),
                 ),
                 TextButton.icon(
                   onPressed: onKeep,
-                  icon: const Icon(Icons.check, size: 18),
+                  icon: const Icon(AppIcons.done, size: 18),
                   label: const Text('Keeping it'),
                 ),
               ],

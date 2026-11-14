@@ -7,6 +7,8 @@ import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_view/mail_view.dart';
 
+import 'app_icons.dart';
+
 /// How bookings and trips read on the Trips pages. Times are the clock
 /// times at the place, as the booking gives them.
 abstract final class BookingText {
@@ -27,13 +29,13 @@ abstract final class BookingText {
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   static IconData icon(ReservationKind kind) => switch (kind) {
-    ReservationKind.flight => Icons.flight,
-    ReservationKind.stay => Icons.hotel_outlined,
-    ReservationKind.train => Icons.train_outlined,
-    ReservationKind.bus => Icons.directions_bus_outlined,
-    ReservationKind.car => Icons.directions_car_outlined,
-    ReservationKind.table => Icons.restaurant_outlined,
-    ReservationKind.event => Icons.confirmation_number_outlined,
+    ReservationKind.flight => AppIcons.flight,
+    ReservationKind.stay => AppIcons.stay,
+    ReservationKind.train => AppIcons.train,
+    ReservationKind.bus => AppIcons.bus,
+    ReservationKind.car => AppIcons.car,
+    ReservationKind.table => AppIcons.table,
+    ReservationKind.event => AppIcons.ticket,
   };
 
   /// "Flight to Tokyo", "Park Hotel Shinjuku", "Table at Burnt Ends".

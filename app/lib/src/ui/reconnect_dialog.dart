@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../app.dart' show appName;
 import '../setup/reconnect.dart';
+import 'app_icons.dart';
 import 'link_opener.dart';
 
 /// Asks for an account's new password, or runs its OAuth sign-in again.
@@ -115,7 +116,9 @@ class _ReconnectDialogState extends State<ReconnectDialog> {
                   suffixIcon: IconButton(
                     tooltip: _showPassword ? 'Hide password' : 'Show password',
                     icon: Icon(
-                      _showPassword ? Icons.visibility_off : Icons.visibility,
+                      _showPassword
+                          ? AppIcons.hidePassword
+                          : AppIcons.showPassword,
                     ),
                     onPressed: () =>
                         setState(() => _showPassword = !_showPassword),
@@ -129,7 +132,7 @@ class _ReconnectDialogState extends State<ReconnectDialog> {
               ),
               if (appPassword != null)
                 TextButton.icon(
-                  icon: const Icon(Icons.open_in_new, size: 18),
+                  icon: const Icon(AppIcons.openExternal, size: 18),
                   label: Text(
                     'Create an app password (${Uri.parse(appPassword).host})',
                   ),

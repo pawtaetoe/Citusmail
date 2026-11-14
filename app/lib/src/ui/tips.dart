@@ -7,6 +7,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'citusmail_theme.dart';
 import 'features.dart';
 import 'snooze_sheet.dart';
@@ -73,7 +74,7 @@ final class Tips {
 
   static final unsubscribe = Tip(
     id: 'unsubscribe',
-    icon: Icons.unsubscribe_outlined,
+    icon: AppIcons.unsubscribe,
     title: 'Unsubscribe in one tap',
     text:
         'Don\'t want these any more? Unsubscribe, above, stops them. '
@@ -82,7 +83,7 @@ final class Tips {
 
   static final snooze = Tip(
     id: 'snooze',
-    icon: Icons.snooze_outlined,
+    icon: AppIcons.snooze,
     title: 'Not now? Snooze it',
     text:
         'A long conversation can wait: snooze it and it comes back to the '
@@ -98,7 +99,7 @@ final class Tips {
 
   static final trips = Tip(
     id: 'trips',
-    icon: Icons.flight_outlined,
+    icon: AppIcons.trips,
     title: 'Your trips in one place',
     text:
         'Bookings like this one are put together into trips, with times '
@@ -200,7 +201,7 @@ final class _TipCardState extends State<TipCard> {
             ),
             IconButton(
               tooltip: 'Close tip',
-              icon: const Icon(Icons.close, size: 18),
+              icon: const Icon(AppIcons.close, size: 18),
               onPressed: close,
             ),
           ],

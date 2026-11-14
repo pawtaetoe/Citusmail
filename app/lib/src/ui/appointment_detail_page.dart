@@ -126,7 +126,7 @@ final class AppointmentDetailPage extends StatelessWidget {
           trailing: IconButton(
             tooltip: 'Copy booking reference',
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.copy, size: 18),
+            icon: const Icon(AppIcons.copy, size: 18),
             onPressed: () => _copy(context, reference, 'Booking reference'),
           ),
           onTap: () => _copy(context, reference, 'Booking reference'),
@@ -223,7 +223,7 @@ final class AppointmentDetailPage extends StatelessWidget {
                               FilledButton.tonalIcon(
                                 onPressed: () => _addToCalendar(context),
                                 icon: const Icon(
-                                  Icons.event_available_outlined,
+                                  AppIcons.addToCalendar,
                                   size: 18,
                                 ),
                                 label: const Text('Add to calendar'),
@@ -233,7 +233,10 @@ final class AppointmentDetailPage extends StatelessWidget {
                               if (!l.label.toLowerCase().contains('calendar'))
                                 OutlinedButton.icon(
                                   onPressed: () => _openLink(context, l.url),
-                                  icon: const Icon(Icons.open_in_new, size: 18),
+                                  icon: const Icon(
+                                    AppIcons.openExternal,
+                                    size: 18,
+                                  ),
                                   label: Text(l.label),
                                 ),
                           ],
@@ -263,11 +266,11 @@ final class AppointmentDetailPage extends StatelessWidget {
                           ),
                           leading: Icon(
                             r.cancels
-                                ? Icons.event_busy_outlined
+                                ? AppIcons.eventCancelled
                                 : r.changes
-                                ? Icons.update
+                                ? AppIcons.eventChanged
                                 : r.reminds
-                                ? Icons.notifications_none
+                                ? AppIcons.notifications
                                 : AppIcons.mail,
                           ),
                           title: Text(
@@ -302,7 +305,7 @@ final class AppointmentDetailPage extends StatelessWidget {
                       context,
                       AppointmentAction.notAnAppointment,
                     ),
-                    icon: const Icon(Icons.visibility_off_outlined, size: 18),
+                    icon: const Icon(AppIcons.hide, size: 18),
                     label: const Text('Not an appointment'),
                   ),
                 ),

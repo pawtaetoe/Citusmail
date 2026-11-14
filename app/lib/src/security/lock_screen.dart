@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app.dart' show appName;
+import '../ui/app_icons.dart';
 import 'app_lock.dart';
 
 /// Which lock is in charge, set by the home screen once the app's
@@ -127,7 +128,7 @@ final class _Cover extends StatelessWidget {
     color: Theme.of(context).colorScheme.surface,
     child: Center(
       child: Icon(
-        Icons.lock_outline,
+        AppIcons.lock,
         size: 48,
         color: Theme.of(context).colorScheme.primary,
       ),
@@ -275,7 +276,7 @@ final class _LockScreenState extends State<LockScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Icon(
-                    Icons.lock_outline,
+                    AppIcons.lock,
                     size: 48,
                     color: theme.colorScheme.primary,
                   ),
@@ -323,7 +324,7 @@ final class _LockScreenState extends State<LockScreen> {
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       onPressed: waiting || _busy ? null : _biometric,
-                      icon: const Icon(Icons.fingerprint),
+                      icon: const Icon(AppIcons.fingerprint),
                       label: Text('Use ${_lock.biometrics.name}'),
                     ),
                   ],

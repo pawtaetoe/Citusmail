@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../mail/mail_controller.dart';
+import 'app_icons.dart';
 import 'citusmail_theme.dart';
 
 /// The clean-up choices in words.
@@ -67,7 +68,7 @@ final class CodeCleanupBanner extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.auto_delete_outlined, color: colors.primary),
+                Icon(AppIcons.codeCleanup, color: colors.primary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

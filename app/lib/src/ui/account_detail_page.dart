@@ -174,7 +174,7 @@ final class AccountDetailPage extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.lightbulb_outline),
+                        const Icon(AppIcons.tip),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -235,7 +235,7 @@ final class AccountDetailPage extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => Navigator.pop(context, true),
-                    icon: const Icon(Icons.visibility_off_outlined, size: 18),
+                    icon: const Icon(AppIcons.hide, size: 18),
                     label: const Text('Not an account'),
                   ),
                 ),

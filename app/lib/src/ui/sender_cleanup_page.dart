@@ -557,10 +557,7 @@ final class _SenderTile extends StatelessWidget {
                       if (g.canUnsubscribe && unsubscribed == null)
                         const PopupMenuItem(
                           value: _Action.unsubscribe,
-                          child: _MenuRow(
-                            Icons.unsubscribe_outlined,
-                            'Unsubscribe',
-                          ),
+                          child: _MenuRow(AppIcons.unsubscribe, 'Unsubscribe'),
                         ),
                       const PopupMenuItem(
                         value: _Action.archive,
@@ -576,7 +573,7 @@ final class _SenderTile extends StatelessWidget {
                       ),
                       const PopupMenuItem(
                         value: _Action.keep,
-                        child: _MenuRow(Icons.check, 'Keep'),
+                        child: _MenuRow(AppIcons.done, 'Keep'),
                       ),
                     ],
                   ),
@@ -665,15 +662,11 @@ final class _ActionBar extends StatelessWidget {
       mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
       children: [
         if (canUnsubscribe)
-          button(
-            _Action.unsubscribe,
-            Icons.unsubscribe_outlined,
-            'Unsubscribe',
-          ),
+          button(_Action.unsubscribe, AppIcons.unsubscribe, 'Unsubscribe'),
         button(_Action.archive, AppIcons.archive, 'Archive all'),
         button(_Action.delete, AppIcons.delete, 'Delete all'),
         if (one != null) button(_Action.block, AppIcons.block, 'Block sender'),
-        button(_Action.keep, Icons.check, 'Keep'),
+        button(_Action.keep, AppIcons.done, 'Keep'),
       ],
     );
   }

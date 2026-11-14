@@ -619,7 +619,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'newSinceAway',
         SwitchListTile(
-          secondary: const Icon(Icons.waving_hand_outlined),
+          secondary: const Icon(AppIcons.newSinceAway),
           title: const Text('New since you were away'),
           subtitle: const SettingExplained(
             'Mail that came while you were away, together at the top',
@@ -643,7 +643,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'autoRead',
         SwitchListTile(
-          secondary: const Icon(Icons.receipt_long_outlined),
+          secondary: const Icon(AppIcons.bill),
           title: const Text('Read receipts and bookings automatically'),
           subtitle: const SettingExplained(
             'So Subscriptions, Deliveries and Trips fill in by themselves',
@@ -673,7 +673,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               '${CodeCleanupText.action(cleanup.action)}';
     final waiting = age != CodeCleanupAge.off && !cleanup.agreed;
     return ListTile(
-      leading: const Icon(Icons.auto_delete_outlined),
+      leading: const Icon(AppIcons.codeCleanup),
       title: const Text('Clean up old codes'),
       subtitle: SettingExplained(
         '$choice.'
@@ -703,7 +703,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     _find(
       'signOffs',
       ListTile(
-        leading: const Icon(signOffIcon),
+        leading: const Icon(AppIcons.signOff),
         title: const Text('Sign-offs'),
         subtitle: const Text(
           'The text that ends your emails, like a signature',
@@ -723,7 +723,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         i == 0 ? 'accounts' : 'account-${account.id}',
         ListTile(
-          leading: const Icon(Icons.alternate_email),
+          leading: const Icon(AppIcons.account),
           title: Text(account.email),
           subtitle: const Text('Folders, password, remove: ⋮ in the sidebar'),
         ),
@@ -744,7 +744,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     _find(
       'keepMail',
       ListTile(
-        leading: const Icon(Icons.history),
+        leading: const Icon(AppIcons.keepMail),
         title: const Text('Keep mail from'),
         subtitle: SettingExplained(
           '${_keepLabel(KeepMail.read(widget.services.store))}.',
@@ -818,7 +818,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'images',
         ListTile(
-          leading: const Icon(Icons.image_outlined),
+          leading: const Icon(AppIcons.image),
           title: const Text('Images'),
           subtitle: const Text('Senders whose images load automatically'),
           trailing: const Icon(AppIcons.chevron),
@@ -852,7 +852,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'pairing',
         ListTile(
-          leading: const Icon(Icons.qr_code_scanner),
+          leading: const Icon(AppIcons.scanCode),
           title: const Text('Send accounts to a computer'),
           subtitle: const Text(
             'Scan the code on your computer to sign in there',
@@ -869,7 +869,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'pairing',
         ListTile(
-          leading: const Icon(Icons.qr_code_2),
+          leading: const Icon(AppIcons.pairing),
           title: const Text('Add accounts from your phone'),
           subtitle: const Text('Scan a code with $appName on your phone'),
           trailing: const Icon(AppIcons.chevron),
@@ -884,7 +884,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'theme',
         ListTile(
-          leading: const Icon(Icons.dark_mode_outlined),
+          leading: const Icon(AppIcons.theme),
           title: const Text('Theme'),
           subtitle: const Text('Light, dark, or as your device is set'),
           trailing: DropdownButton<ThemeMode>(
@@ -918,7 +918,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         _find(
           'discover',
           ListTile(
-            leading: const Icon(Icons.explore_outlined),
+            leading: const Icon(AppIcons.allFeatures),
             title: const Text('All features'),
             subtitle: const Text('Everything $appName can do, in one place'),
             trailing: const Icon(AppIcons.chevron),
@@ -928,7 +928,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'whatsNew',
         ListTile(
-          leading: const Icon(Icons.auto_awesome_outlined),
+          leading: const Icon(AppIcons.whatsNew),
           title: const Text('What\'s new'),
           subtitle: const Text('In version $appVersion'),
           trailing: const Icon(AppIcons.chevron),
@@ -938,7 +938,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'tips',
         SwitchListTile(
-          secondary: const Icon(Icons.lightbulb_outline),
+          secondary: const Icon(AppIcons.tip),
           title: const Text('Show tips'),
           subtitle: const Text('A short tip when a feature could help'),
           value: tips.enabled,
@@ -948,7 +948,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'privacy',
         ListTile(
-          leading: const Icon(Icons.shield_outlined),
+          leading: const Icon(AppIcons.privacy),
           title: const Text('Privacy'),
           subtitle: const SettingExplained(
             '$appName has no servers and collects nothing',
@@ -965,7 +965,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'privacyPolicy',
         _WebPageTile(
-          icon: Icons.policy_outlined,
+          icon: AppIcons.privacyPolicy,
           title: 'Privacy policy',
           page: privacyPolicyUrl,
         ),
@@ -973,7 +973,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'terms',
         _WebPageTile(
-          icon: Icons.description_outlined,
+          icon: AppIcons.document,
           title: 'Terms of service',
           page: termsOfServiceUrl,
         ),
@@ -981,7 +981,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       _find(
         'licences',
         ListTile(
-          leading: const Icon(Icons.info_outline),
+          leading: const Icon(AppIcons.info),
           title: const Text('Licences'),
           subtitle: Text(
             '$appName is free software under the Mozilla Public License 2.0.',
@@ -994,7 +994,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
       const Divider(height: 24),
       ListTile(
-        leading: const Icon(Icons.tune),
+        leading: const Icon(AppIcons.options),
         title: const Text('Advanced'),
         subtitle: const Text(
           'Outside link and file checks, rules on your mail server',
@@ -1486,7 +1486,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
           SettingHighlight(
             on: widget.highlight == 'safeBrowsing',
             child: SwitchListTile(
-              secondary: const Icon(Icons.travel_explore),
+              secondary: const Icon(AppIcons.safeBrowsing),
               title: const Text('Check links with Google Safe Browsing'),
               subtitle: Text(
                 widget.services.linkSafety.enabled
@@ -1501,7 +1501,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
           SettingHighlight(
             on: widget.highlight == 'virusTotal',
             child: SwitchListTile(
-              secondary: const Icon(Icons.policy_outlined),
+              secondary: const Icon(AppIcons.virusTotal),
               title: const Text('Ask VirusTotal about flagged files and links'),
               subtitle: Text(
                 widget.services.virusTotal.enabled
@@ -1517,7 +1517,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
           SettingHighlight(
             on: widget.highlight == 'serverRules',
             child: SwitchListTile(
-              secondary: const Icon(Icons.dns_outlined),
+              secondary: const Icon(AppIcons.server),
               title: const Text('Rules on the mail server'),
               subtitle: const Text(
                 'Blocked senders and folder rules also run on your mail server, so mail is sorted '
@@ -1544,7 +1544,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
           SettingHighlight(
             on: widget.highlight == 'learning',
             child: SwitchListTile(
-              secondary: const Icon(Icons.school_outlined),
+              secondary: const Icon(AppIcons.learning),
               title: const Text('Learn from my corrections'),
               subtitle: const Text(
                 'When you say something isn\'t a subscription, delivery, '
@@ -1557,7 +1557,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.restart_alt),
+            leading: const Icon(AppIcons.reset),
             title: const Text('Forget what it learned'),
             subtitle: const Text(
               'Lists everything as it was found again. What you marked '
@@ -1781,7 +1781,7 @@ final class _WebPageTile extends StatelessWidget {
       '${page.host}${page.path}',
       style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
     ),
-    trailing: const Icon(Icons.open_in_new),
+    trailing: const Icon(AppIcons.openExternal),
     onTap: () => LinkOpener.open(context, page, onMailto: (_) {}),
   );
 }
@@ -2034,7 +2034,7 @@ final class _BackgroundChecksState extends State<_BackgroundChecks> {
             'reached.',
     };
     return ListTile(
-      leading: const Icon(Icons.schedule),
+      leading: const Icon(AppIcons.backgroundChecks),
       title: const Text('Background checks'),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

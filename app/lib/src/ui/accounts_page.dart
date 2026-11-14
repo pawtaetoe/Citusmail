@@ -625,14 +625,14 @@ abstract final class AccountWords {
   };
 
   static IconData icon(AccountEvidence e) => switch (e) {
-    AccountEvidence.signedUp => Icons.waving_hand_outlined,
-    AccountEvidence.signInCode => Icons.pin_outlined,
-    AccountEvidence.passwordReset => Icons.lock_reset,
-    AccountEvidence.securityAlert => Icons.shield_outlined,
-    AccountEvidence.accountChange => Icons.manage_accounts_outlined,
+    AccountEvidence.signedUp => AppIcons.signedUp,
+    AccountEvidence.signInCode => AppIcons.signInCode,
+    AccountEvidence.passwordReset => AppIcons.passwordReset,
+    AccountEvidence.securityAlert => AppIcons.securityAlert,
+    AccountEvidence.accountChange => AppIcons.accountChange,
     AccountEvidence.notice => AppIcons.mail,
-    AccountEvidence.paid => Icons.receipt_long_outlined,
-    AccountEvidence.closed => Icons.no_accounts_outlined,
+    AccountEvidence.paid => AppIcons.bill,
+    AccountEvidence.closed => AppIcons.accountClosed,
   };
 
   /// "Signed up Mar 2021 · last sign-in code Oct 2026".

@@ -384,7 +384,7 @@ final class Sidebar extends StatelessWidget {
           ),
         ),
         (
-          icon: Icons.explore_outlined,
+          icon: AppIcons.allFeatures,
           label: 'All features',
           page: (_) => DiscoverPage(controller: controller),
         ),
@@ -1114,7 +1114,7 @@ final class _SyncSummary extends StatelessWidget {
     return Tooltip(
       message: 'Notifications and checking mail',
       child: _Entry(
-        icon: Icons.notifications_outlined,
+        icon: AppIcons.notifications,
         label: 'Notification settings',
         detail: status,
         detailColor: failed.length > 1 ? colors.problem : null,

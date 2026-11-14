@@ -206,7 +206,7 @@ final class _Headline extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.shield_outlined, size: 32, color: colors.primary),
+          Icon(AppIcons.privacy, size: 32, color: colors.primary),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -246,7 +246,7 @@ final class _Stats extends StatelessWidget {
     final r = report;
     final stats = [
       _Stat(
-        icon: Icons.visibility_off_outlined,
+        icon: AppIcons.trackers,
         value: r.trackers,
         label: r.trackers == 1 ? 'Tracker blocked' : 'Trackers blocked',
         line:
@@ -254,7 +254,7 @@ final class _Stats extends StatelessWidget {
             'email. $appName never loads them.',
       ),
       _Stat(
-        icon: Icons.hide_image_outlined,
+        icon: AppIcons.imagesBlocked,
         value: r.remoteImages,
         label: r.remoteImages == 1
             ? 'Remote image held back'
@@ -264,7 +264,7 @@ final class _Stats extends StatelessWidget {
             'that you opened their email. They wait until you load them.',
       ),
       _Stat(
-        icon: Icons.link_off,
+        icon: AppIcons.trackingLinks,
         value: r.trackingLinks,
         label: r.trackingLinks == 1
             ? 'Link with tracking tags'
@@ -284,7 +284,7 @@ final class _Stats extends StatelessWidget {
             '$appName never tells them.',
       ),
       _Stat(
-        icon: Icons.gpp_maybe_outlined,
+        icon: AppIcons.scam,
         value: r.warned,
         label: r.warned == 1 ? 'Email warned about' : 'Emails warned about',
         line:

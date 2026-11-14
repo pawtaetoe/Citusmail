@@ -122,9 +122,9 @@ final class _FollowUpPanel extends StatelessWidget {
   final DateTime? current;
 
   static IconData _icon(FollowUpKind kind) => switch (kind) {
-    FollowUpKind.oneDay => Icons.looks_one_outlined,
-    FollowUpKind.threeDays => Icons.looks_3_outlined,
-    FollowUpKind.oneWeek => Icons.date_range_outlined,
+    FollowUpKind.oneDay => AppIcons.oneDay,
+    FollowUpKind.threeDays => AppIcons.threeDays,
+    FollowUpKind.oneWeek => AppIcons.week,
   };
 
   @override
@@ -169,7 +169,7 @@ final class _FollowUpPanel extends StatelessWidget {
         ListTile(
           key: const ValueKey('follow-up-pick'),
           contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-          leading: const Icon(Icons.edit_calendar_outlined),
+          leading: const Icon(AppIcons.pickTime),
           title: const Text('Pick a date'),
           onTap: () => _pickDate(context),
         ),

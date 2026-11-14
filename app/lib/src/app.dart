@@ -12,6 +12,7 @@ import 'services/app_services.dart';
 import 'setup/new_setup.dart';
 import 'setup/setup_controller.dart';
 import 'setup/setup_page.dart';
+import 'ui/app_icons.dart';
 import 'ui/appearance.dart';
 import 'ui/citusmail_theme.dart';
 import 'ui/mail_shell.dart';
@@ -248,7 +249,7 @@ class _Problem extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Icon(
-                Icons.lock_outline,
+                AppIcons.lock,
                 size: 48,
                 color: Theme.of(context).colorScheme.primary,
               ),

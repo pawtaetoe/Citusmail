@@ -344,7 +344,7 @@ final class FollowUpTile extends StatelessWidget {
                             PopupMenuItem(
                               value: _Action.notNeeded,
                               child: ListTile(
-                                leading: Icon(Icons.do_not_disturb_on_outlined),
+                                leading: Icon(AppIcons.notNeeded),
                                 title: Text('Not needed'),
                               ),
                             ),
