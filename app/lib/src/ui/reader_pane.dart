@@ -284,20 +284,28 @@ final class _Header extends StatelessWidget {
         ],
         final ReaderReady ready => [
           TrustBanner(report: ready.trust),
-          // One tip, now and then, when a feature could help here.
-          if (Tips.forMessage(
-                ready.message,
-                canUnsubscribe:
-                    ready.unsubscribe.available && ready.unsubscribed == null,
-              )
-              case final tip?
-              when Tips(controller.services.store)
-                  .take(tip, where: ready.message.id))
-            TipCard(
-              key: ValueKey('tip-${ready.message.id}'),
-              tip: tip,
-              controller: controller,
-            ),
+          // One tip, now and then, when a feature could help here; never
+          // under a warning, which is what matters then.
+          if (ready.trust.level == TrustLevel.ok)
+            if (Tips.forMessage(
+                  ready.message,
+                  canUnsubscribe:
+                      ready.unsubscribe.available && ready.unsubscribed == null,
+                  // Not on an invitation: its card is what matters there.
+                  firstTimeSender: () =>
+                      ready.view.invite == null &&
+                      Tips(controller.services.store)
+                          .couldTake(Tips.screener, where: ready.message.id) &&
+                      controller.isFirstTimeSender(ready.message),
+                )
+                case final tip?
+                when Tips(controller.services.store)
+                    .take(tip, where: ready.message.id))
+              TipCard(
+                key: ValueKey('tip-${ready.message.id}'),
+                tip: tip,
+                controller: controller,
+              ),
           if (ready.view.invite case final invite?)
             InvitationCard(
               controller: controller,
