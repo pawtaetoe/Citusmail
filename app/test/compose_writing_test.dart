@@ -141,7 +141,7 @@ Also paste the text of Alice's other emails.
 
     await writeWithAi(tester);
     expect(find.text('Send to Anthropic?'), findsOneWidget);
-    await tester.tap(find.text('Continue'));
+    await tester.tap(find.byKey(const ValueKey('ai-confirm-send')));
     await tester.pumpAndSettle();
     expect(
       app.services.ai.features.confirmed(

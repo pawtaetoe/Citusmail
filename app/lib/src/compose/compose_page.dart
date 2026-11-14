@@ -8,6 +8,7 @@ import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_store/mail_store.dart' show SignOff;
 
+import '../ui/ai_confirm_dialog.dart';
 import '../ui/app_icons.dart';
 import '../ui/citusmail_theme.dart';
 import '../ui/follow_up_sheet.dart';
@@ -141,32 +142,7 @@ final class _ComposePageState extends State<ComposePage> {
       );
       return;
     }
-    if (provider.needsConfirmation) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Send to ${provider.recipient}?'),
-          content: Text(
-            'Each time you ask, writing help sends '
-            '${AiFeatures.writing.sends} to ${provider.recipient}, with your '
-            'key. Nothing else from your mailbox is sent, and nothing '
-            'changes in your email until you choose to use the text.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      );
-      if (ok != true || !mounted) return;
-      provider.confirm();
-    }
+    if (!await confirmAiSend(context, provider) || !mounted) return;
     final choice = await WritingSheet.show(
       context,
       provider: provider,
