@@ -19,6 +19,7 @@ import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_web/mail_web.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../mail/summaries.dart';
 import '../security/app_lock.dart';
 import '../security/pin_hasher.dart';
 import 'ai_assistant.dart';
@@ -81,8 +82,11 @@ final class AppServices {
       sender = Sender(store),
       replies = ReplyBuilder(store),
       settings = AppSettings(store),
+      summaries = MessageSummaries(store, ai, loadBody: worker.loadBody),
       autoRead = AutoReader(store, worker.loadBodyInBackground),
       aiSort = AiSorter(store, ai, worker.loadBodyInBackground) {
+    // Summaries are forgotten when the user turns them off.
+    ai.whenTurnedOff(AiFeatures.summaries.id, summaries.forgetAll);
     aiSort.onSorted = () => resorted.value++;
     // Preferences synced from the user's other devices show at once.
     _syncEvents = worker.events.listen((event) {
@@ -117,6 +121,9 @@ final class AppServices {
   /// by default). Features get their provider from
   /// [AiAssistant.providerFor], which is null while they are off.
   final AiAssistant ai;
+
+  /// "Summarise" in the reader (an [ai] feature, off by default).
+  final MessageSummaries summaries;
 
   /// Local changes (read, pin, move, delete); the worker sends them on.
   final MailActions actions;

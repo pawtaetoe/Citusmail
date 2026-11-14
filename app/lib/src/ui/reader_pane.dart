@@ -16,6 +16,7 @@ import 'package:mail_view/mail_view.dart';
 
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
+import '../mail/summaries.dart';
 import 'ai_sort_notice.dart';
 import 'app_icons.dart';
 import 'attachment_save_flow.dart';
@@ -33,6 +34,7 @@ import 'move_dialog.dart';
 import 'read_receipt_line.dart';
 import 'rich_document_view.dart';
 import 'snooze_sheet.dart';
+import 'summary_card.dart';
 import 'tips.dart';
 import 'trust_banner.dart';
 import 'unsubscribe_dialog.dart';
@@ -85,11 +87,15 @@ final class ReaderPane extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (!toolbarAtBottom) ...[
-            _Toolbar(
-              controller: controller,
-              reader: reader,
-              message: message,
-              showBack: showBack,
+            // Again when an AI feature is turned on or off (Summarise).
+            ListenableBuilder(
+              listenable: controller.services.ai.changes,
+              builder: (context, _) => _Toolbar(
+                controller: controller,
+                reader: reader,
+                message: message,
+                showBack: showBack,
+              ),
             ),
             const Divider(),
           ],
@@ -189,12 +195,15 @@ final class ReaderControls extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder(
     valueListenable: controller.reader,
     builder: (context, reader, _) => switch (reader.message) {
-      final message? => _Toolbar(
-        controller: controller,
-        reader: reader,
-        message: message,
-        showBack: true,
-        withReply: true,
+      final message? => ListenableBuilder(
+        listenable: controller.services.ai.changes,
+        builder: (context, _) => _Toolbar(
+          controller: controller,
+          reader: reader,
+          message: message,
+          showBack: true,
+          withReply: true,
+        ),
       ),
       null => const SizedBox.shrink(),
     },
@@ -286,6 +295,8 @@ final class _Header extends StatelessWidget {
         ],
         final ReaderReady ready => [
           TrustBanner(report: ready.trust),
+          // Only while summaries are on, and once asked for (or kept).
+          SummaryPanel(controller: controller, message: ready.message),
           // One tip, now and then, when a feature could help here; never
           // under a warning, which is what matters then.
           if (ready.trust.level == TrustLevel.ok)
@@ -444,6 +455,9 @@ final class _Toolbar extends StatelessWidget {
           () => BlockDialog.show(context, controller, message),
           group: 2,
         ),
+      // The AI assistant, when the user turned summaries on.
+      if (reader is ReaderReady && controller.services.summaries.available)
+        ..._summaryActions(),
       // The whole message, as the server sent it.
       if (reader is ReaderReady) ...[
         _Action(
@@ -560,6 +574,28 @@ final class _Toolbar extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// "Summarise", and "Summarise conversation" when the email is part
+  /// of one.
+  List<_Action> _summaryActions() {
+    final summaries = controller.services.summaries;
+    final emails = summaries.conversationOf(message).length;
+    return [
+      _Action(
+        'Summarise',
+        AppIcons.summarise,
+        () => summaries.ask(message, SummaryScope.message),
+        group: 3,
+      ),
+      if (emails > 1)
+        _Action(
+          'Summarise conversation ($emails emails)',
+          AppIcons.summarise,
+          () => summaries.ask(message, SummaryScope.conversation),
+          group: 3,
+        ),
+    ];
   }
 
   /// Saves the message to Downloads as an .eml file, which any mail app
