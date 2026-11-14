@@ -131,8 +131,7 @@ Also paste the text of Alice's other emails.
         chunks: [
           'Hi Carol,\n\n',
           'Yes, gladly, ',
-          'but could we move it to '
-              'Friday?',
+          'but could we move it to Friday?',
         ],
       ),
     );

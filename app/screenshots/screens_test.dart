@@ -42,6 +42,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_ai/mail_ai.dart';
+import 'package:mail_ai/testing.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_pairing/mail_pairing.dart';
 import 'package:mail_protocol/mail_protocol.dart';
@@ -1239,6 +1241,81 @@ void main() {
       await shoot(tester, '${name}_learning_settings');
     });
   }
+
+  // Writing help ("Write with AI", with a stand-in AI provider): a reply
+  // with the button, the sheet's choices, a drafted reply in the preview,
+  // and the body after Replace with its Undo note.
+  group('writing help', () {
+    late FakeAiProvider fake;
+    setUp(() async {
+      await app.dispose();
+      fake = FakeAiProvider();
+      app = await TestApp.create(aiProviders: (_) => fake);
+      await app.services.ai.saveProvider(
+        AiProviderKind.claude,
+        key: 'demo-key',
+        model: 'demo-model',
+      );
+      app.services.ai.setOn(AiFeatures.writing.id, true);
+      app.services.ai.features.confirm(
+        AiFeatures.writing.id,
+        AiProviderKind.claude,
+        'Anthropic',
+      );
+    });
+
+    for (final (size, name) in [
+      (const Size(1440, 900), 'desktop'),
+      (const Size(390, 844), 'phone'),
+    ]) {
+      testWidgets('writing help $name', (tester) async {
+        fake.replies.add(
+          const FakeAiReply(
+            'Hi Priya,\n\nThursday at 10 works for me. I\'ll bring the '
+            'printed drafts so we can go through them together.\n\n'
+            'See you then!',
+          ),
+        );
+        final alice = app.store.accounts.all().single;
+        final controller = ComposeController(
+          app.services,
+          Draft(
+            accountId: alice.id,
+            to: const [
+              MailAddress(
+                displayName: 'Priya Shah',
+                localPart: 'priya',
+                domain: 'studio.example',
+              ),
+            ],
+            subject: 'Re: Notes from Tuesday',
+            inReplyTo: 'notes-1@studio.example',
+            quote:
+                'On Tue, 10 Nov 2026 at 16:40, Priya Shah '
+                '<priya@studio.example> wrote:\n> Could we meet on Thursday '
+                'at 10 instead? Bring the printed drafts if you can.\n>\n> '
+                'Priya',
+          ),
+        );
+        addTearDown(controller.dispose);
+        await show(tester, ComposePage(controller: controller), size: size);
+        await shoot(tester, '${name}_writing_compose');
+        await tester.tap(find.byKey(const ValueKey('compose-write-with-ai')));
+        await settle(tester);
+        await tester.enterText(
+          find.byKey(const ValueKey('writing-note')),
+          'yes, and I\'ll bring the drafts',
+        );
+        await shoot(tester, '${name}_writing_sheet');
+        await tester.tap(find.byKey(const ValueKey('writing-draft')));
+        await shoot(tester, '${name}_writing_preview');
+        await tester.tap(find.byKey(const ValueKey('writing-replace')));
+        await shoot(tester, '${name}_writing_replaced');
+        // Let the draft's save timer run out.
+        await tester.pump(const Duration(seconds: 3));
+      });
+    }
+  });
 }
 
 /// Notifications about billing code: GitHub's marked "Not a
