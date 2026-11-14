@@ -195,6 +195,7 @@ abstract final class AppIcons {
   static const model = Icons.memory;
   static const writeWithAi = Icons.edit_note;
   static const translate = Icons.translate;
+  static const quickReply = Icons.quickreply_outlined;
 
   // Devices, pairing and sync.
   static const devices = Icons.devices_outlined;

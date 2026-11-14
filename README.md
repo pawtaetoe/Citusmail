@@ -47,7 +47,9 @@ Website: **https://citusmail.fluminaris.com** · Download:
   key for Claude, GPT, Gemini (free tier), Meta Muse or any OpenAI-compatible endpoint (even
   a model on your own computer). Then "Summarise" gives the gist of an
   email or a whole conversation, with dates, amounts and what is asked
-  of you. It asks before it first sends anything, sends only the email
+  of you, "Translate" shows a foreign-language email in yours, and
+  "Suggest replies" offers up to three short replies to start from (never
+  sent for you). It asks before it first sends anything, sends only the email
   you ask about, keeps the result on your device, and shows what it
   costs, with a monthly limit.
 - **Add accounts from your phone**: on the computer, scan a code with the

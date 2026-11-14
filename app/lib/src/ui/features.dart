@@ -183,6 +183,16 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'aiAssistant'),
     ),
     Feature(
+      id: 'aiTranslate',
+      group: FeatureGroup.tools,
+      icon: AppIcons.translate,
+      title: 'Translate',
+      sentence:
+          'Read an email in another language in yours, with the AI '
+          'assistant and your own key.',
+      open: (context, c) => _setting(context, c, 'ai-translate'),
+    ),
+    Feature(
       id: 'screener',
       group: FeatureGroup.inbox,
       icon: AppIcons.screener,
@@ -295,6 +305,16 @@ abstract final class Features {
           'quick switch while you write.',
       open: (context, c) =>
           _push(context, (_) => SignOffsPage(services: c.services)),
+    ),
+    Feature(
+      id: 'aiQuickReplies',
+      group: FeatureGroup.writing,
+      icon: AppIcons.quickReply,
+      title: 'Quick replies',
+      sentence:
+          'Up to three short replies to a personal email, to start from, '
+          'with the AI assistant and your own key.',
+      open: (context, c) => _setting(context, c, 'ai-quickReplies'),
     ),
     Feature(
       id: 'images',
