@@ -35,7 +35,8 @@ Features that understand your mail, such as sorting, finding verification
 codes, phishing checks, the list of your paid subscriptions (found in
 receipts and renewal emails), your deliveries (found in order and
 shipping emails), your trips and appointments (found in booking
-emails), run entirely on the device.
+emails), run entirely on the device. The optional AI assistant is the
+one exception you can choose: see below.
 
 ## Services the app connects to
 
@@ -49,7 +50,7 @@ emails), run entirely on the device.
 | Your mail server's rules service (ManageSieve) | Only if you turn on "Rules on the mail server" (Settings > Advanced) | Your blocked senders and folder rules, so your server can sort mail |
 | Google Safe Browsing | Only if you turn on "Check links with Google Safe Browsing" (Settings > Advanced) | Lists of dangerous sites are downloaded; to confirm a match, only a 4-byte part of a link's fingerprint is sent, never the link itself |
 | VirusTotal | Only if you turn it on with your own API key (Settings > Advanced), and only when you tap "Check with VirusTotal" | A file's SHA-256 fingerprint (the file is never uploaded) or a link's address |
-| The AI provider you chose (Translate, Quick replies) | Only if you turn the feature on with your own key (Settings > AI assistant), and only when you tap Translate or "Suggest replies" on an email | That email's sender, subject and text, never its attachments or other mail |
+| The AI provider you choose (Anthropic, OpenAI, Meta for its Muse models, or an OpenAI-compatible address you enter) | Only if you add your own API key and turn a feature on (Settings > AI assistant), after the app asks you once, and only when you use the feature (Summarise, Translate, Suggest replies) | Only what that feature needs: for a summary, the email or conversation you ask about (senders, recipients, dates, subjects, text and the names of attached files, never the files); for Translate or Quick replies, the one email you tap them on (sender, subject and text, never attachments), with your key |
 | Newsletter senders | Only when you tap Unsubscribe and confirm | The unsubscribe request the newsletter asked for |
 | The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline | An email from your own account with your answer and any note you add, sent through your own mail server |
 | Images and links in an email | Only when you choose to load images or open a link | A request for the image or page, without cookies; like any connection, it shows your IP address |
@@ -61,13 +62,32 @@ Each of these services handles data under its own privacy policy.
 When you sign in with Google, Citusmail asks for access to your Gmail
 mailbox (IMAP and SMTP) so it can show and send your mail. This data is
 used only to provide the app's email features to you, on your device. It
-is not transferred to Fluminaris or to anyone else, not used for
-advertising, and not read by people.
+is not transferred to Fluminaris, not used for advertising, and not read
+by people. The one transfer you can choose is the optional AI assistant:
+if you add your own key and turn a feature on, the email or conversation
+you ask about is sent from your device to the AI provider you chose, only
+when you ask, to give you that feature (such as a summary).
 
 Citusmail's use and transfer of information received from Google APIs
 adheres to the
 [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy),
 including the Limited Use requirements.
+
+## AI assistant with your own key (optional)
+
+Citusmail has no AI service of its own. If you choose to, you can add
+your own API key for an AI provider (Claude from Anthropic, GPT from
+OpenAI, Meta (Muse models), or an OpenAI-compatible service or a model on
+your own computer) and turn on features such as summaries. Everything is
+off until you do, and each feature asks once, naming the provider and
+what it sends, before it first sends anything.
+
+When you use a feature, your device sends what it needs (for a summary,
+the email or conversation you ask about) directly to the provider you
+chose, with your key. It is not sent to Fluminaris; we never receive it.
+The provider handles it under its own terms and privacy policy. Your
+keys stay in your device's secure keychain, and results such as
+summaries are kept only on your device, encrypted.
 
 ## Sync between your devices (optional)
 
@@ -77,8 +97,8 @@ mail-handling preferences (the Screener on or off, "New since you were away", re
 through a folder in **your own mail account**, never through a server of
 ours, and are end-to-end encrypted with a code only your devices hold.
 Other settings stay on each device: notifications, instant mail and
-battery, the theme, the app lock and PIN, and Safe Browsing and
-VirusTotal, which each device agrees to itself. Older versions of the
+battery, the theme, the app lock and PIN, and Safe Browsing,
+VirusTotal and the AI assistant, which each device agrees to itself. Older versions of the
 app can't read the synced data once it holds these preferences.
 
 ## Adding accounts from your phone (optional)

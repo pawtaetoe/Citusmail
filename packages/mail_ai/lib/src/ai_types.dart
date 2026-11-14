@@ -18,13 +18,9 @@ enum AiProviderKind {
   /// GPT, through OpenAI's Chat Completions API.
   openai('GPT (OpenAI)', 'OpenAI', 'https://api.openai.com/v1', needsKey: true),
 
-  /// Meta's Llama API, through its OpenAI-compatible endpoint.
-  llama(
-    'Meta Llama',
-    'Meta',
-    'https://api.llama.com/compat/v1',
-    needsKey: true,
-  ),
+  /// Meta's Muse models (Muse Spark, Muse Wonder…), through the Meta
+  /// Model API's OpenAI-compatible endpoint; keys from dev.meta.ai.
+  meta('Meta Muse', 'Meta', 'https://api.meta.ai/v1', needsKey: true),
 
   /// Any OpenAI-compatible endpoint the user names: OpenRouter, Groq,
   /// Together, or a model on their own computer or network (Ollama, LM
@@ -60,7 +56,8 @@ enum AiProviderKind {
   /// list offers it (null: the first model the list names).
   String? get defaultModel => switch (this) {
     claude => 'claude-opus-5-5',
-    openai || llama || custom => null,
+    meta => 'muse-spark-1.1',
+    openai || custom => null,
   };
 
   /// The stored name, stable across versions.

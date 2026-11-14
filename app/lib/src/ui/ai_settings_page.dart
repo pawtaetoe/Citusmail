@@ -52,7 +52,7 @@ final class AiSettingsPage extends StatelessWidget {
                 configured.isEmpty ? 'Add your key' : 'Add another provider',
               ),
               subtitle: const Text(
-                'Claude, GPT, Meta Llama, or any OpenAI-compatible '
+                'Claude, GPT, Meta Muse, or any OpenAI-compatible '
                 'endpoint, such as a model on your own computer',
               ),
               onTap: () => AiProviderDialog.show(context, ai),
@@ -387,8 +387,8 @@ final class _AiProviderDialogState extends State<AiProviderDialog> {
       'Create a key in your Anthropic Console account (API keys).',
     AiProviderKind.openai =>
       'Create a key in your OpenAI platform account (API keys).',
-    AiProviderKind.llama =>
-      'Create a key in your Llama API account on Meta\'s developer site.',
+    AiProviderKind.meta =>
+      'Create a key on Meta\'s developer site, dev.meta.ai (Model API).',
     AiProviderKind.custom =>
       'Only if the endpoint needs one; a model on your own computer '
           'usually doesn\'t.',

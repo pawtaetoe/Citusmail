@@ -179,6 +179,28 @@ public issue. We aim to reply within 7 days.
     constant-time, which is acceptable for one-use keys. Only the two
     reviewed pairing files may connect or listen (CI enforces this).
 
+16. **The AI assistant is opt-in, uses the user's own key, and treats
+    mail as data** (`packages/mail_ai`). Every feature is off until the
+    user adds a provider and turns that feature on, and each asks once,
+    naming the provider and what it sends, before its first request.
+    Requests go only to the provider the user chose (Anthropic, OpenAI,
+    Meta's Muse models (Meta Model API), or an OpenAI-compatible address the user typed),
+    only when the user asks, through one client
+    (`transport/ai_http.dart`, the only file outside account setup that
+    may open an `HttpClient`; CI enforces this): https only, plain http
+    only to the user's own computer or local network, no redirects, no
+    cookies, no user names in addresses. Keys live in the system keychain
+    only (rule 2) and Settings shows only their last four characters.
+    Email text reaches a model only through `MailPrompt`, which puts each
+    email between markers with a random nonce, neutralises text that
+    imitates a marker or hides itself, and tells the model that what is
+    inside is data, never instructions. What a model answers is data
+    too: it is shown, and anything that would change mail, send or
+    delete is a proposal the user confirms, never done by the model. A
+    monthly spending limit stops further requests once reached. Results
+    (summaries) are kept on the device, encrypted, and forgotten when the
+    feature is turned off.
+
 ## Releases
 
 Android releases are signed with a key kept outside the repository (CI

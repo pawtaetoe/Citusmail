@@ -173,6 +173,16 @@ abstract final class Features {
           _push(context, (_) => AttachmentsPage(controller: c)),
     ),
     Feature(
+      id: 'aiAssistant',
+      group: FeatureGroup.tools,
+      icon: AppIcons.assistant,
+      title: 'AI assistant (your own key)',
+      sentence:
+          'Optional: with your own key for Claude, GPT, Meta Muse or a model on '
+          'your computer, summarise an email or a whole conversation.',
+      open: (context, c) => _setting(context, c, 'aiAssistant'),
+    ),
+    Feature(
       id: 'aiTranslate',
       group: FeatureGroup.tools,
       icon: AppIcons.translate,
