@@ -159,6 +159,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('All features'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('All features'));
     await tester.pumpAndSettle();
     expect(find.byType(DiscoverPage), findsOneWidget);
