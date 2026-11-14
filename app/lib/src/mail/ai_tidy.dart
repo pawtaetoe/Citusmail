@@ -420,14 +420,19 @@ Propose only what the request asks for, and only for emails it clearly matches. 
       DateTime? until;
       if (kind == TidyKind.move) {
         final name = item['folder'];
-        folder = name is String ? name.trim() : null;
-        if (folder == null ||
-            !candidates.messages.any(
-              (m) => folderIn(m.accountId, folder!) != null,
-            )) {
+        // The folder as the user's list names it, whatever the model's
+        // spelling ("projects" is Projects).
+        final box = name is String
+            ? candidates.messages
+                  .map((m) => folderIn(m.accountId, name))
+                  .nonNulls
+                  .firstOrNull
+            : null;
+        if (box == null) {
           leftOut++;
           continue;
         }
+        folder = folderName(box);
       }
       if (kind == TidyKind.snooze) {
         until = snoozeTime(item['until']);

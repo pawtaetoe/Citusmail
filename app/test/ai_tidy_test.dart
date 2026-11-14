@@ -15,7 +15,6 @@ import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_ai/testing.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
-import 'package:mail_sync/mail_sync.dart';
 
 import 'support/test_app.dart';
 
@@ -236,7 +235,7 @@ void main() {
       expect(result.steps[0].kind, TidyKind.archive);
       expect(result.steps[0].messages.map((m) => m.subject), ['Hello there']);
       expect(result.steps[1].kind, TidyKind.move);
-      expect(result.steps[1].folder, 'projects');
+      expect(result.steps[1].folder, 'Projects', reason: 'its real name');
       expect(result.steps[1].messages.map((m) => m.subject), ['Weekly deals']);
       expect(result.leftOut, 4 + 3);
       expect(result.note, isNull);
