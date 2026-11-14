@@ -186,6 +186,14 @@ abstract final class AppIcons {
   static const tip = Icons.lightbulb_outline;
   static const info = Icons.info_outline;
 
+  // The AI assistant (your own key).
+  static const assistant = Icons.psychology_outlined;
+  static const summarise = Icons.summarize_outlined;
+  static const apiKey = Icons.key_outlined;
+  static const stop = Icons.stop_circle_outlined;
+  static const usage = Icons.data_usage;
+  static const model = Icons.memory;
+
   // Devices, pairing and sync.
   static const devices = Icons.devices_outlined;
   static const pairing = Icons.qr_code_2;

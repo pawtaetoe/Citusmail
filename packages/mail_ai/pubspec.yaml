@@ -1,0 +1,21 @@
+name: mail_ai
+description: >-
+  The optional AI assistant, with the user's own key: one interface over
+  Claude (Anthropic), GPT (OpenAI), Meta's Llama API and any
+  OpenAI-compatible endpoint (a local model, OpenRouter...), the one place
+  that wraps mail as untrusted data for a prompt, and token usage, prices
+  and a monthly cap. Calls go straight from the device to the provider the
+  user chose. Pure Dart.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  mail_web: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'package:citusmail/src/services/app_services.dart';
 import 'package:citusmail/src/services/secret_store.dart';
 import 'package:citusmail/src/ui/whats_new.dart';
+import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
@@ -73,8 +74,12 @@ final class TestApp {
   final AppServices services;
 
   /// [web] answers one-click requests; by default every lookup fails, so
-  /// nothing can reach the network.
-  static Future<TestApp> create({WebClient? web}) async {
+  /// nothing can reach the network. [aiProviders] makes the AI
+  /// assistant's providers (a fake; by default none can be made).
+  static Future<TestApp> create({
+    WebClient? web,
+    AiProviderFactory? aiProviders,
+  }) async {
     final directory = Directory.systemTemp.createTempSync('citusmail_app_test');
 
     final path = '${directory.path}/mail.db';
@@ -207,9 +212,16 @@ final class TestApp {
         databasePath: path,
         // Fast PIN hashing: the real strength is tested in pin_hasher_test.
         pinRounds: 1000,
+        aiProviders: aiProviders ?? _noAi,
       ),
     );
   }
+
+  /// No AI provider can be made: tests never reach a real one.
+  static AiProvider _noAi(AiProviderConfig config) => throw const AiException(
+    AiProblem.notConfigured,
+    'no AI provider in this test',
+  );
 
   /// A web client whose lookups all fail.
   static final offlineWeb = WebClient(

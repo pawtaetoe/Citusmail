@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
@@ -16,9 +17,12 @@ import '../pairing/receive_accounts_page.dart';
 import '../pairing/send_accounts_page.dart';
 import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
+import '../services/ai_assistant.dart';
 import '../services/app_services.dart';
 import '../services/link_safety.dart';
 import '../services/virus_total_checks.dart';
+import 'ai_feature_tiles.dart';
+import 'ai_settings_page.dart';
 import 'app_icons.dart';
 import 'appearance.dart';
 import 'block_dialog.dart';
@@ -479,6 +483,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         'accounts' => _accountSettings(),
         'privacy' => _privacySettings(),
         'devices' => _deviceSettings(),
+        'ai' => _aiSettings(),
         'appearance' => _appearanceSettings(),
         'about' => _aboutSettings(),
         _ => const [],
@@ -878,6 +883,36 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
   ];
 
+  Future<void> _openAi() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AiSettingsPage(ai: widget.services.ai),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
+  /// The AI assistant: how it is set up (on its own page), then each
+  /// feature's switch ([aiFeatureTiles]).
+  List<Widget> _aiSettings() {
+    final ai = widget.services.ai;
+    return [
+      _find(
+        'aiAssistant',
+        ListTile(
+          leading: const Icon(AppIcons.assistant),
+          title: const Text('AI assistant'),
+          subtitle: _AiStatus(ai: ai),
+          trailing: const Icon(AppIcons.chevron),
+          onTap: _openAi,
+        ),
+      ),
+      for (final feature in AiFeatures.all)
+        if (aiFeatureTiles[feature.id] case final tile?)
+          _find('ai-${feature.id}', tile(ai)),
+    ];
+  }
+
   List<Widget> _appearanceSettings() {
     final store = widget.services.store;
     return [
@@ -1199,11 +1234,31 @@ final class _Rail extends StatelessWidget {
 
   static const _row = 44.0;
 
+  /// Rows on a short window, before the groups become a list.
+  static const _compactRow = 36.0;
+
   @override
   Widget build(BuildContext context) {
+    // A list only when it doesn't fit even with shorter rows (a short
+    // window), so the page has one scrolling part.
+    double height(double row) =>
+        64 + (SettingsCatalog.sections.length + 1) * (row + 2);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final room = constraints.maxHeight;
+        final row = room >= height(_row) ? _row : _compactRow;
+        final children = _children(context, row);
+        return room >= height(row)
+            ? Column(children: children)
+            : ListView(children: children);
+      },
+    );
+  }
+
+  List<Widget> _children(BuildContext context, double row) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final children = [
+    return [
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: _SearchButton(onTap: onSearch),
@@ -1215,13 +1270,13 @@ final class _Rail extends StatelessWidget {
             color: s.id == current
                 ? colors.secondaryContainer
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(_row / 2),
+            borderRadius: BorderRadius.circular(row / 2),
             child: InkWell(
               key: ValueKey('settings-rail-${s.id}'),
-              borderRadius: BorderRadius.circular(_row / 2),
+              borderRadius: BorderRadius.circular(row / 2),
               onTap: () => onSelect(s.id),
               child: SizedBox(
-                height: _row,
+                height: row,
                 child: Row(
                   children: [
                     const SizedBox(width: 14),
@@ -1247,14 +1302,6 @@ final class _Rail extends StatelessWidget {
           ),
         ),
     ];
-    // A list only when it doesn't fit (a short window), so the page has
-    // one scrolling part.
-    return LayoutBuilder(
-      builder: (context, constraints) =>
-          constraints.maxHeight >= 64 + children.length * (_row + 2)
-          ? Column(children: children)
-          : ListView(children: children),
-    );
   }
 }
 
@@ -1665,6 +1712,23 @@ final class _CodeCleanupDialogState extends State<_CodeCleanupDialog> {
 }
 
 /// A heading that names a group of settings, and says what is in it.
+/// How the AI assistant is set up, in one line.
+final class _AiStatus extends StatelessWidget {
+  const _AiStatus({required this.ai});
+
+  final AiAssistant ai;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: ai.changes,
+    builder: (context, _, _) => Text(switch (ai.features.defaultChoice) {
+      final c? when ai.providerSettings.isConfigured(c.provider) =>
+        'With ${c.provider.label}, ${c.model}',
+      _ => 'Off. Your own key for Claude, GPT, Llama, or a local model',
+    }),
+  );
+}
+
 final class _Group extends StatelessWidget {
   const _Group(this.text, {this.description, this.first = false});
 

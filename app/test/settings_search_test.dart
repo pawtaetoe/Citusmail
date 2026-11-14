@@ -216,10 +216,12 @@ void main() {
       size(tester, const Size(390, 844));
       await show(tester);
       for (final s in SettingsCatalog.sections) {
+        await tester.scrollUntilVisible(find.text(s.title), 100);
         expect(find.text(s.title), findsOneWidget, reason: s.title);
         expect(find.text(s.description), findsOneWidget, reason: s.title);
       }
       expect(find.text('New mail notifications'), findsNothing);
+      await tester.scrollUntilVisible(find.text('Inbox & sorting'), -100);
       await tester.tap(find.text('Inbox & sorting'));
       await tester.pumpAndSettle();
       expect(find.text('Screen first-time senders'), findsOneWidget);
