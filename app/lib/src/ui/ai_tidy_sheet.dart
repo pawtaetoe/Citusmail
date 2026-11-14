@@ -12,6 +12,7 @@ import '../mail/ai_tidy_model.dart';
 import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../services/ai_assistant.dart';
+import 'ai_confirm_dialog.dart';
 import 'app_icons.dart';
 import 'mail_text.dart';
 import 'snooze_sheet.dart';
@@ -209,11 +210,7 @@ final class _TidyPanelState extends State<_TidyPanel> {
   Future<void> _suggest() async {
     final words = _words.text.trim();
     if (words.isEmpty) return;
-    if (widget.provider.needsConfirmation) {
-      final ok = await _confirm();
-      if (ok != true || !mounted) return;
-      widget.provider.confirm();
-    }
+    if (!await confirmAiSend(context, widget.provider) || !mounted) return;
     final cancel = _cancel = AiCancel();
     setState(() => _phase = _Phase.asking);
     try {
@@ -245,28 +242,6 @@ final class _TidyPanelState extends State<_TidyPanel> {
     _cancel?.cancel();
     setState(() => _phase = _Phase.ask);
   }
-
-  Future<bool?> _confirm() => showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Send to $_to?'),
-      content: Text(
-        'To suggest changes, $appName sends ${widget.provider.feature.sends} '
-        'to $_to, with your key. Nothing else from your mailbox is sent, '
-        'and nothing changes until you tap Do it.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Send'),
-        ),
-      ],
-    ),
-  );
 
   /// The steps with only the ticked messages.
   List<TidyStep> get _chosen => [

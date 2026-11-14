@@ -253,8 +253,8 @@ void main() {
     await tester.tap(find.text('Suggest'));
     await settle(tester);
     expect(find.text('Send to Anthropic?'), findsOneWidget);
-    expect(find.textContaining('the text) of the emails'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel').last);
+    expect(find.textContaining('(never the text)'), findsOneWidget);
+    await tester.tap(find.text('Not now'));
     await settle(tester);
     expect(fake.requests, isEmpty, reason: 'not agreed: nothing sent');
 
