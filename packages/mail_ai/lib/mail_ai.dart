@@ -15,6 +15,8 @@ export 'src/ai_provider.dart';
 export 'src/ai_settings.dart';
 export 'src/ai_types.dart';
 export 'src/mail_prompt.dart';
+export 'src/providers/anthropic_provider.dart';
+export 'src/providers/openai_compatible_provider.dart';
 export 'src/providers/providers.dart';
 export 'src/transport/ai_http.dart';
 export 'src/usage.dart';
