@@ -288,7 +288,11 @@ void main() {
         const AiPrice(1.25, 4.25),
       );
       // Others start with the first model their list names.
-      for (final kind in [AiProviderKind.openai, AiProviderKind.custom]) {
+      for (final kind in [
+        AiProviderKind.openai,
+        AiProviderKind.google,
+        AiProviderKind.custom,
+      ]) {
         expect(kind.defaultModel, isNull, reason: kind.id);
       }
     },
