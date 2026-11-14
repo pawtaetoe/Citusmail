@@ -82,6 +82,7 @@ final class MessageListPane extends StatelessWidget {
                   : _SelectionBar(
                       controller: controller,
                       count: selected.length,
+                      withTidy: true,
                     ),
             ),
           ),
@@ -450,10 +451,18 @@ final class _StatusLine extends StatelessWidget {
 
 /// Shown while messages are selected: what can be done to all of them.
 final class _SelectionBar extends StatelessWidget {
-  const _SelectionBar({required this.controller, required this.count});
+  const _SelectionBar({
+    required this.controller,
+    required this.count,
+    this.withTidy = false,
+  });
 
   final MailController controller;
   final int count;
+
+  /// "Ask AI to tidy" here too (wide screens, where this bar takes the
+  /// header's place; on phones the header above keeps it).
+  final bool withTidy;
 
   @override
   Widget build(BuildContext context) {
@@ -522,7 +531,7 @@ final class _SelectionBar extends StatelessWidget {
               icon: const Icon(AppIcons.move),
               onPressed: () => MoveDialog.show(context, controller, targets),
             ),
-          AiTidyButton(controller: controller),
+          if (withTidy) AiTidyButton(controller: controller),
         ],
       ),
     );
