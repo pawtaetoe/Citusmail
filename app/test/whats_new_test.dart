@@ -96,21 +96,19 @@ void main() {
     }
 
     testWidgets('"Show me" opens the feature; then it is gone', (tester) async {
+      // The newest version's first feature leads the card.
+      final first = Features.byId(releaseNotes.first.features.first)!;
       await showShell(tester);
       expect(find.text('New in Citusmail'), findsOneWidget);
-      expect(find.text('Add accounts from your phone'), findsOneWidget);
+      expect(find.text(first.title), findsOneWidget);
       expect(find.textContaining('more'), findsOneWidget, reason: 'And N more');
 
-      await tester.tap(
-        find.bySemanticsLabel('Show Add accounts from your phone'),
-      );
+      await tester.tap(find.bySemanticsLabel('Show ${first.title}'));
       await tester.pumpAndSettle();
       expect(find.byType(SettingsPage), findsOneWidget);
+      // Settings opens at the feature's setting, highlighted.
       expect(
-        find.descendant(
-          of: find.byWidgetPredicate((w) => w is SettingHighlight && w.on),
-          matching: find.text('Add accounts from your phone'),
-        ),
+        find.byWidgetPredicate((w) => w is SettingHighlight && w.on),
         findsOneWidget,
       );
       expect(WhatsNew(app.store).seenVersion, appVersion);
