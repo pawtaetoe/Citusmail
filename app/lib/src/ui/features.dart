@@ -173,6 +173,16 @@ abstract final class Features {
           _push(context, (_) => AttachmentsPage(controller: c)),
     ),
     Feature(
+      id: 'aiAssistant',
+      group: FeatureGroup.tools,
+      icon: AppIcons.assistant,
+      title: 'AI assistant (your own key)',
+      sentence:
+          'Optional: with your own key for Claude, GPT, Gemini, Meta Muse or a model on '
+          'your computer, summarise an email or a whole conversation.',
+      open: (context, c) => _setting(context, c, 'aiAssistant'),
+    ),
+    Feature(
       id: 'screener',
       group: FeatureGroup.inbox,
       icon: AppIcons.screener,
@@ -264,6 +274,16 @@ abstract final class Features {
       title: 'Ask for a read receipt',
       sentence: 'Ask to be told when your email is read.',
       open: (context, c) => c.compose(),
+    ),
+    Feature(
+      id: 'writeWithAi',
+      group: FeatureGroup.writing,
+      icon: AppIcons.writeWithAi,
+      title: 'Write with AI',
+      sentence:
+          'Optional, with your own key: draft a reply, or make your text '
+          'shorter, friendlier, more formal, corrected or translated.',
+      open: (context, c) => _setting(context, c, 'ai-writing'),
     ),
     Feature(
       id: 'signOffs',

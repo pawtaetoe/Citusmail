@@ -193,6 +193,8 @@ abstract final class AppIcons {
   static const stop = Icons.stop_circle_outlined;
   static const usage = Icons.data_usage;
   static const model = Icons.memory;
+  static const writeWithAi = Icons.edit_note;
+  static const translate = Icons.translate;
 
   // Devices, pairing and sync.
   static const devices = Icons.devices_outlined;

@@ -579,6 +579,46 @@ void main() {
       expect(r.findings.single.kind, FindingKind.deceptiveLink);
     });
 
+    test('Outlook Safe Links are looked through, not flagged', () {
+      // Hotmail and Outlook.com rewrite every link like this.
+      const safe =
+          'https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fhelp.uber.com%2Friders&data=05%7C01&reserved=0';
+      final r = links('<a href="$safe">help.uber.com</a>');
+      expect(r.level, TrustLevel.ok);
+      expect(r.links, isEmpty);
+    });
+
+    test('a Safe Link to somewhere else than it shows is still flagged', () {
+      const safe =
+          'https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fevil.example%2Flogin&data=05';
+      final r = links('<a href="$safe">https://paypal.com</a>');
+      expect(r.level, TrustLevel.danger);
+      final link = r.link(Uri.parse(safe))!;
+      expect(link.reasons.single, contains('goes to evil.example'));
+    });
+
+    test('Proofpoint, Google and Barracuda wrappers are looked through', () {
+      for (final href in [
+        'https://urldefense.proofpoint.com/v2/url?u=https-3A__www.uber.com_help&d=x',
+        'https://urldefense.com/v3/__https://www.uber.com/help__;!!abc',
+        'https://www.google.com/url?q=https://www.uber.com/help&sa=D',
+        'https://linkprotect.cudasvc.com/url?a=https%3a%2f%2fwww.uber.com%2fhelp&c=E',
+      ]) {
+        expect(
+          links('<a href="$href">www.uber.com</a>').links,
+          isEmpty,
+          reason: href,
+        );
+      }
+    });
+
+    test('a lookalike of a wrapper host is not looked through', () {
+      const fake =
+          'https://safelinks.protection.outlook.com.evil.example/?url=https%3A%2F%2Fwww.uber.com';
+      final r = links('<a href="$fake">www.uber.com</a>');
+      expect(r.link(Uri.parse(fake)), isNotNull);
+    });
+
     test('text split by styling is read as one', () {
       final r = links('<a href="https://evil.example/"><b>paypal</b>.com</a>');
       expect(r.level, TrustLevel.danger);

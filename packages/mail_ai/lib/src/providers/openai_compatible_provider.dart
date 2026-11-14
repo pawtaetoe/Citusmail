@@ -11,7 +11,8 @@ import '../transport/ai_http.dart';
 import 'http_errors.dart';
 import 'sse.dart';
 
-/// GPT (OpenAI), Meta's Llama API and any custom endpoint, through the
+/// GPT (OpenAI), Meta's Muse models (Meta Model API) and any custom
+/// endpoint, through the
 /// OpenAI Chat Completions shape that all of them speak:
 ///
 /// - `POST {base}/chat/completions` with `Authorization: Bearer <key>`
@@ -82,10 +83,11 @@ final class OpenAiCompatibleProvider extends AiProvider {
     }
     final models = [
       for (final item in data.whereType<Map<String, Object?>>())
-        if (item['id'] case final String id
-            when id.isNotEmpty && dialect.isChatModel(id))
+        if (item['id'] case final String listed
+            when listed.isNotEmpty &&
+                dialect.isChatModel(dialect.modelId(listed)))
           AiModel(
-            id,
+            dialect.modelId(listed),
             name: item['name'] as String?,
             contextTokens: item['context_length'] as int?,
           ),
@@ -294,6 +296,8 @@ final class OpenAiDialect {
   const OpenAiDialect({
     required this.maxTokensField,
     this.chatModelsOnly = false,
+    this.geminiModelsOnly = false,
+    this.idPrefix,
   });
 
   /// OpenAI: `max_completion_tokens` (its reasoning models refuse
@@ -304,8 +308,18 @@ final class OpenAiDialect {
     chatModelsOnly: true,
   );
 
-  /// Meta's Llama API names the limit `max_completion_tokens`.
-  static const llama = OpenAiDialect(maxTokensField: 'max_completion_tokens');
+  /// The Meta Model API follows OpenAI's current Chat Completions:
+  /// `max_completion_tokens`.
+  static const meta = OpenAiDialect(maxTokensField: 'max_completion_tokens');
+
+  /// Google's Gemini API: `max_tokens`; its list names models
+  /// `models/gemini-…` and includes embedding, image, speech and live
+  /// models, which can't answer here.
+  static const google = OpenAiDialect(
+    maxTokensField: 'max_tokens',
+    geminiModelsOnly: true,
+    idPrefix: 'models/',
+  );
 
   /// Other endpoints (Ollama, LM Studio, OpenRouter, Groq, Together):
   /// `max_tokens`, which they all accept.
@@ -313,7 +327,8 @@ final class OpenAiDialect {
 
   static OpenAiDialect of(AiProviderKind kind) => switch (kind) {
     AiProviderKind.openai => openai,
-    AiProviderKind.llama => llama,
+    AiProviderKind.meta => meta,
+    AiProviderKind.google => google,
     _ => custom,
   };
 
@@ -322,12 +337,32 @@ final class OpenAiDialect {
   /// Whether to leave out models that can't chat.
   final bool chatModelsOnly;
 
+  /// Whether to keep only Gemini models that can chat.
+  final bool geminiModelsOnly;
+
+  /// A prefix the models list puts before the id requests use.
+  final String? idPrefix;
+
+  /// The id to send for [listed], as the models list names it.
+  String modelId(String listed) => switch (idPrefix) {
+    final p? when listed.startsWith(p) => listed.substring(p.length),
+    _ => listed,
+  };
+
+  static final _notGeminiChat = RegExp(
+    'embedding|image|imagen|veo|tts|audio|live|aqa|robotics|computer-use',
+  );
+
   static final _notChat = RegExp(
     'embedding|whisper|tts|dall-e|davinci|babbage|moderation|transcribe|'
     'realtime|audio|image|search|computer-use|sora',
   );
 
   bool isChatModel(String id) {
+    if (geminiModelsOnly) {
+      final lower = id.toLowerCase();
+      return lower.startsWith('gemini') && !_notGeminiChat.hasMatch(lower);
+    }
     if (!chatModelsOnly) return true;
     final lower = id.toLowerCase();
     return RegExp(r'^(gpt-|chatgpt-|o\d)').hasMatch(lower) &&

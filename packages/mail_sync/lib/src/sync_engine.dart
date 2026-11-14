@@ -276,7 +276,10 @@ final class SyncEngine {
   /// use their own connection, so they never hold up one the user opened.
   Future<Uint8List> loadBody(int messageId, {bool background = false}) async {
     final cached = _store.messages.body(messageId);
-    if (cached != null) return cached;
+    if (cached != null) {
+      _loader.findCode(messageId, cached);
+      return cached;
+    }
     final account = _accountOfMessage(messageId);
     try {
       return await (background ? _background : _onDemand).run(

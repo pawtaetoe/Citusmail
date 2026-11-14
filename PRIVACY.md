@@ -28,6 +28,8 @@ no analytics, no crash reporting and no advertising.
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
 | Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
 | VirusTotal (your own API key) | Only with "Ask VirusTotal" turned on, and only when you tap "Check with VirusTotal" on an attachment or link the on-device checks flagged | For a file, its SHA-256 fingerprint only (the file is never uploaded); for a link, the address. Your key goes with it. VirusTotal keeps what it is asked and sees your IP address |
+| The AI provider you choose, with your own key (Anthropic for Claude, OpenAI for GPT, Meta for Muse, Google for Gemini, or an OpenAI-compatible address you enter, such as a model on your own computer) | Only after you add your key and turn a feature on, it asks once before the first time, and then only when you use the feature (Summarise) | What the feature needs and nothing else. Summaries: the email or conversation you ask about (senders, recipients, dates, subjects, the text, and the names of attached files, never the files), and your key. "Test key" sends only your key, to list the models. The provider's own terms and privacy policy apply to what it receives, and it sees your IP address |
+| The AI provider you chose (your own key): writing help | Only with "Writing help" turned on (it asks first), and only when you tap "Write with AI" and choose a draft or rewrite | For a drafted reply: the email you are answering (its sender, recipients, date, subject and text) and your one-line instruction; for a rewrite: only the text you wrote. Your name goes with it; never the recipients, sign-off, attachments or any other mail. Your key goes with it |
 | The AI provider you chose, with your own key: Suggested actions ("Ask AI to tidy") | Only with Suggested actions turned on in Settings, AI assistant, when you tap Suggest (it asks once before the first time) | Your request, your folder names, and for the emails you selected (or up to 200 in the list you are in) their sender, subject, date, category, folder and whether they are read, pinned or snoozed. Never the text of an email or its attachments. Nothing in your mailbox changes until you tick the proposed changes and tap Do it |
 | A link in an email | Only when you tap it and confirm the address | Your browser opens the link, without tracking parameters such as `utm_source` |
 | Images in an email | Only when you tap "Load images", or for a sender you chose "Always from this sender" for (and only when your mail server verified the mail is from them) | A request for each image with a generic user agent: no cookies, no referrer, no language. Like any connection, it shows your IP address, and the sender can tell the message was opened. Tracking pixels are never requested |
@@ -93,6 +95,33 @@ Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail
 account and never shown as a notification.
 
+## AI assistant (your own key)
+
+Optional, and off until you set it up: Citusmail has no AI of its own
+and no server, so nothing is sent anywhere unless you add your own key
+for a provider (Claude from Anthropic, GPT from OpenAI, Meta's Muse
+models, Gemini from Google, or any OpenAI-compatible address, such as a model running on your
+own computer) and turn a feature on. Each feature asks once, naming the
+provider and what it sends, before its first request.
+
+Then, only when you use a feature, what that feature needs goes
+straight from your device to the provider you chose, with your key:
+for a summary, the email or conversation you ask about (its senders,
+recipients, dates, subjects, text and the names of attached files,
+never the files). Nothing else from your mailbox is sent, and nothing
+reaches us. The provider's own terms and privacy policy apply to what
+it receives; some keep requests for a while, for example to check for
+abuse. Google's free tier for Gemini may use what it receives to
+improve Google's products; a paid Gemini key, or another provider, avoids
+that. A model on your own computer or network keeps it all with you.
+
+Your keys are kept in the system keychain and never synced; Settings
+shows only their last four characters. Summaries are kept on the
+device, encrypted with your mail, so the same email is never sent
+twice, and are forgotten when you turn summaries off. How many tokens
+each request used is counted on the device, for the monthly cost and
+the limit you can set.
+
 ## Sync between devices
 
 Off until you turn it on. Then your blocked senders, Screener decisions,
@@ -106,7 +135,7 @@ wrote it. The code is a random 128-bit secret kept only in each device's
 system keychain; with the app lock on, showing it asks for your PIN. Other
 app settings never sync: notifications and their previews, instant mail
 and battery settings, the theme and layout, the app lock and your PIN,
-and Safe Browsing and VirusTotal (they send data to another company, so
+and Safe Browsing, VirusTotal and the AI assistant (they send data to another company, so
 each device agrees to them itself). Older versions of the app can't read
 the synced data once it holds these preferences: update every device.
 

@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 
 import 'support/fake_server.dart';
 
-/// GPT, Meta's Llama API and custom endpoints, against a stand-in for the
+/// GPT, Meta's Muse models and custom endpoints, against a stand-in for the
 /// Chat Completions API.
 void main() {
   late FakeServer server;
@@ -108,6 +108,40 @@ void main() {
     },
   );
 
+  test('Gemini lists only its chat models, by the id requests use', () async {
+    server.handler = (_) => Reply.json({
+      'data': [
+        {'id': 'models/gemini-3-flash'},
+        {'id': 'models/gemini-3-pro'},
+        {'id': 'models/gemini-embedding-001'},
+        {'id': 'models/gemini-3-flash-image'},
+        {'id': 'models/gemini-live-3-flash'},
+        {'id': 'models/imagen-4.0-generate'},
+        {'id': 'models/text-embedding-004'},
+      ],
+    });
+    final models = await provider(
+      AiProviderKind.google,
+      key: 'AIza-test',
+    ).listModels();
+    expect(models.map((m) => m.id), ['gemini-3-flash', 'gemini-3-pro']);
+    expect(
+      server.requests.single.headers.value('authorization'),
+      'Bearer AIza-test',
+    );
+  });
+
+  test('Gemini answers with max_tokens as its limit', () async {
+    const request = AiRequest(
+      model: 'gemini-3-flash',
+      messages: [AiMessage.user('x')],
+    );
+    await provider(AiProviderKind.google, key: 'AIza-test').complete(request);
+    expect(server.requests.last.uri.path, endsWith('/chat/completions'));
+    expect(server.requests.last.json['max_tokens'], 4096);
+    expect(server.requests.last.json['model'], 'gemini-3-flash');
+  });
+
   test('a wrong address is not a missing model', () async {
     server.handler = (_) => const Reply(404, body: 'not found');
     await expectLater(
@@ -158,11 +192,14 @@ void main() {
     });
   });
 
-  test('Llama and custom endpoints: their names for the limit', () async {
+  test('Meta and custom endpoints: their names for the limit', () async {
     const request = AiRequest(model: 'm', messages: [AiMessage.user('x')]);
-    await provider(AiProviderKind.llama, key: 'LLM|1').complete(request);
+    await provider(AiProviderKind.meta, key: 'meta-key').complete(request);
     expect(server.requests.last.json['max_completion_tokens'], 4096);
-    expect(server.requests.last.headers.value('authorization'), 'Bearer LLM|1');
+    expect(
+      server.requests.last.headers.value('authorization'),
+      'Bearer meta-key',
+    );
     await provider(AiProviderKind.custom).complete(request);
     expect(server.requests.last.json['max_tokens'], 4096);
     expect(
@@ -422,13 +459,22 @@ void main() {
       );
       expect(gpt, isA<OpenAiCompatibleProvider>());
       expect(gpt.recipient, 'OpenAI');
-      final llama = AiProviders.create(
-        const AiProviderConfig(kind: AiProviderKind.llama, apiKey: 'k'),
+      final meta = AiProviders.create(
+        const AiProviderConfig(kind: AiProviderKind.meta, apiKey: 'k'),
       );
-      expect(llama.recipient, 'Meta');
+      expect(meta.recipient, 'Meta');
       expect(
-        AiProviderKind.llama.defaultBaseUrl.toString(),
-        'https://api.llama.com/compat/v1',
+        AiProviderKind.meta.defaultBaseUrl.toString(),
+        'https://api.meta.ai/v1',
+      );
+      final gemini = AiProviders.create(
+        const AiProviderConfig(kind: AiProviderKind.google, apiKey: 'k'),
+      );
+      expect(gemini, isA<OpenAiCompatibleProvider>());
+      expect(gemini.recipient, 'Google');
+      expect(
+        AiProviderKind.google.defaultBaseUrl.toString(),
+        'https://generativelanguage.googleapis.com/v1beta/openai',
       );
       final claude = AiProviders.create(
         const AiProviderConfig(kind: AiProviderKind.claude, apiKey: 'k'),

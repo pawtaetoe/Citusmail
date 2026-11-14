@@ -4,9 +4,11 @@
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_store/mail_store.dart' show SignOff;
 
+import '../ui/ai_confirm_dialog.dart';
 import '../ui/app_icons.dart';
 import '../ui/citusmail_theme.dart';
 import '../ui/follow_up_sheet.dart';
@@ -16,6 +18,7 @@ import '../ui/send_later_sheet.dart';
 import '../ui/sign_offs_page.dart';
 import 'compose_controller.dart';
 import 'recipient_field.dart';
+import 'writing_sheet.dart';
 
 /// The compose window. Closing it keeps the draft (in the Drafts folder);
 /// it returns a [ComposeResult] to whoever opened it.
@@ -114,6 +117,59 @@ final class _ComposePageState extends State<ComposePage> {
     _ => null,
   };
 
+  /// "Write with AI": asks once whether the feature may send to its
+  /// provider, then offers a drafted reply or a rewrite. Only the body
+  /// ever changes, and only when the user picks Replace or Insert below.
+  Future<void> _writeWithAi() async {
+    final ai = _c.services.ai;
+    final provider = await ai.providerFor(AiFeatures.writing.id);
+    if (!mounted) return;
+    if (provider == null) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Writing help isn\'t ready'),
+          content: const Text(
+            'Its provider or key is missing. Check Settings, AI assistant.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    if (!await confirmAiSend(context, provider) || !mounted) return;
+    final choice = await WritingSheet.show(
+      context,
+      provider: provider,
+      assistant: _c.writing,
+      body: _body.text,
+      source: _c.replySource(),
+      forward: _c.forwards,
+      userName: _c.userName,
+      signOff: _c.signOff?.text,
+    );
+    if (choice == null || !mounted) return;
+    final next = _c.useWriting(choice.text, replace: choice.replace);
+    _body.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+  }
+
+  void _undoWriting() {
+    final before = _c.undoWriting();
+    if (before == null) return;
+    _body.value = TextEditingValue(
+      text: before,
+      selection: TextSelection.collapsed(offset: before.length),
+    );
+  }
+
   Future<void> _discard() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -200,10 +256,12 @@ final class _ComposePageState extends State<ComposePage> {
       child: Material(
         child: SafeArea(
           child: ListenableBuilder(
-            listenable: _c,
+            // The AI's switch too: "Write with AI" shows only while on.
+            listenable: Listenable.merge([_c, _c.services.ai.changes]),
             builder: (context, _) {
               final draft = _c.draft;
               final accounts = _c.accounts;
+              final writing = _c.services.ai.isOn(AiFeatures.writing.id);
               // Phones: the actions (Send...) at the bottom, just above the
               // keyboard, within reach of the thumb.
               final phone =
@@ -275,6 +333,17 @@ final class _ComposePageState extends State<ComposePage> {
                         selectedIcon: AppIcons.remindOn,
                         onPressed: _chooseFollowUp,
                       ),
+                      if (writing)
+                        _Toggle(
+                          key: const ValueKey('compose-write-with-ai'),
+                          tooltip: 'Write with AI',
+                          label: 'Write with AI',
+                          labelled: !phone,
+                          selected: false,
+                          icon: AppIcons.writeWithAi,
+                          selectedIcon: AppIcons.writeWithAi,
+                          onPressed: _writeWithAi,
+                        ),
                       IconButton(
                         tooltip: 'Attach files',
                         icon: const Icon(AppIcons.attachment),
@@ -289,8 +358,9 @@ final class _ComposePageState extends State<ComposePage> {
                       _SendButton(
                         onSend: _send,
                         onSendLater: _sendLater,
-                        // The narrowest phones: the paper plane alone.
-                        iconOnly: width < 380,
+                        // The narrowest phones: the paper plane alone
+                        // (wider ones too with "Write with AI").
+                        iconOnly: width < (writing ? 430 : 380),
                       ),
                     ],
                   ),
@@ -381,6 +451,34 @@ final class _ComposePageState extends State<ComposePage> {
                         style: TextStyle(
                           color: theme.colorScheme.onErrorContainer,
                         ),
+                      ),
+                    ),
+                  if (_c.canUndoWriting)
+                    Container(
+                      key: const ValueKey('writing-undo'),
+                      color: theme.colorScheme.secondaryContainer,
+                      padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Written with AI. Read it through before '
+                              'sending.',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSecondaryContainer,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _undoWriting,
+                            child: const Text('Undo'),
+                          ),
+                          IconButton(
+                            tooltip: 'Keep it',
+                            icon: const Icon(AppIcons.close, size: 18),
+                            onPressed: _c.keepWriting,
+                          ),
+                        ],
                       ),
                     ),
                   if (draft.attachments.isNotEmpty)

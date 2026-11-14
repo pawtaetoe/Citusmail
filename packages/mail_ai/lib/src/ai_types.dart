@@ -18,11 +18,16 @@ enum AiProviderKind {
   /// GPT, through OpenAI's Chat Completions API.
   openai('GPT (OpenAI)', 'OpenAI', 'https://api.openai.com/v1', needsKey: true),
 
-  /// Meta's Llama API, through its OpenAI-compatible endpoint.
-  llama(
-    'Meta Llama',
-    'Meta',
-    'https://api.llama.com/compat/v1',
+  /// Meta's Muse models (Muse Spark, Muse Wonder…), through the Meta
+  /// Model API's OpenAI-compatible endpoint; keys from dev.meta.ai.
+  meta('Meta Muse', 'Meta', 'https://api.meta.ai/v1', needsKey: true),
+
+  /// Google's Gemini models, through the Gemini API's OpenAI-compatible
+  /// endpoint; keys from Google AI Studio, which has a free tier.
+  google(
+    'Gemini (Google)',
+    'Google',
+    'https://generativelanguage.googleapis.com/v1beta/openai',
     needsKey: true,
   ),
 
@@ -54,6 +59,14 @@ enum AiProviderKind {
   Uri? get defaultBaseUrl => switch (_baseUrl) {
     final url? => Uri.parse(url),
     null => null,
+  };
+
+  /// The model chosen first when this provider is added, if its models
+  /// list offers it (null: the first model the list names).
+  String? get defaultModel => switch (this) {
+    claude => 'claude-opus-5-5',
+    meta => 'muse-spark-1.1',
+    openai || google || custom => null,
   };
 
   /// The stored name, stable across versions.

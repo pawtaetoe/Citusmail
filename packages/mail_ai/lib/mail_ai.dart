@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 /// The optional AI assistant with the user's own key (off by default):
-/// one [AiProvider] interface over Claude, GPT, Meta's Llama API and any
+/// one [AiProvider] interface over Claude, GPT, Meta's Muse models, Google's Gemini and any
 /// OpenAI-compatible endpoint; [MailPrompt], the one place mail becomes
 /// (untrusted) prompt data; [AiFeatures], the per-feature switches and
 /// model choices; and [AiUsageLedger] with [AiPriceTable] for tokens,

@@ -270,4 +270,31 @@ void main() {
       expect(fake.cancelled, 0);
     },
   );
+
+  test(
+    'a new Claude or Meta key starts with a default model that has a price',
+    () {
+      expect(AiProviderKind.claude.defaultModel, 'claude-opus-5-5');
+      expect(
+        AiPriceTable(MemoryAiStore())
+            .price(AiProviderKind.claude, AiProviderKind.claude.defaultModel!),
+        const AiPrice(4, 20),
+      );
+      // Meta starts with Muse Spark 1.1, which has Meta's price too.
+      expect(AiProviderKind.meta.defaultModel, 'muse-spark-1.1');
+      expect(
+        AiPriceTable(MemoryAiStore())
+            .price(AiProviderKind.meta, 'muse-spark-1.1'),
+        const AiPrice(1.25, 4.25),
+      );
+      // Others start with the first model their list names.
+      for (final kind in [
+        AiProviderKind.openai,
+        AiProviderKind.google,
+        AiProviderKind.custom,
+      ]) {
+        expect(kind.defaultModel, isNull, reason: kind.id);
+      }
+    },
+  );
 }
