@@ -99,12 +99,14 @@ final class Corrections {
     _store.settings.delete(_modelKey);
     _store.settings.delete(_keptKey);
     _store.settings.delete(_openedKey);
+    SenderSortChoices(_store).clear();
   }
 
   /// Whether anything was learned.
   bool get learnedAnything =>
       _store.settings.read(_modelKey) != null ||
-      _store.settings.read(_keptKey) != null;
+      _store.settings.read(_keptKey) != null ||
+      _store.settings.read(SenderSortChoices.key) != null;
 
   /// The keys of [items] (each key and its emails) to leave out as not a
   /// [kind]: most of their emails look like ones the user rejected.

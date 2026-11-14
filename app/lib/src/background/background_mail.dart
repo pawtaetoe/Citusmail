@@ -11,6 +11,8 @@ import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
+import '../services/ai_assistant.dart';
+import '../services/ai_sorter.dart';
 import '../services/app_services.dart';
 import '../services/app_settings.dart';
 import '../services/auto_reader.dart';
@@ -248,6 +250,15 @@ abstract final class BackgroundMail {
         (id) => engine.loadBody(id, background: true),
         newMail: newMail,
       );
+      // New mail the sorting rules can't place, to the AI assistant: only
+      // with "Sorting backup" on and a key (else nothing at all).
+      if (newMail) {
+        await AiSorter.sortOnce(
+          store,
+          AiAssistant(store, secrets),
+          (id) => engine.loadBody(id, background: true),
+        );
+      }
       recordCheck(store, ok: allOk);
       return allOk;
     } on Object {

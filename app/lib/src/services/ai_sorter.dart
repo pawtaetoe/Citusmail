@@ -12,6 +12,7 @@ import 'package:mail_sync/mail_sync.dart';
 import 'package:mail_view/mail_view.dart';
 
 import 'ai_assistant.dart';
+import 'app_settings.dart';
 import 'auto_reader.dart' show BodyLoader;
 
 /// What one [AiSorter.run] did.
@@ -154,6 +155,14 @@ final class AiSorter {
     _events = null;
   }
 
+  /// One run in the Android background check (after the news is out),
+  /// with its own connection: as after a sync in the app.
+  static Future<AiSortRun> sortOnce(
+    MailStore store,
+    AiAssistant ai,
+    BodyLoader load,
+  ) => AiSorter(store, ai, load).run();
+
   /// One run now.
   Future<AiSortRun> run() async {
     const nothing = (asked: 0, moved: 0);
@@ -173,7 +182,7 @@ final class AiSorter {
       );
       for (final message in waiting) {
         if (_stopped || !isOn) break;
-        final text = await _text(message);
+        final (text, whole) = await _text(message);
         if (_stopped || !isOn) break;
         final AiResponse response;
         try {
@@ -205,7 +214,15 @@ final class AiSorter {
           _log(message, AiSortOutcome.ignored, by: provider.recipient);
           continue;
         }
-        if (_apply(message, answer, text, by: provider.recipient)) moved++;
+        if (_apply(
+          message,
+          answer,
+          text,
+          whole: whole,
+          by: provider.recipient,
+        )) {
+          moved++;
+        }
       }
       problem.value = null;
     } on Object catch (e) {
@@ -228,8 +245,9 @@ final class AiSorter {
   };
 
   /// The message's text: from its body (downloaded now if it isn't on
-  /// the device yet and isn't large; it stays unread), else its preview.
-  Future<String> _text(StoredMessage message) async {
+  /// the device yet and isn't large; it stays unread), else its preview;
+  /// and whether it is the whole text.
+  Future<(String, bool)> _text(StoredMessage message) async {
     var raw = _store.messages.body(message.id);
     if (raw == null && message.size <= maxDownload) {
       try {
@@ -241,12 +259,24 @@ final class AiSorter {
     }
     if (raw != null) {
       try {
-        return MessageView.parse(raw).body.plainText;
+        return (MessageView.parse(raw).body.plainText, true);
       } on Object {
         // Unreadable: the preview below.
       }
     }
-    return message.snippet ?? '';
+    return (message.snippet ?? '', false);
+  }
+
+  /// [message]'s text if its body is on the device, else its preview.
+  String? _storedText(StoredMessage message) {
+    if (_store.messages.body(message.id) case final raw?) {
+      try {
+        return MessageView.parse(raw).body.plainText;
+      } on Object {
+        // Unreadable: the preview.
+      }
+    }
+    return message.snippet;
   }
 
   /// What is asked about [message] (with [text], its whole text; only
@@ -313,11 +343,13 @@ Also say whether it is a sign-in or verification code email, and give the reason
 Answer only with the JSON object asked for. Nothing else you write is used: you cannot reply, forward, delete, move, open links or change anything; the app only reads the category, the reason and the yes or no.''';
 
   /// Moves [message] as [answer] says, if it is still where the rules
-  /// left it. Returns whether it moved.
+  /// left it. Returns whether it moved. [text] is the message's text
+  /// ([whole]: all of it, else only the preview).
   bool _apply(
     StoredMessage message,
     AiSortAnswer answer,
     String text, {
+    required bool whole,
     required String by,
   }) {
     final now = _store.messages.byId(message.id);
@@ -337,10 +369,12 @@ Answer only with the JSON object asked for. Nothing else you write is used: you 
           category: category,
           source: CategorySource.rule,
           listId: now.listId,
-          // Read at once when the text is here; otherwise the next sync
-          // reads it (see CodeReader).
+          // Read at once when the text is here (none found in the whole
+          // text: none to read); otherwise the next sync downloads and
+          // reads it (CodeReader).
           code: category == MessageCategory.codes
-              ? VerificationCodes.inMessage(message.subject, text)
+              ? VerificationCodes.inMessage(message.subject, text) ??
+                    (whole ? '' : null)
               : null,
         ),
       ]);
@@ -381,25 +415,37 @@ Answer only with the JSON object asked for. Nothing else you write is used: you 
     return entry;
   }
 
-  /// "Not right?": the rules decide [message] again (General, as they
-  /// had no signal), and it is never asked about again.
-  void undo(StoredMessage message) {
+  /// "Not right?": the user says [message] belongs in [category]. That
+  /// is where it stays (a re-sort keeps it), it is never asked about
+  /// again, and, while "Learn from my corrections" is on, the sender's
+  /// next mail the rules can't place goes there too, without asking the
+  /// assistant (except Codes, which are known from each message).
+  void correct(StoredMessage message, MessageCategory category) {
     _store.transaction(() {
-      AiSortLog(_store).undo(message.id);
-      final decision = Resorter(_store).decide(
-        SortableMessage(
-          id: message.id,
-          from: message.from,
-          headers: _store.messages.headers(message.id),
-          mailboxUse: null,
-          subject: message.subject,
-          snippet: message.snippet,
+      AiSortLog(_store).correct(message.id, category);
+      _store.messages.updateCategories([
+        CategoryDecision(
+          messageId: message.id,
+          category: category,
+          source: CategorySource.rule,
+          listId: message.listId,
         ),
-      );
-      _store.messages.updateCategories([decision]);
-      // A code read for Codes no longer shows in its place.
-      if (decision.category != MessageCategory.codes) {
+      ]);
+      // A code read for Codes no longer shows once it is elsewhere. Put
+      // in Codes, its code is read from what is here (else the next sync
+      // downloads and reads it: CodeReader).
+      if (category != MessageCategory.codes) {
         _store.messages.setCode(message.id, '');
+      } else if (VerificationCodes.inMessage(
+            message.subject,
+            _storedText(message),
+          )
+          case final code?) {
+        _store.messages.setCode(message.id, code);
+      }
+      if (message.from?.address case final sender?
+          when AppSettings(_store).learnFromCorrections) {
+        SenderSortChoices(_store).choose(sender, category);
       }
     });
     onSorted?.call();
