@@ -256,6 +256,16 @@ abstract final class Features {
       open: (context, c) => c.compose(),
     ),
     Feature(
+      id: 'writeWithAi',
+      group: FeatureGroup.writing,
+      icon: AppIcons.writeWithAi,
+      title: 'Write with AI',
+      sentence:
+          'Optional, with your own key: draft a reply, or make your text '
+          'shorter, friendlier, more formal, corrected or translated.',
+      open: (context, c) => _setting(context, c, 'ai-writing'),
+    ),
+    Feature(
       id: 'signOffs',
       group: FeatureGroup.writing,
       icon: AppIcons.signOff,
