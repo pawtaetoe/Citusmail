@@ -20,7 +20,8 @@ final class CodeReader {
   final MailStore _store;
   final DateTime Function() _now;
 
-  /// Codes expire within minutes; older mail is not downloaded for them.
+  /// Mail this new is read first; older verification mail only fills the
+  /// places left in a sync.
   static const maxAge = Duration(days: 1);
 
   /// A verification mail is a few KB; bigger ones are left alone.
@@ -34,12 +35,28 @@ final class CodeReader {
   Future<int> read(ImapClient imap, Account account) async {
     final inbox = _store.mailboxes.inbox(account.id);
     if (inbox == null) return 0;
-    final waiting = _store.messages.codesToRead(
+    final fresh = _store.messages.codesToRead(
       inbox.id,
       since: _now().subtract(maxAge),
       maxSize: maxBytes,
       limit: maxMessages,
     );
+    // Older verification mail (from before the app had it, or after a
+    // long time offline) fills the places left, newest first, so the
+    // Codes list shows every code in time.
+    final waiting = [
+      ...fresh,
+      if (fresh.length < maxMessages)
+        ..._store.messages
+            .codesToRead(
+              inbox.id,
+              since: DateTime.utc(1970),
+              maxSize: maxBytes,
+              limit: maxMessages,
+            )
+            .where((m) => !fresh.any((f) => f.id == m.id))
+            .take(maxMessages - fresh.length),
+    ];
     if (waiting.isEmpty) return 0;
     final byUid = {for (final m in waiting) m.uid: m};
     final selected = imap.selected?.name == inbox.encodedName

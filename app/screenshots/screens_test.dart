@@ -15,6 +15,7 @@ import 'dart:ui' as ui;
 
 import 'package:citusmail/src/compose/compose_controller.dart';
 import 'package:citusmail/src/compose/compose_page.dart';
+import 'package:citusmail/src/mail/ai_tidy_model.dart';
 import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/mail/new_since_away.dart';
@@ -1237,6 +1238,93 @@ void main() {
     await shoot(tester, 'phone_snoozed');
   });
 
+  // Ask AI to tidy (with a stand-in for the AI provider): the proposal as
+  // a checklist, on the desktop (a dialog) and on a phone (a sheet).
+  testWidgets('ai tidy', (tester) async {
+    final fake = FakeAiProvider();
+    // An app whose AI provider is the stand-in (made outside the test's
+    // fake clock, like setUp's).
+    await tester.runAsync(() async {
+      await app.dispose();
+      app = await TestApp.create(aiProviders: (_) => fake);
+    });
+    _seedDemo(app.store);
+    await app.services.ai.saveProvider(
+      AiProviderKind.claude,
+      key: 'demo-key',
+      model: 'fake-large',
+    );
+    app.services.ai.setOn(AiFeatures.actions.id, true);
+    void answer() {
+      final controller = MailController(app.services);
+      final c = AiTidy(controller).candidates();
+      String ref(String subject) =>
+          c.refOf(c.messages.firstWhere((m) => m.subject == subject));
+      controller.dispose();
+      fake.replies.add(
+        FakeAiReply(
+          jsonEncode({
+            'actions': [
+              {
+                'action': 'archive',
+                'ids': [
+                  ref('Autumn trail guide'),
+                  ref('Your parcel is out for delivery'),
+                ],
+                'folder': null,
+                'until': null,
+              },
+              {
+                'action': 'pin',
+                'ids': [ref('Design review moved to Thursday')],
+                'folder': null,
+                'until': null,
+              },
+              {
+                'action': 'mark_read',
+                'ids': [ref('Weekend hike?')],
+                'folder': null,
+                'until': null,
+              },
+            ],
+            'note': 'Codes and personal mail stay as they are.',
+          }),
+        ),
+      );
+    }
+
+    Future<void> ask(String name) async {
+      await tester.tap(find.byTooltip('Ask AI to tidy'));
+      await settle(tester);
+      await tester.enterText(
+        find.byKey(const ValueKey('tidy-words')),
+        'Archive newsletters and deliveries, pin anything about the design',
+      );
+      await settle(tester);
+      await shoot(tester, '${name}_ask');
+      await tester.tap(find.text('Suggest'));
+      await settle(tester);
+      if (find.text('Send').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Send'));
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await settle(tester);
+      await tester.tap(find.text('Archive 2 emails'));
+      await shoot(tester, '${name}_plan');
+    }
+
+    answer();
+    await show(tester, shell(), size: const Size(1440, 900));
+    await ask('desktop_ai_tidy');
+
+    await tester.pumpWidget(const SizedBox()); // a fresh start
+    answer();
+    await show(tester, shell(), size: const Size(390, 844));
+    await ask('phone_ai_tidy');
+  });
+
   // Send later: the times next to Send (a dialog on the desktop, a bottom
   // sheet on phones), and scheduled messages waiting in the Outbox with
   // their actions and the note on when they really go.
@@ -1441,6 +1529,81 @@ void main() {
       await shoot(tester, '${name}_learning_settings');
     });
   }
+
+  // Writing help ("Write with AI", with a stand-in AI provider): a reply
+  // with the button, the sheet's choices, a drafted reply in the preview,
+  // and the body after Replace with its Undo note.
+  group('writing help', () {
+    late FakeAiProvider fake;
+    setUp(() async {
+      await app.dispose();
+      fake = FakeAiProvider();
+      app = await TestApp.create(aiProviders: (_) => fake);
+      await app.services.ai.saveProvider(
+        AiProviderKind.claude,
+        key: 'demo-key',
+        model: 'demo-model',
+      );
+      app.services.ai.setOn(AiFeatures.writing.id, true);
+      app.services.ai.features.confirm(
+        AiFeatures.writing.id,
+        AiProviderKind.claude,
+        'Anthropic',
+      );
+    });
+
+    for (final (size, name) in [
+      (const Size(1440, 900), 'desktop'),
+      (const Size(390, 844), 'phone'),
+    ]) {
+      testWidgets('writing help $name', (tester) async {
+        fake.replies.add(
+          const FakeAiReply(
+            'Hi Priya,\n\nThursday at 10 works for me. I\'ll bring the '
+            'printed drafts so we can go through them together.\n\n'
+            'See you then!',
+          ),
+        );
+        final alice = app.store.accounts.all().single;
+        final controller = ComposeController(
+          app.services,
+          Draft(
+            accountId: alice.id,
+            to: const [
+              MailAddress(
+                displayName: 'Priya Shah',
+                localPart: 'priya',
+                domain: 'studio.example',
+              ),
+            ],
+            subject: 'Re: Notes from Tuesday',
+            inReplyTo: 'notes-1@studio.example',
+            quote:
+                'On Tue, 10 Nov 2026 at 16:40, Priya Shah '
+                '<priya@studio.example> wrote:\n> Could we meet on Thursday '
+                'at 10 instead? Bring the printed drafts if you can.\n>\n> '
+                'Priya',
+          ),
+        );
+        addTearDown(controller.dispose);
+        await show(tester, ComposePage(controller: controller), size: size);
+        await shoot(tester, '${name}_writing_compose');
+        await tester.tap(find.byKey(const ValueKey('compose-write-with-ai')));
+        await settle(tester);
+        await tester.enterText(
+          find.byKey(const ValueKey('writing-note')),
+          'yes, and I\'ll bring the drafts',
+        );
+        await shoot(tester, '${name}_writing_sheet');
+        await tester.tap(find.byKey(const ValueKey('writing-draft')));
+        await shoot(tester, '${name}_writing_preview');
+        await tester.tap(find.byKey(const ValueKey('writing-replace')));
+        await shoot(tester, '${name}_writing_replaced');
+        // Let the draft's save timer run out.
+        await tester.pump(const Duration(seconds: 3));
+      });
+    }
+  });
 }
 
 /// Notifications about billing code: GitHub's marked "Not a

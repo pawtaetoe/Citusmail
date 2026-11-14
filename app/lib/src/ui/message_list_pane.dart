@@ -12,6 +12,7 @@ import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../mail/message_list_model.dart';
 import '../mail/send_later_times.dart';
+import 'ai_tidy_sheet.dart';
 import 'app_icons.dart';
 import 'attachments_page.dart';
 import 'citusmail_theme.dart';
@@ -81,6 +82,7 @@ final class MessageListPane extends StatelessWidget {
                   : _SelectionBar(
                       controller: controller,
                       count: selected.length,
+                      withTidy: true,
                     ),
             ),
           ),
@@ -296,6 +298,7 @@ final class _ViewHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: _title(context, location)),
+          AiTidyButton(controller: controller),
           _StatusLine(controller: controller),
         ],
       ),
@@ -448,10 +451,18 @@ final class _StatusLine extends StatelessWidget {
 
 /// Shown while messages are selected: what can be done to all of them.
 final class _SelectionBar extends StatelessWidget {
-  const _SelectionBar({required this.controller, required this.count});
+  const _SelectionBar({
+    required this.controller,
+    required this.count,
+    this.withTidy = false,
+  });
 
   final MailController controller;
   final int count;
+
+  /// "Ask AI to tidy" here too (wide screens, where this bar takes the
+  /// header's place; on phones the header above keeps it).
+  final bool withTidy;
 
   @override
   Widget build(BuildContext context) {
@@ -520,6 +531,7 @@ final class _SelectionBar extends StatelessWidget {
               icon: const Icon(AppIcons.move),
               onPressed: () => MoveDialog.show(context, controller, targets),
             ),
+          if (withTidy) AiTidyButton(controller: controller),
         ],
       ),
     );

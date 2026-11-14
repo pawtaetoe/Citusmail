@@ -178,7 +178,7 @@ abstract final class Features {
       icon: AppIcons.assistant,
       title: 'AI assistant (your own key)',
       sentence:
-          'Optional: with your own key for Claude, GPT, Meta Muse or a model on '
+          'Optional: with your own key for Claude, GPT, Gemini, Meta Muse or a model on '
           'your computer, summarise an email or a whole conversation.',
       open: (context, c) => _setting(context, c, 'aiAssistant'),
     ),
@@ -240,6 +240,16 @@ abstract final class Features {
           _goTo(context, c, const SectionLocation(SmartSection.newsletters)),
     ),
     Feature(
+      id: 'aiTidy',
+      group: FeatureGroup.inbox,
+      icon: AppIcons.assistant,
+      title: 'Ask AI to tidy',
+      sentence:
+          'With your own AI key: say what to archive, move, pin or snooze, '
+          'and check the list before anything happens.',
+      open: (context, c) => _setting(context, c, 'ai-actions'),
+    ),
+    Feature(
       id: 'codes',
       group: FeatureGroup.inbox,
       icon: AppIcons.codes,
@@ -274,6 +284,16 @@ abstract final class Features {
       title: 'Ask for a read receipt',
       sentence: 'Ask to be told when your email is read.',
       open: (context, c) => c.compose(),
+    ),
+    Feature(
+      id: 'writeWithAi',
+      group: FeatureGroup.writing,
+      icon: AppIcons.writeWithAi,
+      title: 'Write with AI',
+      sentence:
+          'Optional, with your own key: draft a reply, or make your text '
+          'shorter, friendlier, more formal, corrected or translated.',
+      open: (context, c) => _setting(context, c, 'ai-writing'),
     ),
     Feature(
       id: 'signOffs',

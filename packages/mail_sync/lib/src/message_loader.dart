@@ -5,6 +5,7 @@
 import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
@@ -44,7 +45,10 @@ final class MessageLoader {
   /// needed.
   Future<Uint8List> load(ImapClient imap, int messageId) async {
     final cached = _store.messages.body(messageId);
-    if (cached != null) return cached;
+    if (cached != null) {
+      findCode(messageId, cached);
+      return cached;
+    }
 
     final message = _store.messages.byId(messageId);
     if (message == null) throw const BodyUnavailableException(BodyProblem.gone);
@@ -81,6 +85,7 @@ final class MessageLoader {
       raw,
       searchableText: view.searchableText,
     );
+    findCode(messageId, raw, view: view);
     if (message.hasAttachments) {
       // The reader's list of files, for the attachments page.
       _store.messages.setHeader(messageId, FilePart.storedHeader, [
@@ -88,6 +93,21 @@ final class MessageLoader {
       ]);
     }
     return raw;
+  }
+
+  /// A verification email opened without its code found yet (older mail
+  /// the code reader skips): the code is read from [raw] now, so the list
+  /// shows it from here on.
+  void findCode(int messageId, Uint8List raw, {MessageView? view}) {
+    final message = _store.messages.byId(messageId);
+    if (message == null ||
+        message.category != MessageCategory.codes ||
+        (message.code?.isNotEmpty ?? false)) {
+      return;
+    }
+    final text = (view ?? MessageView.parse(raw)).body.plainText;
+    final code = VerificationCodes.inMessage(message.subject, text);
+    if (code != null) _store.messages.setCode(messageId, code);
   }
 }
 

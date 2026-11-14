@@ -108,6 +108,40 @@ void main() {
     },
   );
 
+  test('Gemini lists only its chat models, by the id requests use', () async {
+    server.handler = (_) => Reply.json({
+      'data': [
+        {'id': 'models/gemini-3-flash'},
+        {'id': 'models/gemini-3-pro'},
+        {'id': 'models/gemini-embedding-001'},
+        {'id': 'models/gemini-3-flash-image'},
+        {'id': 'models/gemini-live-3-flash'},
+        {'id': 'models/imagen-4.0-generate'},
+        {'id': 'models/text-embedding-004'},
+      ],
+    });
+    final models = await provider(
+      AiProviderKind.google,
+      key: 'AIza-test',
+    ).listModels();
+    expect(models.map((m) => m.id), ['gemini-3-flash', 'gemini-3-pro']);
+    expect(
+      server.requests.single.headers.value('authorization'),
+      'Bearer AIza-test',
+    );
+  });
+
+  test('Gemini answers with max_tokens as its limit', () async {
+    const request = AiRequest(
+      model: 'gemini-3-flash',
+      messages: [AiMessage.user('x')],
+    );
+    await provider(AiProviderKind.google, key: 'AIza-test').complete(request);
+    expect(server.requests.last.uri.path, endsWith('/chat/completions'));
+    expect(server.requests.last.json['max_tokens'], 4096);
+    expect(server.requests.last.json['model'], 'gemini-3-flash');
+  });
+
   test('a wrong address is not a missing model', () async {
     server.handler = (_) => const Reply(404, body: 'not found');
     await expectLater(
@@ -432,6 +466,15 @@ void main() {
       expect(
         AiProviderKind.meta.defaultBaseUrl.toString(),
         'https://api.meta.ai/v1',
+      );
+      final gemini = AiProviders.create(
+        const AiProviderConfig(kind: AiProviderKind.google, apiKey: 'k'),
+      );
+      expect(gemini, isA<OpenAiCompatibleProvider>());
+      expect(gemini.recipient, 'Google');
+      expect(
+        AiProviderKind.google.defaultBaseUrl.toString(),
+        'https://generativelanguage.googleapis.com/v1beta/openai',
       );
       final claude = AiProviders.create(
         const AiProviderConfig(kind: AiProviderKind.claude, apiKey: 'k'),
