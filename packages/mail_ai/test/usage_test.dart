@@ -270,4 +270,21 @@ void main() {
       expect(fake.cancelled, 0);
     },
   );
+
+  test('a new Claude key starts with the default model, which has a price', () {
+    expect(AiProviderKind.claude.defaultModel, 'claude-opus-5-5');
+    expect(
+      AiPriceTable(MemoryAiStore())
+          .price(AiProviderKind.claude, AiProviderKind.claude.defaultModel!),
+      const AiPrice(4, 20),
+    );
+    // Others start with the first model their list names.
+    for (final kind in [
+      AiProviderKind.openai,
+      AiProviderKind.llama,
+      AiProviderKind.custom,
+    ]) {
+      expect(kind.defaultModel, isNull, reason: kind.id);
+    }
+  });
 }

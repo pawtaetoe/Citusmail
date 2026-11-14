@@ -380,6 +380,23 @@ abstract final class SettingsCatalog {
       'Ask your mail',
       words: ['ask', 'question', 'answer', 'ai', 'search', 'chat'],
     ),
+    SettingEntry(
+      'aiLimit',
+      'ai',
+      'AI monthly limit',
+      words: [
+        'limit',
+        'cap',
+        'cost',
+        'spend',
+        'spending',
+        'usage',
+        'tokens',
+        'price',
+        'budget',
+        'ai',
+      ],
+    ),
     // Appearance.
     SettingEntry(
       'theme',
