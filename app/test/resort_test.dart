@@ -3,7 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // Mail stored with older sorting rules is sorted again after start-up,
-// once the mail screen is up, not while the user looks at a spinner.
+// once the mail screen is up, and by the sync worker in its own isolate,
+// so the screen never waits for it.
 
 import 'dart:async';
 
@@ -23,7 +24,7 @@ void main() {
 
   String? version() => app.store.settings.read(Resorter.versionKey);
 
-  testWidgets('after the first frame and a pause, in small batches', (
+  testWidgets('after the first frame and a pause, in the sync worker', (
     tester,
   ) async {
     int? looked;
@@ -37,8 +38,12 @@ void main() {
     expect(version(), 'older rules', reason: 'the app is still starting');
 
     await tester.pump(const Duration(seconds: 1));
-    for (var i = 0; i < 50 && looked == null; i++) {
-      await tester.pump(const Duration(milliseconds: 16));
+    // The worker is another isolate: real time passes while it works.
+    for (var i = 0; i < 100 && looked == null; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump();
     }
     expect(looked, greaterThan(0));
     expect(version(), isNot('older rules'));
