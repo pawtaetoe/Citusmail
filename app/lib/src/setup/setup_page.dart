@@ -480,10 +480,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
           const SizedBox(height: 24),
           TextFormField(
             controller: _email,
-            decoration: const InputDecoration(
-              labelText: 'Email address',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: 'Email address'),
             keyboardType: TextInputType.emailAddress,
             autofillHints: const [AutofillHints.email],
             autocorrect: false,
@@ -529,7 +526,6 @@ class _CredentialsFormState extends State<_CredentialsForm> {
               enableSuggestions: false,
               decoration: InputDecoration(
                 labelText: _appPassword == null ? 'Password' : 'App password',
-                border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   tooltip: _showPassword ? 'Hide password' : 'Show password',
                   icon: Icon(
@@ -571,7 +567,6 @@ class _CredentialsFormState extends State<_CredentialsForm> {
             controller: _name,
             decoration: const InputDecoration(
               labelText: 'Your name (optional)',
-              border: OutlineInputBorder(),
               helperText: 'Shown to people you write to',
             ),
           ),
@@ -735,7 +730,6 @@ class _OwnClientFormState extends State<_OwnClientForm> {
           enableSuggestions: false,
           decoration: InputDecoration(
             labelText: _google ? 'Client ID' : 'Application (client) ID',
-            border: const OutlineInputBorder(),
             hintText: _google
                 ? '…apps.googleusercontent.com'
                 : '00000000-0000-0000-0000-000000000000',
@@ -747,10 +741,7 @@ class _OwnClientFormState extends State<_OwnClientForm> {
             controller: _secret,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: const InputDecoration(
-              labelText: 'Client secret',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: 'Client secret'),
           ),
         ],
         const SizedBox(height: 8),
@@ -1067,10 +1058,7 @@ class _SettingsFormState extends State<_SettingsForm> {
         const SizedBox(height: 8),
         TextFormField(
           controller: host,
-          decoration: const InputDecoration(
-            labelText: 'Server',
-            border: OutlineInputBorder(),
-          ),
+          decoration: const InputDecoration(labelText: 'Server'),
           validator: _validateHost,
           autocorrect: false,
         ),
@@ -1081,10 +1069,7 @@ class _SettingsFormState extends State<_SettingsForm> {
               width: 120,
               child: TextFormField(
                 controller: port,
-                decoration: const InputDecoration(
-                  labelText: 'Port',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Port'),
                 keyboardType: TextInputType.number,
                 validator: _validatePort,
               ),
@@ -1095,10 +1080,7 @@ class _SettingsFormState extends State<_SettingsForm> {
                 initialValue: security,
                 // Long labels shorten instead of overflowing a narrow column.
                 isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Security',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Security'),
                 items: [
                   for (final s in ConnectionSecurity.values)
                     DropdownMenuItem(
@@ -1152,10 +1134,7 @@ class _SettingsFormState extends State<_SettingsForm> {
         const SizedBox(height: 24),
         TextFormField(
           controller: _username,
-          decoration: const InputDecoration(
-            labelText: 'User name',
-            border: OutlineInputBorder(),
-          ),
+          decoration: const InputDecoration(labelText: 'User name'),
           validator: (v) =>
               (v ?? '').trim().isEmpty ? 'Enter your user name' : null,
           autocorrect: false,
