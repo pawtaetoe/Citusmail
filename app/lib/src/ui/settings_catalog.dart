@@ -374,6 +374,22 @@ abstract final class SettingsCatalog {
       'Summaries',
       words: ['summarise', 'summarize', 'summary', 'ai', 'tl;dr', 'tldr'],
     ),
+    SettingEntry(
+      'ai-sorting',
+      'ai',
+      'Sorting backup',
+      words: [
+        'sorting',
+        'sort',
+        'categories',
+        'sections',
+        'ai',
+        'classify',
+        'notifications',
+        'newsletters',
+        'verification',
+      ],
+    ),
     // Appearance.
     SettingEntry(
       'theme',

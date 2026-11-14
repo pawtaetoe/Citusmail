@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_ai/mail_ai.dart';
 
 import '../services/ai_assistant.dart';
+import 'ai_sorting_tile.dart';
 import 'settings_page.dart' show SettingExplained;
 
 /// Builds a feature's tile for Settings.
@@ -18,6 +19,7 @@ typedef AiFeatureTileBuilder = Widget Function(AiAssistant ai);
 final aiFeatureTiles = <String, AiFeatureTileBuilder>{
   AiFeatures.summaries.id: (ai) =>
       AiFeatureSwitch(ai: ai, feature: AiFeatures.summaries),
+  AiFeatures.sorting.id: (ai) => AiSortingTile(ai: ai),
 };
 
 /// A feature's on/off switch: off by default, and only usable once a

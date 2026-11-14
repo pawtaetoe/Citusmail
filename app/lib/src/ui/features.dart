@@ -230,6 +230,16 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'codeCleanup'),
     ),
     Feature(
+      id: 'aiSorting',
+      group: FeatureGroup.inbox,
+      icon: AppIcons.assistant,
+      title: 'AI sorting backup',
+      sentence:
+          'Optional, with your own AI key: new mail the sorting rules '
+          'can\'t place is sorted by the assistant, and says why.',
+      open: (context, c) => _setting(context, c, 'ai-sorting'),
+    ),
+    Feature(
       id: 'sendLater',
       group: FeatureGroup.writing,
       icon: AppIcons.sendLater,

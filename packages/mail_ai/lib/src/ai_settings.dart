@@ -105,7 +105,8 @@ final class AiFeatures {
     title: 'Sorting backup',
     sentence:
         'New mail the sorting rules can\'t place is sorted by the assistant '
-        'into Codes, Notifications or Newsletters, and the email says why.',
+        'into Verification, Notifications or Newsletters, and the email '
+        'says why.',
     sends:
         'for new mail the rules can\'t place (at most a few each time mail '
         'is checked, never mail from people you write to): the sender, the '

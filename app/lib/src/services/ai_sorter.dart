@@ -118,7 +118,9 @@ final class AiSorter {
         request();
       }
     });
-    _ai.changes.addListener(_settingsChanged);
+    _ai.changes
+      ..removeListener(_settingsChanged)
+      ..addListener(_settingsChanged);
     request(after: firstDelay);
   }
 
