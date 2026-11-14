@@ -83,7 +83,13 @@ void main() {
     );
     expect(summaries.value, isFalse);
     expect(summaries.onChanged, isNull);
-    expect(find.text('Add a provider and key first, above.'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ai-feature-summaries')),
+        matching: find.text('Add a provider and key first, above.'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Nothing used this month.'), findsOneWidget);
     expect(find.text('No limit'), findsOneWidget);
     expect(made, isEmpty);
