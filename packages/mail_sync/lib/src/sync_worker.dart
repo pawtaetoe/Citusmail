@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'account_synchronizer.dart';
@@ -147,6 +148,12 @@ final class SyncWorker {
   /// [SyncEngine.lookUpFiles]). Throws [SyncWorkerException].
   Future<void> lookUpFiles(List<int> messageIds) =>
       _request(_LookUpFiles(List.unmodifiable(messageIds)));
+
+  /// Sorts stored mail again when the sorting rules changed, here in the
+  /// worker so the screen never waits for it; returns how many messages
+  /// were looked at (0 when nothing was needed). An interrupted run
+  /// carries on next time.
+  Future<int> resortIfNeeded() async => await _request(const _Resort()) as int;
 
   /// Loads older mail of a folder; returns how many messages were added.
   Future<int> fetchOlder(int mailboxId, {int count = 100}) async =>
@@ -323,6 +330,7 @@ Future<void> _workerMain(_Boot boot) async {
   );
   final events = engine.events.listen((e) => reply.send(_Event(e)));
   var running = false;
+  var closing = false;
 
   Future<Object?> handle(_Command command) async {
     switch (command) {
@@ -360,6 +368,13 @@ Future<void> _workerMain(_Boot boot) async {
         return engine.createFolder(accountId, name);
       case _ForgetAppData():
         await engine.forgetAppData();
+      case _Resort():
+        // Batches of 200 with a short gap, so sync work in this isolate
+        // gets its turns.
+        return Resorter(store, batchSize: 200).resortIfNeeded(
+          pause: const Duration(milliseconds: 5),
+          stopped: () => closing,
+        );
       case _AccountsChanged():
         for (final account in store.accounts.all()) {
           await engine.accountChanged(account.id);
@@ -382,6 +397,7 @@ Future<void> _workerMain(_Boot boot) async {
       case _SyncCodeReply():
         syncCodes.answer(message);
       case _Request(:final id, command: _Shutdown()):
+        closing = true;
         await events.cancel();
         await engine.dispose();
         store.close();
@@ -581,6 +597,10 @@ final class _LoadBody extends _Command {
 
   final int messageId;
   final bool background;
+}
+
+final class _Resort extends _Command {
+  const _Resort();
 }
 
 final class _LookUpFiles extends _Command {
