@@ -37,7 +37,25 @@ void main() {
         expect(Features.byId(id), isNotNull, reason: '${r.version}: $id');
       }
     }
-    expect(releaseNotes.first.version, appVersion, reason: 'newest first');
+    // Newest first, and never ahead of the app (a release with only
+    // fixes has no note of its own).
+    List<int> parts(String v) => [for (final p in v.split('.')) int.parse(p)];
+    int compare(String a, String b) {
+      final x = parts(a), y = parts(b);
+      for (var i = 0; i < 3; i++) {
+        if (x[i] != y[i]) return x[i].compareTo(y[i]);
+      }
+      return 0;
+    }
+
+    expect(compare(releaseNotes.first.version, appVersion), lessThan(1));
+    for (var i = 1; i < releaseNotes.length; i++) {
+      expect(
+        compare(releaseNotes[i - 1].version, releaseNotes[i].version),
+        1,
+        reason: 'newest first',
+      );
+    }
   });
 
   test('what is new since the version last seen', () {

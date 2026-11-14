@@ -886,7 +886,10 @@ final class _SettingsPageState extends State<SettingsPage> {
   Future<void> _openAi() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => AiSettingsPage(ai: widget.services.ai),
+        builder: (_) => AiSettingsPage(
+          ai: widget.services.ai,
+          summaries: widget.services.summaries,
+        ),
       ),
     );
     if (mounted) setState(() {});
@@ -910,6 +913,13 @@ final class _SettingsPageState extends State<SettingsPage> {
       for (final feature in AiFeatures.all)
         if (aiFeatureTiles[feature.id] case final tile?)
           _find('ai-${feature.id}', tile(ai)),
+      _find(
+        'aiLimit',
+        ValueListenableBuilder(
+          valueListenable: ai.changes,
+          builder: (context, _, _) => AiMonthlyLimitTile(ai: ai),
+        ),
+      ),
     ];
   }
 
@@ -1711,7 +1721,6 @@ final class _CodeCleanupDialogState extends State<_CodeCleanupDialog> {
   }
 }
 
-/// A heading that names a group of settings, and says what is in it.
 /// How the AI assistant is set up, in one line.
 final class _AiStatus extends StatelessWidget {
   const _AiStatus({required this.ai});
@@ -1724,11 +1733,12 @@ final class _AiStatus extends StatelessWidget {
     builder: (context, _, _) => Text(switch (ai.features.defaultChoice) {
       final c? when ai.providerSettings.isConfigured(c.provider) =>
         'With ${c.provider.label}, ${c.model}',
-      _ => 'Off. Your own key for Claude, GPT, Llama, or a local model',
+      _ => 'Off. Your own key for Claude, GPT, Meta Muse, or a local model',
     }),
   );
 }
 
+/// A heading that names a group of settings, and says what is in it.
 final class _Group extends StatelessWidget {
   const _Group(this.text, {this.description, this.first = false});
 

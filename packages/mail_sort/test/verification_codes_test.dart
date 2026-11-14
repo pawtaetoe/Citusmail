@@ -120,6 +120,40 @@ void main() {
     );
   });
 
+  test('codes in Uber, SimplyGo and Google emails', () {
+    expect(
+      VerificationCodes.inMessage(
+        'Your Uber account verification code',
+        'Your Uber verification code\nHi Chih Chia,\nTo finish logging in to '
+            'your Uber account, enter this verification code:\nDo not share '
+            'this code with anyone. Uber staff will never ask you for this '
+            'code.\n9514\nIf you didn\'t make this request or you need '
+            'assistance, visit our Help Center.',
+      ),
+      '9514',
+    );
+    expect(
+      VerificationCodes.inMessage(
+        'Email Validation Code - One Time Password',
+        'Dear Account Holder,\nYou have requested for a One-time Password '
+            '(OTP).\nYour OTP is 7974.\nIf you did not make this request, '
+            'please contact our hotline at 1800-2255 663.',
+      ),
+      '7974',
+    );
+    expect(
+      VerificationCodes.inMessage(
+        'Google Verification Code',
+        'Google Verification Code\nHi Tommy,\nWe received a request to '
+            'access your Google Account kungchihchia@gmail.com through your '
+            'email address. Your Google verification code is:\n155031\nIf '
+            'you did not request this code, it is possible that someone else '
+            'is trying to access the Google Account.',
+      ),
+      '155031',
+    );
+  });
+
   group('verification subjects', () {
     test('codes, sign-in links, password resets and address checks', () {
       for (final subject in [

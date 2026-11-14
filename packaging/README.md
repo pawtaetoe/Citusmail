@@ -88,6 +88,16 @@ app shows the steps).
   test users can sign in, and Google ends their sign-in after 7 days.
   Publishing for everyone needs Google's verification, including a
   security assessment for this (restricted) scope.
+  In the verification form, describe the optional AI assistant: with
+  the user's own API key and only after they turn a feature on, the
+  email or conversation they ask about (for example "Summarise") is sent
+  from their device to the AI provider they chose (Anthropic, OpenAI,
+  Meta, or their own endpoint), one request at a time, to show them the
+  result. It is a user-facing feature they start and can turn off; no
+  Gmail data reaches the developer or is used for advertising, and the
+  app trains no models (the provider's own terms apply to what it
+  receives). The privacy policy says this under "Google user data"
+  (Limited Use).
 - Credentials > Create OAuth client ID > *Desktop app*. The redirect is
   `http://127.0.0.1` on any port; Android uses the same loopback
   receiver, because Google no longer allows custom app links for new
@@ -249,6 +259,16 @@ Play Console checklist (closed or open testing):
   off until the user turns them on and send only what the privacy policy
   lists; read Play's data safety help on user-initiated transfers to
   confirm "not shared" still fits before submitting.
+- **Data safety, AI assistant**: optional and off by default; with the
+  user's own API key, the email or conversation the user asks about is
+  sent from the device straight to the AI provider the user chose
+  (Anthropic, OpenAI, Meta, or an address the user typed), only when the
+  user taps the feature, after a one-time confirmation that names the
+  provider. Play treats a transfer the user starts, expecting the data to
+  go to that service, as not "shared"; nothing reaches the developer, so
+  nothing is "collected". If Play asks anyway, declare "Emails" as
+  shared, optional, for "App functionality", user-initiated, encrypted
+  in transit (TLS).
 - **Camera permission**: used only by "Send accounts to a computer", to
   scan the QR code the desktop app shows; Android asks when the scanner
   first opens. Nothing is recorded, stored or sent. In Data safety, the

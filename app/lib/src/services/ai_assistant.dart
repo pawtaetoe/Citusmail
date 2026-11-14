@@ -197,6 +197,39 @@ final class AiAssistant {
     _changed();
   }
 
+  /// Sets what [model] costs ([AiPriceTable.setPrice]); null goes back to
+  /// the filled-in price, or unknown.
+  void setPrice(AiProviderKind kind, String model, AiPrice? price) {
+    if (price == null) {
+      prices.reset(kind, model);
+    } else {
+      prices.setPrice(kind, model, price);
+    }
+    _changed();
+  }
+
+  /// [kind]'s key as Settings shows it: only its last four characters
+  /// ("••••1a2b"); null when there is none.
+  Future<String?> maskedKey(AiProviderKind kind) async {
+    final key = await _secrets.read(keychainKey(kind));
+    if (key == null || key.isEmpty) return null;
+    final tail = key.length > 8 ? key.substring(key.length - 4) : '';
+    return '••••$tail';
+  }
+
+  /// The models Settings can offer for [kind]: those other settings name
+  /// (the default, each feature's own, the price table's), for when the
+  /// provider's list can't be fetched.
+  List<String> knownModels(AiProviderKind kind) => {
+    ?kind.defaultModel,
+    if (features.defaultChoice case final c? when c.provider == kind) c.model,
+    for (final f in AiFeatures.all)
+      if (features.ownChoice(f.id) case final c? when c.provider == kind)
+        c.model,
+    for (final id in AiPriceTable.defaults.keys)
+      if (id.startsWith('${kind.id}/')) id.substring(kind.id.length + 1),
+  }.toList();
+
   /// Removes every key (with "Forget everything" or a reset).
   Future<void> forgetKeys() async {
     for (final kind in AiProviderKind.values) {

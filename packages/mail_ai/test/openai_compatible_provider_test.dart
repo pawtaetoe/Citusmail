@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 
 import 'support/fake_server.dart';
 
-/// GPT, Meta's Llama API and custom endpoints, against a stand-in for the
+/// GPT, Meta's Muse models and custom endpoints, against a stand-in for the
 /// Chat Completions API.
 void main() {
   late FakeServer server;
@@ -158,11 +158,14 @@ void main() {
     });
   });
 
-  test('Llama and custom endpoints: their names for the limit', () async {
+  test('Meta and custom endpoints: their names for the limit', () async {
     const request = AiRequest(model: 'm', messages: [AiMessage.user('x')]);
-    await provider(AiProviderKind.llama, key: 'LLM|1').complete(request);
+    await provider(AiProviderKind.meta, key: 'meta-key').complete(request);
     expect(server.requests.last.json['max_completion_tokens'], 4096);
-    expect(server.requests.last.headers.value('authorization'), 'Bearer LLM|1');
+    expect(
+      server.requests.last.headers.value('authorization'),
+      'Bearer meta-key',
+    );
     await provider(AiProviderKind.custom).complete(request);
     expect(server.requests.last.json['max_tokens'], 4096);
     expect(
@@ -422,13 +425,13 @@ void main() {
       );
       expect(gpt, isA<OpenAiCompatibleProvider>());
       expect(gpt.recipient, 'OpenAI');
-      final llama = AiProviders.create(
-        const AiProviderConfig(kind: AiProviderKind.llama, apiKey: 'k'),
+      final meta = AiProviders.create(
+        const AiProviderConfig(kind: AiProviderKind.meta, apiKey: 'k'),
       );
-      expect(llama.recipient, 'Meta');
+      expect(meta.recipient, 'Meta');
       expect(
-        AiProviderKind.llama.defaultBaseUrl.toString(),
-        'https://api.llama.com/compat/v1',
+        AiProviderKind.meta.defaultBaseUrl.toString(),
+        'https://api.meta.ai/v1',
       );
       final claude = AiProviders.create(
         const AiProviderConfig(kind: AiProviderKind.claude, apiKey: 'k'),

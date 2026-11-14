@@ -43,6 +43,13 @@ Website: **https://citusmail.fluminaris.com** · Download:
   one while you write.
 - **Every account in one inbox**: Gmail, Outlook / Microsoft 365 and any
   IMAP provider.
+- **An AI assistant, only if you want one**: off until you add your own
+  key for Claude, GPT, Meta Muse or any OpenAI-compatible endpoint (even
+  a model on your own computer). Then "Summarise" gives the gist of an
+  email or a whole conversation, with dates, amounts and what is asked
+  of you. It asks before it first sends anything, sends only the email
+  you ask about, keeps the result on your device, and shows what it
+  costs, with a monthly limit.
 - **Add accounts from your phone**: on the computer, scan a code with the
   phone app and your accounts sign in there, sent straight over your
   Wi-Fi (or as a file), end-to-end encrypted.
