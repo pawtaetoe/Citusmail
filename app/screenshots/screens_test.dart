@@ -1391,6 +1391,50 @@ void main() {
 
   // Read receipts: "Read by … on …" under the header of a sent email that
   // went to several people, "Read on …" for one person.
+  // Ask your mail: a question typed in search, answered from the emails
+  // it matches (made-up answers from a fake provider; nothing is sent).
+  for (final (name, size) in [
+    ('desktop', const Size(1440, 900)),
+    ('phone', const Size(390, 844)),
+  ]) {
+    testWidgets('ask your mail $name', (tester) async {
+      final fake = FakeAiProvider(
+        replies: [
+          const FakeAiReply('{"queries": ["Lisbon flight"]}'),
+          const FakeAiReply(
+            '{"found": true, "emails": [1, 2], "answer": "Your flight TP1351 '
+            'leaves London Heathrow, Terminal 2, at 07:40 on 3 December [1]. '
+            'Check-in at Hotel Lisboa is from 15:00 the same day [2]."}',
+          ),
+        ],
+      );
+      await tester.runAsync(() async {
+        await app.dispose();
+        app = await TestApp.create(aiProviders: (_) => fake);
+        await app.services.ai.saveProvider(
+          AiProviderKind.claude,
+          key: 'demo',
+          model: 'demo',
+        );
+        app.services.ai.setOn(AiFeatures.ask.id, true);
+      });
+      _seedDemo(app.store);
+      _seedAsk(app.store);
+      await show(tester, shell(), size: size);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Search mail'),
+        'When does my flight to Lisbon leave?',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await settle(tester);
+      if (name == 'desktop') await shoot(tester, '${name}_ask_confirm');
+      await tester.tap(find.text('Send'));
+      await settle(tester);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await shoot(tester, '${name}_ask');
+    });
+  }
+
   testWidgets('read receipts', (tester) async {
     _seedReadReceipts(app.store);
     await show(tester, shell(), size: const Size(1440, 900));
@@ -2235,6 +2279,40 @@ void _seedReminders(MailStore store) {
 }
 
 /// Made-up mail for the demo screens.
+/// A flight and a hotel for "Ask your mail".
+void _seedAsk(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  store.messages.upsertSummaries(inbox.id, [
+    MessageSummary(
+      uid: 400,
+      receivedAt: now.subtract(const Duration(days: 6)),
+      subject: 'Your flight to Lisbon is confirmed',
+      from: const MailAddress(
+        localPart: 'booking',
+        domain: 'skyway.example',
+        displayName: 'Skyway Air',
+      ),
+      snippet:
+          'Flight TP1351 departs London Heathrow Terminal 2 on 3 December '
+          'at 07:40.',
+      flags: MessageFlags.fromImap([r'\Seen']),
+    ),
+    MessageSummary(
+      uid: 401,
+      receivedAt: now.subtract(const Duration(days: 5)),
+      subject: 'Booking confirmed: Hotel Lisboa, Lisbon',
+      from: const MailAddress(
+        localPart: 'stay',
+        domain: 'hotels.example',
+        displayName: 'Hotel Lisboa',
+      ),
+      snippet: 'Your stay from 3 to 7 December. Check-in from 15:00.',
+      flags: MessageFlags.fromImap([r'\Seen']),
+    ),
+  ]);
+}
+
 void _seedDemo(MailStore store) {
   final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
   final now = DateTime.now().toUtc();

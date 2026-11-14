@@ -14,6 +14,7 @@ export 'src/ai_errors.dart';
 export 'src/ai_provider.dart';
 export 'src/ai_settings.dart';
 export 'src/ai_types.dart';
+export 'src/ask_mail.dart';
 export 'src/language_guess.dart';
 export 'src/mail_prompt.dart';
 export 'src/providers/anthropic_provider.dart';

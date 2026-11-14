@@ -52,6 +52,11 @@ Website: **https://citusmail.fluminaris.com** · Download:
   sent for you). It asks before it first sends anything, sends only the email
   you ask about, keeps the result on your device, and shows what it
   costs, with a monthly limit.
+- **Ask your mail** (optional, off until you turn it on, with your own AI
+  key): search with a question, like "When does my flight leave?", and
+  get a short answer with the emails it comes from. The search runs on
+  the device; only the few best matches are sent to the AI provider you
+  chose.
 - **Add accounts from your phone**: on the computer, scan a code with the
   phone app and your accounts sign in there, sent straight over your
   Wi-Fi (or as a file), end-to-end encrypted.

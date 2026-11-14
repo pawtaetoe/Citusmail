@@ -14,6 +14,7 @@ import '../mail/message_list_model.dart';
 import '../mail/send_later_times.dart';
 import 'ai_tidy_sheet.dart';
 import 'app_icons.dart';
+import 'ask_mail_panel.dart';
 import 'attachments_page.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
@@ -89,6 +90,8 @@ final class MessageListPane extends StatelessWidget {
         ],
         // After an update: what is new, once.
         WhatsNewCard(controller: controller),
+        // Searching with the "Ask your mail" assistant on: its answer.
+        AskMailPanel(controller: controller),
         Expanded(child: _Messages(controller: controller)),
       ],
     ),

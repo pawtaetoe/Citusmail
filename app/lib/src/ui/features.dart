@@ -193,6 +193,16 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'ai-translate'),
     ),
     Feature(
+      id: 'askMail',
+      group: FeatureGroup.tools,
+      icon: AppIcons.assistant,
+      title: 'Ask your mail',
+      sentence:
+          'Search with a question and get a short answer from your own '
+          'mail, with your own AI key.',
+      open: (context, c) => _setting(context, c, 'ai-ask'),
+    ),
+    Feature(
       id: 'screener',
       group: FeatureGroup.inbox,
       icon: AppIcons.screener,

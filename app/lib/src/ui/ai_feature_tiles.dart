@@ -26,6 +26,7 @@ final aiFeatureTiles = <String, AiFeatureTileBuilder>{
       AiFeatureSwitch(ai: ai, feature: AiFeatures.translate),
   AiFeatures.quickReplies.id: (ai) =>
       AiFeatureSwitch(ai: ai, feature: AiFeatures.quickReplies),
+  AiFeatures.ask.id: (ai) => AiFeatureSwitch(ai: ai, feature: AiFeatures.ask),
 };
 
 /// A feature's on/off switch: off by default, and only usable once a

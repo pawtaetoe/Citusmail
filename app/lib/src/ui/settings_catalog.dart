@@ -399,6 +399,12 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
+      'ai-ask',
+      'ai',
+      'Ask your mail',
+      words: ['ask', 'question', 'answer', 'ai', 'search', 'chat'],
+    ),
+    SettingEntry(
       'aiLimit',
       'ai',
       'AI monthly limit',
