@@ -374,6 +374,25 @@ abstract final class SettingsCatalog {
       'Summaries',
       words: ['summarise', 'summarize', 'summary', 'ai', 'tl;dr', 'tldr'],
     ),
+    SettingEntry(
+      'ai-translate',
+      'ai',
+      'Translate',
+      words: ['translate', 'translation', 'language', 'foreign', 'ai'],
+    ),
+    SettingEntry(
+      'ai-quickReplies',
+      'ai',
+      'Quick replies',
+      words: [
+        'quick reply',
+        'quick replies',
+        'suggested replies',
+        'smart reply',
+        'answer',
+        'ai',
+      ],
+    ),
     // Appearance.
     SettingEntry(
       'theme',

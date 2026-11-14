@@ -18,6 +18,10 @@ typedef AiFeatureTileBuilder = Widget Function(AiAssistant ai);
 final aiFeatureTiles = <String, AiFeatureTileBuilder>{
   AiFeatures.summaries.id: (ai) =>
       AiFeatureSwitch(ai: ai, feature: AiFeatures.summaries),
+  AiFeatures.translate.id: (ai) =>
+      AiFeatureSwitch(ai: ai, feature: AiFeatures.translate),
+  AiFeatures.quickReplies.id: (ai) =>
+      AiFeatureSwitch(ai: ai, feature: AiFeatures.quickReplies),
 };
 
 /// A feature's on/off switch: off by default, and only usable once a
