@@ -75,6 +75,10 @@ enum SortingReason {
   /// The rules were unsure, and the optional AI assistant (with the
   /// user's own key, off by default) sorted it (see `AiSortLog`).
   ai,
+
+  /// The user chose where this message, or the sender's mail, belongs
+  /// when they corrected the AI sorter (see `SenderSortChoices`).
+  userChoice,
 }
 
 /// A classifier's decision.

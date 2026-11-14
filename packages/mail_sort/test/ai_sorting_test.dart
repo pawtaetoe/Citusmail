@@ -358,6 +358,18 @@ void main() {
         expect(log.asked, contains(AiSortLog.keep + 3));
       });
 
+      test('a correction stays in force, with the user\'s category', () {
+        final log = AiSortLog(store)..add(entry(1));
+        log.correct(1, MessageCategory.notifications);
+        final corrected = log.applied()[1]!;
+        expect(corrected.outcome, AiSortOutcome.corrected);
+        expect(corrected.category, MessageCategory.notifications);
+        expect(log.asked, {1});
+        // Nothing to correct for a message never asked about.
+        log.correct(2, MessageCategory.general);
+        expect(log.asked, {1});
+      });
+
       test('a damaged setting reads as empty', () {
         store.settings.write(AiSortLog.key, '{not json');
         expect(AiSortLog(store).entries, isEmpty);
@@ -405,6 +417,25 @@ void main() {
         );
       });
 
+      test('the user\'s correction wins over the assistant', () async {
+        final notice = receive(_broker, 'Security Notice');
+        AiSortLog(store)
+          ..add(
+            AiSortEntry(
+              messageId: notice.id,
+              outcome: AiSortOutcome.applied,
+              at: now,
+              category: MessageCategory.codes,
+            ),
+          )
+          ..correct(notice.id, MessageCategory.notifications);
+        await Resorter(store).resortAll();
+        expect(
+          store.messages.byId(notice.id)!.category,
+          MessageCategory.notifications,
+        );
+      });
+
       test('an undone decision no longer applies', () async {
         final notice = receive(_broker, 'Security Notice');
         AiSortLog(store)
@@ -422,6 +453,69 @@ void main() {
           store.messages.byId(notice.id)!.category,
           MessageCategory.general,
         );
+      });
+    });
+
+    group('SenderSortChoices', () {
+      Classification classify(MailAddress from, String subject) =>
+          LearnedClassifier(
+            const HeaderRuleClassifier(),
+            StoreSenderHistory(store),
+          ).classify(
+            ClassificationInput(
+              from: from,
+              headers: const {},
+              subject: subject,
+            ),
+          );
+
+      test('the sender\'s next unsure mail follows the user', () {
+        expect(classify(_broker, 'Account update').unsure, isTrue);
+        SenderSortChoices(store)
+            .choose('Security@Broker.example', MessageCategory.notifications);
+        final next = classify(_broker, 'Account update');
+        expect(next.category, MessageCategory.notifications);
+        expect(next.reason, SortingReason.userChoice);
+        expect(next.unsure, isFalse);
+        // So it is not offered to the assistant.
+        receive(_broker, 'Account update');
+        expect(candidates(), isEmpty);
+      });
+
+      test('General is a choice too: never asked about again', () {
+        SenderSortChoices(store).choose(_shop.address, MessageCategory.general);
+        receive(_shop, 'A note from the shop owner');
+        expect(candidates(), isEmpty);
+      });
+
+      test('the rules still come first', () {
+        SenderSortChoices(store).choose(_shop.address, MessageCategory.general);
+        final code = classify(_shop, 'Your verification code');
+        expect(code.category, MessageCategory.codes);
+        expect(code.reason, SortingReason.verification);
+      });
+
+      test('Codes are never kept for a sender', () {
+        SenderSortChoices(store).choose(_broker.address, MessageCategory.codes);
+        expect(SenderSortChoices(store).all, isEmpty);
+        expect(classify(_broker, 'Account update').unsure, isTrue);
+      });
+
+      test('the newest choices are kept; a damaged setting is empty', () {
+        final choices = SenderSortChoices(store);
+        for (var i = 0; i < SenderSortChoices.keep + 2; i++) {
+          choices.choose('s$i@shop.example', MessageCategory.newsletters);
+        }
+        expect(choices.all, hasLength(SenderSortChoices.keep));
+        expect(choices.forSender('s0@shop.example'), isNull);
+        expect(
+          choices.forSender('s${SenderSortChoices.keep + 1}@shop.example'),
+          MessageCategory.newsletters,
+        );
+        store.settings.write(SenderSortChoices.key, '[1, 2');
+        expect(choices.all, isEmpty);
+        choices.clear();
+        expect(store.settings.read(SenderSortChoices.key), isNull);
       });
     });
   });

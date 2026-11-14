@@ -138,6 +138,11 @@ enum AiSortOutcome {
   /// The user put it back ("Not right?"): the rules decide again, and it
   /// is never asked about again.
   undone,
+
+  /// The user chose where it belongs instead ("Not right?"): that is
+  /// where it stays, and the sender's next mail follows it
+  /// ([SenderSortChoices]).
+  corrected,
 }
 
 /// One message asked about. Kept so it is never asked again, so a
@@ -161,7 +166,8 @@ final class AiSortEntry {
   final AiSortOutcome outcome;
   final DateTime at;
 
-  /// What the answer decided ([AiSortAnswer.decided]), when it was valid.
+  /// What the answer decided ([AiSortAnswer.decided]), when it was valid;
+  /// for [AiSortOutcome.corrected], what the user chose.
   final MessageCategory? category;
 
   /// The answer's reason, when it was valid.
@@ -176,17 +182,18 @@ final class AiSortEntry {
   final String? sender;
   final String? listId;
 
-  AiSortEntry withOutcome(AiSortOutcome outcome) => AiSortEntry(
-    messageId: messageId,
-    outcome: outcome,
-    at: at,
-    category: category,
-    reason: reason,
-    verification: verification,
-    by: by,
-    sender: sender,
-    listId: listId,
-  );
+  AiSortEntry withOutcome(AiSortOutcome outcome, {MessageCategory? category}) =>
+      AiSortEntry(
+        messageId: messageId,
+        outcome: outcome,
+        at: at,
+        category: category ?? this.category,
+        reason: reason,
+        verification: verification,
+        by: by,
+        sender: sender,
+        listId: listId,
+      );
 
   Map<String, Object?> toJson() => {
     'id': messageId,
@@ -271,10 +278,13 @@ final class AiSortLog {
     entry,
   ]);
 
-  /// The decisions in force, by message id.
+  /// The decisions in force, by message id: the assistant's
+  /// ([AiSortOutcome.applied]) and the user's ([AiSortOutcome.corrected]).
   Map<int, AiSortEntry> applied() => {
     for (final e in entries)
-      if (e.outcome == AiSortOutcome.applied && e.category != null)
+      if ((e.outcome == AiSortOutcome.applied ||
+              e.outcome == AiSortOutcome.corrected) &&
+          e.category != null)
         e.messageId: e,
   };
 
@@ -285,7 +295,70 @@ final class AiSortLog {
     add(entry.withOutcome(AiSortOutcome.undone));
   }
 
+  /// The user chose [category] for [messageId] instead of the
+  /// assistant's decision: it stays there.
+  void correct(int messageId, MessageCategory category) {
+    final entry = forMessage(messageId);
+    if (entry == null) return;
+    add(entry.withOutcome(AiSortOutcome.corrected, category: category));
+  }
+
   /// Forgets everything (the feature's "forget" and tests).
+  void clear() => _store.settings.delete(key);
+}
+
+/// Where the user put a sender's mail when they corrected the AI sorter
+/// ("Not right?"), by address, in the settings store (on the device,
+/// never synced). The sorting rules' learning follows it
+/// (`LearnedClassifier`): the sender's next mail the rules have no
+/// signal for goes there too, and is not sent to the assistant. Codes
+/// are known from each message itself, so they are never kept here.
+final class SenderSortChoices {
+  SenderSortChoices(this._store);
+
+  final MailStore _store;
+
+  static const key = 'sorting.senderChoices';
+
+  /// Senders kept at most; the oldest choices go first.
+  static const keep = 300;
+
+  Map<String, MessageCategory> get all {
+    final raw = _store.settings.read(key);
+    if (raw == null) return const {};
+    try {
+      final map = jsonDecode(raw);
+      if (map is! Map<String, Object?>) return const {};
+      return {
+        for (final MapEntry(:key, :value) in map.entries)
+          if (MessageCategory.values.where((c) => c.name == value).firstOrNull
+              case final category? when category != MessageCategory.codes)
+            key: category,
+      };
+    } on FormatException {
+      return const {};
+    }
+  }
+
+  /// Where [address]'s mail goes, if the user said.
+  MessageCategory? forSender(String address) => all[address.toLowerCase()];
+
+  /// The user put [address]'s mail in [category] (Codes: nothing kept).
+  void choose(String address, MessageCategory category) {
+    if (category == MessageCategory.codes) return;
+    final sender = address.toLowerCase();
+    final choices = {...all}..remove(sender);
+    choices[sender] = category;
+    final kept = choices.entries.skip(
+      choices.length > keep ? choices.length - keep : 0,
+    );
+    _store.settings.write(
+      key,
+      jsonEncode({for (final e in kept) e.key: e.value.name}),
+    );
+  }
+
+  /// Forgets every choice ("Forget what was learned").
   void clear() => _store.settings.delete(key);
 }
 

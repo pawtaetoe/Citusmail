@@ -5,6 +5,7 @@
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'ai_sorting.dart';
 import 'classification.dart';
 
 /// What the learned sorting may know about a sender: their other stored
@@ -17,8 +18,16 @@ abstract interface class SenderHistory {
   bool isCorrespondent(String address);
 }
 
-/// [SenderHistory] from the encrypted store.
-final class StoreSenderHistory implements SenderHistory {
+/// Where the user said a sender's mail goes, when they corrected the
+/// optional AI sorter ([SenderSortChoices]). A [SenderHistory] that also
+/// knows this lets [LearnedClassifier] follow it.
+abstract interface class SenderChoices {
+  MessageCategory? chosenFor(String address);
+}
+
+/// [SenderHistory] from the encrypted store, with the user's
+/// [SenderChoices].
+final class StoreSenderHistory implements SenderHistory, SenderChoices {
   const StoreSenderHistory(this._store);
 
   final MailStore _store;
@@ -37,6 +46,10 @@ final class StoreSenderHistory implements SenderHistory {
 
   @override
   bool isCorrespondent(String address) => _store.messages.hasWrittenTo(address);
+
+  @override
+  MessageCategory? chosenFor(String address) =>
+      SenderSortChoices(_store).forSender(address);
 }
 
 /// Sorting that learns from each sender's own mail, on the device: when
@@ -49,6 +62,9 @@ final class StoreSenderHistory implements SenderHistory {
 /// mail instead of in General, while one-off and personal mail stays in
 /// General. Never for people the user writes to. Nothing leaves the
 /// device, and the decision is explained ([SortingReason.sameSender]).
+///
+/// Where the user put a sender's mail themselves ([SenderChoices], when
+/// [history] knows) comes first ([SortingReason.userChoice]).
 final class LearnedClassifier implements MessageClassifier {
   LearnedClassifier(
     this.rules,
@@ -74,7 +90,7 @@ final class LearnedClassifier implements MessageClassifier {
   final DateTime Function() _now;
 
   static const _maxCached = 1000;
-  final _cache = <String, (DateTime, MessageCategory?)>{};
+  final _cache = <String, (DateTime, Classification?)>{};
 
   /// Changes with the rules, and with how learning works (re-sorts stored
   /// mail once).
@@ -89,13 +105,10 @@ final class LearnedClassifier implements MessageClassifier {
     if (use == SpecialUse.sent || use == SpecialUse.drafts) return decision;
     final address = input.from?.address.toLowerCase();
     if (address == null) return decision;
-    final learned = _learned(address);
-    return learned == null
-        ? decision
-        : Classification(learned, SortingReason.sameSender);
+    return _learned(address) ?? decision;
   }
 
-  MessageCategory? _learned(String address) {
+  Classification? _learned(String address) {
     final now = _now();
     final cached = _cache[address];
     if (cached != null && now.difference(cached.$1) < cacheFor) {
@@ -107,7 +120,12 @@ final class LearnedClassifier implements MessageClassifier {
     return result;
   }
 
-  MessageCategory? _decide(String address) {
+  Classification? _decide(String address) {
+    if (history case final SenderChoices choices) {
+      if (choices.chosenFor(address) case final category?) {
+        return Classification(category, SortingReason.userChoice);
+      }
+    }
     final mail = history.recentFrom(address, limit: sample);
     if (mail.length < minEvidence) return null;
     final counts = <MessageCategory, int>{};
@@ -124,7 +142,9 @@ final class LearnedClassifier implements MessageClassifier {
       }
       if (count >= minEvidence && count / mail.length >= agreement) {
         // Checked last: one query, only when it would matter.
-        return history.isCorrespondent(address) ? null : category;
+        return history.isCorrespondent(address)
+            ? null
+            : Classification(category, SortingReason.sameSender);
       }
     }
     return null;

@@ -95,8 +95,13 @@ final class Resorter {
       ),
     );
     if (decision.unsure) {
-      if (ai[message.id]?.category case final category?) {
-        decision = Classification(category, SortingReason.ai);
+      if (ai[message.id] case AiSortEntry(:final category?, :final outcome)) {
+        decision = Classification(
+          category,
+          outcome == AiSortOutcome.corrected
+              ? SortingReason.userChoice
+              : SortingReason.ai,
+        );
       }
     }
     return CategoryDecision(
