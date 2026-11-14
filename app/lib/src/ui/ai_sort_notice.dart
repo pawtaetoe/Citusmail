@@ -39,6 +39,8 @@ final class AiSortNotice extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([services.ai.changes, services.resorted]),
       builder: (context, _) {
+        // Off (almost always): nothing more is read.
+        if (!services.aiSort.isOn) return const SizedBox.shrink();
         // The stored message: a correction moves it.
         final now = services.store.messages.byId(message.id) ?? message;
         final entry = services.aiSort.decisionFor(now);
