@@ -9,11 +9,13 @@
 //
 // Files go to build/screens/ (or $SCREEN_OUT).
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:citusmail/src/compose/compose_controller.dart';
 import 'package:citusmail/src/compose/compose_page.dart';
+import 'package:citusmail/src/mail/ai_tidy_model.dart';
 import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/mail/new_since_away.dart';
@@ -42,6 +44,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_ai/mail_ai.dart';
+import 'package:mail_ai/testing.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_pairing/mail_pairing.dart';
 import 'package:mail_protocol/mail_protocol.dart';
@@ -1033,6 +1037,93 @@ void main() {
       find.descendant(of: find.byType(Drawer), matching: find.text('Snoozed')),
     );
     await shoot(tester, 'phone_snoozed');
+  });
+
+  // Ask AI to tidy (with a stand-in for the AI provider): the proposal as
+  // a checklist, on the desktop (a dialog) and on a phone (a sheet).
+  testWidgets('ai tidy', (tester) async {
+    final fake = FakeAiProvider();
+    // An app whose AI provider is the stand-in (made outside the test's
+    // fake clock, like setUp's).
+    await tester.runAsync(() async {
+      await app.dispose();
+      app = await TestApp.create(aiProviders: (_) => fake);
+    });
+    _seedDemo(app.store);
+    await app.services.ai.saveProvider(
+      AiProviderKind.claude,
+      key: 'demo-key',
+      model: 'fake-large',
+    );
+    app.services.ai.setOn(AiFeatures.actions.id, true);
+    void answer() {
+      final controller = MailController(app.services);
+      final c = AiTidy(controller).candidates();
+      String ref(String subject) =>
+          c.refOf(c.messages.firstWhere((m) => m.subject == subject));
+      controller.dispose();
+      fake.replies.add(
+        FakeAiReply(
+          jsonEncode({
+            'actions': [
+              {
+                'action': 'archive',
+                'ids': [
+                  ref('Autumn trail guide'),
+                  ref('Your parcel is out for delivery'),
+                ],
+                'folder': null,
+                'until': null,
+              },
+              {
+                'action': 'pin',
+                'ids': [ref('Design review moved to Thursday')],
+                'folder': null,
+                'until': null,
+              },
+              {
+                'action': 'mark_read',
+                'ids': [ref('Weekend hike?')],
+                'folder': null,
+                'until': null,
+              },
+            ],
+            'note': 'Codes and personal mail stay as they are.',
+          }),
+        ),
+      );
+    }
+
+    Future<void> ask(String name) async {
+      await tester.tap(find.byTooltip('Ask AI to tidy'));
+      await settle(tester);
+      await tester.enterText(
+        find.byKey(const ValueKey('tidy-words')),
+        'Archive newsletters and deliveries, pin anything about the design',
+      );
+      await settle(tester);
+      await shoot(tester, '${name}_ask');
+      await tester.tap(find.text('Suggest'));
+      await settle(tester);
+      if (find.text('Send').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Send'));
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await settle(tester);
+      await tester.tap(find.text('Archive 2 emails'));
+      await shoot(tester, '${name}_plan');
+    }
+
+    answer();
+    await show(tester, shell(), size: const Size(1440, 900));
+    await ask('desktop_ai_tidy');
+
+    await tester.pumpWidget(const SizedBox()); // a fresh start
+    answer();
+    await show(tester, shell(), size: const Size(390, 844));
+    await ask('phone_ai_tidy');
   });
 
   // Send later: the times next to Send (a dialog on the desktop, a bottom
