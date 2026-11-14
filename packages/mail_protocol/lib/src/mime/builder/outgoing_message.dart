@@ -60,6 +60,7 @@ final class OutgoingMessage {
     this.date,
     this.receiptTo,
     this.calendar,
+    this.draftHeaders = const {},
   });
 
   final MailAddress from;
@@ -93,6 +94,11 @@ final class OutgoingMessage {
 
   /// A calendar object sent alongside the text, as an alternative of it.
   final OutgoingCalendar? calendar;
+
+  /// The app's own notes for itself (`X-…` name to plain value), written
+  /// only on the copy kept in the user's Drafts folder (built with
+  /// `draft: true`), never on a message being sent.
+  final Map<String, String> draftHeaders;
 
   /// Everyone the SMTP envelope must deliver to: To, Cc and Bcc.
   List<MailAddress> get envelopeRecipients => [...to, ...cc, ...bcc];

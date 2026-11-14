@@ -6,6 +6,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'draft.dart';
+import 'sign_off_header.dart';
 
 /// Why a draft cannot be sent yet.
 enum ComposeProblem {
@@ -70,13 +71,16 @@ final class OutgoingMessages {
 
   /// The copy saved in the user's Drafts folder: a new Message-ID each
   /// time, so each saved version can be told apart.
-  BuiltMessage forDraftsFolder(Draft draft, Account account) =>
-      MessageBuilder().build(_outgoing(draft, account), draft: true);
+  /// It notes the sign-off in a private header, so the draft opens again
+  /// with it apart from the text.
+  BuiltMessage forDraftsFolder(Draft draft, Account account) => MessageBuilder()
+      .build(_outgoing(draft, account, forDrafts: true), draft: true);
 
   static OutgoingMessage _outgoing(
     Draft draft,
     Account account, {
     DateTime? date,
+    bool forDrafts = false,
   }) => OutgoingMessage(
     date: date,
     from: sender(account),
@@ -97,6 +101,9 @@ final class OutgoingMessages {
     references: draft.references,
     receiptTo: draft.requestReceipt ? sender(account) : null,
     calendar: draft.calendar,
+    draftHeaders: {
+      if (forDrafts) SignOffHeader.name: SignOffHeader.encode(draft.signOff),
+    },
   );
 
   /// A deliverable address: something@domain.with.dot, no spaces or

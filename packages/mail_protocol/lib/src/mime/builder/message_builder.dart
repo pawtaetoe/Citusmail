@@ -35,6 +35,7 @@ final class MessageBuilder {
   static const _headers = HeaderEncoder();
   static const _bodies = BodyEncoder();
   static final _token = RegExp(r'^[A-Za-z][A-Za-z0-9-]*$');
+  static final _draftHeader = RegExp(r'^X-[A-Za-z0-9-]+$');
   static final _mimeType = RegExp(
     r'^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$',
   );
@@ -91,6 +92,14 @@ final class MessageBuilder {
     }
     if (message.references.isNotEmpty) {
       out.write(_headers.messageIds('References', message.references));
+    }
+    if (draft) {
+      for (final MapEntry(:key, :value) in message.draftHeaders.entries) {
+        if (!_draftHeader.hasMatch(key)) {
+          throw MessageBuildException('invalid draft header: $key');
+        }
+        out.write(_headers.unstructured(key, value));
+      }
     }
     out.write('MIME-Version: 1.0\r\n');
 

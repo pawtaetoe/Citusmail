@@ -246,6 +246,35 @@ void main() {
       );
     });
 
+    test('draft headers are written on the Drafts copy only', () {
+      final message = OutgoingMessage(
+        from: alice,
+        to: [bob],
+        textBody: 'x',
+        draftHeaders: const {'X-Citusmail-Sign-off': 'none'},
+      );
+      final draft = MessageBuilder().build(message, draft: true);
+      expect(
+        const MimeParser()
+            .parse(draft.bytes)
+            .headers
+            .value('x-citusmail-sign-off'),
+        'none',
+      );
+      expect(raw(message).toLowerCase(), isNot(contains('x-citusmail')));
+      expect(
+        () => MessageBuilder().build(
+          OutgoingMessage(
+            from: alice,
+            textBody: 'x',
+            draftHeaders: const {'Subject': 'not ours'},
+          ),
+          draft: true,
+        ),
+        throwsA(isA<MessageBuildException>()),
+      );
+    });
+
     test('no client-identifying headers; Date in UTC; random Message-ID on own domain', () {
       final message = OutgoingMessage(
         from: alice,
