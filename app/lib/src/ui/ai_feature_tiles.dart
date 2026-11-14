@@ -20,6 +20,8 @@ final aiFeatureTiles = <String, AiFeatureTileBuilder>{
       AiFeatureSwitch(ai: ai, feature: AiFeatures.summaries),
   AiFeatures.writing.id: (ai) =>
       AiFeatureSwitch(ai: ai, feature: AiFeatures.writing),
+  AiFeatures.actions.id: (ai) =>
+      AiFeatureSwitch(ai: ai, feature: AiFeatures.actions),
 };
 
 /// A feature's on/off switch: off by default, and only usable once a

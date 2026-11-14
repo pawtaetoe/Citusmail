@@ -416,6 +416,22 @@ abstract final class SettingsCatalog {
         'ai',
       ],
     ),
+    SettingEntry(
+      'ai-actions',
+      'ai',
+      'Suggested actions',
+      words: [
+        'ask ai to tidy',
+        'tidy',
+        'clean up',
+        'ai',
+        'archive',
+        'organise',
+        'organize',
+        'sort',
+        'actions',
+      ],
+    ),
     // Appearance.
     SettingEntry(
       'theme',
