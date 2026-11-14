@@ -361,6 +361,7 @@ abstract final class SettingsCatalog {
         'openai',
         'anthropic',
         'meta',
+        'muse',
         'api key',
         'key',
         'ollama',

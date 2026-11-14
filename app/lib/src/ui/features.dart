@@ -178,7 +178,7 @@ abstract final class Features {
       icon: AppIcons.assistant,
       title: 'AI assistant (your own key)',
       sentence:
-          'Optional: with your own key for Claude, GPT, Llama or a model on '
+          'Optional: with your own key for Claude, GPT, Meta Muse or a model on '
           'your computer, summarise an email or a whole conversation.',
       open: (context, c) => _setting(context, c, 'aiAssistant'),
     ),
