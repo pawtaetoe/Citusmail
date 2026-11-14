@@ -12,6 +12,7 @@ import '../mail/mail_controller.dart';
 import '../mail/mail_location.dart';
 import '../mail/message_list_model.dart';
 import '../mail/send_later_times.dart';
+import 'ai_tidy_sheet.dart';
 import 'app_icons.dart';
 import 'attachments_page.dart';
 import 'citusmail_theme.dart';
@@ -296,6 +297,7 @@ final class _ViewHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: _title(context, location)),
+          AiTidyButton(controller: controller),
           _StatusLine(controller: controller),
         ],
       ),
@@ -520,6 +522,7 @@ final class _SelectionBar extends StatelessWidget {
               icon: const Icon(AppIcons.move),
               onPressed: () => MoveDialog.show(context, controller, targets),
             ),
+          AiTidyButton(controller: controller),
         ],
       ),
     );

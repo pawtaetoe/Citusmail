@@ -98,8 +98,24 @@ final class AiFeatures {
         'dates, subjects, the text and the names of attached files',
   );
 
+  /// "Ask AI to tidy" on the message list: a request in your own words
+  /// becomes a list of changes (archive, move, read, pin, snooze) that
+  /// you check before anything happens.
+  static const actions = AiFeature(
+    id: 'actions',
+    title: 'Suggested actions',
+    sentence:
+        'Ask in your own words, like "archive newsletters older than a '
+        'month", and check the list of changes before anything happens.',
+    sends:
+        'your request, your folder names, and the sender, subject, date, '
+        'category, folder and read, pinned or snoozed state (never the '
+        'text) of the emails you selected, or of up to 200 in the list '
+        'you are in',
+  );
+
   /// Every feature, in the order Settings shows them.
-  static const all = <AiFeature>[summaries];
+  static const all = <AiFeature>[summaries, actions];
 
   static AiFeature? byId(String id) => all.where((f) => f.id == id).firstOrNull;
 

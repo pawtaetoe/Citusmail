@@ -220,6 +220,16 @@ abstract final class Features {
           _goTo(context, c, const SectionLocation(SmartSection.newsletters)),
     ),
     Feature(
+      id: 'aiTidy',
+      group: FeatureGroup.inbox,
+      icon: AppIcons.assistant,
+      title: 'Ask AI to tidy',
+      sentence:
+          'With your own AI key: say what to archive, move, pin or snooze, '
+          'and check the list before anything happens.',
+      open: (context, c) => _setting(context, c, 'ai-actions'),
+    ),
+    Feature(
       id: 'codes',
       group: FeatureGroup.inbox,
       icon: AppIcons.codes,
