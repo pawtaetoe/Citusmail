@@ -59,6 +59,14 @@ void main() {
 
   Future<void> tapKey(WidgetTester tester, String key) async {
     final target = find.byKey(ValueKey(key));
+    // The list builds only what is near the screen: scroll to it first.
+    if (target.evaluate().isEmpty) {
+      await tester.scrollUntilVisible(
+        target,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+    }
     await tester.ensureVisible(target);
     await tester.pumpAndSettle();
     await tester.tap(target);
@@ -83,12 +91,10 @@ void main() {
     );
     expect(summaries.value, isFalse);
     expect(summaries.onChanged, isNull);
+    // One per feature, each switch off and locked.
     expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('ai-feature-summaries')),
-        matching: find.text('Add a provider and key first, above.'),
-      ),
-      findsOneWidget,
+      find.text('Add a provider and key first, above.'),
+      findsNWidgets(AiFeatures.all.length),
     );
     expect(find.text('Nothing used this month.'), findsOneWidget);
     expect(find.text('No limit'), findsOneWidget);

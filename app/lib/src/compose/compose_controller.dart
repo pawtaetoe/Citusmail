@@ -5,16 +5,19 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
+import 'package:mail_view/mail_view.dart';
 
 import '../background/background_mail.dart';
 import '../mail/send_later_times.dart';
 import '../services/app_services.dart';
 import '../ui/follow_up_sheet.dart' show FollowUpPick;
 import 'address_book.dart';
+import 'writing_help.dart';
 
 /// Addresses in one recipient field, plus text typed but not yet turned
 /// into an address.
@@ -241,8 +244,113 @@ final class ComposeController extends ChangeNotifier {
   /// Ask the recipients' mail apps for a read receipt (their choice).
   void setRequestReceipt(bool on) =>
       _update(_draft.copyWith(requestReceipt: on));
-  void setBody(String body) =>
-      _update(_draft.copyWith(body: body), notify: false);
+
+  /// What the user typed. Typing ends the offer to undo the AI's text.
+  void setBody(String body) {
+    final hadUndo = _beforeWriting != null;
+    _beforeWriting = null;
+    _update(_draft.copyWith(body: body), notify: hadUndo);
+  }
+
+  // ------------------------------------------------- writing help (AI)
+
+  /// "Write with AI" in this window (it keeps its answers).
+  final writing = WritingAssistant();
+
+  /// The user's name, as their account has it.
+  String? get userName => account?.displayName;
+
+  /// Whether this forwards an email (with its text quoted below).
+  bool get forwards =>
+      _draft.quote.trimLeft().startsWith(WritingHelp.forwardMark);
+
+  /// The email this answers or forwards, as "Draft a reply" sends it, or
+  /// null for a new message: the quote as the user left it (or the
+  /// stored email's text if they removed it), with the stored email's
+  /// sender, recipients, date and subject. Nothing else from the mailbox.
+  PromptMail? replySource() {
+    if (forwards) {
+      return WritingHelp.forwarded(
+        _draft.quote.trimLeft(),
+        files: [
+          for (final a in _draft.attachments)
+            if (a.mimeType != 'message/rfc822') a.fileName,
+        ],
+      );
+    }
+    final id = _draft.answeredMessageId;
+    final original = id == null ? null : services.store.messages.byId(id);
+    if (original == null && _draft.inReplyTo == null) return null;
+    var text = WritingHelp.unquote(_draft.quote);
+    if (text.isEmpty && original != null) {
+      final raw = services.store.messages.body(original.id);
+      if (raw != null) {
+        try {
+          text = MessageView.parse(raw).body.plainText.trim();
+        } on Object {
+          text = '';
+        }
+      }
+    }
+    if (text.isEmpty) return null;
+    return PromptMail(
+      from: switch (original?.from) {
+        final a? => _display(a),
+        null => 'The sender',
+      },
+      to: [
+        if (original != null)
+          for (final a in services.store.messages.addresses(original.id, 'to'))
+            _display(a),
+      ],
+      date: original?.sentAt ?? original?.receivedAt,
+      subject: original?.subject ?? _draft.subject,
+      body: text,
+    );
+  }
+
+  static String _display(MailAddress a) {
+    final name = a.displayName?.trim();
+    return name == null || name.isEmpty ? a.address : '$name <${a.address}>';
+  }
+
+  /// The body before the AI's text went in, while Undo is offered.
+  String? _beforeWriting;
+
+  /// Whether the AI's text went in and can be taken back.
+  bool get canUndoWriting => _beforeWriting != null;
+
+  /// Puts the AI's [text] into the body: instead of what is there
+  /// ([replace]) or below it. Only the body changes: never the
+  /// recipients, subject, attachments, sign-off or quote, and nothing is
+  /// sent. Returns the new body.
+  String useWriting(String text, {required bool replace}) {
+    final before = _draft.body;
+    final next = replace || before.trim().isEmpty
+        ? text
+        : '${before.trimRight()}\n\n$text';
+    _update(_draft.copyWith(body: next));
+    _beforeWriting = before;
+    notifyListeners();
+    return next;
+  }
+
+  /// Puts back the body from before the AI's text; returns it, or null
+  /// if there is nothing to undo.
+  String? undoWriting() {
+    final before = _beforeWriting;
+    if (before == null) return null;
+    _beforeWriting = null;
+    _update(_draft.copyWith(body: before));
+    return before;
+  }
+
+  /// No more Undo for the AI's text (the note was closed).
+  void keepWriting() {
+    if (_beforeWriting == null) return;
+    _beforeWriting = null;
+    notifyListeners();
+  }
 
   /// The quoted or forwarded text below the sign-off (it can be trimmed).
   void setQuote(String quote) =>

@@ -1733,7 +1733,7 @@ final class _AiStatus extends StatelessWidget {
     builder: (context, _, _) => Text(switch (ai.features.defaultChoice) {
       final c? when ai.providerSettings.isConfigured(c.provider) =>
         'With ${c.provider.label}, ${c.model}',
-      _ => 'Off. Your own key for Claude, GPT, Meta Muse, or a local model',
+      _ => 'Off. Your own key for Claude, GPT, Gemini, Meta Muse, or a local model',
     }),
   );
 }

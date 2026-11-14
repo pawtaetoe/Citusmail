@@ -184,7 +184,7 @@ public issue. We aim to reply within 7 days.
     user adds a provider and turns that feature on, and each asks once,
     naming the provider and what it sends, before its first request.
     Requests go only to the provider the user chose (Anthropic, OpenAI,
-    Meta's Muse models (Meta Model API), or an OpenAI-compatible address the user typed),
+    Meta's Muse models (Meta Model API), Google's Gemini API, or an OpenAI-compatible address the user typed),
     only when the user asks, through one client
     (`transport/ai_http.dart`, the only file outside account setup that
     may open an `HttpClient`; CI enforces this): https only, plain http

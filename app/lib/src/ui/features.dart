@@ -178,9 +178,19 @@ abstract final class Features {
       icon: AppIcons.assistant,
       title: 'AI assistant (your own key)',
       sentence:
-          'Optional: with your own key for Claude, GPT, Meta Muse or a model on '
+          'Optional: with your own key for Claude, GPT, Gemini, Meta Muse or a model on '
           'your computer, summarise an email or a whole conversation.',
       open: (context, c) => _setting(context, c, 'aiAssistant'),
+    ),
+    Feature(
+      id: 'aiTranslate',
+      group: FeatureGroup.tools,
+      icon: AppIcons.translate,
+      title: 'Translate',
+      sentence:
+          'Read an email in another language in yours, with the AI '
+          'assistant and your own key.',
+      open: (context, c) => _setting(context, c, 'ai-translate'),
     ),
     Feature(
       id: 'askMail',
@@ -240,6 +250,16 @@ abstract final class Features {
           _goTo(context, c, const SectionLocation(SmartSection.newsletters)),
     ),
     Feature(
+      id: 'aiTidy',
+      group: FeatureGroup.inbox,
+      icon: AppIcons.assistant,
+      title: 'Ask AI to tidy',
+      sentence:
+          'With your own AI key: say what to archive, move, pin or snooze, '
+          'and check the list before anything happens.',
+      open: (context, c) => _setting(context, c, 'ai-actions'),
+    ),
+    Feature(
       id: 'codes',
       group: FeatureGroup.inbox,
       icon: AppIcons.codes,
@@ -276,6 +296,16 @@ abstract final class Features {
       open: (context, c) => c.compose(),
     ),
     Feature(
+      id: 'writeWithAi',
+      group: FeatureGroup.writing,
+      icon: AppIcons.writeWithAi,
+      title: 'Write with AI',
+      sentence:
+          'Optional, with your own key: draft a reply, or make your text '
+          'shorter, friendlier, more formal, corrected or translated.',
+      open: (context, c) => _setting(context, c, 'ai-writing'),
+    ),
+    Feature(
       id: 'signOffs',
       group: FeatureGroup.writing,
       icon: AppIcons.signOff,
@@ -285,6 +315,16 @@ abstract final class Features {
           'quick switch while you write.',
       open: (context, c) =>
           _push(context, (_) => SignOffsPage(services: c.services)),
+    ),
+    Feature(
+      id: 'aiQuickReplies',
+      group: FeatureGroup.writing,
+      icon: AppIcons.quickReply,
+      title: 'Quick replies',
+      sentence:
+          'Up to three short replies to a personal email, to start from, '
+          'with the AI assistant and your own key.',
+      open: (context, c) => _setting(context, c, 'ai-quickReplies'),
     ),
     Feature(
       id: 'images',

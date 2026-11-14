@@ -149,25 +149,20 @@ final class AppServices {
   final resorted = ValueNotifier<int>(0);
 
   /// Sorts mail stored by an older version (or with older rules) again
-  /// from its stored headers, without holding up start-up: after the
-  /// first frame and [idle] more, in small batches with a frame's pause
-  /// between them. Ends when the app closes; an unfinished run starts
-  /// again next time. Returns how many messages were looked at.
+  /// from its stored headers. The sync worker does it, in its own isolate,
+  /// so the screen never waits for it; this only waits for the first frame
+  /// and [idle] more, so start-up isn't slowed either. An interrupted run
+  /// carries on next time. Returns how many messages were looked at.
   Future<int> resortWhenIdle({
     Duration idle = const Duration(seconds: 2),
   }) async {
     try {
-      final resorter = Resorter(store, batchSize: 100);
-      if (!resorter.isNeeded) return 0;
+      if (!Resorter(store).isNeeded) return 0;
       await SchedulerBinding.instance.endOfFrame;
       await Future<void>.delayed(idle);
-      bool stopped() => _disposing != null;
-      if (stopped()) return 0;
-      final count = await resorter.resortAll(
-        pause: const Duration(milliseconds: 16),
-        stopped: stopped,
-      );
-      if (!stopped()) resorted.value++;
+      if (_disposing != null) return 0;
+      final count = await worker.resortIfNeeded();
+      if (_disposing == null && count > 0) resorted.value++;
       return count;
     } on Object catch (e) {
       // Tried again at the next start.

@@ -44,10 +44,12 @@ Website: **https://citusmail.fluminaris.com** · Download:
 - **Every account in one inbox**: Gmail, Outlook / Microsoft 365 and any
   IMAP provider.
 - **An AI assistant, only if you want one**: off until you add your own
-  key for Claude, GPT, Meta Muse or any OpenAI-compatible endpoint (even
+  key for Claude, GPT, Gemini (free tier), Meta Muse or any OpenAI-compatible endpoint (even
   a model on your own computer). Then "Summarise" gives the gist of an
   email or a whole conversation, with dates, amounts and what is asked
-  of you. It asks before it first sends anything, sends only the email
+  of you, "Translate" shows a foreign-language email in yours, and
+  "Suggest replies" offers up to three short replies to start from (never
+  sent for you). It asks before it first sends anything, sends only the email
   you ask about, keeps the result on your device, and shows what it
   costs, with a monthly limit.
 - **Ask your mail** (optional, off until you turn it on, with your own AI
