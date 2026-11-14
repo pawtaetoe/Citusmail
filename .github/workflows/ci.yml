@@ -125,6 +125,9 @@ jobs:
       - name: Test mail_unsubscribe
         working-directory: packages/mail_unsubscribe
         run: dart test
+      - name: Test mail_ai
+        working-directory: packages/mail_ai
+        run: dart test
       - name: Test background_clipboard
         working-directory: packages/background_clipboard
         run: flutter test

@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
+import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_oauth/mail_oauth.dart';
 import 'package:mail_setup/mail_setup.dart';
@@ -18,8 +19,10 @@ import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_web/mail_web.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../mail/summaries.dart';
 import '../security/app_lock.dart';
 import '../security/pin_hasher.dart';
+import 'ai_assistant.dart';
 import 'app_settings.dart';
 import 'auto_reader.dart';
 import 'device_sync.dart';
@@ -42,6 +45,7 @@ final class AppServices {
     Biometrics? biometrics,
     String? databasePath,
     int pinRounds = PinHasher.iterations,
+    AiProviderFactory? aiProviders,
   }) => AppServices._(
     store,
     secrets,
@@ -49,6 +53,7 @@ final class AppServices {
     web ?? WebClient(),
     AppLock(store, secrets, biometrics: biometrics, pinRounds: pinRounds),
     databasePath,
+    AiAssistant(store, secrets, providers: aiProviders),
   );
 
   AppServices._(
@@ -58,6 +63,7 @@ final class AppServices {
     WebClient web,
     this.lock,
     this._databasePath,
+    this.ai,
   ) : deviceSync = DeviceSync(store, secrets, worker),
       virusTotal = VirusTotalChecks(store, secrets, web),
       linkSafety = LinkSafety(
@@ -75,7 +81,10 @@ final class AppServices {
       sender = Sender(store),
       replies = ReplyBuilder(store),
       settings = AppSettings(store),
+      summaries = MessageSummaries(store, ai, loadBody: worker.loadBody),
       autoRead = AutoReader(store, worker.loadBodyInBackground) {
+    // Summaries are forgotten when the user turns them off.
+    ai.whenTurnedOff(AiFeatures.summaries.id, summaries.forgetAll);
     // Preferences synced from the user's other devices show at once.
     _syncEvents = worker.events.listen((event) {
       if (event is AccountSynced) {
@@ -104,6 +113,14 @@ final class AppServices {
 
   /// Optional VirusTotal lookups with the user's key (off by default).
   final VirusTotalChecks virusTotal;
+
+  /// The optional AI assistant with the user's own key (every feature off
+  /// by default). Features get their provider from
+  /// [AiAssistant.providerFor], which is null while they are off.
+  final AiAssistant ai;
+
+  /// "Summarise" in the reader (an [ai] feature, off by default).
+  final MessageSummaries summaries;
 
   /// Local changes (read, pin, move, delete); the worker sends them on.
   final MailActions actions;
@@ -275,6 +292,7 @@ final class AppServices {
     }
     await secrets.delete(AppLock.pinKey);
     await secrets.delete(KeychainSyncCodes.key);
+    await ai.forgetKeys();
     final path = _databasePath;
     if (path != null) await AppStartup.resetLocalData(path, secrets: secrets);
   }

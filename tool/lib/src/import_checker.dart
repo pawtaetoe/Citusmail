@@ -50,8 +50,12 @@ final class ImportChecker {
     ),
     ImportRule(
       RegExp(r'\bHttpClient\s*\('),
-      'HTTP is only used by account setup, after review',
-      allowedIn: ['packages/mail_setup/lib/'],
+      'HTTP is only used by account setup, and by the optional AI '
+      'assistant to reach the provider the user chose, after review',
+      allowedIn: [
+        'packages/mail_setup/lib/',
+        'packages/mail_ai/lib/src/transport/ai_http.dart',
+      ],
     ),
     ImportRule(
       RegExp(

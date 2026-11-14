@@ -90,6 +90,37 @@ void main() {
     );
   });
 
+  test('the AI assistant makes HTTP requests in one reviewed file only', () {
+    expect(
+      checker.check(
+        'packages/mail_ai/lib/src/transport/ai_http.dart',
+        'final client = HttpClient(context: c);',
+      ),
+      isEmpty,
+    );
+    for (final elsewhere in [
+      'packages/mail_ai/lib/src/providers/anthropic_provider.dart',
+      'packages/mail_ai/lib/src/mail_prompt.dart',
+      'app/lib/src/services/ai_assistant.dart',
+    ]) {
+      expect(
+        checker.check(elsewhere, 'final client = HttpClient();'),
+        hasLength(1),
+        reason: elsewhere,
+      );
+    }
+    // No other network access there either.
+    expect(
+      checker.check(
+        'packages/mail_ai/lib/src/transport/ai_http.dart',
+        "import 'package:http/http.dart';\n"
+            'await Socket.connect(h, 80);\n'
+            'await HttpServer.bind(a, 1);\n',
+      ),
+      hasLength(3),
+    );
+  });
+
   test('only the OAuth receiver may listen for connections', () {
     expect(
       checker.check('app/lib/a.dart', 'await HttpServer.bind(a, 0);'),
