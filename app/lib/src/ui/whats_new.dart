@@ -13,11 +13,12 @@ import 'citusmail_theme.dart';
 import 'features.dart';
 
 /// The app's version, as in app/pubspec.yaml (a test checks they agree).
-const appVersion = '0.5.11';
+const appVersion = '0.5.12';
 
 /// What a version brought that people can see, newest first: feature ids
 /// from [Features]. Only features that shipped.
 const releaseNotes = <({String version, List<String> features})>[
+  (version: '0.5.12', features: ['deviceSync']),
   (version: '0.5.11', features: ['signOffs']),
   (version: '0.5.10', features: ['pairing']),
   // The 0.5 highlights, for the first start after updating to a version

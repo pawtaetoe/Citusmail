@@ -339,8 +339,8 @@ abstract final class Features {
       icon: AppIcons.devices,
       title: 'Sync between devices',
       sentence:
-          'Blocked senders, Screener choices and snoozes, the same on all '
-          'your devices.',
+          'Blocked senders, Screener choices, snoozes, sign-offs and how '
+          'your mail is handled, the same on all your devices.',
       open: (context, c) => _setting(context, c, 'deviceSync'),
     ),
   ];
