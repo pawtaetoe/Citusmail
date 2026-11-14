@@ -52,9 +52,9 @@ final class QuickReplySuggestions extends ChangeNotifier {
   /// What was suggested for [messageId], or is being.
   ReplySuggestions? find(int messageId) => _cache[messageId];
 
-  /// Asks for replies to [mail] (the email [messageId]). Asks [confirm]
-  /// first when the user has not yet agreed to send this feature's mail
-  /// to the provider.
+  /// Asks for replies to [mail] (the email [messageId]), once [confirm]
+  /// agrees to send it to the provider (`confirmAiSend`, which asks the
+  /// user the first time).
   Future<void> suggest(
     int messageId,
     PromptMail mail, {
@@ -76,10 +76,7 @@ final class QuickReplySuggestions extends ChangeNotifier {
       return;
     }
     s.recipient = provider.recipient;
-    if (provider.needsConfirmation) {
-      if (!await confirm(provider)) return;
-      provider.confirm();
-    }
+    if (!await confirm(provider)) return;
     _put(s);
     final cancel = s._cancel = AiCancel();
     notifyListeners();

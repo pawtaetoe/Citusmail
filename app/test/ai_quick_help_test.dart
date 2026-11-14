@@ -133,16 +133,36 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
+  /// Settles until [finder] finds something (the reader loads its
+  /// email off the UI thread, slower on a busy machine).
+  Future<void> until(
+    WidgetTester tester,
+    Finder finder, {
+    int count = 1,
+  }) async {
+    for (var i = 0; i < 40 && finder.evaluate().length < count; i++) {
+      await settle(tester);
+    }
+    await settle(tester);
+  }
+
+  /// Opens the email with [subject] from the list: done once its
+  /// subject shows in the reader too.
+  Future<void> read(WidgetTester tester, String subject) async {
+    await tester.tap(find.text(subject).first);
+    await until(tester, find.text(subject), count: 2);
+  }
+
   Future<void> open(WidgetTester tester, String subject) async {
     await show(tester);
-    await settle(tester);
-    await tester.tap(find.text(subject).first);
-    await settle(tester);
+    await until(tester, find.text(subject));
+    await read(tester, subject);
   }
 
   /// Agrees, once, to send this feature's mail to the provider.
   Future<void> agree(WidgetTester tester) async {
-    expect(find.text('Send this email to Anthropic?'), findsOneWidget);
+    await until(tester, find.text('Send to Anthropic?'));
+    expect(find.text('Send to Anthropic?'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Send'));
     await settle(tester);
   }
@@ -184,8 +204,7 @@ void main() {
       expect(find.text('Translate'), findsNothing);
       expect(suggest, findsNothing);
 
-      await tester.tap(find.text('Dinner on Friday').first);
-      await settle(tester);
+      await read(tester, 'Dinner on Friday');
       expect(suggest, findsNothing);
       expect(fake.requests, isEmpty);
     });
@@ -223,8 +242,7 @@ void main() {
       await open(tester, 'Dinner on Friday');
       expect(offer, findsNothing);
 
-      await tester.tap(find.text('Samstag').first);
-      await settle(tester);
+      await read(tester, 'Samstag');
       expect(find.text('This email seems to be in German.'), findsOneWidget);
       expect(find.text('Translate to English'), findsOneWidget);
       // Nothing is sent before the user asks.
@@ -367,7 +385,7 @@ void main() {
       await open(tester, 'Samstag');
       await tester.tap(offer);
       await settle(tester);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Not now'));
       await settle(tester);
       expect(fake.requests, isEmpty);
       expect(find.byKey(const ValueKey('translation')), findsNothing);
@@ -445,14 +463,12 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Newsletters')); // collapsed at first
       await settle(tester);
-      await tester.tap(find.text('This week at the shop').first);
-      await settle(tester);
+      await read(tester, 'This week at the shop');
       expect(find.textContaining('Our best deals'), findsWidgets);
       expect(suggest, findsNothing);
       await tester.tap(find.text('Notifications').first);
       await settle(tester);
-      await tester.tap(find.text('Your parcel is on its way').first);
-      await settle(tester);
+      await read(tester, 'Your parcel is on its way');
       expect(find.textContaining('handed to the carrier'), findsWidgets);
       await settle(tester);
       expect(suggest, findsNothing);

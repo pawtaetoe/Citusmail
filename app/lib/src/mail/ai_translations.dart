@@ -98,8 +98,8 @@ final class MailTranslations extends ChangeNotifier {
   }
 
   /// Translates [mail] (the email [messageId]) into [language], or shows
-  /// the translation already made. Asks [confirm] first when the user
-  /// has not yet agreed to send this feature's mail to the provider.
+  /// the translation already made, once [confirm] agrees to send it to
+  /// the provider (`confirmAiSend`, which asks the user the first time).
   Future<void> translate(
     int messageId,
     PromptMail mail,
@@ -126,10 +126,7 @@ final class MailTranslations extends ChangeNotifier {
       return;
     }
     t.recipient = provider.recipient;
-    if (provider.needsConfirmation) {
-      if (!await confirm(provider)) return;
-      provider.confirm();
-    }
+    if (!await confirm(provider)) return;
     _put(key, t);
     _shown[messageId] = code;
     final cancel = t._cancel = AiCancel();

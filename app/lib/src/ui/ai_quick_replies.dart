@@ -10,7 +10,8 @@ import 'package:mail_ai/mail_ai.dart';
 import '../mail/ai_quick_replies.dart';
 import '../mail/ai_reader_mail.dart';
 import '../mail/mail_controller.dart';
-import 'ai_confirm.dart';
+import 'ai_confirm_dialog.dart';
+import 'ai_sent_note.dart';
 import 'app_icons.dart';
 
 /// "Suggest replies" under a personal email (an AI feature, off by
@@ -47,7 +48,7 @@ final class QuickReplySection extends StatelessWidget {
             id,
             AiReaderMail.of(reader),
             confirm: (provider) => context.mounted
-                ? AiConfirm.ask(context, provider)
+                ? confirmAiSend(context, provider)
                 : Future.value(false),
           ),
         );
