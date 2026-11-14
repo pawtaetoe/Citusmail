@@ -105,15 +105,27 @@ final class AiMessage {
     this.text, {
     this.toolCalls = const [],
     this.toolResults = const [],
+    this.providerContent,
   });
 
   const AiMessage.user(this.text, {this.toolResults = const []})
     : role = AiRole.user,
-      toolCalls = const [];
+      toolCalls = const [],
+      providerContent = null;
 
-  const AiMessage.assistant(this.text, {this.toolCalls = const []})
-    : role = AiRole.assistant,
-      toolResults = const [];
+  const AiMessage.assistant(
+    this.text, {
+    this.toolCalls = const [],
+    this.providerContent,
+  }) : role = AiRole.assistant,
+       toolResults = const [];
+
+  /// An earlier answer's turn as the model gave it.
+  factory AiMessage.fromResponse(AiResponse response) => AiMessage.assistant(
+    response.text,
+    toolCalls: response.toolCalls,
+    providerContent: response.providerContent,
+  );
 
   final AiRole role;
   final String text;
@@ -123,6 +135,20 @@ final class AiMessage {
 
   /// On a user turn: the answers to those calls.
   final List<AiToolResult> toolResults;
+
+  /// On an assistant turn: the provider's own content of that answer
+  /// ([AiResponse.providerContent]), sent back exactly as it came (some
+  /// models need their reasoning back in a tool loop). Ignored by other
+  /// providers.
+  final ProviderContent? providerContent;
+}
+
+/// An answer's content in one provider's own form, for sending it back.
+final class ProviderContent {
+  const ProviderContent(this.kind, this.blocks);
+
+  final AiProviderKind kind;
+  final List<Object?> blocks;
 }
 
 /// A tool the model may ask the app to use (later stages: actions the
@@ -267,9 +293,14 @@ final class AiResponse {
     required this.stopReason,
     required this.model,
     this.toolCalls = const [],
+    this.providerContent,
   });
 
   final String text;
+
+  /// The answer as the provider gave it, for a tool loop
+  /// ([AiMessage.fromResponse]).
+  final ProviderContent? providerContent;
   final List<AiToolCall> toolCalls;
   final AiUsage usage;
   final AiStopReason stopReason;
