@@ -98,8 +98,22 @@ final class AiFeatures {
         'dates, subjects, the text and the names of attached files',
   );
 
+  /// "Ask your mail" in search: a question answered from the few emails
+  /// that match it best, found on the device.
+  static const ask = AiFeature(
+    id: 'ask',
+    title: 'Ask your mail',
+    sentence:
+        'Search with a question, like "When does my flight leave?", and get '
+        'a short answer from your own mail, with the emails it comes from.',
+    sends:
+        'your question and the few emails that match it best on this device '
+        '(8, at most 15): their senders, dates, subjects and part of their '
+        'text',
+  );
+
   /// Every feature, in the order Settings shows them.
-  static const all = <AiFeature>[summaries];
+  static const all = <AiFeature>[summaries, ask];
 
   static AiFeature? byId(String id) => all.where((f) => f.id == id).firstOrNull;
 
