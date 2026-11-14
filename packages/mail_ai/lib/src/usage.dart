@@ -44,13 +44,15 @@ final class AiPriceTable {
 
   static const _key = 'ai.prices';
 
-  /// Anthropic's list prices (input / output per million tokens). For
-  /// Haiku, the price for prompts up to 100,000 tokens (longer prompts
-  /// cost more; mail rarely is that long).
+  /// List prices (input / output per million tokens), as published:
+  /// Anthropic's (for Haiku, the price for prompts up to 100,000 tokens;
+  /// mail rarely is longer) and Meta's for Muse Spark 1.1. The user can
+  /// change any of them.
   static const defaults = <String, AiPrice>{
     'claude/claude-opus-5-5': AiPrice(4, 20),
     'claude/claude-sonnet-5-5': AiPrice(2, 10),
     'claude/claude-haiku-5-5': AiPrice(0.10, 0.50),
+    'meta/muse-spark-1.1': AiPrice(1.25, 4.25),
   };
 
   static String _id(AiProviderKind kind, String model) => '${kind.id}/$model';

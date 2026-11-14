@@ -21,12 +21,16 @@ Future<bool> confirmAiSend(
     builder: (context) => AlertDialog(
       key: const ValueKey('ai-confirm'),
       title: Text('Send to ${provider.recipient}?'),
-      content: Text(
-        '${provider.feature.title}: to do this, $appName sends '
-        '${provider.feature.sends} to ${provider.recipient}, straight from '
-        'this device with your key, and only when you ask.\n\n'
-        '${provider.recipient}\'s terms and privacy policy apply to what it '
-        'receives. $appName itself receives nothing.',
+      // A readable line length on a wide window.
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Text(
+          '${provider.feature.title}: to do this, $appName sends '
+          '${provider.feature.sends} to ${provider.recipient}, straight '
+          'from this device with your key, and only when you ask.\n\n'
+          '${provider.recipient}\'s terms and privacy policy apply to what '
+          'it receives. $appName itself receives nothing.',
+        ),
       ),
       actions: [
         TextButton(

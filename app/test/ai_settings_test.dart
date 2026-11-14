@@ -362,6 +362,7 @@ void main() {
       'gpt',
       'claude',
       'llama',
+      'muse',
       'openai',
       'anthropic',
       'api key',
