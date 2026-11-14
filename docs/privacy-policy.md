@@ -50,7 +50,7 @@ one exception you can choose: see below.
 | Your mail server's rules service (ManageSieve) | Only if you turn on "Rules on the mail server" (Settings > Advanced) | Your blocked senders and folder rules, so your server can sort mail |
 | Google Safe Browsing | Only if you turn on "Check links with Google Safe Browsing" (Settings > Advanced) | Lists of dangerous sites are downloaded; to confirm a match, only a 4-byte part of a link's fingerprint is sent, never the link itself |
 | VirusTotal | Only if you turn it on with your own API key (Settings > Advanced), and only when you tap "Check with VirusTotal" | A file's SHA-256 fingerprint (the file is never uploaded) or a link's address |
-| The AI provider you choose (Anthropic, OpenAI, Meta for its Muse models, or an OpenAI-compatible address you enter) | Only if you add your own API key and turn a feature on (Settings > AI assistant), after the app asks you once, and only when you use the feature (such as Summarise) | Only what that feature needs: for a summary, the email or conversation you ask about (senders, recipients, dates, subjects, text and the names of attached files, never the files), with your key |
+| The AI provider you choose (Anthropic, OpenAI, Meta for its Muse models, Google for Gemini, or an OpenAI-compatible address you enter) | Only if you add your own API key and turn a feature on (Settings > AI assistant), after the app asks you once, and only when you use the feature (such as Summarise) | Only what that feature needs: for a summary, the email or conversation you ask about (senders, recipients, dates, subjects, text and the names of attached files, never the files), with your key |
 | The AI provider you choose, with your own key: writing help | Only if you turn on "Writing help" (Settings > AI assistant), and only when you tap "Write with AI" and ask for a draft or rewrite | For a drafted reply, the email you are answering and your instruction; for a rewrite, only the text you wrote; your name. Never your recipients or other mail |
 | Newsletter senders | Only when you tap Unsubscribe and confirm | The unsubscribe request the newsletter asked for |
 | The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline | An email from your own account with your answer and any note you add, sent through your own mail server |
@@ -78,7 +78,7 @@ including the Limited Use requirements.
 
 Citusmail has no AI service of its own. If you choose to, you can add
 your own API key for an AI provider (Claude from Anthropic, GPT from
-OpenAI, Meta (Muse models), or an OpenAI-compatible service or a model on
+OpenAI, Meta (Muse models), Google (Gemini), or an OpenAI-compatible service or a model on
 your own computer) and turn on features such as summaries. Everything is
 off until you do, and each feature asks once, naming the provider and
 what it sends, before it first sends anything.
@@ -86,7 +86,9 @@ what it sends, before it first sends anything.
 When you use a feature, your device sends what it needs (for a summary,
 the email or conversation you ask about) directly to the provider you
 chose, with your key. It is not sent to Fluminaris; we never receive it.
-The provider handles it under its own terms and privacy policy. Your
+The provider handles it under its own terms and privacy policy; on
+Google's free tier for Gemini, Google may use what it receives to improve
+its products, which a paid key avoids. Your
 keys stay in your device's secure keychain, and results such as
 summaries are kept only on your device, encrypted.
 
