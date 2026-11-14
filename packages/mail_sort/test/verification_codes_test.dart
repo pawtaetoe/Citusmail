@@ -97,6 +97,29 @@ void main() {
     });
   });
 
+  test('a sign-in notice with the code far down its body', () {
+    const body =
+        'Security Notice for User p******7: Verify Log In\n'
+        'Dear Client,\n'
+        'We noticed a log in to your account from a new device or location.\n'
+        'Security Alert: Financial institutions are being impersonated '
+        'through text messages, emails and phone calls.\n'
+        'Action Required:\n'
+        '- If you suspect unauthorized access, please contact our support '
+        'team directly\n'
+        '- If this login was legitimate, use this verification code to '
+        'access your account: 327570\n'
+        'Licence No: CMS100917. Message Reference Number: '
+        '5-17946356529180006-789728';
+    expect(
+      VerificationCodes.inMessage(
+        'Security Notice for User p******7: Verify Log In',
+        body,
+      ),
+      '327570',
+    );
+  });
+
   group('verification subjects', () {
     test('codes, sign-in links, password resets and address checks', () {
       for (final subject in [
@@ -119,6 +142,11 @@ void main() {
         '[GitHub] Please verify your device',
         'Two-factor authentication code',
         '123456 is your Instagram code',
+        // "Log in" and "sign in" written as two words.
+        'Security Notice for User p******7: Verify Log In',
+        'Verify your log-in',
+        'Please verify sign in',
+        'Confirm your sign-in',
       ]) {
         expect(
           VerificationCodes.isVerificationSubject(subject),
@@ -136,6 +164,7 @@ void main() {
         'Your promo code SAVE2026 inside',
         '20% discount code for you',
         'New sign-in to your account',
+        'New log in from Chrome on Windows',
         'Your password was changed',
         'Invoice 2026-0041',
         'Lunch on Friday?',

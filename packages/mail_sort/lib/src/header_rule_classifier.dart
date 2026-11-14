@@ -32,7 +32,8 @@ final class HeaderRuleClassifier implements MessageClassifier {
   /// re-sorted (see `Resorter`).
   /// 2: read receipts sort as notifications.
   /// 3: verification codes, sign-in links and password resets as Codes.
-  static const currentVersion = 3;
+  /// 4: "Verify log in" / "sign in" written as two words are Codes too.
+  static const currentVersion = 4;
 
   static const List<SortingRule> rules = [
     OwnMailRule(),
