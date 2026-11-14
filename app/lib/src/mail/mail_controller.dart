@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
+import 'package:mail_sort/mail_sort.dart' show VerificationCodes;
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 import 'package:mail_trust/mail_trust.dart';
@@ -474,6 +475,7 @@ final class MailController {
       raw,
       _trustContext(message),
     ));
+    _findCode(message, view);
     return ReaderReady(
       _store.messages.byId(message.id) ?? message,
       view,
@@ -487,6 +489,21 @@ final class MailController {
           trust.verified &&
           _store.imageSenders.isAllowed(message.from?.address),
     );
+  }
+
+  /// A verification email opened before its code was found (older mail
+  /// the code reader hasn't reached): the code is read now, so the list
+  /// shows it from here on.
+  void _findCode(StoredMessage message, MessageView view) {
+    if (message.category != MessageCategory.codes) return;
+    if (message.code?.isNotEmpty ?? false) return;
+    final code = VerificationCodes.inMessage(
+      message.subject,
+      view.body.plainText,
+    );
+    if (code == null) return;
+    _store.messages.setCode(message.id, code);
+    refresh();
   }
 
   /// When the user unsubscribed from [message]'s list, if they did.

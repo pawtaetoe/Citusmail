@@ -28,6 +28,9 @@ final class Resorter {
 
   static const versionKey = 'sorting.rulesVersion';
 
+  /// How far an unfinished run got: `<rules version>:<last message id>`.
+  static const progressKey = 'sorting.resortProgress';
+
   final MailStore _store;
   final MessageClassifier classifier;
 
@@ -41,19 +44,23 @@ final class Resorter {
 
   /// Re-sorts everything if [isNeeded]. Returns how many messages were
   /// looked at.
-  Future<int> resortIfNeeded() async => isNeeded ? resortAll() : 0;
+  Future<int> resortIfNeeded({
+    Duration pause = Duration.zero,
+    bool Function()? stopped,
+  }) async => isNeeded ? resortAll(pause: pause, stopped: stopped) : 0;
 
-  /// Re-sorts every stored message. Safe to interrupt: the version is
-  /// recorded only at the end, so an interrupted run starts again.
+  /// Re-sorts every stored message. Safe to interrupt: each batch records
+  /// how far it got, so an interrupted run carries on from there next time
+  /// (for the same rules), and the version is recorded only at the end.
   ///
-  /// Waits [pause] between batches (so the UI keeps drawing), and ends
-  /// early, without recording the version, once [stopped] says so (the
-  /// app is closing).
+  /// Waits [pause] between batches, and ends early, without recording the
+  /// version, once [stopped] says so (the app is closing).
   Future<int> resortAll({
     Duration pause = Duration.zero,
     bool Function()? stopped,
   }) async {
-    var afterId = 0;
+    final version = '${classifier.version}';
+    var afterId = _resumeAfter(version);
     var count = 0;
     final ai = AiSortLog(_store).applied();
     while (true) {
@@ -69,14 +76,23 @@ final class Resorter {
           for (final message in batch) decide(message, ai: ai),
         ]);
         count += batch.length;
+        _store.settings.write(progressKey, '$version:${batch.last.id}');
         return batch.last.id;
       });
       if (last == null) break;
       afterId = last;
       await Future<void>.delayed(pause);
     }
-    _store.settings.write(versionKey, '${classifier.version}');
+    _store.settings.write(versionKey, version);
+    _store.settings.delete(progressKey);
     return count;
+  }
+
+  /// Where an earlier, unfinished run with the same rules stopped.
+  int _resumeAfter(String version) {
+    final saved = _store.settings.read(progressKey)?.split(':');
+    if (saved == null || saved.length != 2 || saved[0] != version) return 0;
+    return int.tryParse(saved[1]) ?? 0;
   }
 
   /// The decision for one stored message: the rules', or, while they

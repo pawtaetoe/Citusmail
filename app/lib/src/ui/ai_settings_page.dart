@@ -52,7 +52,7 @@ final class AiSettingsPage extends StatelessWidget {
                 configured.isEmpty ? 'Add your key' : 'Add another provider',
               ),
               subtitle: const Text(
-                'Claude, GPT, Meta Muse, or any OpenAI-compatible '
+                'Claude, GPT, Meta Muse, Gemini, or any OpenAI-compatible '
                 'endpoint, such as a model on your own computer',
               ),
               onTap: () => AiProviderDialog.show(context, ai),
@@ -389,6 +389,10 @@ final class _AiProviderDialogState extends State<AiProviderDialog> {
       'Create a key in your OpenAI platform account (API keys).',
     AiProviderKind.meta =>
       'Create a key on Meta\'s developer site, dev.meta.ai (Model API).',
+    AiProviderKind.google =>
+      'Create a free key in Google AI Studio (aistudio.google.com, Get API '
+          'key). The free tier has daily limits, and Google may use what '
+          'you send on it to improve its products.',
     AiProviderKind.custom =>
       'Only if the endpoint needs one; a model on your own computer '
           'usually doesn\'t.',

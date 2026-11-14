@@ -98,6 +98,77 @@ final class AiFeatures {
         'dates, subjects, the text and the names of attached files',
   );
 
+  /// "Write with AI" while writing: a reply drafted from the email being
+  /// answered, or the user's own text rewritten. Only ever a proposal
+  /// the user chooses to use.
+  static const writing = AiFeature(
+    id: 'writing',
+    title: 'Writing help',
+    sentence:
+        'While you write, "Write with AI" drafts a reply to the email you '
+        'are answering, or makes your text shorter, friendlier, more '
+        'formal, corrected or translated. You see it first and choose '
+        'whether to use it.',
+    sends:
+        'the text you are writing (not its recipients, sign-off or '
+        'attachments) and your name, and for a drafted reply the email '
+        'you are answering: its sender, recipients, date, subject and text',
+  );
+
+  /// "Ask AI to tidy" on the message list: a request in your own words
+  /// becomes a list of changes (archive, move, read, pin, snooze) that
+  /// you check before anything happens.
+  static const actions = AiFeature(
+    id: 'actions',
+    title: 'Suggested actions',
+    sentence:
+        'Ask in your own words, like "archive newsletters older than a '
+        'month", and check the list of changes before anything happens.',
+    sends:
+        'your request, your folder names, and the sender, subject, date, '
+        'category, folder and read, pinned or snoozed state (never the '
+        'text) of the emails you selected, or of up to 200 in the list '
+        'you are in',
+  );
+
+  /// "Translate" in the reader: one email into the device's language.
+  static const translate = AiFeature(
+    id: 'translate',
+    title: 'Translate',
+    sentence:
+        'Read an email in your own language: offered when one seems to be '
+        'in another, with the original a tap away.',
+    sends:
+        'the email you translate: its sender, subject and text (not its '
+        'attachments)',
+  );
+
+  /// "Suggest replies" under a personal email.
+  static const quickReplies = AiFeature(
+    id: 'quickReplies',
+    title: 'Quick replies',
+    sentence:
+        'Up to three short replies to a personal email when you tap '
+        'Suggest replies; picking one starts a reply you can edit.',
+    sends:
+        'the email you want replies for: its sender, subject and text (not '
+        'its attachments)',
+  );
+
+  /// "Ask your mail" in search: a question answered from the few emails
+  /// that match it best, found on the device.
+  static const ask = AiFeature(
+    id: 'ask',
+    title: 'Ask your mail',
+    sentence:
+        'Search with a question, like "When does my flight leave?", and get '
+        'a short answer from your own mail, with the emails it comes from.',
+    sends:
+        'your question and the few emails that match it best on this device '
+        '(8, at most 15): their senders, dates, subjects and part of their '
+        'text',
+  );
+
   /// A backup for the sorting rules: new mail they have no signal for
   /// gets a category from the assistant (with a reason the reader shows).
   static const sorting = AiFeature(
@@ -115,7 +186,15 @@ final class AiFeatures {
   );
 
   /// Every feature, in the order Settings shows them.
-  static const all = <AiFeature>[summaries, sorting];
+  static const all = <AiFeature>[
+    summaries,
+    writing,
+    actions,
+    translate,
+    quickReplies,
+    ask,
+    sorting,
+  ];
 
   static AiFeature? byId(String id) => all.where((f) => f.id == id).firstOrNull;
 

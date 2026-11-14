@@ -17,7 +17,9 @@ import 'package:mail_view/mail_view.dart';
 import '../app.dart' show appName;
 import '../mail/mail_controller.dart';
 import '../mail/summaries.dart';
+import 'ai_quick_replies.dart';
 import 'ai_sort_notice.dart';
+import 'ai_translate.dart';
 import 'app_icons.dart';
 import 'attachment_save_flow.dart';
 import 'attachment_saver.dart';
@@ -131,19 +133,25 @@ final class ReaderPane extends StatelessWidget {
                         ),
                       ),
                       if (view != null)
-                        SliverPadding(
+                        // Or its translation, as plain text.
+                        TranslatedBody(
+                          controller: controller,
+                          reader: reader,
                           padding: padding,
-                          sliver: SliverList.builder(
-                            itemCount: view.body.blocks.length,
-                            itemBuilder: (_, i) => BlockView(
-                              block: view.body.blocks[i],
-                              onLink: onLink,
-                              images:
-                                  reader is ReaderReady &&
-                                      reader.imagesShown &&
-                                      reader.imagesAllowed
-                                  ? controller.services.images.load
-                                  : null,
+                          original: SliverPadding(
+                            padding: padding,
+                            sliver: SliverList.builder(
+                              itemCount: view.body.blocks.length,
+                              itemBuilder: (_, i) => BlockView(
+                                block: view.body.blocks[i],
+                                onLink: onLink,
+                                images:
+                                    reader is ReaderReady &&
+                                        reader.imagesShown &&
+                                        reader.imagesAllowed
+                                    ? controller.services.images.load
+                                    : null,
+                              ),
                             ),
                           ),
                         ),
@@ -165,6 +173,11 @@ final class ReaderPane extends StatelessWidget {
                                       : null,
                                 ),
                               ],
+                              if (reader is ReaderReady)
+                                QuickReplySection(
+                                  controller: controller,
+                                  reader: reader,
+                                ),
                             ],
                           ),
                         ),
@@ -333,6 +346,7 @@ final class _Header extends StatelessWidget {
               child: UnsubscribeStatus(controller: controller, reader: ready),
             ),
           _PrivacyNotice(controller: controller, reader: ready),
+          TranslateBar(controller: controller, reader: ready),
           // Asked for a read receipt and none came back yet (those that
           // did show under the header).
           if (controller.receiptsFor(ready.message)?.isEmpty ?? false)
@@ -458,6 +472,13 @@ final class _Toolbar extends StatelessWidget {
       // The AI assistant, when the user turned summaries on.
       if (reader is ReaderReady && controller.services.summaries.available)
         ..._summaryActions(),
+      if (reader is ReaderReady && AiTranslate.isOn(controller))
+        _Action(
+          'Translate',
+          AppIcons.translate,
+          () => AiTranslate.run(context, controller, reader as ReaderReady),
+          group: 3,
+        ),
       // The whole message, as the server sent it.
       if (reader is ReaderReady) ...[
         _Action(

@@ -80,6 +80,32 @@ void main() {
 
   StoredMessage reload(StoredMessage m) => store.messages.byId(m.id)!;
 
+  test('an interrupted run carries on where it stopped', () async {
+    for (var uid = 1; uid <= 6; uid++) {
+      storeUnsorted(uid, bank, const {});
+    }
+    var batches = 0;
+    final first = Resorter(store, batchSize: 2);
+    // Stops after two batches, as when the app closes.
+    final done = await first.resortAll(stopped: () => batches++ >= 2);
+    expect(done, 4);
+    expect(first.isNeeded, isTrue);
+
+    // The next start looks only at what is left.
+    final second = Resorter(store, batchSize: 2);
+    expect(await second.resortIfNeeded(), 2);
+    expect(second.isNeeded, isFalse);
+    expect(store.settings.read(Resorter.progressKey), isNull);
+  });
+
+  test('progress from other rules is not used', () async {
+    for (var uid = 1; uid <= 3; uid++) {
+      storeUnsorted(uid, bank, const {});
+    }
+    store.settings.write(Resorter.progressKey, '1:999999');
+    expect(await Resorter(store).resortIfNeeded(), 3);
+  });
+
   test('sorts stored mail from its headers once', () async {
     final news = storeUnsorted(1, shop, {
       'list-unsubscribe': ['<https://shop.example/u>'],
@@ -154,7 +180,11 @@ void main() {
     expect(await resorter.resortAll(stopped: () => batches++ == 2), 4);
     expect(store.settings.read(Resorter.versionKey), isNull);
     expect(resorter.isNeeded, isTrue);
-    expect(await resorter.resortIfNeeded(), 5, reason: 'starts again');
+    expect(
+      await resorter.resortIfNeeded(),
+      1,
+      reason: 'carries on after the 4 already done',
+    );
     expect(resorter.isNeeded, isFalse);
   });
 

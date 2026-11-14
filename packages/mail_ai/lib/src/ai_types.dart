@@ -22,6 +22,15 @@ enum AiProviderKind {
   /// Model API's OpenAI-compatible endpoint; keys from dev.meta.ai.
   meta('Meta Muse', 'Meta', 'https://api.meta.ai/v1', needsKey: true),
 
+  /// Google's Gemini models, through the Gemini API's OpenAI-compatible
+  /// endpoint; keys from Google AI Studio, which has a free tier.
+  google(
+    'Gemini (Google)',
+    'Google',
+    'https://generativelanguage.googleapis.com/v1beta/openai',
+    needsKey: true,
+  ),
+
   /// Any OpenAI-compatible endpoint the user names: OpenRouter, Groq,
   /// Together, or a model on their own computer or network (Ollama, LM
   /// Studio), which needs no key.
@@ -57,7 +66,7 @@ enum AiProviderKind {
   String? get defaultModel => switch (this) {
     claude => 'claude-opus-5-5',
     meta => 'muse-spark-1.1',
-    openai || custom => null,
+    openai || google || custom => null,
   };
 
   /// The stored name, stable across versions.

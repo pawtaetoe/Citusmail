@@ -19,6 +19,15 @@ typedef AiFeatureTileBuilder = Widget Function(AiAssistant ai);
 final aiFeatureTiles = <String, AiFeatureTileBuilder>{
   AiFeatures.summaries.id: (ai) =>
       AiFeatureSwitch(ai: ai, feature: AiFeatures.summaries),
+  AiFeatures.writing.id: (ai) =>
+      AiFeatureSwitch(ai: ai, feature: AiFeatures.writing),
+  AiFeatures.actions.id: (ai) =>
+      AiFeatureSwitch(ai: ai, feature: AiFeatures.actions),
+  AiFeatures.translate.id: (ai) =>
+      AiFeatureSwitch(ai: ai, feature: AiFeatures.translate),
+  AiFeatures.quickReplies.id: (ai) =>
+      AiFeatureSwitch(ai: ai, feature: AiFeatures.quickReplies),
+  AiFeatures.ask.id: (ai) => AiFeatureSwitch(ai: ai, feature: AiFeatures.ask),
   AiFeatures.sorting.id: (ai) => AiSortingTile(ai: ai),
 };
 

@@ -43,7 +43,8 @@ void main() {
 
   Future<void> show(
     WidgetTester tester, {
-    Size size = const Size(900, 1400),
+    // Tall enough for every feature and the use section below them.
+    Size size = const Size(900, 2400),
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -59,6 +60,14 @@ void main() {
 
   Future<void> tapKey(WidgetTester tester, String key) async {
     final target = find.byKey(ValueKey(key));
+    // The list builds only what is near the screen: scroll to it first.
+    if (target.evaluate().isEmpty) {
+      await tester.scrollUntilVisible(
+        target,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+    }
     await tester.ensureVisible(target);
     await tester.pumpAndSettle();
     await tester.tap(target);
