@@ -98,8 +98,32 @@ final class AiFeatures {
         'dates, subjects, the text and the names of attached files',
   );
 
+  /// "Translate" in the reader: one email into the device's language.
+  static const translate = AiFeature(
+    id: 'translate',
+    title: 'Translate',
+    sentence:
+        'Read an email in your own language: offered when one seems to be '
+        'in another, and shown next to the original.',
+    sends:
+        'the email you translate: its sender, subject and text (not its '
+        'attachments)',
+  );
+
+  /// "Suggest replies" under a personal email.
+  static const quickReplies = AiFeature(
+    id: 'quickReplies',
+    title: 'Quick replies',
+    sentence:
+        'Up to three short replies to a personal email when you tap '
+        'Suggest replies; picking one starts a reply you can edit.',
+    sends:
+        'the email you want replies for: its sender, subject and text (not '
+        'its attachments)',
+  );
+
   /// Every feature, in the order Settings shows them.
-  static const all = <AiFeature>[summaries];
+  static const all = <AiFeature>[summaries, translate, quickReplies];
 
   static AiFeature? byId(String id) => all.where((f) => f.id == id).firstOrNull;
 
