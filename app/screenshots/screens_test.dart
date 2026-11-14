@@ -9,6 +9,7 @@
 //
 // Files go to build/screens/ (or $SCREEN_OUT).
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -42,6 +43,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_ai/mail_ai.dart';
+import 'package:mail_ai/testing.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_pairing/mail_pairing.dart';
 import 'package:mail_protocol/mail_protocol.dart';
@@ -584,6 +587,116 @@ void main() {
     await settle(tester);
     await tester.tap(find.text('Invitation: Launch stand-up').first);
     await shoot(tester, 'phone_invitation');
+  });
+
+  // The AI assistant's Translate and Suggest replies, with a fake
+  // provider (no real one is ever called).
+  testWidgets('ai quick help', (tester) async {
+    final fake = FakeAiProvider(
+      replies: [
+        const FakeAiReply(
+          'Hi Alice,\n\nI wanted to ask whether you are free on Saturday. '
+          'We are meeting at 3 pm at the café on the market square, and the '
+          'others are coming too. The form is here '
+          '(https://example.de/form).\n\nPlease let me know by Friday '
+          'whether you can come.\n\nBest wishes\nJonas',
+        ),
+        const FakeAiReply(
+          '{"replies": ["Yes, I\'d love to come! What can I bring?", '
+          '"Sorry, I can\'t make it on Friday.", '
+          '"Could we do Saturday instead?"]}',
+        ),
+      ],
+    );
+    await tester.runAsync(app.dispose);
+    app = (await tester.runAsync(
+      () => TestApp.create(aiProviders: (_) => fake),
+    ))!;
+    final ai = app.services.ai;
+    await tester.runAsync(
+      () => ai.saveProvider(
+        AiProviderKind.claude,
+        key: 'demo-key',
+        model: 'fake-large',
+      ),
+    );
+    ai
+      ..setOn(AiFeatures.translate.id, true)
+      ..setOn(AiFeatures.quickReplies.id, true);
+    final inbox = app.store.mailboxes.inbox(
+      app.store.accounts.all().single.id,
+    )!;
+    void seed(int uid, String name, String from, String subject, String html) {
+      final at = DateTime.now().toUtc().subtract(Duration(minutes: uid));
+      app.store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: uid,
+          receivedAt: at,
+          subject: subject,
+          from: MailAddress(
+            localPart: from.split('@').first,
+            domain: from.split('@').last,
+            displayName: name,
+          ),
+        ),
+      ]);
+      final raw =
+          'From: $name <$from>\r\nTo: alice@citusmail.test\r\n'
+          'Subject: $subject\r\nMIME-Version: 1.0\r\n'
+          'Content-Type: text/html; charset=utf-8\r\n'
+          'Content-Transfer-Encoding: base64\r\n\r\n'
+          '${base64.encode(utf8.encode(html))}\r\n';
+      app.store.messages.saveBody(
+        app.store.messages.byUid(inbox.id, uid)!.id,
+        utf8.encode(raw),
+        searchableText: subject,
+      );
+    }
+
+    seed(
+      2,
+      'Jonas Weber',
+      'jonas@x.example',
+      'Samstag',
+      '<p>Hallo Alice,</p><p>ich wollte dich fragen, ob du am Samstag Zeit '
+          'hast. Wir treffen uns um 15 Uhr im Café am Markt, und die anderen '
+          'kommen auch. Das Formular ist '
+          '<a href="https://example.de/form">hier</a>.</p><p>Bitte sag mir '
+          'bis Freitag Bescheid, ob du kommen kannst.</p>'
+          '<p>Viele Grüße<br>Jonas</p>',
+    );
+    seed(
+      3,
+      'Carol Lee',
+      'carol@x.example',
+      'Dinner on Friday?',
+      '<p>Hi Alice,</p><p>Would you like to come over for dinner on Friday '
+          'at seven? Sam is cooking. Let me know if that works for '
+          'you.</p><p>Carol</p>',
+    );
+    // Agreed already: the scenes show the result, not the question.
+    for (final f in [AiFeatures.translate, AiFeatures.quickReplies]) {
+      ai.features.confirm(f.id, AiProviderKind.claude, 'Anthropic');
+    }
+
+    await show(tester, shell(), size: const Size(1440, 900));
+    await tester.tap(find.text('Samstag').first);
+    await shoot(tester, 'desktop_ai_translate_offer');
+    await tester.tap(find.byKey(const ValueKey('translate-offer')));
+    await shoot(tester, 'desktop_ai_translated');
+
+    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    await tester.tap(find.byTooltip('Back (Esc)'));
+    await settle(tester);
+    await tester.tap(find.text('Dinner on Friday?').first);
+    await settle(tester);
+    final suggest = find.byKey(const ValueKey('suggest-replies'));
+    await tester.ensureVisible(suggest);
+    await shoot(tester, 'phone_ai_suggest_button');
+    await tester.tap(suggest);
+    await settle(tester);
+    await tester.ensureVisible(find.byKey(const ValueKey('quick-replies')));
+    await shoot(tester, 'phone_ai_quick_replies');
   });
 
   testWidgets('settings', (tester) async {

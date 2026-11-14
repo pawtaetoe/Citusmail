@@ -49,6 +49,7 @@ emails), run entirely on the device.
 | Your mail server's rules service (ManageSieve) | Only if you turn on "Rules on the mail server" (Settings > Advanced) | Your blocked senders and folder rules, so your server can sort mail |
 | Google Safe Browsing | Only if you turn on "Check links with Google Safe Browsing" (Settings > Advanced) | Lists of dangerous sites are downloaded; to confirm a match, only a 4-byte part of a link's fingerprint is sent, never the link itself |
 | VirusTotal | Only if you turn it on with your own API key (Settings > Advanced), and only when you tap "Check with VirusTotal" | A file's SHA-256 fingerprint (the file is never uploaded) or a link's address |
+| The AI provider you chose (Translate, Quick replies) | Only if you turn the feature on with your own key (Settings > AI assistant), and only when you tap Translate or "Suggest replies" on an email | That email's sender, subject and text, never its attachments or other mail |
 | Newsletter senders | Only when you tap Unsubscribe and confirm | The unsubscribe request the newsletter asked for |
 | The organizer of a meeting invitation | Only when you tap Accept, Maybe or Decline | An email from your own account with your answer and any note you add, sent through your own mail server |
 | Images and links in an email | Only when you choose to load images or open a link | A request for the image or page, without cookies; like any connection, it shows your IP address |
