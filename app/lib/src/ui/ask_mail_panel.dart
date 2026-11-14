@@ -97,11 +97,14 @@ final class _AskMailPanelState extends State<AskMailPanel> {
         context: context,
         builder: (context) => AlertDialog(
           title: Text('Send to $recipient?'),
-          content: Text(
-            'Ask your mail sends ${AiFeatures.ask.sends} to $recipient, '
-            'with your key. It looks for the matches on this device; '
-            'nothing else from your mailbox is sent. You are asked this '
-            'once.',
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Text(
+              'Ask your mail sends ${AiFeatures.ask.sends} to $recipient, '
+              'with your key. It looks for the matches on this device; '
+              'nothing else from your mailbox is sent. You are asked this '
+              'once.',
+            ),
           ),
           actions: [
             TextButton(
@@ -347,8 +350,9 @@ final class _Turn extends StatelessWidget {
             const Text('Nothing in your mail matched this question.'),
             const SizedBox(height: 4),
             Text(
-              'Nothing was sent. Try other words, or the name of who '
-              'wrote.',
+              'No emails were sent, only your question to '
+              '${turn.recipient}, for words to search for. Try other '
+              'words, or the name of who wrote.',
               style: muted,
             ),
           ],

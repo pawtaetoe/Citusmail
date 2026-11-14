@@ -374,6 +374,12 @@ abstract final class SettingsCatalog {
       'Summaries',
       words: ['summarise', 'summarize', 'summary', 'ai', 'tl;dr', 'tldr'],
     ),
+    SettingEntry(
+      'ai-ask',
+      'ai',
+      'Ask your mail',
+      words: ['ask', 'question', 'answer', 'ai', 'search', 'chat'],
+    ),
     // Appearance.
     SettingEntry(
       'theme',
