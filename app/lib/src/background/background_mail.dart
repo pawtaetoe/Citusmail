@@ -16,6 +16,7 @@ import '../services/ai_sorter.dart';
 import '../services/app_services.dart';
 import '../services/app_settings.dart';
 import '../services/auto_reader.dart';
+import '../services/latest_code.dart';
 import '../services/mail_notifier.dart';
 import '../services/secret_store.dart';
 
@@ -29,7 +30,8 @@ import '../services/secret_store.dart';
 ///
 /// Both use the same sync code and the same exactly-once new-mail marks as
 /// the app, so nothing is announced twice, and tidy up old codes the same
-/// way (at most once an hour between them, silently).
+/// way (at most once an hour between them, silently). Both keep the
+/// "Latest code" tile's value up to date ([LatestCode]).
 abstract final class BackgroundMail {
   static const _task = MethodChannel('citusmail/background-task');
   static const _app = MethodChannel('citusmail/background');
@@ -173,6 +175,7 @@ abstract final class BackgroundMail {
           ? await MailNotifier.create()
           : null;
       final tracker = NewMailTracker(store);
+      final latestCode = LatestCode(store);
       var allOk = true;
       var newMail = false;
       final started = DateTime.now();
@@ -198,6 +201,7 @@ abstract final class BackgroundMail {
         noteNew(report);
         await notifier?.announce(store, account, tracker.claim(account.id));
       }
+      await latestCode.update();
       // Then the rest, while there is time. With Instant mail on, its
       // service syncs every folder (every 30 minutes), so this check only
       // looks at the inboxes: a cheap safety net if its connection died.
@@ -228,6 +232,8 @@ abstract final class BackgroundMail {
       for (final accountId in tidied?.accountIds ?? const <int>{}) {
         await engine.syncAccount(accountId);
       }
+      // Deleted elsewhere, or too old by now: the tile lets go of it.
+      await latestCode.update();
       await notifier?.remind(store);
       // Sent mail that got no reply in time: back in the inbox, and
       // announced (in the daytime); a reply ends a follow-up quietly.
@@ -326,8 +332,10 @@ abstract final class BackgroundMail {
     final cleaner = CodeCleaner(store, MailActions(store));
     final snoozes = SnoozeWaker(store, MailActions(store));
     final notifier = await MailNotifier.create();
+    final latestCode = LatestCode(store);
     engine.events.listen((event) {
       if (event is! AccountSynced) return;
+      unawaited(latestCode.update());
       final tidied = cleaner.run(DateTime.now().toUtc());
       for (final accountId in tidied?.accountIds ?? const <int>{}) {
         engine.requestSync(accountId);

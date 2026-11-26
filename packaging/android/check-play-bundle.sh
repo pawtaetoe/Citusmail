@@ -1,7 +1,8 @@
 #!/bin/bash
 # Checks that a Google Play bundle (the "play" flavor) has what the app
 # needs in the background: Instant mail (a foreground service of type
-# specialUse, declared in Play Console) and the periodic mail check:
+# specialUse, declared in Play Console), the periodic mail check and the
+# "Latest code" Quick Settings tile:
 #
 #   packaging/android/check-play-bundle.sh build/packages/citusmail-<version>.aab
 #
@@ -19,10 +20,14 @@ has() { grep -aqF -- "$1" "$manifest"; }
 
 # Things it must have: the app itself, Instant mail (its service, the
 # special-use permission and type, and the receiver that restarts it after
-# a reboot) and WorkManager's periodic check.
+# a reboot), WorkManager's periodic check and the Quick Settings tile
+# (which only the system may bind to).
 for kept in com.fluminaris.citusmail.MainActivity \
             com.fluminaris.citusmail.InstantMailService \
             com.fluminaris.citusmail.BootReceiver \
+            com.fluminaris.citusmail.LatestCodeTileService \
+            android.permission.BIND_QUICK_SETTINGS_TILE \
+            android.service.quicksettings.action.QS_TILE \
             android.permission.FOREGROUND_SERVICE_SPECIAL_USE \
             PROPERTY_SPECIAL_USE_FGS_SUBTYPE \
             android.permission.INTERNET \

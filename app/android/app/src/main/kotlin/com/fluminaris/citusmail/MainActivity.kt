@@ -28,6 +28,8 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         oauth = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "citusmail/oauth")
+        // The "Latest code" tile's value, and Android's "Add tile" question.
+        LatestCode.register(flutterEngine.dartExecutor.binaryMessenger, this)
         // The periodic check (kept if already scheduled; does nothing until
         // an account exists).
         BackgroundSyncWorker.schedule(this)

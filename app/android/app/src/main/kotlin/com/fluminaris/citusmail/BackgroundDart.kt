@@ -45,6 +45,8 @@ object BackgroundDart {
                 else -> result.notImplemented()
             }
         }
+        // Each check keeps the "Latest code" tile's value up to date.
+        LatestCode.register(engine.dartExecutor.binaryMessenger, context)
         engine.dartExecutor.executeDartEntrypoint(
             DartExecutor.DartEntrypoint(loader.findAppBundlePath(), entryPoint),
         )

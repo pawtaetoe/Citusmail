@@ -85,6 +85,18 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps a connection to the user's own mail server (IMAP IDLE) so new mail arrives instantly"/>
         </service>
+        <!-- "Latest code" in Quick Settings: copies the newest verification
+             code without opening the app. Only the system can bind to it. -->
+        <service
+            android:name=".LatestCodeTileService"
+            android:exported="true"
+            android:label="@string/latest_code_tile"
+            android:icon="@drawable/ic_tile_code"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE"/>
+            </intent-filter>
+        </service>
         <!-- Hands one meeting invitation (.ics in the cache) to the user's
              calendar app when they ask; nothing else is shared. -->
         <provider
