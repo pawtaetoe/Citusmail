@@ -34,12 +34,7 @@ Future<AccountsFound> findOnlineAccounts(
   DateTime now, {
   Set<int> skip = const {},
 }) async {
-  final hidden = {
-    ...?store.settings
-        .read(AccountsModel.hiddenKey)
-        ?.split(',')
-        .where((s) => s.isNotEmpty),
-  };
+  final hidden = {...AccountsModel.hiddenSetting.read(store.settings)};
   final mailAccounts = store.accounts.all();
   final ownAddresses = [for (final a in mailAccounts) a.email.toLowerCase()];
   final accountAddress = {
@@ -161,7 +156,7 @@ final class AccountsModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const hiddenKey = 'accounts.hidden';
+  static const hiddenSetting = StringListSetting('accounts.hidden');
 
   /// Accounts are old: everything on the device is looked at.
   static const lookBack = Duration(days: 25 * 366);
@@ -310,7 +305,7 @@ final class AccountsModel extends ChangeNotifier {
   ) => accountSamples(account, message);
 
   void _setHidden(Set<String> companies) {
-    _store.settings.write(hiddenKey, companies.join(','));
+    hiddenSetting.write(_store.settings, companies.toList());
     unawaited(load());
   }
 

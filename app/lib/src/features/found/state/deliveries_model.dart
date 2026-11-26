@@ -37,11 +37,10 @@ Future<DeliveriesFound> findDeliveries(
   DateTime now, {
   Set<int> skip = const {},
 }) async {
-  Set<String> read(String key) => {
-    ...?store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
-  };
-  final hidden = read(DeliveriesModel.hiddenKey);
-  final marked = read(DeliveriesModel.deliveredKey);
+  Set<String> read(StringListSetting setting) =>
+      setting.read(store.settings).toSet();
+  final hidden = read(DeliveriesModel.hiddenSetting);
+  final marked = read(DeliveriesModel.deliveredSetting);
   final mail = await loadDeliveryMail(store, now);
   final all = DeliveryFinder.find(
     mail.shipping,
@@ -135,12 +134,12 @@ final class DeliveriesModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const hiddenKey = 'deliveries.hidden';
-  static const deliveredKey = 'deliveries.delivered';
+  static const hiddenSetting = StringListSetting('deliveries.hidden');
+  static const deliveredSetting = StringListSetting('deliveries.delivered');
 
   /// Return windows the user said were returned, or that they keep.
-  static const returnedKey = 'returns.returned';
-  static const keptKey = 'returns.kept';
+  static const returnedSetting = StringListSetting('returns.returned');
+  static const keptSetting = StringListSetting('returns.kept');
 
   /// How far back shipping mail is looked at.
   static const lookBack = Duration(days: 365);
@@ -254,17 +253,16 @@ final class DeliveriesModel extends ChangeNotifier {
   ReturnWindow? returnFor(String key) =>
       returns.where((w) => w.deliveryKey == key).firstOrNull;
 
-  Set<String> _readSet(String key) => {
-    ...?_store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
-  };
+  Set<String> _readSet(StringListSetting setting) =>
+      setting.read(_store.settings).toSet();
 
   /// Emails given up on: not offered while they are read automatically.
   Set<int> get _skip =>
       _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
 
   Future<void> load() async {
-    returned = _readSet(returnedKey);
-    kept = _readSet(keptKey);
+    returned = _readSet(returnedSetting);
+    kept = _readSet(keptSetting);
     final found = await findDeliveries(_store, _now(), skip: _skip);
     hidden = found.hidden;
     marked = found.marked;
@@ -319,7 +317,7 @@ final class DeliveriesModel extends ChangeNotifier {
         _samples(d, _store.messages.byId),
       );
     }
-    _write(hiddenKey, {...hidden, key});
+    _write(hiddenSetting, {...hidden, key});
   }
 
   /// Undo, or "List again": listed again (and never left out by
@@ -331,7 +329,7 @@ final class DeliveriesModel extends ChangeNotifier {
         : _samples(d, _store.messages.byId);
     if (hidden.contains(key)) {
       _corrections.rejected(MailKind.delivery, samples, undo: true);
-      _write(hiddenKey, {...hidden}..remove(key));
+      _write(hiddenSetting, {...hidden}..remove(key));
     } else if (learned.contains(key)) {
       _corrections.kept(MailKind.delivery, key, samples);
       unawaited(load());
@@ -353,25 +351,28 @@ final class DeliveriesModel extends ChangeNotifier {
   ) => deliverySamples(delivery, message);
 
   /// "Mark as delivered", for one stuck on the way (undoable).
-  void markDelivered(String key) => _write(deliveredKey, {...marked, key});
+  void markDelivered(String key) => _write(deliveredSetting, {...marked, key});
 
   void unmarkDelivered(String key) =>
-      _write(deliveredKey, {...marked}..remove(key));
+      _write(deliveredSetting, {...marked}..remove(key));
 
   /// "Returned" and "Keeping it": no longer listed under "Can still be
   /// returned" (undoable).
-  void markReturned(String key) => _write(returnedKey, {...returned, key});
+  void markReturned(String key) => _write(returnedSetting, {...returned, key});
 
-  void markKept(String key) => _write(keptKey, {...kept, key});
+  void markKept(String key) => _write(keptSetting, {...kept, key});
 
   /// Listed again as one that can still be returned.
   void unmarkReturn(String key) {
-    _store.settings.write(returnedKey, ({...returned}..remove(key)).join(','));
-    _write(keptKey, {...kept}..remove(key));
+    returnedSetting.write(_store.settings, [
+      for (final k in returned)
+        if (k != key) k,
+    ]);
+    _write(keptSetting, {...kept}..remove(key));
   }
 
-  void _write(String settingsKey, Set<String> keys) {
-    _store.settings.write(settingsKey, keys.join(','));
+  void _write(StringListSetting setting, Set<String> keys) {
+    setting.write(_store.settings, keys.toList());
     unawaited(load());
   }
 
@@ -425,18 +426,17 @@ Future<List<ReturnWindow>> openReturnWindows(
   MailStore store,
   DateTime now,
 ) async {
-  Set<String> read(String key) => {
-    ...?store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
-  };
+  Set<String> read(StringListSetting setting) =>
+      setting.read(store.settings).toSet();
   final done = {
-    ...read(DeliveriesModel.returnedKey),
-    ...read(DeliveriesModel.keptKey),
+    ...read(DeliveriesModel.returnedSetting),
+    ...read(DeliveriesModel.keptSetting),
   };
   final mail = await loadDeliveryMail(store, now);
   final deliveries = DeliveryFinder.find(
     mail.shipping,
     now: now,
-    markedDelivered: read(DeliveriesModel.deliveredKey),
+    markedDelivered: read(DeliveriesModel.deliveredSetting),
   );
   return [
     for (final w in ReturnWindows.find(mail.emails, deliveries: deliveries))

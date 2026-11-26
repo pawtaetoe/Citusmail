@@ -41,20 +41,23 @@ final class Tips {
 
   final MailStore _store;
 
-  static const offKey = 'tips.off';
-  static const seenKey = 'tips.seen';
+  /// On: tips turned off (synced between devices, so declared there).
+  static const offSetting = SyncedPreferences.tipsOff;
+
+  /// The tips shown, by id.
+  static const seenSetting = StringListSetting('tips.seen');
+
+  /// The tip put away in its session, by id.
+  static const dismissedSetting = StringSetting('tips.seen.dismissed');
 
   /// The tip shown in this run of the app, per store (a fresh store, as
   /// in tests, is a fresh run).
   static final _session = Expando<(String, Object?)>('tip this session');
 
-  bool get enabled => _store.settings.read(offKey) != 'on';
-  set enabled(bool on) => _store.settings.write(offKey, on ? 'off' : 'on');
+  bool get enabled => !offSetting.read(_store.settings);
+  set enabled(bool on) => offSetting.write(_store.settings, !on);
 
-  Set<String> get seen => {
-    for (final id in (_store.settings.read(seenKey) ?? '').split(','))
-      if (id.isNotEmpty) id,
-  };
+  Set<String> get seen => seenSetting.read(_store.settings).toSet();
 
   /// Whether [tip] may show now, at [where] (the email it is about); if
   /// so it counts as shown. It shows again only at the same place.
@@ -63,7 +66,7 @@ final class Tips {
     if (shown != null) return enabled && shown == (tip.id, where);
     if (!enabled || seen.contains(tip.id)) return false;
     _session[_store] = (tip.id, where);
-    _store.settings.write(seenKey, {...seen, tip.id}.join(','));
+    seenSetting.write(_store.settings, [...seen, tip.id]);
     return true;
   }
 
@@ -76,9 +79,10 @@ final class Tips {
   }
 
   /// Whether the tip shown in this session was put away.
-  bool dismissed(String id) => _store.settings.read('$seenKey.dismissed') == id;
+  bool dismissed(String id) =>
+      dismissedSetting.readOrNull(_store.settings) == id;
 
-  void dismiss(String id) => _store.settings.write('$seenKey.dismissed', id);
+  void dismiss(String id) => dismissedSetting.write(_store.settings, id);
 
   static final unsubscribe = Tip(
     id: 'unsubscribe',

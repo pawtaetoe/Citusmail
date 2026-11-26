@@ -51,7 +51,10 @@ final class AttachmentsModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const _hiddenKey = 'attachments.hidden';
+  static const hiddenSetting = StringListSetting(
+    'attachments.hidden',
+    separator: '\n',
+  );
   static const _maxHidden = 1000;
 
   /// Messages read from the store at once.
@@ -139,12 +142,7 @@ final class AttachmentsModel extends ChangeNotifier {
     files = const [];
     loading = true;
     loadingMore = false;
-    hidden = {
-      ...?_store.settings
-          .read(_hiddenKey)
-          ?.split('\n')
-          .where((s) => s.isNotEmpty),
-    };
+    hidden = {...hiddenSetting.read(_store.settings)};
     unknown = [
       for (final m in _store.messages.withUnknownFiles(
         header: FilePart.storedHeader,
@@ -315,7 +313,7 @@ final class AttachmentsModel extends ChangeNotifier {
   void unhide(LibraryFile f) => _setHidden({...hidden}..remove(f.hideKey));
 
   void _setHidden(Iterable<String> keys) {
-    _store.settings.write(_hiddenKey, keys.join('\n'));
+    hiddenSetting.write(_store.settings, keys.toList());
     unawaited(load());
   }
 

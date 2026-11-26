@@ -25,7 +25,8 @@ final class SenderCleanupModel extends ChangeNotifier {
 
   MailStore get _store => controller.services.store;
 
-  static const _keptKey = 'cleanup.kept';
+  /// The senders kept (synced between devices, so declared there).
+  static const keptSetting = SyncedPreferences.keptSenders;
 
   bool loading = true;
 
@@ -81,9 +82,7 @@ final class SenderCleanupModel extends ChangeNotifier {
   }
 
   Future<void> _load() async {
-    kept = {
-      ...?_store.settings.read(_keptKey)?.split(',').where((s) => s.isNotEmpty),
-    };
+    kept = {...keptSetting.read(_store.settings)};
     // The store adds the mail up per sender; grouping senders by company
     // happens off the UI thread.
     final senders = _store.messages.senderStats(
@@ -123,7 +122,7 @@ final class SenderCleanupModel extends ChangeNotifier {
   void unkeep(Iterable<String> keys) => _setKept({...kept}..removeAll(keys));
 
   void _setKept(Set<String> keys) {
-    _store.settings.write(_keptKey, keys.join(','));
+    keptSetting.write(_store.settings, keys.toList());
     kept = keys;
     // At once, without waiting for the next read.
     final all = [..._groups, ...keptGroups];

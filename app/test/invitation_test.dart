@@ -95,7 +95,7 @@ void main() {
     expect(reply.attendees.single.email, 'alice@citusmail.test');
     expect(reply.attendees.single.answer, CalendarAnswer.accepted);
     expect(
-      app.store.settings.read(InvitationAnswers.key),
+      app.store.settings.read(InvitationAnswers.setting.key),
       contains('#2":"ACCEPTED"'),
     );
 

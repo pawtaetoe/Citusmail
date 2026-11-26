@@ -121,7 +121,7 @@ void main() {
         snippet: 'Thanks for your payment.',
       );
       app.store.settings.write(
-        SubscriptionsModel.hiddenKey,
+        SubscriptionsModel.hiddenSetting.key,
         'cloudbox.example',
       );
       expect(await toRead(), isEmpty);

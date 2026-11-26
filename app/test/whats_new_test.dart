@@ -20,7 +20,7 @@ void main() {
   setUp(() async {
     app = await TestApp.create();
     // The first start after updating to this version.
-    app.store.settings.delete(WhatsNew.seenKey);
+    app.store.settings.delete(WhatsNew.seenSetting.key);
   });
   tearDown(() => app.dispose());
 
@@ -66,7 +66,7 @@ void main() {
     expect(first, containsAll(['screener', 'snooze', 'appointments']));
 
     // Coming from the version before: only what this one brought.
-    app.store.settings.write(WhatsNew.seenKey, releaseNotes[1].version);
+    app.store.settings.write(WhatsNew.seenSetting.key, releaseNotes[1].version);
     // (Only what this kind of device has: no Android tile on a desktop.)
     expect(
       [for (final f in whatsNew.pending) f.id],

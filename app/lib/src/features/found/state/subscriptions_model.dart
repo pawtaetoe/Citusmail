@@ -54,10 +54,7 @@ Future<SubscriptionMail> loadSubscriptionMail(
 
 /// The companies the user said are not subscriptions.
 Set<String> hiddenSubscriptions(MailStore store) => {
-  ...?store.settings
-      .read(SubscriptionsModel.hiddenKey)
-      ?.split(',')
-      .where((s) => s.isNotEmpty),
+  ...SubscriptionsModel.hiddenSetting.read(store.settings),
 };
 
 /// The companies whose subscription is left out because it looks like
@@ -216,7 +213,7 @@ final class SubscriptionsModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const hiddenKey = 'subscriptions.hidden';
+  static const hiddenSetting = StringListSetting('subscriptions.hidden');
 
   /// How far back receipts are looked at.
   static const lookBack = Duration(days: 2 * 366);
@@ -378,7 +375,7 @@ final class SubscriptionsModel extends ChangeNotifier {
       subscriptionSamples(s, _store.messages.byId);
 
   void _setHidden(Set<String> companies) {
-    _store.settings.write(hiddenKey, companies.join(','));
+    hiddenSetting.write(_store.settings, companies.toList());
     unawaited(load());
   }
 

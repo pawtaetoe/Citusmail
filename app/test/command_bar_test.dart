@@ -79,7 +79,10 @@ void main() {
     expect(history.ids, hasLength(8));
     expect(history.ids.first, 'go.folder.5');
     expect(history.ids.where((i) => i == 'go.folder.5'), hasLength(1));
-    expect(app.store.settings.read(CommandHistory.key), isNot(contains(' ')));
+    expect(
+      app.store.settings.read(CommandHistory.setting.key),
+      isNot(contains(' ')),
+    );
   });
 
   void size(WidgetTester tester, Size size) {

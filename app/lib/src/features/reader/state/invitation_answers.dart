@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:convert';
-
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
@@ -15,21 +13,25 @@ final class InvitationAnswers {
 
   final MailStore _store;
 
-  static const key = 'invitations.answers';
+  /// The answers as a JSON object: [CalendarInvite.answerKey] to
+  /// [CalendarAnswer.token], newest last.
+  static const setting = JsonSetting<Map<String, String>>(
+    'invitations.answers',
+    fallback: {},
+    fromJson: _fromJson,
+    toJson: _toJson,
+  );
   static const limit = 500;
 
-  Map<String, String> _read() {
-    try {
-      final decoded = jsonDecode(_store.settings.read(key) ?? '{}');
-      if (decoded is! Map) return {};
-      return {
-        for (final MapEntry(:key, :value) in decoded.entries)
-          if (key is String && value is String) key: value,
-      };
-    } on FormatException {
-      return {};
-    }
-  }
+  static Map<String, String> _fromJson(Object? json) => {
+    if (json is Map)
+      for (final MapEntry(:key, :value) in json.entries)
+        if (key is String && value is String) key: value,
+  };
+
+  static Object? _toJson(Map<String, String> answers) => answers;
+
+  Map<String, String> _read() => {...setting.read(_store.settings)};
 
   /// What the user answered to this version of [invite], if anything.
   CalendarAnswer? of(CalendarInvite invite) =>
@@ -40,13 +42,13 @@ final class InvitationAnswers {
       ..remove(invite.answerKey)
       ..[invite.answerKey] = answer.token; // newest last
     final kept = all.entries.skip(all.length > limit ? all.length - limit : 0);
-    _store.settings.write(key, jsonEncode(Map.fromEntries(kept)));
+    setting.write(_store.settings, Map.fromEntries(kept));
   }
 
   /// Forgets the answer (it was undone); [previous] is restored if given.
   void forget(CalendarInvite invite, {CalendarAnswer? previous}) {
     final all = _read()..remove(invite.answerKey);
     if (previous != null) all[invite.answerKey] = previous.token;
-    _store.settings.write(key, jsonEncode(all));
+    setting.write(_store.settings, all);
   }
 }

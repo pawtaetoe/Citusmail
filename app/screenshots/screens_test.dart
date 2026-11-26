@@ -987,7 +987,7 @@ void main() {
     await shoot(tester, 'desktop_discover');
 
     // What's new, after an update.
-    app.store.settings.delete(WhatsNew.seenKey);
+    app.store.settings.delete(WhatsNew.seenSetting.key);
     await show(tester, shell(), size: const Size(1440, 900));
     await shoot(tester, 'desktop_whats_new');
     await show(tester, shell(), size: const Size(390, 844));

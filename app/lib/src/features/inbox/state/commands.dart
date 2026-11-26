@@ -164,18 +164,15 @@ final class CommandHistory {
 
   final MailStore _store;
 
-  static const key = 'commandBar.recent';
+  static const setting = StringListSetting('commandBar.recent');
   static const size = 8;
 
-  List<String> get ids => [
-    for (final id in (_store.settings.read(key) ?? '').split(','))
-      if (id.isNotEmpty) id,
-  ];
+  List<String> get ids => setting.read(_store.settings);
 
   /// [id] was just used: it moves to the front.
   void used(String id) {
     if (id.isEmpty || id.contains(',')) return;
     final list = [id, ...ids.where((i) => i != id)];
-    _store.settings.write(key, list.take(size).join(','));
+    setting.write(_store.settings, list.take(size).toList());
   }
 }

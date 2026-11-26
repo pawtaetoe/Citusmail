@@ -61,10 +61,11 @@ final class WhatsNew {
 
   final MailStore _store;
 
-  static const seenKey = 'whatsNew.seen';
+  /// The newest version whose notes were seen.
+  static const seenSetting = StringSetting('whatsNew.seen');
 
   /// The newest version whose notes were seen (null: never).
-  String? get seenVersion => _store.settings.read(seenKey);
+  String? get seenVersion => seenSetting.readOrNull(_store.settings);
 
   /// The features new since the last version seen.
   List<Feature> get pending {
@@ -84,7 +85,9 @@ final class WhatsNew {
   ];
 
   void markSeen() {
-    if (seenVersion != appVersion) _store.settings.write(seenKey, appVersion);
+    if (seenVersion != appVersion) {
+      seenSetting.write(_store.settings, appVersion);
+    }
   }
 
   static bool _newer(String a, String b) {
