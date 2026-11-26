@@ -40,6 +40,7 @@ final class AiSortingTile extends StatelessWidget {
             key: ValueKey('ai-feature-${feature.id}'),
             title: Text(feature.title),
             subtitle: SettingExplained(
+              about: feature.title,
               ready ? feature.sentence : 'Add a provider and key first, above.',
               more:
                   'After new mail comes, it sends ${feature.sends} to $to, '

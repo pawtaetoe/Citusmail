@@ -13,6 +13,7 @@ import '../mail/attachments_model.dart';
 import '../mail/mail_controller.dart';
 import 'app_icons.dart';
 import 'attachment_save_flow.dart';
+import 'citusmail_theme.dart';
 import 'mail_text.dart';
 import 'page_scaffold.dart';
 import 'reader_pane.dart';
@@ -296,7 +297,9 @@ final class _Controls extends StatelessWidget {
         prefixIcon: const Icon(AppIcons.search),
         hintText: 'Search file names, senders or subjects',
         border: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(24)),
+          borderRadius: BorderRadius.all(
+            Radius.circular(CitusmailTheme.radius),
+          ),
         ),
         suffixIcon: search.text.isEmpty
             ? null
@@ -399,7 +402,7 @@ final class _FileTile extends StatelessWidget {
       color: colors.onSurfaceVariant,
     );
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(CitusmailTheme.radiusCard),
       onTap: onOpen,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
@@ -515,7 +518,7 @@ final class _FileThumbnailState extends State<FileThumbnail> {
     final fallback = DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
       ),
       child: SizedBox.square(
         dimension: size,
@@ -529,7 +532,7 @@ final class _FileThumbnailState extends State<FileThumbnail> {
         if (bytes == null) return fallback;
         final pixels = (size * MediaQuery.devicePixelRatioOf(context)).round();
         return ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(CitusmailTheme.radius),
           child: Image.memory(
             bytes,
             width: size,

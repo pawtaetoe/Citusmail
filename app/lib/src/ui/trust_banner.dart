@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_trust/mail_trust.dart';
 
 import 'app_icons.dart';
+import 'citusmail_theme.dart';
 
 /// Colours and icons for warnings: red for danger, amber for caution.
 final class TrustStyle {
@@ -55,7 +56,7 @@ final class TrustBanner extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
           color: style.background,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(CitusmailTheme.radius),
         ),
         child: DefaultTextStyle.merge(
           style: TextStyle(color: style.foreground),
@@ -124,7 +125,7 @@ final class TrustReasons extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: style.background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

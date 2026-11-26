@@ -72,7 +72,7 @@ abstract final class SettingsCatalog {
     SettingsSection(
       id: 'writing',
       title: 'Writing',
-      description: 'Writing and sending emails',
+      description: 'Sign-offs, send later, read receipts and reminders',
       icon: AppIcons.compose,
     ),
     SettingsSection(
@@ -97,7 +97,7 @@ abstract final class SettingsCatalog {
       id: 'ai',
       title: 'AI assistant (your own key)',
       shortTitle: 'AI assistant',
-      description: 'Optional summaries, with your own key',
+      description: 'Summaries, writing help, Translate, Ask your mail and more',
       icon: AppIcons.assistant,
     ),
     SettingsSection(
@@ -109,7 +109,7 @@ abstract final class SettingsCatalog {
     SettingsSection(
       id: 'about',
       title: 'Help & about',
-      description: 'All features, tips, privacy, and more options',
+      description: 'All features, tips, privacy and licences',
       icon: AppIcons.help,
     ),
   ];
@@ -444,7 +444,7 @@ abstract final class SettingsCatalog {
     SettingEntry(
       'ai-actions',
       'ai',
-      'Suggested actions',
+      'Ask AI to tidy',
       words: [
         'ask ai to tidy',
         'tidy',

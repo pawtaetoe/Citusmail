@@ -75,8 +75,11 @@ abstract final class CitusmailTheme {
   /// Kept for callers that want "the brand colour".
   static const accent = CitusPalette.lagoon;
 
-  /// Corner radii, from small to large: badges, chips and text buttons,
-  /// controls (buttons, fields, list rows), cards, dialogs and sheets.
+  /// Corner radii, from small to large: marks (thin bars, checkboxes,
+  /// scrollbars), badges, chips and text buttons, controls (buttons,
+  /// fields, list rows), cards, dialogs and sheets. Every corner in the
+  /// app is one of these.
+  static const radiusMark = 4.0;
   static const radiusBadge = 6.0;
   static const radiusSmall = 8.0;
   static const radius = 10.0;
@@ -275,7 +278,9 @@ abstract final class CitusmailTheme {
         ),
       ),
       checkboxTheme: CheckboxThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMark),
+        ),
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(
@@ -321,14 +326,14 @@ abstract final class CitusmailTheme {
         waitDuration: const Duration(milliseconds: 400),
         decoration: BoxDecoration(
           color: light ? const Color(0xF01E2B28) : const Color(0xF0DDE7E4),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(radiusBadge),
         ),
         textStyle: text.bodySmall?.copyWith(
           color: light ? Colors.white : CitusPalette.ink,
         ),
       ),
       scrollbarTheme: ScrollbarThemeData(
-        radius: const Radius.circular(4),
+        radius: const Radius.circular(radiusMark),
         thickness: const WidgetStatePropertyAll(6),
         thumbColor: WidgetStatePropertyAll(
           colors.onSurface.withValues(alpha: 0.22),

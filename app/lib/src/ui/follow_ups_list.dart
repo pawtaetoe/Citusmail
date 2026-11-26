@@ -385,7 +385,7 @@ final class NoReplyBadge extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
     decoration: BoxDecoration(
       color: FollowUpColors.accent.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(CitusmailTheme.radiusMark),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,

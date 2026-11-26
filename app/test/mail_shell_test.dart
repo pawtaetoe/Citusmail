@@ -612,14 +612,20 @@ void main() {
     await tester.tap(find.text('Hello there'));
     await settle(tester);
 
-    await tester.tap(find.byTooltip('Show original'));
+    // Seldom needed, so under More.
+    expect(find.byTooltip('Show original'), findsNothing);
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show original'));
     await tester.pumpAndSettle();
     expect(find.text('Original message'), findsOneWidget);
     expect(find.textContaining('Subject:'), findsOneWidget);
     await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Forward as attachment'));
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Forward as attachment'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Hello there.eml'), findsOneWidget);
   });

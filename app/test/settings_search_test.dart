@@ -222,6 +222,8 @@ void main() {
       }
       expect(find.text('New mail notifications'), findsNothing);
       await tester.scrollUntilVisible(find.text('Inbox & sorting'), -100);
+      await tester.ensureVisible(find.text('Inbox & sorting'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Inbox & sorting'));
       await tester.pumpAndSettle();
       expect(find.text('Screen first-time senders'), findsOneWidget);

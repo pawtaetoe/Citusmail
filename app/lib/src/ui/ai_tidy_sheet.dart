@@ -46,7 +46,7 @@ final class AiTidyButton extends StatelessWidget {
 
 /// Asks what to do in plain words, shows the model's proposal as a
 /// checklist grouped by change, and does only what is still ticked when
-/// the user taps "Do it" (as one batch, with Undo). Cancel changes
+/// the user taps "Make N changes" (as one batch, with Undo). Cancel changes
 /// nothing. A bottom sheet on phones, a dialog on larger screens.
 abstract final class AiTidySheet {
   static Future<void> show(
@@ -64,7 +64,7 @@ abstract final class AiTidySheet {
     if (!context.mounted) return;
     if (provider == null) {
       controller.onNotice?.call(
-        'Suggested actions are off. Turn them on in Settings, AI assistant.',
+        'Ask AI to tidy is off. Turn it on in Settings, AI assistant.',
       );
       return;
     }
@@ -244,6 +244,12 @@ final class _TidyPanelState extends State<_TidyPanel> {
   }
 
   /// The steps with only the ticked messages.
+  /// The main button: says how many changes it makes.
+  String get _applyLabel {
+    final n = _ticked.fold(0, (sum, t) => sum + t.length);
+    return n == 1 ? 'Make 1 change' : 'Make $n changes';
+  }
+
   List<TidyStep> get _chosen => [
     for (final (i, step) in _plan.steps.indexed)
       if (_ticked[i].isNotEmpty)
@@ -319,7 +325,7 @@ final class _TidyPanelState extends State<_TidyPanel> {
           'Sends your request, your folder names and the sender, subject '
           'and date of these emails (not their text) to $_to. It can '
           'archive, move, mark read or unread, pin and snooze; nothing '
-          'changes until you tap Do it.',
+          'changes until you tap Make changes.',
         ),
       ],
     ),
@@ -393,7 +399,7 @@ final class _TidyPanelState extends State<_TidyPanel> {
             child: _line(
               theme,
               'Nothing has changed yet. Untick what you don\'t want, then '
-              'tap Do it. You can undo it afterwards.',
+              'tap Make changes. You can undo them afterwards.',
             ),
           ),
       ],
@@ -508,7 +514,7 @@ final class _TidyPanelState extends State<_TidyPanel> {
           onPressed: _ticked.any((t) => t.isNotEmpty)
               ? () => Navigator.pop(context, _chosen)
               : null,
-          child: const Text('Do it'),
+          child: Text(_applyLabel),
         ),
       ],
     };

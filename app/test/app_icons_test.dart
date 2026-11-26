@@ -98,6 +98,9 @@ void main() {
     expect(find.byIcon(Icons.block), findsNothing);
     expect(find.byIcon(Icons.snooze), findsNothing);
     expect(find.byIcon(AppIcons.block), findsOneWidget);
+    // Seldom-needed actions are under More.
+    await tester.tap(find.byTooltip('More'));
+    await tester.pump(const Duration(milliseconds: 400));
     expect(find.byIcon(AppIcons.original), findsOneWidget);
   });
 }

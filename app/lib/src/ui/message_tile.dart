@@ -140,6 +140,11 @@ final class _MessageTileState extends State<MessageTile> {
               onLongPress: () => _c.toggleSelected(_m),
               onSecondaryTapUp: (d) => _menu(d.globalPosition),
               child: Stack(
+                // Rows share one height (the list builds them fast that
+                // way); a row with less to show sits in the middle of its
+                // slot, so short rows don't leave a gap above the next
+                // section.
+                alignment: AlignmentDirectional.centerStart,
                 children: [
                   // The open row: a bar at its left, as in the sidebar,
                   // so it is marked by more than its tint.
@@ -153,7 +158,9 @@ final class _MessageTileState extends State<MessageTile> {
                         width: 3,
                         decoration: BoxDecoration(
                           color: listColors.indicator,
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius: BorderRadius.circular(
+                            CitusmailTheme.radiusMark,
+                          ),
                         ),
                       ),
                     ),
@@ -417,7 +424,7 @@ final class _CodeLine extends StatelessWidget {
           message: 'Copy code',
           child: InkWell(
             key: ValueKey('copy-code-$code'),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(CitusmailTheme.radiusMark),
             onTap: () async {
               final messenger = ScaffoldMessenger.maybeOf(context);
               // Marked sensitive, as from a notification: Android 13+

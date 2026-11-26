@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:zxing2/qrcode.dart';
 
+import '../ui/citusmail_theme.dart';
+
 /// A QR code's modules: true for dark.
 final class QrModules {
   QrModules._(this.size, this._dark);
@@ -45,7 +47,7 @@ final class QrCodeView extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
       ),
       child: CustomPaint(painter: _QrPainter(_modules)),
     ),
