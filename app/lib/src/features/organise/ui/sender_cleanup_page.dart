@@ -7,11 +7,13 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../../../app/app.dart' show appName;
+import '../../../core/state/load_state.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
 import '../../../core/widgets/avatar.dart';
 import '../../../core/widgets/badge.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/page_scaffold.dart';
 import '../../../core/widgets/skeleton_rows.dart';
 import '../../inbox/state/mail_controller.dart';
@@ -134,26 +136,14 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
       _notice('Only pinned emails from ${_who(groups)} are left.');
       return;
     }
-    final sure = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete ${_emails(mail.length)}?'),
-        content: Text(
+    final sure = await confirmDialog(
+      context,
+      title: 'Delete ${_emails(mail.length)}?',
+      message:
           '${mail.length == 1 ? 'The email' : 'All ${_emails(mail.length)}'} '
           'from ${_who(groups)} go${mail.length == 1 ? 'es' : ''} to Trash, '
           'from every folder. Pinned emails stay where they are.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Move to Trash'),
-          ),
-        ],
-      ),
+      confirm: 'Move to Trash',
     );
     if (sure != true || !mounted) return;
     _clearSelection();
@@ -272,13 +262,16 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
     },
   );
 
-  Widget _body(BuildContext context) {
-    if (_model.loading) {
-      return const SkeletonRows(
-        label: 'Looking through your mail…',
-        maxWidth: 820,
-      );
-    }
+  Widget _body(BuildContext context) => switch (_model.state) {
+    // As before, a first load that failed leaves the page looking.
+    Loading() || LoadFailed() => const SkeletonRows(
+      label: 'Looking through your mail…',
+      maxWidth: 820,
+    ),
+    Loaded() => _senders(context),
+  };
+
+  Widget _senders(BuildContext context) {
     final shown = _model.shown;
     final kept = _model.keptGroups;
     // Header, senders, then the kept ones.

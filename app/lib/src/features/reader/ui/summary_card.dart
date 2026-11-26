@@ -5,17 +5,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../services/ai_assistant.dart';
+import '../../ai/state/ai_task.dart';
 import '../../ai/ui/ai_confirm_dialog.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../state/summaries.dart';
 
-enum _Status { running, done, failed }
+/// A finished summary: its text, and how it was kept.
+typedef _Answer = ({String text, SavedSummary? saved});
 
 /// The summary of the open email (or its conversation), in the reader
 /// above the text: written as it arrives, with who made it and where it
@@ -39,22 +40,22 @@ final class _SummaryPanelState extends State<SummaryPanel> {
   MessageSummaries get _summaries => widget.controller.services.summaries;
   AiAssistant get _ai => widget.controller.services.ai;
 
+  /// Asking for the summary: running, done, failed or stopped.
+  final _task = AiTask<_Answer>();
+
   SummaryScope? _scope;
-  _Status _status = _Status.done;
   String _text = '';
   SavedSummary? _saved;
-  String? _problem;
   String? _recipient;
   String? _model;
   int _emails = 1;
-  AiCancel? _cancel;
-  StreamSubscription<String>? _subscription;
 
   @override
   void initState() {
     super.initState();
     _summaries.requests.addListener(_asked);
     _ai.changes.addListener(_changed);
+    _task.addListener(_progress);
     _showSaved();
   }
 
@@ -62,7 +63,6 @@ final class _SummaryPanelState extends State<SummaryPanel> {
   void didUpdateWidget(SummaryPanel old) {
     super.didUpdateWidget(old);
     if (old.message.id != widget.message.id) {
-      _stop();
       _reset();
       _showSaved();
     }
@@ -72,31 +72,40 @@ final class _SummaryPanelState extends State<SummaryPanel> {
   void dispose() {
     _summaries.requests.removeListener(_asked);
     _ai.changes.removeListener(_changed);
-    _stop();
+    _task
+      ..removeListener(_progress)
+      ..dispose();
     super.dispose();
   }
 
   void _changed() {
     if (!mounted) return;
-    if (!_summaries.available) {
-      _stop();
-      _reset();
-    }
+    if (!_summaries.available) _reset();
     setState(() {});
   }
 
+  /// The text so far as it streams in; the kept summary once done. A
+  /// failure keeps what had arrived; a stop closes the card.
+  void _progress() {
+    switch (_task.state) {
+      case AiRunning(:final text):
+        _text = text;
+      case AiDone(result: (:final text, :final saved)):
+        _text = text;
+        _saved = saved;
+      case AiStopped():
+        _reset();
+      case AiIdle() || AiFailed():
+        break;
+    }
+  }
+
+  /// Closes the card, stopping a summary under way.
   void _reset() {
+    _task.reset();
     _scope = null;
     _text = '';
     _saved = null;
-    _problem = null;
-  }
-
-  void _stop() {
-    _cancel?.cancel();
-    unawaited(_subscription?.cancel());
-    _subscription = null;
-    _cancel = null;
   }
 
   /// A summary kept from before, shown without sending anything.
@@ -112,13 +121,10 @@ final class _SummaryPanelState extends State<SummaryPanel> {
 
   void _show(SummaryScope scope, SavedSummary saved) {
     _scope = scope;
-    _saved = saved;
-    _text = saved.text;
-    _status = _Status.done;
     _recipient = saved.recipient;
     _model = saved.model;
     _emails = saved.emails;
-    _problem = null;
+    _task.answered((text: saved.text, saved: saved));
   }
 
   void _asked() {
@@ -128,7 +134,8 @@ final class _SummaryPanelState extends State<SummaryPanel> {
   }
 
   Future<void> _start(SummaryScope scope) async {
-    _stop();
+    // One under way stops here; what it showed stays until the next.
+    if (_task.isRunning) _task.reset();
     if (_summaries.saved(widget.message, scope) case final saved?) {
       setState(() => _show(scope, saved));
       return;
@@ -139,58 +146,44 @@ final class _SummaryPanelState extends State<SummaryPanel> {
       setState(() {
         _reset();
         _scope = scope;
-        _status = _Status.failed;
-        _problem =
-            'Summaries need a provider and key: see Settings, AI assistant.';
+        _task.failed(
+          'Summaries need a provider and key: see Settings, AI assistant.',
+        );
       });
       return;
     }
     if (!await confirmAiSend(context, provider) || !mounted) return;
-    final cancel = AiCancel();
     setState(() {
       _reset();
       _scope = scope;
-      _status = _Status.running;
       _recipient = provider.recipient;
       _model = provider.model;
       _emails = scope == SummaryScope.message
           ? 1
           : _summaries.conversationOf(widget.message).length;
-      _cancel = cancel;
     });
-    _subscription = _summaries
-        .summarise(provider, widget.message, scope, cancel: cancel)
-        .listen(
-          (text) => setState(() => _text = text),
-          onError: (Object e) {
-            if (!mounted) return;
-            setState(() {
-              _status = _Status.failed;
-              _problem = switch (e) {
-                AiException(problem: AiProblem.cancelled) => null,
-                final AiException a => a.explain(provider.recipient),
-                _ => 'Something went wrong.',
-              };
-              if (_problem == null) _reset();
-            });
-          },
-          onDone: () {
-            if (!mounted || _status == _Status.failed) return;
-            setState(() {
-              _status = _Status.done;
-              _saved = _summaries.saved(widget.message, scope);
-            });
-          },
-        );
+    _task.recipient = provider.recipient;
+    await _task.run((run) async {
+      var text = '';
+      await for (final piece in _summaries.summarise(
+        provider,
+        widget.message,
+        scope,
+        cancel: run.cancel,
+      )) {
+        run.partial(text = piece);
+      }
+      return (text: text, saved: _summaries.saved(widget.message, scope));
+    });
   }
 
-  void _close() {
-    _stop();
-    setState(_reset);
-  }
+  void _close() => setState(_reset);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(listenable: _task, builder: (context, _) => _card());
+
+  Widget _card() {
     final scope = _scope;
     if (scope == null || !_summaries.available) return const SizedBox.shrink();
     final theme = Theme.of(context);
@@ -199,7 +192,8 @@ final class _SummaryPanelState extends State<SummaryPanel> {
       color: colors.onSurfaceVariant,
     );
     final parts = SummaryParts.parse(_text);
-    final running = _status == _Status.running;
+    final state = _task.state;
+    final running = state is AiRunning;
     final title = scope == SummaryScope.message
         ? 'Summary'
         : 'Summary of the conversation ($_emails emails)';
@@ -251,13 +245,13 @@ final class _SummaryPanelState extends State<SummaryPanel> {
                     const SizedBox(height: 8),
                     Text('Asking $_recipient…', style: muted),
                   ],
-                  if (_status == _Status.failed)
+                  if (state case AiFailed(:final message))
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(AppIcons.problem, size: 18, color: colors.error),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(_problem ?? '')),
+                        Expanded(child: Text(message)),
                       ],
                     ),
                   if (parts.overview.isNotEmpty)
@@ -285,7 +279,7 @@ final class _SummaryPanelState extends State<SummaryPanel> {
                         ),
                       ),
                   ],
-                  if (_status == _Status.failed)
+                  if (state is AiFailed)
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton(
@@ -293,7 +287,7 @@ final class _SummaryPanelState extends State<SummaryPanel> {
                         child: const Text('Try again'),
                       ),
                     ),
-                  if (_recipient != null && _status != _Status.failed) ...[
+                  if (_recipient != null && state is! AiFailed) ...[
                     const SizedBox(height: 10),
                     Text(
                       key: const ValueKey('summary-sent-to'),

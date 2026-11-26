@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
+import '../../../core/state/page_model.dart';
 import '../../../services/app_services.dart';
 
 /// The periods the report covers.
@@ -23,11 +24,19 @@ enum PrivacyPeriod {
   final String phrase;
 }
 
+/// The report of each period, how much mail each period received, and
+/// the periods with more mail than was counted.
+typedef PrivacyReports = ({
+  Map<PrivacyPeriod, PrivacyReport> reports,
+  Map<PrivacyPeriod, int> received,
+  Set<PrivacyPeriod> capped,
+});
+
 /// The Privacy report's data: what the app kept from senders in mail
 /// received lately, counted on the device from the messages whose content
 /// is stored. Nothing is downloaded for it and nothing is kept: it is
 /// worked out again, off the UI thread, each time the page opens.
-final class PrivacyReportModel extends ChangeNotifier {
+final class PrivacyReportModel extends PageModel<PrivacyReports> {
   PrivacyReportModel(this._services, {DateTime Function()? now})
     : _now = now ?? DateTime.now;
 
@@ -43,26 +52,19 @@ final class PrivacyReportModel extends ChangeNotifier {
   /// are not all in memory at once.
   static const _batch = 40;
 
-  bool loading = true;
-
   /// While counting: how many messages are done, of how many.
   ({int done, int total})? progress;
 
   PrivacyPeriod period = PrivacyPeriod.week;
 
-  var _reports = const <PrivacyPeriod, PrivacyReport>{};
-  var _received = const <PrivacyPeriod, int>{};
-  var _capped = const <PrivacyPeriod>{};
-  bool _disposed = false;
-
-  PrivacyReport get report => _reports[period] ?? PrivacyReport.empty;
+  PrivacyReport get report => data?.reports[period] ?? PrivacyReport.empty;
 
   /// All mail received in the period, downloaded or not.
-  int get received => _received[period] ?? 0;
+  int get received => data?.received[period] ?? 0;
 
   /// More mail than [maxMessages] is on the device for the period: only
   /// the newest was counted.
-  bool get capped => _capped.contains(period);
+  bool get capped => data?.capped.contains(period) ?? false;
 
   void select(PrivacyPeriod value) {
     if (value == period) return;
@@ -70,7 +72,8 @@ final class PrivacyReportModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> load() async {
+  @override
+  Future<PrivacyReports> fetch() async {
     final now = _now();
     DateTime since(PrivacyPeriod p) => now.subtract(Duration(days: p.days));
     final longest = PrivacyPeriod.values.last;
@@ -122,7 +125,7 @@ final class PrivacyReportModel extends ChangeNotifier {
     final messages = found.downloaded;
     final emails = <PrivacyEmail>[];
     progress = (done: 0, total: messages.length);
-    notifyListeners();
+    notify();
     for (var start = 0; start < messages.length; start += _batch) {
       final batch = messages.skip(start).take(_batch).toList();
       final inputs = <_Input>[];
@@ -134,7 +137,8 @@ final class PrivacyReportModel extends ChangeNotifier {
         inputs.add((raw, context(m.accountId), imagesAllowed(m.from?.address)));
       }
       final results = await compute(_count, inputs);
-      if (_disposed) return;
+      // Gone: what was counted is dropped.
+      if (isDisposed) return _none;
       for (final (i, m) in kept.indexed) {
         if (results[i] case final privacy?) {
           emails.add(
@@ -148,29 +152,29 @@ final class PrivacyReportModel extends ChangeNotifier {
         }
       }
       progress = (done: start + batch.length, total: messages.length);
-      notifyListeners();
+      notify();
     }
 
-    _received = received;
-    _capped = {
-      if (messages.length >= maxMessages)
-        for (final p in PrivacyPeriod.values)
-          if (messages.last.receivedAt.isAfter(since(p))) p,
-    };
-    _reports = {
-      for (final p in PrivacyPeriod.values)
-        p: PrivacyReport.of(emails, since: since(p)),
-    };
     progress = null;
-    loading = false;
-    notifyListeners();
+    return (
+      received: received,
+      capped: {
+        if (messages.length >= maxMessages)
+          for (final p in PrivacyPeriod.values)
+            if (messages.last.receivedAt.isAfter(since(p))) p,
+      },
+      reports: {
+        for (final p in PrivacyPeriod.values)
+          p: PrivacyReport.of(emails, since: since(p)),
+      },
+    );
   }
 
-  @override
-  void dispose() {
-    _disposed = true;
-    super.dispose();
-  }
+  static const PrivacyReports _none = (
+    reports: <PrivacyPeriod, PrivacyReport>{},
+    received: <PrivacyPeriod, int>{},
+    capped: <PrivacyPeriod>{},
+  );
 }
 
 typedef _Input = (Uint8List raw, TrustContext context, bool imagesAllowed);

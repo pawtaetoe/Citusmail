@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
 
+import '../../../core/state/load_state.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/motion.dart';
 import '../../../core/widgets/avatar.dart';
@@ -18,6 +19,7 @@ import '../../settings/ui/feature_settings.dart';
 import '../../settings/ui/read_ahead.dart';
 import '../state/deliveries_model.dart';
 import 'delivery_detail_page.dart';
+import 'found_parts.dart';
 import 'returns_section.dart';
 
 /// Shipped orders found in shop and carrier mail: what is on the way and
@@ -112,121 +114,114 @@ final class _DeliveriesPageState extends State<DeliveriesPage> with ReadsAhead {
       top: false,
       child: ListenableBuilder(
         listenable: _model,
-        builder: (context, _) {
-          if (_model.loading) {
-            return const SkeletonRows(
-              label: 'Finding deliveries…',
-              maxWidth: PageScaffold.width,
-            );
-          }
-          final onTheWay = _model.onTheWay;
-          final delivered = _model.delivered;
-          final older = _model.older;
-          Widget tile(Delivery d) =>
-              DeliveryTile(delivery: d, onSelect: () => _select(d));
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                children: [
-                  if (_model.deliveries.isNotEmpty)
-                    _Overview(
-                      onTheWay: onTheWay,
-                      delivered: delivered,
-                      returnable: _model.canStillReturn.length,
-                    )
-                  else if (_model.returns.isEmpty)
-                    const _Empty(),
-                  if (_model.reading case final r?)
-                    _Reading(
-                      done: r.done,
-                      total: r.total,
-                      onStop: _model.stopReading,
-                    )
-                  else if (_model.toRead.isNotEmpty && !readsAhead)
-                    _ReadOffer(
-                      count: _model.toRead.length,
-                      onRead: _model.readEmails,
-                    )
-                  else if (_model.toRead.isNotEmpty && readingAhead)
-                    ReadingQuietly(
-                      'Reading ${_model.toRead.length} shipping email'
-                      '${_model.toRead.length == 1 ? '' : 's'}…',
-                    ),
-                  if (onTheWay.isNotEmpty) ...[
-                    const _SectionTitle('On the way'),
-                    for (final d in onTheWay) tile(d),
-                  ],
-                  ReturnsSection(
-                    model: _model,
-                    controller: widget.controller,
-                    now: widget.now ?? DateTime.now,
-                  ),
-                  if (delivered.isNotEmpty) ...[
-                    const _SectionTitle('Delivered'),
-                    for (final d in delivered) tile(d),
-                  ],
-                  if (older.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () =>
-                            setState(() => _showOlder = !_showOlder),
-                        child: Text(
-                          _showOlder
-                              ? 'Hide older deliveries'
-                              : 'Show ${older.length} older '
-                                    'deliver${older.length == 1 ? 'y' : 'ies'}',
-                        ),
-                      ),
-                    ),
-                    if (_showOlder)
-                      for (final d in older) tile(d),
-                  ],
-                  if (_model.hiddenOnes.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () =>
-                            setState(() => _showHidden = !_showHidden),
-                        child: Text(
-                          _showHidden
-                              ? 'Hide the ones marked "not a delivery"'
-                              : 'Show ${_model.hiddenOnes.length} marked "not a delivery"',
-                        ),
-                      ),
-                    ),
-                    if (_showHidden)
-                      for (final d in _model.hiddenOnes)
-                        ListTile(
-                          leading: Avatar(name: d.shopName, address: d.shop),
-                          title: Text(d.shopName),
-                          subtitle: Text(
-                            _model.learned.contains(d.key)
-                                ? 'Left out: like ones you said aren\'t '
-                                      'deliveries'
-                                : d.records.last.email.subject,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: TextButton(
-                            onPressed: () => _model.unhide(d.key),
-                            child: const Text('List again'),
-                          ),
-                        ),
-                  ],
-                ],
-              ),
-            ),
-          );
+        builder: (context, _) => switch (_model.state) {
+          // As before, a first load that failed leaves the page looking.
+          Loading() || LoadFailed() => const SkeletonRows(
+            label: 'Finding deliveries…',
+            maxWidth: PageScaffold.width,
+          ),
+          Loaded() => _list(context),
         },
       ),
     ),
   );
+
+  Widget _list(BuildContext context) {
+    final onTheWay = _model.onTheWay;
+    final delivered = _model.delivered;
+    final older = _model.older;
+    Widget tile(Delivery d) =>
+        DeliveryTile(delivery: d, onSelect: () => _select(d));
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            if (_model.deliveries.isNotEmpty)
+              _Overview(
+                onTheWay: onTheWay,
+                delivered: delivered,
+                returnable: _model.canStillReturn.length,
+              )
+            else if (_model.returns.isEmpty)
+              const _Empty(),
+            if (_model.reading case final r?)
+              ReadingEmails(
+                what: 'shipping emails',
+                done: r.done,
+                total: r.total,
+                onStop: _model.stopReading,
+              )
+            else if (_model.toRead.isNotEmpty && !readsAhead)
+              ReadEmailsOffer(
+                icon: AppIcons.deliveries,
+                text:
+                    'Some deliveries, tracking numbers or dates may be '
+                    'missing. They can be found in ${_model.toRead.length} shipping '
+                    'email${_model.toRead.length == 1 ? '' : 's'} not on this device yet, '
+                    'downloaded from your mail server (they stay unread).',
+                button: 'Read shipping emails',
+                onRead: _model.readEmails,
+              )
+            else if (_model.toRead.isNotEmpty && readingAhead)
+              ReadingQuietly(
+                'Reading ${_model.toRead.length} shipping email'
+                '${_model.toRead.length == 1 ? '' : 's'}…',
+              ),
+            if (onTheWay.isNotEmpty) ...[
+              const FoundSectionTitle('On the way'),
+              for (final d in onTheWay) tile(d),
+            ],
+            ReturnsSection(
+              model: _model,
+              controller: widget.controller,
+              now: widget.now ?? DateTime.now,
+            ),
+            if (delivered.isNotEmpty) ...[
+              const FoundSectionTitle('Delivered'),
+              for (final d in delivered) tile(d),
+            ],
+            if (older.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _showOlder = !_showOlder),
+                  child: Text(
+                    _showOlder
+                        ? 'Hide older deliveries'
+                        : 'Show ${older.length} older '
+                              'deliver${older.length == 1 ? 'y' : 'ies'}',
+                  ),
+                ),
+              ),
+              if (_showOlder)
+                for (final d in older) tile(d),
+            ],
+            if (_model.hiddenOnes.isNotEmpty)
+              LeftOutList(
+                marked: 'not a delivery',
+                plural: 'deliveries',
+                open: _showHidden,
+                onToggle: () => setState(() => _showHidden = !_showHidden),
+                items: [
+                  for (final d in _model.hiddenOnes)
+                    (
+                      leading: Avatar(name: d.shopName, address: d.shop),
+                      title: d.shopName,
+                      about: d.records.last.email.subject,
+                      learned: _model.learned.contains(d.key),
+                      onListAgain: () => _model.unhide(d.key),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// What a delivery's status reads as.
@@ -425,107 +420,6 @@ final class DeliveryTile extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Offers to download shipping emails not on the device yet.
-final class _ReadOffer extends StatelessWidget {
-  const _ReadOffer({required this.count, required this.onRead});
-
-  final int count;
-  final VoidCallback onRead;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      color: theme.colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(AppIcons.deliveries),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Some deliveries, tracking numbers or dates may be '
-                    'missing. They can be found in $count shipping '
-                    'email${count == 1 ? '' : 's'} not on this device yet, '
-                    'downloaded from your mail server (they stay unread).',
-                  ),
-                ),
-              ],
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: onRead,
-                child: const Text('Read shipping emails'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _Reading extends StatelessWidget {
-  const _Reading({
-    required this.done,
-    required this.total,
-    required this.onStop,
-  });
-
-  final int done;
-  final int total;
-  final VoidCallback onStop;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Reading shipping emails: $done of $total'),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: total == 0 ? null : done / total,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          TextButton(onPressed: onStop, child: const Text('Stop')),
-        ],
-      ),
-    ),
-  );
-}
-
-final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall
-          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-    ),
-  );
 }
 
 final class _Empty extends StatelessWidget {

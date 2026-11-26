@@ -10,6 +10,7 @@ import 'package:mail_ai/mail_ai.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../state/ai_reader_mail.dart';
+import '../state/ai_task.dart';
 import '../state/quick_reply_suggestions.dart';
 import 'ai_confirm_dialog.dart';
 import 'ai_sent_note.dart';
@@ -53,8 +54,8 @@ final class QuickReplySection extends StatelessWidget {
           ),
         );
         final s = suggestions.find(id);
-        final Widget content = switch (s?.status) {
-          null => Align(
+        final Widget content = switch (s?.state) {
+          null || AiIdle() || AiStopped() => Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
               key: const ValueKey('suggest-replies'),
@@ -63,7 +64,7 @@ final class QuickReplySection extends StatelessWidget {
               label: const Text('Suggest replies'),
             ),
           ),
-          SuggestionStatus.working => Row(
+          AiRunning() => Row(
             children: [
               const SizedBox.square(
                 dimension: 16,
@@ -82,7 +83,7 @@ final class QuickReplySection extends StatelessWidget {
               ),
             ],
           ),
-          SuggestionStatus.done when s!.replies.isEmpty => Column(
+          AiDone(result: final replies) when replies.isEmpty => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -90,17 +91,17 @@ final class QuickReplySection extends StatelessWidget {
                 style: TextStyle(color: muted),
               ),
               const SizedBox(height: 6),
-              AiSentNote(recipient: s.recipient),
+              AiSentNote(recipient: s!.recipient),
             ],
           ),
-          SuggestionStatus.done => Column(
+          AiDone(result: final replies) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final reply in s!.replies)
+                  for (final reply in replies)
                     ActionChip(
                       avatar: const Icon(AppIcons.reply, size: 18),
                       // Only text: a chip starts a reply, never sends one.
@@ -112,7 +113,7 @@ final class QuickReplySection extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Suggested by ${s.recipient}. Pick one to start a reply you '
+                'Suggested by ${s!.recipient}. Pick one to start a reply you '
                 'can change before sending.',
                 style: theme.textTheme.bodySmall?.copyWith(color: muted),
               ),
@@ -120,13 +121,10 @@ final class QuickReplySection extends StatelessWidget {
               AiSentNote(recipient: s.recipient),
             ],
           ),
-          SuggestionStatus.failed => Wrap(
+          AiFailed(:final message) => Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(
-                s!.problem ?? 'Couldn\'t suggest replies.',
-                style: TextStyle(color: muted),
-              ),
+              Text(message, style: TextStyle(color: muted)),
               TextButton(onPressed: ask, child: const Text('Try again')),
             ],
           ),

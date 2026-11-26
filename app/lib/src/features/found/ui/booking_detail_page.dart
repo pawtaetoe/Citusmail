@@ -9,11 +9,12 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/detail_scaffold.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../reader/ui/calendar_files.dart';
+import '../../reader/ui/email_page.dart';
 import '../../reader/ui/link_opener.dart';
 import 'booking_text.dart';
-import 'subscription_detail_page.dart' show EmailPage;
 
 /// What the user chose on a booking's page; the list carries it out and
 /// offers Undo.
@@ -107,7 +108,7 @@ final class BookingDetailPage extends StatelessWidget {
 
     final facts = <Widget>[
       if (reference != null)
-        _Fact(
+        DetailFact.wide(
           label: 'Reference',
           value: reference,
           trailing: IconButton(
@@ -120,9 +121,11 @@ final class BookingDetailPage extends StatelessWidget {
         ),
       ...switch (info) {
         FlightReservationInfo() => [
-          if (info.flightNumber case final n?) _Fact(label: 'Flight', value: n),
-          if (b.provider case final p?) _Fact(label: 'Airline', value: p),
-          _Fact(
+          if (info.flightNumber case final n?)
+            DetailFact.wide(label: 'Flight', value: n),
+          if (b.provider case final p?)
+            DetailFact.wide(label: 'Airline', value: p),
+          DetailFact.wide(
             label: 'Departs',
             value: placeAt(info.from, info.start, [
               if (info.departureTerminal case final t?) 'Terminal $t',
@@ -130,309 +133,194 @@ final class BookingDetailPage extends StatelessWidget {
             ]),
           ),
           if (info.to != null || info.end != null)
-            _Fact(
+            DetailFact.wide(
               label: 'Arrives',
               value: placeAt(info.to, info.end, [
                 if (info.arrivalTerminal case final t?) 'Terminal $t',
               ]),
             ),
-          if (info.seat case final s?) _Fact(label: 'Seat', value: s),
-          if (info.ticketNumber case final t?) _Fact(label: 'Ticket', value: t),
+          if (info.seat case final s?) DetailFact.wide(label: 'Seat', value: s),
+          if (info.ticketNumber case final t?)
+            DetailFact.wide(label: 'Ticket', value: t),
         ],
         TransitReservationInfo() => [
           if ([?info.name, ?info.number].join(' ') case final n
               when n.isNotEmpty)
-            _Fact(
+            DetailFact.wide(
               label: info.kind == ReservationKind.train ? 'Train' : 'Bus',
               value: n,
             ),
-          if (b.provider case final p?) _Fact(label: 'With', value: p),
-          _Fact(
+          if (b.provider case final p?)
+            DetailFact.wide(label: 'With', value: p),
+          DetailFact.wide(
             label: 'Departs',
             value: placeAt(info.from, info.start, [
               if (info.platform case final p?) 'Platform $p',
             ]),
           ),
           if (info.to != null || info.end != null)
-            _Fact(label: 'Arrives', value: placeAt(info.to, info.end)),
-          if (info.seat case final s?) _Fact(label: 'Seat', value: s),
-          if (info.ticketNumber case final t?) _Fact(label: 'Ticket', value: t),
+            DetailFact.wide(
+              label: 'Arrives',
+              value: placeAt(info.to, info.end),
+            ),
+          if (info.seat case final s?) DetailFact.wide(label: 'Seat', value: s),
+          if (info.ticketNumber case final t?)
+            DetailFact.wide(label: 'Ticket', value: t),
         ],
         LodgingReservationInfo() => [
           if (info.hotel?.address case final a?)
-            _Fact(label: 'Address', value: a),
-          _Fact(label: 'Check-in', value: at(info.checkin)),
+            DetailFact.wide(label: 'Address', value: a),
+          DetailFact.wide(label: 'Check-in', value: at(info.checkin)),
           if (info.checkout != null)
-            _Fact(label: 'Check-out', value: at(info.checkout)),
-          if (info.room case final r?) _Fact(label: 'Room', value: r),
-          if (info.telephone case final t?) _Fact(label: 'Phone', value: t),
-          if (b.provider case final p?) _Fact(label: 'Booked with', value: p),
+            DetailFact.wide(label: 'Check-out', value: at(info.checkout)),
+          if (info.room case final r?) DetailFact.wide(label: 'Room', value: r),
+          if (info.telephone case final t?)
+            DetailFact.wide(label: 'Phone', value: t),
+          if (b.provider case final p?)
+            DetailFact.wide(label: 'Booked with', value: p),
         ],
         RentalCarReservationInfo() => [
-          if (info.car case final c?) _Fact(label: 'Car', value: c),
-          if (b.provider case final p?) _Fact(label: 'Company', value: p),
-          _Fact(label: 'Pick-up', value: placeAt(info.from, info.start)),
+          if (info.car case final c?) DetailFact.wide(label: 'Car', value: c),
+          if (b.provider case final p?)
+            DetailFact.wide(label: 'Company', value: p),
+          DetailFact.wide(
+            label: 'Pick-up',
+            value: placeAt(info.from, info.start),
+          ),
           if (info.to != null || info.end != null)
-            _Fact(label: 'Drop-off', value: placeAt(info.to, info.end)),
+            DetailFact.wide(
+              label: 'Drop-off',
+              value: placeAt(info.to, info.end),
+            ),
         ],
         FoodEstablishmentReservationInfo() => [
-          _Fact(label: 'When', value: at(info.start)),
-          if (info.partySize case final n?) _Fact(label: 'People', value: '$n'),
+          DetailFact.wide(label: 'When', value: at(info.start)),
+          if (info.partySize case final n?)
+            DetailFact.wide(label: 'People', value: '$n'),
           if (info.restaurant?.address case final a?)
-            _Fact(label: 'Address', value: a),
-          if (b.provider case final p?) _Fact(label: 'Booked with', value: p),
+            DetailFact.wide(label: 'Address', value: a),
+          if (b.provider case final p?)
+            DetailFact.wide(label: 'Booked with', value: p),
         ],
         EventReservationInfo() => [
-          _Fact(label: 'When', value: at(info.start)),
+          DetailFact.wide(label: 'When', value: at(info.start)),
           if (info.venue case final v?)
-            _Fact(
+            DetailFact.wide(
               label: 'Where',
               value: {BookingText.place(v), ?v.address}.join('\n'),
             ),
-          if (info.seat case final s?) _Fact(label: 'Seat', value: s),
-          if (info.ticketNumber case final t?) _Fact(label: 'Ticket', value: t),
-          if (b.provider case final p?) _Fact(label: 'Booked with', value: p),
+          if (info.seat case final s?) DetailFact.wide(label: 'Seat', value: s),
+          if (info.ticketNumber case final t?)
+            DetailFact.wide(label: 'Ticket', value: t),
+          if (b.provider case final p?)
+            DetailFact.wide(label: 'Booked with', value: p),
         ],
       },
-      if (b.underName case final n?) _Fact(label: 'Name', value: n),
+      if (b.underName case final n?) DetailFact.wide(label: 'Name', value: n),
     ];
 
-    return Scaffold(
-      appBar: AppBar(title: Text(BookingText.title(b))),
-      body: SafeArea(
-        top: false,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundColor: b.cancelled
-                                  ? colors.errorContainer
-                                  : colors.primaryContainer,
-                              foregroundColor: b.cancelled
-                                  ? colors.onErrorContainer
-                                  : colors.onPrimaryContainer,
-                              child: Icon(BookingText.icon(b.kind)),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    BookingText.title(b),
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                      decoration: b.cancelled
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    b.cancelled
-                                        ? 'Cancelled'
-                                        : BookingText.when(context, b.start),
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: b.cancelled
-                                          ? colors.error
-                                          : colors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (b.changed && !b.cancelled) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            b.previousStart == null
-                                ? 'This booking was changed. The details '
-                                      'below are from the latest email.'
-                                : 'The times changed. It was to start '
-                                      '${at(b.previousStart)}.',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                        if (b.cancelled) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            'An email says this booking was cancelled.',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                        const Divider(height: 28),
-                        ...facts,
-                        if (info.start?.offset == null &&
-                            info.start?.hasTime == true) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Times as written in the email.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ] else if (info.start?.hasTime == true) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Local times at each place.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            if (CalendarFiles.canOpen && !b.cancelled)
-                              FilledButton.tonalIcon(
-                                onPressed: () => _addToCalendar(context),
-                                icon: const Icon(
-                                  AppIcons.addToCalendar,
-                                  size: 18,
-                                ),
-                                label: const Text('Add to calendar'),
-                              ),
-                            if (url != null)
-                              OutlinedButton.icon(
-                                onPressed: () => _openPage(context, url),
-                                icon: const Icon(
-                                  AppIcons.openExternal,
-                                  size: 18,
-                                ),
-                                label: const Text('Manage booking'),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
-                  child: Text(
-                    'Emails',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: [
-                      for (final (i, r) in b.records.indexed) ...[
-                        if (i > 0) const Divider(height: 1, indent: 56),
-                        ListTile(
-                          key: ValueKey('booking-email-${r.email.messageId}'),
-                          leading: Icon(
-                            r.cancels
-                                ? AppIcons.eventCancelled
-                                : r.changes
-                                ? AppIcons.eventChanged
-                                : AppIcons.mail,
-                          ),
-                          title: Text(
-                            r.cancels
-                                ? 'Cancelled'
-                                : r.changes
-                                ? 'Changed'
-                                : i == 0
-                                ? 'Booked'
-                                : 'Update',
-                          ),
-                          subtitle: Text(
-                            '${material.formatMediumDate(r.email.at.toLocal())} · '
-                            '${r.email.subject.isEmpty ? '(no subject)' : r.email.subject}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: const Icon(AppIcons.chevron),
-                          onTap: () => _openEmail(context, r.email.messageId),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () =>
-                        Navigator.pop(context, BookingAction.notABooking),
-                    icon: const Icon(AppIcons.hide, size: 18),
-                    label: const Text('Not a booking'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    final small = theme.textTheme.bodySmall?.copyWith(
+      color: colors.onSurfaceVariant,
     );
-  }
-}
-
-final class _Fact extends StatelessWidget {
-  const _Fact({
-    required this.label,
-    required this.value,
-    this.trailing,
-    this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: trailing == null
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 96,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+    return DetailScaffold(
+      title: BookingText.title(b),
+      header: DetailHeader(
+        leading: CircleAvatar(
+          radius: 22,
+          backgroundColor: b.cancelled
+              ? colors.errorContainer
+              : colors.primaryContainer,
+          foregroundColor: b.cancelled
+              ? colors.onErrorContainer
+              : colors.onPrimaryContainer,
+          child: Icon(BookingText.icon(b.kind)),
+        ),
+        title: BookingText.title(b),
+        struck: b.cancelled,
+        subtitle: b.cancelled
+            ? 'Cancelled'
+            : BookingText.when(context, b.start),
+        subtitleColor: b.cancelled ? colors.error : null,
+        notes: [
+          if (b.changed && !b.cancelled)
+            b.previousStart == null
+                ? 'This booking was changed. The details below are from the '
+                      'latest email.'
+                : 'The times changed. It was to start ${at(b.previousStart)}.',
+          if (b.cancelled) 'An email says this booking was cancelled.',
+        ],
+        facts: facts,
+        footer: [
+          if (info.start?.offset == null && info.start?.hasTime == true) ...[
+            const SizedBox(height: 8),
+            Text('Times as written in the email.', style: small),
+          ] else if (info.start?.hasTime == true) ...[
+            const SizedBox(height: 8),
+            Text('Local times at each place.', style: small),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (CalendarFiles.canOpen && !b.cancelled)
+                FilledButton.tonalIcon(
+                  onPressed: () => _addToCalendar(context),
+                  icon: const Icon(AppIcons.addToCalendar, size: 18),
+                  label: const Text('Add to calendar'),
+                ),
+              if (url != null)
+                OutlinedButton.icon(
+                  onPressed: () => _openPage(context, url),
+                  icon: const Icon(AppIcons.openExternal, size: 18),
+                  label: const Text('Manage booking'),
+                ),
+            ],
           ),
-          Expanded(
-            child: GestureDetector(
-              onTap: onTap,
-              child: Text(value, style: theme.textTheme.bodyMedium),
-            ),
-          ),
-          ?trailing,
         ],
       ),
+      actions: [
+        TextButton.icon(
+          onPressed: () => Navigator.pop(context, BookingAction.notABooking),
+          icon: const Icon(AppIcons.hide, size: 18),
+          label: const Text('Not a booking'),
+        ),
+      ],
+      children: [
+        DetailSection(
+          title: 'Emails',
+          children: [
+            for (final (i, r) in b.records.indexed)
+              ListTile(
+                key: ValueKey('booking-email-${r.email.messageId}'),
+                leading: Icon(
+                  r.cancels
+                      ? AppIcons.eventCancelled
+                      : r.changes
+                      ? AppIcons.eventChanged
+                      : AppIcons.mail,
+                ),
+                title: Text(
+                  r.cancels
+                      ? 'Cancelled'
+                      : r.changes
+                      ? 'Changed'
+                      : i == 0
+                      ? 'Booked'
+                      : 'Update',
+                ),
+                subtitle: Text(
+                  '${material.formatMediumDate(r.email.at.toLocal())} · '
+                  '${r.email.subject.isEmpty ? '(no subject)' : r.email.subject}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(AppIcons.chevron),
+                onTap: () => _openEmail(context, r.email.messageId),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

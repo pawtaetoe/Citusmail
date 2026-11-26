@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
@@ -11,10 +9,9 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
-import '../../../services/app_services.dart';
-import '../../../services/auto_reader.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
+import 'found_model.dart';
 
 /// What [findAppointments] found: every appointment the rules found
 /// ([hidden] and [learned] ones too, by key), and the emails worth
@@ -162,14 +159,10 @@ List<MailSample> appointmentSamples(
 /// are read whole, with the schema.org data and calendar file in them;
 /// the others by their preview. [readEmails] downloads booking emails
 /// that are not on the device yet, only when the user asks.
-final class AppointmentsModel extends ChangeNotifier {
-  AppointmentsModel(this._services, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
-
-  final AppServices _services;
-  final DateTime Function() _now;
-
-  MailStore get _store => _services.store;
+final class AppointmentsModel
+    extends FoundModel<Appointment, AppointmentsFound> {
+  AppointmentsModel(super.services, {super.now})
+    : super(kind: MailKind.appointment, hiddenKeys: hiddenSetting);
 
   static const hiddenSetting = StringListSetting('appointments.hidden');
 
@@ -184,37 +177,27 @@ final class AppointmentsModel extends ChangeNotifier {
   static const readMax = 40;
   static const maxBytes = 512 * 1024;
 
-  bool loading = true;
+  @override
+  Future<AppointmentsFound> find(DateTime now, Set<int> skip) =>
+      findAppointments(store, now, skip: skip);
+
+  @override
+  Finds<Appointment> findsOf(AppointmentsFound found) => found;
+
+  @override
+  String keyOf(Appointment item) => item.key;
+
+  @override
+  List<MailSample> samplesOf(Appointment item) =>
+      appointmentSamples(item, store.messages.byId);
 
   /// Every appointment not hidden, the soonest first.
-  List<Appointment> appointments = const [];
-
-  /// Appointments the user said are not appointments (by key).
-  Set<String> hidden = const {};
-
-  /// Appointments left out because they look like ones the user said are
-  /// not appointments ("Learn from my corrections"; by key).
-  Set<String> learned = const {};
-
-  /// Those of [hidden] and [learned].
-  List<Appointment> hiddenOnes = const [];
-
-  /// Everything the rules found.
-  List<Appointment> _all = const [];
-
-  late final _corrections = Corrections(_store);
-
-  /// Booking emails not on the device yet, newest first.
-  List<int> toRead = const [];
-
-  /// While reading emails: how many are done, of how many.
-  ({int done, int total})? reading;
-  bool _stop = false;
+  List<Appointment> get appointments => listed;
 
   /// Not over yet, the soonest first (cancelled ones too, shown so).
   List<Appointment> get upcoming => [
     for (final a in appointments)
-      if (a.endsAt.isAfter(_now())) a,
+      if (a.endsAt.isAfter(now())) a,
   ];
 
   /// Upcoming and not cancelled.
@@ -225,7 +208,7 @@ final class AppointmentsModel extends ChangeNotifier {
 
   /// Over, in the last year, the latest first.
   List<Appointment> get past {
-    final now = _now();
+    final now = this.now();
     return [
       for (final a in appointments.reversed)
         if (!a.endsAt.isAfter(now) &&
@@ -233,105 +216,6 @@ final class AppointmentsModel extends ChangeNotifier {
           a,
     ];
   }
-
-  /// Emails given up on: not offered while they are read automatically.
-  Set<int> get _skip =>
-      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
-
-  /// Loads started; only the latest one's findings are kept (an earlier
-  /// one may end later, with what was true before).
-  int _loads = 0;
-
-  Future<void> load() async {
-    final run = ++_loads;
-    final found = await findAppointments(_store, _now(), skip: _skip);
-    if (run != _loads) return;
-    hidden = found.hidden;
-    learned = found.learned;
-    _all = found.all;
-    final left = {...hidden, ...learned};
-    appointments = [
-      for (final a in found.all)
-        if (!left.contains(a.key)) a,
-    ];
-    hiddenOnes = [
-      for (final a in found.all)
-        if (left.contains(a.key)) a,
-    ];
-    toRead = found.toRead;
-    loading = false;
-    notifyListeners();
-  }
-
-  /// Downloads the emails in [toRead] from the user's own mail server
-  /// (they stay unread), then looks again. Stops early on [stopReading].
-  Future<void> readEmails() async {
-    if (reading != null || toRead.isEmpty) return;
-    final ids = toRead;
-    _stop = false;
-    var done = 0;
-    reading = (done: 0, total: ids.length);
-    notifyListeners();
-    for (final id in ids) {
-      if (_stop) break;
-      try {
-        await _services.worker.loadBody(id);
-      } on Object {
-        // Gone, too large or offline: read from its preview only.
-      }
-      reading = (done: ++done, total: ids.length);
-      notifyListeners();
-    }
-    reading = null;
-    await load();
-  }
-
-  void stopReading() => _stop = true;
-
-  /// "Not an appointment": hidden from the list (undoable), and learned
-  /// from.
-  void hide(String key) {
-    if (_found(key) case final a?) {
-      _corrections.rejected(
-        MailKind.appointment,
-        appointmentSamples(a, _store.messages.byId),
-      );
-    }
-    _write({...hidden, key});
-  }
-
-  /// Undo, or "List again": listed again (and never left out by
-  /// learning again).
-  void unhide(String key) {
-    final a = _found(key);
-    final samples = a == null
-        ? const <MailSample>[]
-        : appointmentSamples(a, _store.messages.byId);
-    if (hidden.contains(key)) {
-      _corrections.rejected(MailKind.appointment, samples, undo: true);
-      _write({...hidden}..remove(key));
-    } else if (learned.contains(key)) {
-      _corrections.kept(MailKind.appointment, key, samples);
-      unawaited(load());
-    }
-  }
-
-  /// [appointment]'s page was opened: a weak sign that it is one.
-  void opened(Appointment appointment) => _corrections.opened(
-    MailKind.appointment,
-    appointment.key,
-    appointmentSamples(appointment, _store.messages.byId),
-  );
-
-  Appointment? _found(String key) =>
-      _all.where((a) => a.key == key).firstOrNull;
-
-  void _write(Set<String> keys) {
-    hiddenSetting.write(_store.settings, keys.toList());
-    unawaited(load());
-  }
-
-  StoredMessage? message(int id) => _store.messages.byId(id);
 }
 
 typedef _Read = ({

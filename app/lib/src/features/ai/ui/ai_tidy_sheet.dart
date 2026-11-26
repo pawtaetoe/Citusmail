@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
-import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../../../app/app.dart' show appName;
@@ -14,6 +13,7 @@ import '../../../services/ai_assistant.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../inbox/state/mail_location.dart';
 import '../../organise/ui/snooze_sheet.dart';
+import '../state/ai_task.dart';
 import '../state/ai_tidy.dart';
 import '../state/ai_tidy_model.dart';
 import 'ai_confirm_dialog.dart';
@@ -169,8 +169,6 @@ abstract final class AiTidySheet {
   };
 }
 
-enum _Phase { ask, asking, plan, failed }
-
 final class _TidyPanel extends StatefulWidget {
   const _TidyPanel({
     required this.tidy,
@@ -190,10 +188,11 @@ final class _TidyPanel extends StatefulWidget {
 
 final class _TidyPanelState extends State<_TidyPanel> {
   final _words = TextEditingController();
-  _Phase _phase = _Phase.ask;
-  AiCancel? _cancel;
-  String? _problem;
-  TidyPlan _plan = TidyPlan.empty;
+
+  /// Asking for a plan: idle or stopped (the request is typed), running,
+  /// done (the plan) or failed.
+  late final _task = AiTask<TidyPlan>(recipient: widget.provider.recipient)
+    ..addListener(_changed);
 
   /// Per step, the messages still ticked.
   List<Set<int>> _ticked = const [];
@@ -201,9 +200,15 @@ final class _TidyPanelState extends State<_TidyPanel> {
 
   String get _to => widget.provider.recipient;
 
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
-    _cancel?.cancel();
+    _task
+      ..removeListener(_changed)
+      ..dispose();
     _words.dispose();
     super.dispose();
   }
@@ -212,36 +217,20 @@ final class _TidyPanelState extends State<_TidyPanel> {
     final words = _words.text.trim();
     if (words.isEmpty) return;
     if (!await confirmAiSend(context, widget.provider) || !mounted) return;
-    final cancel = _cancel = AiCancel();
-    setState(() => _phase = _Phase.asking);
-    try {
+    await _task.run((run) async {
       final plan = await widget.tidy.suggest(
         widget.provider,
         words,
         widget.candidates,
-        cancel: cancel,
+        cancel: run.cancel,
       );
-      if (!mounted || cancel.isCancelled) return;
-      setState(() {
-        _plan = plan;
-        _ticked = [
-          for (final s in plan.steps) {for (final m in s.messages) m.id},
-        ];
-        _open.clear();
-        _phase = _Phase.plan;
-      });
-    } on AiException catch (e) {
-      if (!mounted || e.problem == AiProblem.cancelled) return;
-      setState(() {
-        _problem = e.explain(_to);
-        _phase = _Phase.failed;
-      });
-    }
-  }
-
-  void _stop() {
-    _cancel?.cancel();
-    setState(() => _phase = _Phase.ask);
+      // Everything ticked, nothing open, before the plan shows.
+      _ticked = [
+        for (final s in plan.steps) {for (final m in s.messages) m.id},
+      ];
+      _open.clear();
+      return plan;
+    });
   }
 
   /// The steps with only the ticked messages.
@@ -251,8 +240,8 @@ final class _TidyPanelState extends State<_TidyPanel> {
     return n == 1 ? 'Make 1 change' : 'Make $n changes';
   }
 
-  List<TidyStep> get _chosen => [
-    for (final (i, step) in _plan.steps.indexed)
+  List<TidyStep> _chosen(TidyPlan plan) => [
+    for (final (i, step) in plan.steps.indexed)
       if (_ticked[i].isNotEmpty)
         step.withMessages([
           for (final m in step.messages)
@@ -281,11 +270,11 @@ final class _TidyPanelState extends State<_TidyPanel> {
           ),
         ),
         Flexible(
-          child: switch (_phase) {
-            _Phase.ask => _ask(theme),
-            _Phase.asking => _asking(theme),
-            _Phase.plan => _planView(theme),
-            _Phase.failed => _failed(theme),
+          child: switch (_task.state) {
+            AiIdle() || AiStopped() => _ask(theme),
+            AiRunning() => _asking(theme),
+            AiDone(result: final plan) => _planView(theme, plan),
+            AiFailed(:final message) => _failed(theme, message),
           },
         ),
         Padding(
@@ -346,20 +335,19 @@ final class _TidyPanelState extends State<_TidyPanel> {
     ),
   );
 
-  Widget _failed(ThemeData theme) => Padding(
+  Widget _failed(ThemeData theme, String problem) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(AppIcons.problem, color: theme.colorScheme.error),
         const SizedBox(width: 12),
-        Expanded(child: Text(_problem ?? '')),
+        Expanded(child: Text(problem)),
       ],
     ),
   );
 
-  Widget _planView(ThemeData theme) {
-    final plan = _plan;
+  Widget _planView(ThemeData theme, TidyPlan plan) {
     return ListView(
       shrinkWrap: true,
       children: [
@@ -483,11 +471,11 @@ final class _TidyPanelState extends State<_TidyPanel> {
       child: const Text('Cancel'),
     );
     final again = TextButton(
-      onPressed: () => setState(() => _phase = _Phase.ask),
+      onPressed: _task.reset,
       child: const Text('Change request'),
     );
-    final List<Widget> buttons = switch (_phase) {
-      _Phase.ask => [
+    final List<Widget> buttons = switch (_task.state) {
+      AiIdle() || AiStopped() => [
         cancel,
         PressScale(
           child: FilledButton(
@@ -496,27 +484,24 @@ final class _TidyPanelState extends State<_TidyPanel> {
           ),
         ),
       ],
-      _Phase.asking => [
+      AiRunning() => [
         TextButton.icon(
-          onPressed: _stop,
+          onPressed: _task.stop,
           icon: const Icon(AppIcons.stop),
           label: const Text('Stop'),
         ),
       ],
-      _Phase.failed => [
+      AiFailed() => [
         cancel,
-        FilledButton(
-          onPressed: () => setState(() => _phase = _Phase.ask),
-          child: const Text('Try again'),
-        ),
+        FilledButton(onPressed: _task.reset, child: const Text('Try again')),
       ],
-      _Phase.plan => [
+      AiDone(result: final plan) => [
         again,
         cancel,
         PressScale(
           child: FilledButton(
             onPressed: _ticked.any((t) => t.isNotEmpty)
-                ? () => Navigator.pop(context, _chosen)
+                ? () => Navigator.pop(context, _chosen(plan))
                 : null,
             child: Text(_applyLabel),
           ),

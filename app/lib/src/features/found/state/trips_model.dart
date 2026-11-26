@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
@@ -11,10 +9,9 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
-import '../../../services/app_services.dart';
-import '../../../services/auto_reader.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
+import 'found_model.dart';
 
 /// What [findTrips] found: every booking the rules found ([hidden] and
 /// [learned] ones too, by key), and the emails worth downloading
@@ -117,14 +114,9 @@ List<MailSample> bookingSamples(
 /// data in their HTML; the others by their preview. [readEmails]
 /// downloads booking emails that are not on the device yet, only when
 /// the user asks.
-final class TripsModel extends ChangeNotifier {
-  TripsModel(this._services, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
-
-  final AppServices _services;
-  final DateTime Function() _now;
-
-  MailStore get _store => _services.store;
+final class TripsModel extends FoundModel<Booking, TripsFound> {
+  TripsModel(super.services, {super.now})
+    : super(kind: MailKind.booking, hiddenKeys: hiddenSetting);
 
   static const hiddenSetting = StringListSetting('trips.hidden');
 
@@ -136,35 +128,30 @@ final class TripsModel extends ChangeNotifier {
   static const readMax = 40;
   static const maxBytes = 512 * 1024;
 
-  bool loading = true;
+  @override
+  Future<TripsFound> find(DateTime now, Set<int> skip) =>
+      findTrips(store, now, skip: skip);
+
+  @override
+  Finds<Booking> findsOf(TripsFound found) => found;
+
+  @override
+  String keyOf(Booking item) => item.key;
+
+  @override
+  List<MailSample> samplesOf(Booking item) =>
+      bookingSamples(item, store.messages.byId);
+
+  final _trips = Expando<List<Trip>>();
 
   /// Every trip, of bookings not hidden, oldest first.
-  List<Trip> trips = const [];
-
-  /// Bookings the user said are not bookings (by key).
-  Set<String> hidden = const {};
-
-  /// Bookings left out because they look like ones the user said are not
-  /// bookings ("Learn from my corrections"; by key).
-  Set<String> learned = const {};
-
-  /// Those of [hidden] and [learned].
-  List<Booking> hiddenOnes = const [];
-
-  /// Everything the rules found.
-  List<Booking> _all = const [];
-
-  late final _corrections = Corrections(_store);
-
-  /// Booking emails not on the device yet, newest first.
-  List<int> toRead = const [];
-
-  /// While reading emails: how many are done, of how many.
-  ({int done, int total})? reading;
-  bool _stop = false;
+  List<Trip> get trips => switch (data) {
+    final page? => _trips[page] ??= TripFinder.trips(page.listed),
+    null => const [],
+  };
 
   DateTime get _today {
-    final now = _now();
+    final now = this.now();
     return DateTime(now.year, now.month, now.day);
   }
 
@@ -179,103 +166,6 @@ final class TripsModel extends ChangeNotifier {
     for (final t in trips.reversed)
       if (t.endsAt.isBefore(_today)) t,
   ];
-
-  /// Emails given up on: not offered while they are read automatically.
-  Set<int> get _skip =>
-      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
-
-  Future<void> load() async {
-    final found = await findTrips(_store, _now(), skip: _skip);
-    hidden = found.hidden;
-    learned = found.learned;
-    _all = found.all;
-    final left = {...hidden, ...learned};
-    trips = TripFinder.trips([
-      for (final b in found.all)
-        if (!left.contains(b.key)) b,
-    ]);
-    hiddenOnes = [
-      for (final b in found.all)
-        if (left.contains(b.key)) b,
-    ];
-    toRead = found.toRead;
-    loading = false;
-    notifyListeners();
-  }
-
-  /// Downloads the emails in [toRead] from the user's own mail server
-  /// (they stay unread), then looks again. Stops early on [stopReading].
-  Future<void> readEmails() async {
-    if (reading != null || toRead.isEmpty) return;
-    final ids = toRead;
-    _stop = false;
-    var done = 0;
-    reading = (done: 0, total: ids.length);
-    notifyListeners();
-    for (final id in ids) {
-      if (_stop) break;
-      try {
-        await _services.worker.loadBody(id);
-      } on Object {
-        // Gone, too large or offline: read from its preview only.
-      }
-      reading = (done: ++done, total: ids.length);
-      notifyListeners();
-    }
-    reading = null;
-    await load();
-  }
-
-  void stopReading() => _stop = true;
-
-  /// "Not a booking": hidden from the trips (undoable), and learned
-  /// from.
-  void hide(String key) {
-    if (_found(key) case final b?) {
-      _corrections.rejected(
-        MailKind.booking,
-        _samples(b, _store.messages.byId),
-      );
-    }
-    _write({...hidden, key});
-  }
-
-  /// Undo, or "List again": listed again (and never left out by
-  /// learning again).
-  void unhide(String key) {
-    final b = _found(key);
-    final samples = b == null
-        ? const <MailSample>[]
-        : _samples(b, _store.messages.byId);
-    if (hidden.contains(key)) {
-      _corrections.rejected(MailKind.booking, samples, undo: true);
-      _write({...hidden}..remove(key));
-    } else if (learned.contains(key)) {
-      _corrections.kept(MailKind.booking, key, samples);
-      unawaited(load());
-    }
-  }
-
-  /// [booking]'s page was opened: a weak sign that it is one.
-  void opened(Booking booking) => _corrections.opened(
-    MailKind.booking,
-    booking.key,
-    _samples(booking, _store.messages.byId),
-  );
-
-  Booking? _found(String key) => _all.where((b) => b.key == key).firstOrNull;
-
-  static List<MailSample> _samples(
-    Booking booking,
-    StoredMessage? Function(int id) message,
-  ) => bookingSamples(booking, message);
-
-  void _write(Set<String> keys) {
-    hiddenSetting.write(_store.settings, keys.toList());
-    unawaited(load());
-  }
-
-  StoredMessage? message(int id) => _store.messages.byId(id);
 }
 
 typedef _Read = ({String text, List<ReservationInfo> reservations});

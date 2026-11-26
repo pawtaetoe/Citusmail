@@ -8,6 +8,7 @@ import 'package:mail_ai/mail_ai.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../services/ai_assistant.dart';
+import '../../ai/state/ai_task.dart';
 import '../../organise/ui/snooze_sheet.dart';
 import '../state/writing_help.dart';
 
@@ -328,8 +329,9 @@ final class _WritingPanelState extends State<WritingPanel> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final muted = colors.onSurfaceVariant;
-    final running = run.state == WritingState.running;
-    final failed = run.state == WritingState.failed;
+    final state = run.state;
+    final running = state is AiRunning;
+    final failed = state is AiFailed;
     final usable = !running && !failed && run.text.trim().isNotEmpty;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -374,7 +376,7 @@ final class _WritingPanelState extends State<WritingPanel> {
           const SizedBox(height: CitusSpace.s),
           const LinearProgressIndicator(),
         ],
-        if (run.cutOff || run.state == WritingState.stopped)
+        if (run.cutOff || state is AiStopped)
           Padding(
             padding: const EdgeInsets.only(top: CitusSpace.s),
             child: Text(

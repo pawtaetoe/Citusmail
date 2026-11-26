@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 
 import '../../../app/app.dart' show appName;
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../state/app_lock.dart';
 
 /// Which lock is in charge, set by the home screen once the app's
@@ -225,31 +226,16 @@ final class _LockScreenState extends State<LockScreen> {
   }
 
   Future<void> _forgot() async {
-    final reset = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Reset $appName?'),
-        content: const Text(
+    final reset = await confirmDialog(
+      context,
+      title: 'Reset $appName?',
+      message:
           'Without the PIN, the only way in is to start over. This removes '
           'your accounts and the mail stored on this device. Your mail stays '
           'on your mail server, and comes back when you add your accounts '
           'again.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Reset'),
-          ),
-        ],
-      ),
+      confirm: 'Reset',
+      destructive: true,
     );
     if (reset == true) await widget.host.reset();
   }

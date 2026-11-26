@@ -8,26 +8,14 @@ import 'package:flutter/foundation.dart';
 import 'package:mail_ai/mail_ai.dart';
 
 import '../../../services/ai_assistant.dart';
+import 'ai_task.dart';
 
-enum SuggestionStatus { working, done, failed }
-
-/// The replies suggested for one email.
-final class ReplySuggestions {
+/// The replies suggested for one email: at most [QuickReplies.max],
+/// already checked ([QuickReplies.validate]).
+final class ReplySuggestions extends AiTask<List<String>> {
   ReplySuggestions._(this.messageId);
 
   final int messageId;
-  SuggestionStatus status = SuggestionStatus.working;
-
-  /// Who suggested them ("Anthropic").
-  String recipient = '';
-
-  /// At most [QuickReplies.max], already checked ([QuickReplies.validate]).
-  List<String> replies = const [];
-
-  /// The problem, in plain words, when it [SuggestionStatus.failed].
-  String? problem;
-
-  AiCancel? _cancel;
 }
 
 /// "Suggest replies" in the reader: asked for only when the user taps
@@ -60,47 +48,31 @@ final class QuickReplySuggestions extends ChangeNotifier {
     PromptMail mail, {
     required Future<bool> Function(AiFeatureProvider provider) confirm,
   }) async {
-    if (_cache[messageId] case final s?
-        when s.status != SuggestionStatus.failed) {
-      return;
-    }
+    if (_cache[messageId] case final s? when s.state is! AiFailed) return;
     final provider = await _ai.providerFor(AiFeatures.quickReplies.id);
-    final s = ReplySuggestions._(messageId);
+    final s = ReplySuggestions._(messageId)..addListener(notifyListeners);
     if (provider == null) {
-      _put(s)
-        ..status = SuggestionStatus.failed
-        ..problem =
-            'Quick replies aren\'t set up. Turn them on in Settings, AI '
-            'assistant.';
-      notifyListeners();
+      _put(s).failed(
+        'Quick replies aren\'t set up. Turn them on in Settings, AI '
+        'assistant.',
+      );
       return;
     }
     s.recipient = provider.recipient;
     if (!await confirm(provider)) return;
     _put(s);
-    final cancel = s._cancel = AiCancel();
-    notifyListeners();
-    try {
-      final response = await provider.complete(
-        QuickReplies.request(model: provider.model, mail: mail),
-        cancel: cancel,
-      );
-      if (response.stopReason == AiStopReason.refusal) {
-        throw const AiException(AiProblem.refused, 'refused');
-      }
-      s
-        ..replies = QuickReplies.parse(response)
-        ..status = SuggestionStatus.done;
-    } on AiException catch (e) {
-      if (e.problem == AiProblem.cancelled) {
-        if (identical(_cache[messageId], s)) _cache.remove(messageId);
-      } else {
-        s
-          ..status = SuggestionStatus.failed
-          ..problem = e.explain(s.recipient);
-      }
-    } finally {
-      s._cancel = null;
+    await s.run(
+      (run) async => QuickReplies.parse(
+        run.refusing(
+          await provider.complete(
+            QuickReplies.request(model: provider.model, mail: mail),
+            cancel: run.cancel,
+          ),
+        ),
+      ),
+    );
+    if (s.state is AiStopped && identical(_cache[messageId], s)) {
+      _cache.remove(messageId);
       notifyListeners();
     }
   }
@@ -108,8 +80,8 @@ final class QuickReplySuggestions extends ChangeNotifier {
   /// Stops asking.
   void stop(int messageId) {
     final s = _cache[messageId];
-    if (s == null || s.status != SuggestionStatus.working) return;
-    s._cancel?.cancel();
+    if (s == null || !s.isRunning) return;
+    s.stop();
     _cache.remove(messageId);
     notifyListeners();
   }
