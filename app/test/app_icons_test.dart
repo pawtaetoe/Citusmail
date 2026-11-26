@@ -4,10 +4,10 @@
 
 import 'dart:io';
 
-import 'package:citusmail/src/ui/app_icons.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/mail_shell.dart';
-import 'package:citusmail/src/ui/mail_text.dart';
+import 'package:citusmail/src/core/text/mail_text.dart';
+import 'package:citusmail/src/core/theme/app_icons.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_store/mail_store.dart';

@@ -4,14 +4,14 @@
 
 import 'dart:convert';
 
-import 'package:citusmail/src/mail/ask_mail_model.dart';
-import 'package:citusmail/src/mail/mail_controller.dart';
-import 'package:citusmail/src/ui/ai_feature_tiles.dart';
-import 'package:citusmail/src/ui/ask_mail_panel.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/features.dart';
-import 'package:citusmail/src/ui/message_list_pane.dart';
-import 'package:citusmail/src/ui/settings_catalog.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/ai/state/ask_mail_model.dart';
+import 'package:citusmail/src/features/ai/ui/ai_feature_tiles.dart';
+import 'package:citusmail/src/features/ai/ui/ask_mail_panel.dart';
+import 'package:citusmail/src/features/discover/ui/features.dart';
+import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
+import 'package:citusmail/src/features/inbox/ui/message_list_pane.dart';
+import 'package:citusmail/src/features/settings/ui/settings_catalog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_ai/mail_ai.dart';

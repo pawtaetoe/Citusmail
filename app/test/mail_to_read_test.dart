@@ -7,10 +7,10 @@
 
 import 'dart:convert';
 
-import 'package:citusmail/src/mail/accounts_model.dart';
-import 'package:citusmail/src/mail/deliveries_model.dart';
-import 'package:citusmail/src/mail/subscriptions_model.dart';
-import 'package:citusmail/src/mail/trips_model.dart';
+import 'package:citusmail/src/features/accounts/state/accounts_model.dart';
+import 'package:citusmail/src/features/found/state/deliveries_model.dart';
+import 'package:citusmail/src/features/found/state/subscriptions_model.dart';
+import 'package:citusmail/src/features/found/state/trips_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';

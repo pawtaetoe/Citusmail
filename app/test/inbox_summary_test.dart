@@ -4,13 +4,13 @@
 
 import 'dart:ui' show SemanticsRole;
 
-import 'package:citusmail/src/mail/inbox_summary.dart';
-import 'package:citusmail/src/ui/appointment_detail_page.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/deliveries_page.dart';
-import 'package:citusmail/src/ui/inbox_summary_line.dart';
-import 'package:citusmail/src/ui/mail_shell.dart';
-import 'package:citusmail/src/ui/settings_page.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/found/ui/appointment_detail_page.dart';
+import 'package:citusmail/src/features/found/ui/deliveries_page.dart';
+import 'package:citusmail/src/features/inbox/state/inbox_summary.dart';
+import 'package:citusmail/src/features/inbox/ui/inbox_summary_line.dart';
+import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
+import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

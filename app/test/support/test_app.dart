@@ -6,9 +6,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:citusmail/src/features/discover/ui/whats_new.dart';
 import 'package:citusmail/src/services/app_services.dart';
 import 'package:citusmail/src/services/secret_store.dart';
-import 'package:citusmail/src/ui/whats_new.dart';
 import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';

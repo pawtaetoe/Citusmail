@@ -8,7 +8,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:citusmail/src/mail/mail_controller.dart';
+import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';

@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'package:citusmail/src/setup/setup_controller.dart';
-import 'package:citusmail/src/setup/setup_page.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/accounts/state/setup_controller.dart';
+import 'package:citusmail/src/features/accounts/ui/setup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_setup/mail_setup.dart';

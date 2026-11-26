@@ -8,8 +8,8 @@
 
 import 'dart:io';
 
-import 'package:citusmail/src/mail/mail_controller.dart';
-import 'package:citusmail/src/mail/store_changes.dart';
+import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
+import 'package:citusmail/src/features/inbox/state/store_changes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_store/mail_store.dart';
 

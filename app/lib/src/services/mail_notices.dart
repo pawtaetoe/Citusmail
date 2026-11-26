@@ -5,7 +5,7 @@
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
-import '../app.dart' show appName;
+import '../app/app.dart' show appName;
 
 /// How the system shows several notifications of one app.
 enum NoticeLayout {

@@ -2,13 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'package:citusmail/src/compose/compose_controller.dart';
-import 'package:citusmail/src/compose/compose_page.dart';
-import 'package:citusmail/src/compose/recipient_field.dart';
-import 'package:citusmail/src/compose/writing_hints.dart';
-import 'package:citusmail/src/mail/send_later_times.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/send_later_sheet.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/compose/state/compose_controller.dart';
+import 'package:citusmail/src/features/compose/state/send_later_times.dart';
+import 'package:citusmail/src/features/compose/state/writing_hints.dart';
+import 'package:citusmail/src/features/compose/ui/compose_page.dart';
+import 'package:citusmail/src/features/compose/ui/recipient_field.dart';
+import 'package:citusmail/src/features/compose/ui/send_later_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_compose/mail_compose.dart';

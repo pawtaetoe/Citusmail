@@ -4,7 +4,7 @@
 
 import 'dart:io';
 
-import 'package:citusmail/src/ui/calendar_files.dart';
+import 'package:citusmail/src/features/reader/ui/calendar_files.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_view/mail_view.dart';
 

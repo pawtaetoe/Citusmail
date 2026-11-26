@@ -6,10 +6,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:citusmail/src/features/reader/ui/link_opener.dart';
+import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:citusmail/src/services/link_safety.dart';
 import 'package:citusmail/src/services/secret_store.dart';
-import 'package:citusmail/src/ui/link_opener.dart';
-import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

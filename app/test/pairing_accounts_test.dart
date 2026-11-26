@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'package:citusmail/src/pairing/account_export.dart';
-import 'package:citusmail/src/pairing/account_import.dart';
+import 'package:citusmail/src/features/accounts/state/account_export.dart';
+import 'package:citusmail/src/features/accounts/state/account_import.dart';
 import 'package:citusmail/src/services/secret_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_oauth/mail_oauth.dart';

@@ -5,13 +5,13 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:citusmail/src/pairing/account_import.dart';
-import 'package:citusmail/src/pairing/qr_code.dart';
-import 'package:citusmail/src/pairing/receive_accounts_page.dart';
-import 'package:citusmail/src/pairing/send_accounts_page.dart';
-import 'package:citusmail/src/setup/setup_controller.dart';
-import 'package:citusmail/src/setup/setup_page.dart';
-import 'package:citusmail/src/ui/settings_page.dart';
+import 'package:citusmail/src/features/accounts/state/account_import.dart';
+import 'package:citusmail/src/features/accounts/state/setup_controller.dart';
+import 'package:citusmail/src/features/accounts/ui/qr_code.dart';
+import 'package:citusmail/src/features/accounts/ui/receive_accounts_page.dart';
+import 'package:citusmail/src/features/accounts/ui/send_accounts_page.dart';
+import 'package:citusmail/src/features/accounts/ui/setup_page.dart';
+import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_pairing/mail_pairing.dart';

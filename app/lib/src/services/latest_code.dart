@@ -8,7 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:mail_store/mail_store.dart';
 
-import '../security/app_lock.dart';
+import '../features/security/state/app_lock.dart';
 import 'mail_notices.dart';
 
 /// The newest code still worth copying: what the "Latest code" tile in

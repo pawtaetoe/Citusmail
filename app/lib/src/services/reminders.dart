@@ -5,10 +5,11 @@
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
-import '../mail/appointments_model.dart' show appointmentReminders;
-import '../mail/deliveries_model.dart' show openReturnWindows;
-import '../mail/subscriptions_model.dart';
-import '../ui/subscriptions_page.dart' show Prices;
+import '../features/found/state/appointments_model.dart'
+    show appointmentReminders;
+import '../features/found/state/deliveries_model.dart' show openReturnWindows;
+import '../features/found/state/prices.dart';
+import '../features/found/state/subscriptions_model.dart';
 import 'app_settings.dart';
 
 /// What the user did with reminders, and which were notified, kept in the

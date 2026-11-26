@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'package:citusmail/src/mail/snooze_times.dart';
+import 'package:citusmail/src/features/organise/state/snooze_times.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

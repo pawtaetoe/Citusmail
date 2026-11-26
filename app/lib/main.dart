@@ -8,11 +8,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'src/app.dart';
+import 'src/app/app.dart';
 import 'src/background/background_mail.dart';
-import 'src/setup/oauth_browser.dart';
+import 'src/features/accounts/state/oauth_browser.dart';
 
-export 'src/app.dart' show CitusmailApp, appName;
+export 'src/app/app.dart' show CitusmailApp, appName;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

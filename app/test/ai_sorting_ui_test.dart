@@ -5,13 +5,13 @@
 // "Sorting backup" on screen: its setting asks before anything is sent,
 // and the reader says who sorted an email and why, with "Not right?".
 
-import 'package:citusmail/src/mail/mail_controller.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/ai/ui/ai_feature_tiles.dart';
+import 'package:citusmail/src/features/ai/ui/ai_sort_notice.dart';
+import 'package:citusmail/src/features/discover/ui/features.dart';
+import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
+import 'package:citusmail/src/features/settings/ui/settings_catalog.dart';
 import 'package:citusmail/src/services/ai_sorter.dart';
-import 'package:citusmail/src/ui/ai_feature_tiles.dart';
-import 'package:citusmail/src/ui/ai_sort_notice.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/features.dart';
-import 'package:citusmail/src/ui/settings_catalog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_ai/mail_ai.dart';

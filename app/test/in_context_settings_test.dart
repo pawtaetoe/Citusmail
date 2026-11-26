@@ -2,14 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'package:citusmail/src/mail/mail_controller.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/feature_settings.dart';
-import 'package:citusmail/src/ui/image_senders_page.dart';
-import 'package:citusmail/src/ui/mail_shell.dart';
-import 'package:citusmail/src/ui/screener_page.dart';
-import 'package:citusmail/src/ui/settings_page.dart';
-import 'package:citusmail/src/ui/subscriptions_page.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/found/ui/subscriptions_page.dart';
+import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
+import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
+import 'package:citusmail/src/features/organise/ui/screener_page.dart';
+import 'package:citusmail/src/features/settings/ui/feature_settings.dart';
+import 'package:citusmail/src/features/settings/ui/image_senders_page.dart';
+import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_store/mail_store.dart';

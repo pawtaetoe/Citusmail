@@ -5,7 +5,7 @@
 // Recipient suggestions while writing: read from the store once, then
 // matched in memory, with the same results as asking the store.
 
-import 'package:citusmail/src/compose/address_book.dart';
+import 'package:citusmail/src/features/compose/state/address_book.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/test_app.dart';

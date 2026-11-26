@@ -6,11 +6,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:citusmail/src/features/reader/ui/link_opener.dart';
+import 'package:citusmail/src/features/reader/ui/virus_total_check.dart';
+import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:citusmail/src/services/secret_store.dart';
 import 'package:citusmail/src/services/virus_total_checks.dart';
-import 'package:citusmail/src/ui/link_opener.dart';
-import 'package:citusmail/src/ui/settings_page.dart';
-import 'package:citusmail/src/ui/virus_total_check.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_lookup/mail_lookup.dart';

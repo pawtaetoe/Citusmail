@@ -11,7 +11,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:citusmail/src/background/background_mail.dart';
-import 'package:citusmail/src/mail/message_reads.dart';
+import 'package:citusmail/src/features/inbox/state/message_reads.dart';
 import 'package:citusmail/src/services/auto_reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
