@@ -7,22 +7,23 @@ import 'package:mail_store/mail_store.dart';
 
 /// Light, dark, or as the device is: chosen in Settings, Appearance.
 abstract final class Appearance {
-  static const key = 'app.theme';
+  /// The choice, by name (`light`, `dark`, `system`).
+  static const setting = EnumSetting(
+    'app.theme',
+    ThemeMode.values,
+    fallback: ThemeMode.system,
+  );
 
   /// What the app shows; the app rebuilds when it changes.
   static final theme = ValueNotifier<ThemeMode>(ThemeMode.system);
 
-  static ThemeMode read(MailStore store) => switch (store.settings.read(key)) {
-    'light' => ThemeMode.light,
-    'dark' => ThemeMode.dark,
-    _ => ThemeMode.system,
-  };
+  static ThemeMode read(MailStore store) => setting.read(store.settings);
 
   /// At start: the stored choice.
   static void load(MailStore store) => theme.value = read(store);
 
   static void choose(MailStore store, ThemeMode mode) {
-    store.settings.write(key, mode.name);
+    setting.write(store.settings, mode);
     theme.value = mode;
   }
 

@@ -75,15 +75,19 @@ abstract final class BackgroundMail {
   /// inboxes always come first). Android stops a check after 10 minutes.
   static const fullSyncBudget = Duration(minutes: 4);
 
-  static const _lastCheckKey = 'background.lastCheck';
+  static const lastCheckSetting = BackgroundCheckSetting(
+    'background.lastCheck',
+  );
 
   /// Notes when a background check ran and whether every account synced,
   /// for Settings ("Last background check").
   @visibleForTesting
   static void recordCheck(MailStore store, {required bool ok, DateTime? at}) {
     try {
-      final when = (at ?? DateTime.now()).toUtc().toIso8601String();
-      store.settings.write(_lastCheckKey, '${ok ? 'ok' : 'failed'} $when');
+      lastCheckSetting.write(store.settings, (
+        at: at ?? DateTime.now(),
+        ok: ok,
+      ));
     } on Object {
       // Only for display.
     }
@@ -91,14 +95,8 @@ abstract final class BackgroundMail {
 
   /// The last background check: when, and whether it went well; null if
   /// none has run yet.
-  static ({DateTime at, bool ok})? lastCheck(MailStore store) {
-    final value = store.settings.read(_lastCheckKey);
-    final parts = value?.split(' ');
-    if (parts == null || parts.length != 2) return null;
-    final at = DateTime.tryParse(parts[1]);
-    if (at == null) return null;
-    return (at: at.toLocal(), ok: parts[0] == 'ok');
-  }
+  static ({DateTime at, bool ok})? lastCheck(MailStore store) =>
+      lastCheckSetting.read(store.settings);
 
   /// Whether Android limits this app's background work to save battery
   /// (then checks may wait until the device wakes). False elsewhere.
@@ -111,7 +109,12 @@ abstract final class BackgroundMail {
     }
   }
 
-  static const _askedKey = 'instant.askedBackground';
+  /// Whether Android's "run in background" question was asked (`yes`).
+  static const askedSetting = BoolSetting(
+    'instant.askedBackground',
+    onText: 'yes',
+    offText: 'no',
+  );
 
   /// Asks Android, with its own one-tap dialog, to let the app run in the
   /// background without battery limits, so Instant mail keeps its
@@ -133,9 +136,9 @@ abstract final class BackgroundMail {
     Future<bool> Function() limited = batteryLimited,
     Future<void> Function() ask = askToRunInBackground,
   }) async {
-    if (store.settings.read(_askedKey) != null) return;
+    if (askedSetting.isSetIn(store.settings)) return;
     if (!await limited()) return;
-    store.settings.write(_askedKey, 'yes');
+    askedSetting.write(store.settings, true);
     await ask();
   }
 
@@ -277,7 +280,7 @@ abstract final class BackgroundMail {
   }
 
   /// When the background check last read emails ahead of time.
-  static const _readAheadKey = 'autoRead.background';
+  static const readAheadSetting = DateTimeSetting('autoRead.background');
 
   /// Reads ahead ([AutoReader], at most [AutoReader.backgroundCap]) after
   /// new mail came, and otherwise at most hourly, so what is left from
@@ -291,14 +294,13 @@ abstract final class BackgroundMail {
   }) async {
     if (!AppSettings(store).autoRead) return 0;
     now ??= DateTime.now();
-    final last = int.tryParse(store.settings.read(_readAheadKey) ?? '');
+    final last = readAheadSetting.read(store.settings);
     if (!newMail &&
         last != null &&
-        now.difference(DateTime.fromMillisecondsSinceEpoch(last)) <
-            const Duration(hours: 1)) {
+        now.difference(last) < const Duration(hours: 1)) {
       return 0;
     }
-    store.settings.write(_readAheadKey, '${now.millisecondsSinceEpoch}');
+    readAheadSetting.write(store.settings, now);
     try {
       return await AutoReader.readOnce(store, load);
     } on Object catch (e) {
@@ -358,4 +360,26 @@ abstract final class BackgroundMail {
     });
     engine.start();
   }
+}
+
+/// The last background check, as stored: `ok` or `failed`, a space, and
+/// when in ISO-8601 (UTC). Read back in local time.
+final class BackgroundCheckSetting extends Setting<({DateTime at, bool ok})?> {
+  const BackgroundCheckSetting(super.key) : super(fallback: null);
+
+  @override
+  ({DateTime at, bool ok})? tryDecode(String stored) {
+    final parts = stored.split(' ');
+    if (parts.length != 2) return null;
+    final at = DateTime.tryParse(parts[1]);
+    if (at == null) return null;
+    return (at: at.toLocal(), ok: parts[0] == 'ok');
+  }
+
+  @override
+  String encode(({DateTime at, bool ok})? value) => switch (value) {
+    null => '',
+    (:final at, :final ok) =>
+      '${ok ? 'ok' : 'failed'} ${at.toUtc().toIso8601String()}',
+  };
 }

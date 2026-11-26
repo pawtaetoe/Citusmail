@@ -463,7 +463,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (chosen == null || chosen == current) return;
-    store.settings.write(KeepMail.key, chosen.storageName);
+    KeepMail.setting.write(store.settings, chosen);
     setState(() {});
     try {
       await widget.services.worker.syncNow();

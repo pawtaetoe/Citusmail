@@ -19,49 +19,43 @@ final class ReminderState {
 
   final MailStore _store;
 
-  static const _dismissed = 'reminders.dismissed';
-  static const _notified = 'reminders.notified';
-  static const _lastCheck = 'reminders.lastCheck';
+  static const dismissedSetting = StringListSetting('reminders.dismissed');
+  static const notifiedSetting = StringListSetting('reminders.notified');
+  static const lastCheckSetting = DateTimeSetting('reminders.lastCheck');
 
   /// Entries are kept this long after their date.
   static const _keep = Duration(days: 60);
 
   /// Reminders marked "Done" or "Not needed" (their [Reminder.key]).
-  Set<String> get dismissed => _read(_dismissed);
+  Set<String> get dismissed => _read(dismissedSetting);
 
-  void dismiss(String key) => _write(_dismissed, {...dismissed, key});
+  void dismiss(String key) => _write(dismissedSetting, {...dismissed, key});
 
-  void undismiss(String key) => _write(_dismissed, {...dismissed}..remove(key));
+  void undismiss(String key) =>
+      _write(dismissedSetting, {...dismissed}..remove(key));
 
   /// The notifications posted: `key@stage`.
-  Set<String> get notified => _read(_notified);
+  Set<String> get notified => _read(notifiedSetting);
 
   void markNotified(Iterable<String> entries) =>
-      _write(_notified, {...notified, ...entries});
+      _write(notifiedSetting, {...notified, ...entries});
 
-  /// When reminders were last checked for notifications.
-  DateTime? get lastCheck {
-    final ms = int.tryParse(_store.settings.read(_lastCheck) ?? '');
-    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
-  }
+  /// When reminders were last checked for notifications (in local time,
+  /// as before).
+  DateTime? get lastCheck => lastCheckSetting.read(_store.settings)?.toLocal();
 
-  set lastCheck(DateTime? at) => _store.settings.write(
-    _lastCheck,
-    at == null ? '' : '${at.millisecondsSinceEpoch}',
-  );
+  set lastCheck(DateTime? at) => lastCheckSetting.write(_store.settings, at);
 
-  Set<String> _read(String key) => {
-    ...?_store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
-  };
+  Set<String> _read(StringListSetting setting) =>
+      setting.read(_store.settings).toSet();
 
   /// Writes [entries], dropping those whose date is long past.
-  void _write(String key, Set<String> entries) {
+  void _write(StringListSetting setting, Set<String> entries) {
     final since = DateTime.now().toUtc().subtract(_keep);
-    final kept = [
+    setting.write(_store.settings, [
       for (final e in entries)
         if (_dateOf(e)?.isBefore(since) != true) e,
-    ];
-    _store.settings.write(key, kept.join(','));
+    ]);
   }
 
   /// The date at the end of a key ("billDue:x.com:2026-11-15@soon").

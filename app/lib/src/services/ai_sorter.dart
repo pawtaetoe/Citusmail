@@ -75,9 +75,15 @@ final class AiSorter {
   /// Bigger messages are not downloaded for it: the preview is used.
   static const maxDownload = 512 * 1024;
 
-  static const perSyncKey = 'ai.sorting.perSync';
   static const defaultPerSync = 20;
   static const perSyncChoices = [5, 10, 20, 50];
+
+  /// At most this many after each sync (1 to 200 when written).
+  static const perSyncSetting = IntSetting(
+    'ai.sorting.perSync',
+    fallback: defaultPerSync,
+    min: 1,
+  );
 
   static final _sorters = Expando<AiSorter>();
 
@@ -85,13 +91,10 @@ final class AiSorter {
   static AiSorter? of(AiAssistant ai) => _sorters[ai];
 
   /// At most this many messages are asked about after each sync.
-  int get perSync {
-    final value = int.tryParse(_store.settings.read(perSyncKey) ?? '');
-    return value != null && value > 0 ? value : defaultPerSync;
-  }
+  int get perSync => perSyncSetting.read(_store.settings);
 
   set perSync(int value) {
-    _store.settings.write(perSyncKey, '${value.clamp(1, 200)}');
+    perSyncSetting.write(_store.settings, value.clamp(1, 200));
     _ai.changes.value++;
   }
 

@@ -12,12 +12,14 @@ import 'package:mail_sync/mail_sync.dart';
 /// Some of them (reminders, learning, reading ahead, "New since you were
 /// away", the summary line) sync between the user's devices with sync
 /// between devices on: which ones is decided in one place,
-/// `SyncedPreferences` in mail_store.
+/// `SyncedPreferences` in mail_store, which also declares them.
 /// The rest stay on this device.
 final class AppSettings {
   AppSettings(this._store);
 
   final MailStore _store;
+
+  SettingsRepository get _settings => _store.settings;
 
   /// Changes when preferences from the user's other devices were applied
   /// here, so what shows them reads them again.
@@ -28,96 +30,114 @@ final class AppSettings {
     if (changes.preferences.isNotEmpty) syncedChanges.value++;
   }
 
-  static const _notifications = 'app.notifications';
-  static const _instantMail = 'app.instantMail';
-  static const _previews = 'app.notificationPreviews';
-  static const _reminders = 'reminders.on';
-  static const _monthlyRenewals = 'reminders.monthly';
-  static const _followUps = 'followUps.notify';
-  static const _learn = 'learning.on';
-  static const _autoRead = 'autoRead.on';
-  static const _newSinceAway = 'inbox.newSinceAway';
-  static const _summaryLine = 'inbox.summaryLine';
-  static const _writingHints = 'writing.hints';
+  static const notificationsSetting = BoolSetting(
+    'app.notifications',
+    fallback: true,
+  );
+  static const instantMailSetting = BoolSetting(
+    'app.instantMail',
+    fallback: true,
+  );
+  static const previewsSetting = BoolSetting(
+    'app.notificationPreviews',
+    fallback: true,
+  );
+  static const remindersSetting = SyncedPreferences.reminders;
+  static const monthlyRenewalsSetting = SyncedPreferences.monthlyRenewals;
+  static const followUpsSetting = SyncedPreferences.followUpNotifications;
+  static const learnSetting = SyncedPreferences.learnFromCorrections;
+  static const autoReadSetting = SyncedPreferences.autoRead;
+  static const newSinceAwaySetting = SyncedPreferences.newSinceAway;
+  static const summaryLineSetting = SyncedPreferences.summaryLine;
+  static const writingHintsSetting = SyncedPreferences.writingHints;
+  static const notificationsSectionSetting =
+      NewMailTracker.notificationsSection;
+  static const serverRulesSetting = ServerRules.setting;
+
+  /// Every setting above, for tests.
+  static const all = <Setting<Object?>>[
+    notificationsSetting,
+    instantMailSetting,
+    previewsSetting,
+    remindersSetting,
+    monthlyRenewalsSetting,
+    followUpsSetting,
+    learnSetting,
+    autoReadSetting,
+    newSinceAwaySetting,
+    summaryLineSetting,
+    writingHintsSetting,
+    notificationsSectionSetting,
+    serverRulesSetting,
+  ];
 
   /// New-mail notifications (on by default).
-  bool get notifications => _store.settings.read(_notifications) != 'off';
-  set notifications(bool on) =>
-      _store.settings.write(_notifications, on ? 'on' : 'off');
+  bool get notifications => notificationsSetting.read(_settings);
+  set notifications(bool on) => notificationsSetting.write(_settings, on);
 
   /// New-mail notifications show a short preview of the text (on by
   /// default); off, sender and subject only.
-  bool get notificationPreviews => _store.settings.read(_previews) != 'off';
-  set notificationPreviews(bool on) =>
-      _store.settings.write(_previews, on ? 'on' : 'off');
+  bool get notificationPreviews => previewsSetting.read(_settings);
+  set notificationPreviews(bool on) => previewsSetting.write(_settings, on);
 
   /// Notifications before a bill is due, a free trial ends, a yearly
   /// subscription renews, a return window closes or an appointment (on by
   /// default; only with [notifications]).
-  bool get reminders => _store.settings.read(_reminders) != 'off';
-  set reminders(bool on) =>
-      _store.settings.write(_reminders, on ? 'on' : 'off');
+  bool get reminders => remindersSetting.read(_settings);
+  set reminders(bool on) => remindersSetting.write(_settings, on);
 
   /// A notification when an email the user is waiting on got no reply in
   /// time ("Remind me if no reply"; on by default; only with
   /// [notifications]). The email comes back to the inbox either way.
-  bool get followUpNotifications => _store.settings.read(_followUps) != 'off';
-  set followUpNotifications(bool on) =>
-      _store.settings.write(_followUps, on ? 'on' : 'off');
+  bool get followUpNotifications => followUpsSetting.read(_settings);
+  set followUpNotifications(bool on) => followUpsSetting.write(_settings, on);
 
   /// "Learn from my corrections" (on by default): items that look like
   /// ones the user said are not a subscription, delivery, booking or
   /// account are left out too. Off, the pages show what the rules find.
-  bool get learnFromCorrections => _store.settings.read(_learn) != 'off';
-  set learnFromCorrections(bool on) =>
-      _store.settings.write(_learn, on ? 'on' : 'off');
+  bool get learnFromCorrections => learnSetting.read(_settings);
+  set learnFromCorrections(bool on) => learnSetting.write(_settings, on);
 
   /// "Read receipts and bookings automatically" (on by default): the
   /// emails Subscriptions, Deliveries, Trips, Appointments and Online
   /// accounts would read are downloaded ahead of time (they stay unread). Off, each page
   /// offers to read them, as a button.
-  bool get autoRead => _store.settings.read(_autoRead) != 'off';
-  set autoRead(bool on) => _store.settings.write(_autoRead, on ? 'on' : 'off');
+  bool get autoRead => autoReadSetting.read(_settings);
+  set autoRead(bool on) => autoReadSetting.write(_settings, on);
 
   /// "New since you were away" at the top of the inbox (on by default).
-  bool get newSinceAway => _store.settings.read(_newSinceAway) != 'off';
-  set newSinceAway(bool on) =>
-      _store.settings.write(_newSinceAway, on ? 'on' : 'off');
+  bool get newSinceAway => newSinceAwaySetting.read(_settings);
+  set newSinceAway(bool on) => newSinceAwaySetting.write(_settings, on);
 
   /// The summary line at the top of the inbox: new mail, the latest
   /// code, today's deliveries, appointments and bills (on by default).
-  bool get summaryLine => _store.settings.read(_summaryLine) != 'off';
-  set summaryLine(bool on) =>
-      _store.settings.write(_summaryLine, on ? 'on' : 'off');
+  bool get summaryLine => summaryLineSetting.read(_settings);
+  set summaryLine(bool on) => summaryLineSetting.write(_settings, on);
 
   /// Writing hints under the recipients in the compose window (on by
   /// default): their local time, how quickly they reply, a likely typo.
-  bool get writingHints => _store.settings.read(_writingHints) != 'off';
-  set writingHints(bool on) =>
-      _store.settings.write(_writingHints, on ? 'on' : 'off');
+  bool get writingHints => writingHintsSetting.read(_settings);
+  set writingHints(bool on) => writingHintsSetting.write(_settings, on);
 
   /// Monthly (and weekly) renewals are reminded of too (off by default:
   /// they come every month).
-  bool get monthlyRenewals => _store.settings.read(_monthlyRenewals) == 'on';
-  set monthlyRenewals(bool on) =>
-      _store.settings.write(_monthlyRenewals, on ? 'on' : 'off');
+  bool get monthlyRenewals => monthlyRenewalsSetting.read(_settings);
+  set monthlyRenewals(bool on) => monthlyRenewalsSetting.write(_settings, on);
 
   /// New mail in the Notifications section (GitHub, a bank, deliveries)
   /// is announced too, unless turned off. Newsletters never are.
   bool get notifyNotificationsSection =>
-      _store.settings.read(NewMailTracker.notificationsKey) != 'off';
+      notificationsSectionSetting.read(_settings);
   set notifyNotificationsSection(bool on) =>
-      _store.settings.write(NewMailTracker.notificationsKey, on ? 'on' : 'off');
+      notificationsSectionSetting.write(_settings, on);
 
   /// Android: keep a live connection for instant mail (on unless turned
   /// off; Android shows a quiet permanent notification while it runs).
-  bool get instantMail => _store.settings.read(_instantMail) != 'off';
-  set instantMail(bool on) =>
-      _store.settings.write(_instantMail, on ? 'on' : 'off');
+  bool get instantMail => instantMailSetting.read(_settings);
+  set instantMail(bool on) => instantMailSetting.write(_settings, on);
 
   /// Blocked senders and folder rules also run on the mail server, where
   /// it supports Sieve (off by default: it changes the server's setup).
-  bool get serverRules => _store.settings.read(ServerRules.settingKey) == 'on';
-  set serverRules(bool on) =>
-      _store.settings.write(ServerRules.settingKey, on ? 'on' : 'off');
+  bool get serverRules => serverRulesSetting.read(_settings);
+  set serverRules(bool on) => serverRulesSetting.write(_settings, on);
 }
