@@ -13,6 +13,7 @@ import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
 import '../../../core/widgets/avatar.dart';
 import '../../../core/widgets/badge.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/page_scaffold.dart';
 import '../../../core/widgets/skeleton_rows.dart';
 import '../../inbox/state/mail_controller.dart';
@@ -135,26 +136,14 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
       _notice('Only pinned emails from ${_who(groups)} are left.');
       return;
     }
-    final sure = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete ${_emails(mail.length)}?'),
-        content: Text(
+    final sure = await confirmDialog(
+      context,
+      title: 'Delete ${_emails(mail.length)}?',
+      message:
           '${mail.length == 1 ? 'The email' : 'All ${_emails(mail.length)}'} '
           'from ${_who(groups)} go${mail.length == 1 ? 'es' : ''} to Trash, '
           'from every folder. Pinned emails stay where they are.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Move to Trash'),
-          ),
-        ],
-      ),
+      confirm: 'Move to Trash',
     );
     if (sure != true || !mounted) return;
     _clearSelection();

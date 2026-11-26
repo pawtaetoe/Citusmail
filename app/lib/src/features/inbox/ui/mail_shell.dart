@@ -14,6 +14,7 @@ import 'package:mail_web/mail_web.dart';
 import '../../../background/background_mail.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/motion.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../services/app_services.dart';
 import '../../../services/mail_notifier.dart';
 import '../../../services/new_mail_announcer.dart';
@@ -204,25 +205,13 @@ final class _MailShellState extends State<MailShell> {
   }
 
   Future<void> _removeAccount(Account account) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Remove ${account.email}?'),
-        content: const Text(
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Remove ${account.email}?',
+      message:
           'Its mail is removed from this device and its password from the keychain. '
           'Nothing is deleted on the server.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+      confirm: 'Remove',
     );
     if (confirmed != true) return;
     await widget.services.removeAccount(account);

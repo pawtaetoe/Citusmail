@@ -13,6 +13,7 @@ import '../../../core/widgets/badge.dart';
 import '../../../core/widgets/page_scaffold.dart';
 import '../../../core/widgets/skeleton_rows.dart';
 import '../../../services/app_services.dart';
+import '../../found/ui/found_parts.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../settings/ui/feature_settings.dart';
 import '../../settings/ui/read_ahead.dart';
@@ -162,9 +163,23 @@ final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
                 quiet: all.where(_model.isQuiet).length,
               ),
             if (_model.reading case final r?)
-              _Reading(done: r.done, total: r.total, onStop: _model.stopReading)
+              ReadingEmails(
+                what: 'emails',
+                done: r.done,
+                total: r.total,
+                onStop: _model.stopReading,
+              )
             else if (_model.toRead.isNotEmpty && !readsAhead)
-              _ReadOffer(count: _model.toRead.length, onRead: _model.readEmails)
+              ReadEmailsOffer(
+                icon: AppIcons.markUnread,
+                text:
+                    'Some accounts may be missing. ${_model.toRead.length} welcome or account '
+                    'email${_model.toRead.length == 1 ? '' : 's'} not on this device yet can '
+                    'be downloaded from your mail server to check (they stay '
+                    'unread).',
+                button: 'Read emails',
+                onRead: _model.readEmails,
+              )
             else if (_model.toRead.isNotEmpty && readingAhead)
               ReadingQuietly(
                 'Reading ${_model.toRead.length} account email'
@@ -238,36 +253,24 @@ final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
               for (final a in shown)
                 _AccountTile(account: a, onSelect: () => _select(a)),
             ],
-            if (_model.hiddenOnes.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: () => setState(() => _showHidden = !_showHidden),
-                  child: Text(
-                    _showHidden
-                        ? 'Hide the ones marked "not an account"'
-                        : 'Show ${_model.hiddenOnes.length} marked "not an account"',
-                  ),
-                ),
+            if (_model.hiddenOnes.isNotEmpty)
+              LeftOutList(
+                marked: 'not an account',
+                plural: 'accounts',
+                open: _showHidden,
+                onToggle: () => setState(() => _showHidden = !_showHidden),
+                oneLine: false,
+                items: [
+                  for (final a in _model.hiddenOnes)
+                    (
+                      leading: Avatar(name: a.name, address: a.company),
+                      title: a.name,
+                      about: a.company,
+                      learned: _model.learned.contains(a.company),
+                      onListAgain: () => _model.unhide(a.company),
+                    ),
+                ],
               ),
-              if (_showHidden)
-                for (final a in _model.hiddenOnes)
-                  ListTile(
-                    leading: Avatar(name: a.name, address: a.company),
-                    title: Text(a.name),
-                    subtitle: Text(
-                      _model.learned.contains(a.company)
-                          ? 'Left out: like ones you said aren\'t '
-                                'accounts'
-                          : a.company,
-                    ),
-                    trailing: TextButton(
-                      onPressed: () => _model.unhide(a.company),
-                      child: const Text('List again'),
-                    ),
-                  ),
-            ],
           ],
         ),
       ),
@@ -395,91 +398,6 @@ final class _AccountTile extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Offers to download account emails whose preview says too little.
-final class _ReadOffer extends StatelessWidget {
-  const _ReadOffer({required this.count, required this.onRead});
-
-  final int count;
-  final VoidCallback onRead;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      color: theme.colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(AppIcons.markUnread),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Some accounts may be missing. $count welcome or account '
-                    'email${count == 1 ? '' : 's'} not on this device yet can '
-                    'be downloaded from your mail server to check (they stay '
-                    'unread).',
-                  ),
-                ),
-              ],
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: onRead,
-                child: const Text('Read emails'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _Reading extends StatelessWidget {
-  const _Reading({
-    required this.done,
-    required this.total,
-    required this.onStop,
-  });
-
-  final int done;
-  final int total;
-  final VoidCallback onStop;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Reading emails: $done of $total'),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: total == 0 ? null : done / total,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          TextButton(onPressed: onStop, child: const Text('Stop')),
-        ],
-      ),
-    ),
-  );
 }
 
 final class _Empty extends StatelessWidget {

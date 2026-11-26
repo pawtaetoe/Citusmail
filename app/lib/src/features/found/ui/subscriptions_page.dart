@@ -21,6 +21,7 @@ import '../../settings/ui/feature_settings.dart';
 import '../../settings/ui/read_ahead.dart';
 import '../state/prices.dart';
 import '../state/subscriptions_model.dart';
+import 'found_parts.dart';
 import 'subscription_detail_page.dart';
 
 /// Paid subscriptions found in the user's receipts and renewal mail: what
@@ -173,7 +174,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
           children: [
             // What needs doing soon, first.
             if (comingUp.isNotEmpty) ...[
-              const _SectionTitle('Coming up', top: 8),
+              const FoundSectionTitle('Coming up', top: 8),
               for (final r in comingUp)
                 _ReminderTile(
                   reminder: r,
@@ -192,16 +193,30 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
                 today: _today,
               ),
             if (_model.reading case final r?)
-              _Reading(done: r.done, total: r.total, onStop: _model.stopReading)
+              ReadingEmails(
+                what: 'receipts',
+                done: r.done,
+                total: r.total,
+                onStop: _model.stopReading,
+              )
             else if (_model.toRead.isNotEmpty && !readsAhead)
-              _ReadOffer(count: _model.toRead.length, onRead: _model.readEmails)
+              ReadEmailsOffer(
+                icon: AppIcons.bill,
+                text:
+                    'Some subscriptions, prices or dates may be missing. '
+                    'They can be found in ${_model.toRead.length} receipt${_model.toRead.length == 1 ? '' : 's'} '
+                    'not on this device yet, downloaded from your mail server '
+                    '(they stay unread).',
+                button: 'Read receipts',
+                onRead: _model.readEmails,
+              )
             else if (_model.toRead.isNotEmpty && readingAhead)
               ReadingQuietly(
                 'Reading ${_model.toRead.length} receipt'
                 '${_model.toRead.length == 1 ? '' : 's'}…',
               ),
             if (active.isNotEmpty) ...[
-              const _SectionTitle('Active'),
+              const FoundSectionTitle('Active'),
               // Renewing within a week first.
               for (final s in [
                 ...active.where(soon.contains),
@@ -215,7 +230,7 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
                 ),
             ],
             if (ended.isNotEmpty) ...[
-              const _SectionTitle('Ended or cancelled'),
+              const FoundSectionTitle('Ended or cancelled'),
               for (final s in ended)
                 _SubscriptionTile(
                   subscription: s,
@@ -223,36 +238,24 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
                   onSelect: () => _select(s),
                 ),
             ],
-            if (_model.hiddenOnes.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: () => setState(() => _showHidden = !_showHidden),
-                  child: Text(
-                    _showHidden
-                        ? 'Hide the ones marked "not a subscription"'
-                        : 'Show ${_model.hiddenOnes.length} marked "not a subscription"',
-                  ),
-                ),
+            if (_model.hiddenOnes.isNotEmpty)
+              LeftOutList(
+                marked: 'not a subscription',
+                plural: 'subscriptions',
+                open: _showHidden,
+                onToggle: () => setState(() => _showHidden = !_showHidden),
+                oneLine: false,
+                items: [
+                  for (final s in _model.hiddenOnes)
+                    (
+                      leading: Avatar(name: s.name, address: s.company),
+                      title: s.name,
+                      about: s.company,
+                      learned: _model.learned.contains(s.company),
+                      onListAgain: () => _model.unhide(s.company),
+                    ),
+                ],
               ),
-              if (_showHidden)
-                for (final s in _model.hiddenOnes)
-                  ListTile(
-                    leading: Avatar(name: s.name, address: s.company),
-                    title: Text(s.name),
-                    subtitle: Text(
-                      _model.learned.contains(s.company)
-                          ? 'Left out: like ones you said aren\'t '
-                                'subscriptions'
-                          : s.company,
-                    ),
-                    trailing: TextButton(
-                      onPressed: () => _model.unhide(s.company),
-                      child: const Text('List again'),
-                    ),
-                  ),
-            ],
           ],
         ),
       ),
@@ -554,108 +557,6 @@ final class _Figure extends StatelessWidget {
       ],
     );
   }
-}
-
-/// Offers to download the receipts whose prices are not known yet.
-final class _ReadOffer extends StatelessWidget {
-  const _ReadOffer({required this.count, required this.onRead});
-
-  final int count;
-  final VoidCallback onRead;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      color: theme.colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(AppIcons.bill),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Some subscriptions, prices or dates may be missing. '
-                    'They can be found in $count receipt${count == 1 ? '' : 's'} '
-                    'not on this device yet, downloaded from your mail server '
-                    '(they stay unread).',
-                  ),
-                ),
-              ],
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: onRead,
-                child: const Text('Read receipts'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _Reading extends StatelessWidget {
-  const _Reading({
-    required this.done,
-    required this.total,
-    required this.onStop,
-  });
-
-  final int done;
-  final int total;
-  final VoidCallback onStop;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Reading receipts: $done of $total'),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: total == 0 ? null : done / total,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          TextButton(onPressed: onStop, child: const Text('Stop')),
-        ],
-      ),
-    ),
-  );
-}
-
-final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text, {this.top = 20});
-
-  final String text;
-  final double top;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.fromLTRB(4, top, 4, 8),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall
-          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-    ),
-  );
 }
 
 /// One subscription: name, cadence and next charge, price; opens to its

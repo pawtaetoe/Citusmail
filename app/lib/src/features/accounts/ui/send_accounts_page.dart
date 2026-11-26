@@ -12,6 +12,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../../../app/app.dart' show appName;
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../services/app_services.dart';
 import '../../security/state/app_lock.dart';
 import '../../security/ui/pin_dialogs.dart';
@@ -205,30 +206,17 @@ final class _SendAccountsPageState extends State<SendAccountsPage> {
     final where = _asFile
         ? 'a file for your computer'
         : _connection?.computerName ?? 'your computer';
-    final sure = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Send $what to $where?'),
-        content: Text(
-          _asFile
-              ? 'The file holds the passwords and sign-ins of the accounts you '
-                    'chose, encrypted so that only the computer showing the code '
-                    'can open it, while the code is showing.'
-              : 'Their passwords and sign-ins go straight to this computer over '
-                    'your local network, encrypted. Nothing goes through the '
-                    'internet. Only send them to your own computer.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
+    final sure = await confirmDialog(
+      context,
+      title: 'Send $what to $where?',
+      message: _asFile
+          ? 'The file holds the passwords and sign-ins of the accounts you '
+                'chose, encrypted so that only the computer showing the code '
+                'can open it, while the code is showing.'
+          : 'Their passwords and sign-ins go straight to this computer over '
+                'your local network, encrypted. Nothing goes through the '
+                'internet. Only send them to your own computer.',
+      confirm: 'Send',
     );
     if (sure != true || !mounted) return false;
     return confirmWithLock(

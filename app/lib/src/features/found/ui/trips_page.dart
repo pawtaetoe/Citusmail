@@ -18,6 +18,7 @@ import '../../settings/ui/read_ahead.dart';
 import '../state/trips_model.dart';
 import 'booking_detail_page.dart';
 import 'booking_text.dart';
+import 'found_parts.dart';
 
 /// Flights, stays, trains, buses, rental cars, tables and tickets found
 /// in booking mail, put together into trips: what is coming up, each
@@ -137,16 +138,30 @@ final class _TripsPageState extends State<TripsPage> with ReadsAhead {
             else
               _Overview(upcoming: upcoming, now: now),
             if (_model.reading case final r?)
-              _Reading(done: r.done, total: r.total, onStop: _model.stopReading)
+              ReadingEmails(
+                what: 'booking emails',
+                done: r.done,
+                total: r.total,
+                onStop: _model.stopReading,
+              )
             else if (_model.toRead.isNotEmpty && !readsAhead)
-              _ReadOffer(count: _model.toRead.length, onRead: _model.readEmails)
+              ReadEmailsOffer(
+                icon: AppIcons.trips,
+                text:
+                    'Some bookings may be missing. They can be found in '
+                    '${_model.toRead.length} booking email${_model.toRead.length == 1 ? '' : 's'} not on '
+                    'this device yet, downloaded from your mail server '
+                    '(they stay unread).',
+                button: 'Read booking emails',
+                onRead: _model.readEmails,
+              )
             else if (_model.toRead.isNotEmpty && readingAhead)
               ReadingQuietly(
                 'Reading ${_model.toRead.length} booking email'
                 '${_model.toRead.length == 1 ? '' : 's'}…',
               ),
             if (upcoming.isNotEmpty) ...[
-              const _SectionTitle('Upcoming'),
+              const FoundSectionTitle('Upcoming'),
               for (final t in upcoming) card(t),
             ],
             if (past.isNotEmpty) ...[
@@ -164,43 +179,27 @@ final class _TripsPageState extends State<TripsPage> with ReadsAhead {
                 ),
               ),
               if (_showPast) ...[
-                const _SectionTitle('Past'),
+                const FoundSectionTitle('Past'),
                 for (final t in past) card(t, over: true),
               ],
             ],
-            if (_model.hiddenOnes.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: () => setState(() => _showHidden = !_showHidden),
-                  child: Text(
-                    _showHidden
-                        ? 'Hide the ones marked "not a booking"'
-                        : 'Show ${_model.hiddenOnes.length} marked '
-                              '"not a booking"',
-                  ),
-                ),
+            if (_model.hiddenOnes.isNotEmpty)
+              LeftOutList(
+                marked: 'not a booking',
+                plural: 'bookings',
+                open: _showHidden,
+                onToggle: () => setState(() => _showHidden = !_showHidden),
+                items: [
+                  for (final b in _model.hiddenOnes)
+                    (
+                      leading: Icon(BookingText.icon(b.kind)),
+                      title: BookingText.title(b),
+                      about: b.records.last.email.subject,
+                      learned: _model.learned.contains(b.key),
+                      onListAgain: () => _model.unhide(b.key),
+                    ),
+                ],
               ),
-              if (_showHidden)
-                for (final b in _model.hiddenOnes)
-                  ListTile(
-                    leading: Icon(BookingText.icon(b.kind)),
-                    title: Text(BookingText.title(b)),
-                    subtitle: Text(
-                      _model.learned.contains(b.key)
-                          ? 'Left out: like ones you said aren\'t '
-                                'bookings'
-                          : b.records.last.email.subject,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: TextButton(
-                      onPressed: () => _model.unhide(b.key),
-                      child: const Text('List again'),
-                    ),
-                  ),
-            ],
           ],
         ),
       ),
@@ -493,107 +492,6 @@ final class _TimelineRow extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Offers to download booking emails not on the device yet.
-final class _ReadOffer extends StatelessWidget {
-  const _ReadOffer({required this.count, required this.onRead});
-
-  final int count;
-  final VoidCallback onRead;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      color: theme.colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(AppIcons.trips),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Some bookings may be missing. They can be found in '
-                    '$count booking email${count == 1 ? '' : 's'} not on '
-                    'this device yet, downloaded from your mail server '
-                    '(they stay unread).',
-                  ),
-                ),
-              ],
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: onRead,
-                child: const Text('Read booking emails'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _Reading extends StatelessWidget {
-  const _Reading({
-    required this.done,
-    required this.total,
-    required this.onStop,
-  });
-
-  final int done;
-  final int total;
-  final VoidCallback onStop;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Reading booking emails: $done of $total'),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: total == 0 ? null : done / total,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          TextButton(onPressed: onStop, child: const Text('Stop')),
-        ],
-      ),
-    ),
-  );
-}
-
-final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall
-          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-    ),
-  );
 }
 
 final class _Empty extends StatelessWidget {

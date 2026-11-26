@@ -10,6 +10,7 @@ import 'package:mail_sync/mail_sync.dart';
 
 import '../../../app/app.dart' show appName;
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../services/app_services.dart';
 import '../../security/ui/pin_dialogs.dart';
 
@@ -89,27 +90,15 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
   }
 
   Future<void> _stop() async {
-    final sure = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Turn off sync on this device?'),
-        content: const Text(
+    final sure = await confirmDialog(
+      context,
+      title: 'Turn off sync on this device?',
+      message:
           'This device stops sharing its blocked senders, Screener decisions, '
           'snoozed emails, unsubscribes, folder rules, image senders, '
           'sign-offs and mail settings. What it has now stays. Your other '
           'devices keep syncing with each other.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Turn off'),
-          ),
-        ],
-      ),
+      confirm: 'Turn off',
     );
     if (sure != true) return;
     final reached = await widget.services.deviceSync.stop();
