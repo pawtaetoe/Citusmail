@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 /// Phones: search at the top of the inbox, a navigation bar with Inbox,
@@ -52,12 +53,7 @@ void main() {
   }
 
   /// Lets real isolates (worker, message parsing) finish.
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
-  }
+  Future<void> settle(WidgetTester tester) => settleMail(tester);
 
   Future<void> tab(WidgetTester tester, String label) async {
     await tester.tap(
@@ -411,6 +407,8 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('^Found')), findsWidgets);
     expect(find.byTooltip('New message (C)'), findsOneWidget);
     await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    // The inbox too: section headers, avatars, the search field.
+    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
     expect(tester.getSize(searchField()).height, greaterThanOrEqualTo(48));
 
     await tab(tester, 'Pins');

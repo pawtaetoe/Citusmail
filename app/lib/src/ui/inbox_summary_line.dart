@@ -249,7 +249,14 @@ final class _Piece extends StatelessWidget {
         borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
         onTap: shown.onTap,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 28),
+          // 48 to tap on touch screens; compact for a mouse.
+          constraints: BoxConstraints(
+            minHeight:
+                Theme.of(context).materialTapTargetSize ==
+                    MaterialTapTargetSize.padded
+                ? 48
+                : 28,
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: Row(

@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 /// Outlined glyphs everywhere; filled only for what is on.
@@ -90,10 +91,7 @@ void main() {
     expect(find.byIcon(AppIcons.inbox), findsWidgets);
 
     await tester.tap(find.text('Hello there'));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
+    await settleMail(tester);
     expect(find.byIcon(Icons.code), findsNothing);
     expect(find.byIcon(Icons.block), findsNothing);
     expect(find.byIcon(Icons.snooze), findsNothing);

@@ -13,6 +13,7 @@ import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 void main() {
@@ -41,9 +42,7 @@ void main() {
   }
 
   Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
+    await settleMail(tester);
     // Long enough for the compose screen to slide in.
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pump(const Duration(milliseconds: 400));

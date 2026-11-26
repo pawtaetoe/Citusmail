@@ -275,6 +275,8 @@ final class _PhoneHomeState extends State<PhoneHome>
       searchFocus: widget.searchFocus,
       controlsAtBottom: true,
       tabRoot: _rootOf(_tab),
+      // The New message button floats over the end of the list.
+      endSpace: 88,
     );
     if (!search) return pane;
     return NotificationListener<ScrollNotification>(

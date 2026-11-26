@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 void main() {
@@ -49,12 +50,7 @@ void main() {
   }
 
   /// Lets real isolates (worker, message parsing) finish.
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
-  }
+  Future<void> settle(WidgetTester tester) => settleMail(tester);
 
   /// Asks for less motion, as the system's accessibility setting does.
   void reduceMotion(WidgetTester tester) {

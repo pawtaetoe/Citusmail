@@ -14,6 +14,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_web/mail_web.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 /// Stands in for a newsletter's unsubscribe server: plain TCP on
@@ -91,12 +92,7 @@ void main() {
   }
 
   /// Lets real I/O (isolates, sockets) finish.
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
-  }
+  Future<void> settle(WidgetTester tester) => settleMail(tester);
 
   /// Real sockets complete in steps, each needing a real wait and a pump.
   Future<void> until(WidgetTester tester, bool Function() done) async {

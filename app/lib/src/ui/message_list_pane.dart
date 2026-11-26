@@ -45,6 +45,7 @@ final class MessageListPane extends StatelessWidget {
     this.leading,
     this.controlsAtBottom = false,
     this.tabRoot,
+    this.endSpace = 0,
   });
 
   final MailController controller;
@@ -58,6 +59,10 @@ final class MessageListPane extends StatelessWidget {
   /// without a way back; other places have one, back to it. Elsewhere
   /// (null) only the inboxes have no way back.
   final MailLocation? tabRoot;
+
+  /// Room after the last row, so a button floating over the list (the
+  /// phone's New message) never covers it.
+  final double endSpace;
 
   /// Null when the sidebar has the "New message" button.
   final VoidCallback? onCompose;
@@ -105,7 +110,9 @@ final class MessageListPane extends StatelessWidget {
         // Searching with the "Ask your mail" assistant on: its answer.
         AskMailPanel(controller: controller),
         SearchCorrectionLine(controller: controller),
-        Expanded(child: _Messages(controller: controller)),
+        Expanded(
+          child: _Messages(controller: controller, endSpace: endSpace),
+        ),
       ],
     ),
   );
@@ -639,9 +646,10 @@ final class _Action {
 // ------------------------------------------------------------- messages
 
 final class _Messages extends StatefulWidget {
-  const _Messages({required this.controller});
+  const _Messages({required this.controller, this.endSpace = 0});
 
   final MailController controller;
+  final double endSpace;
 
   @override
   State<_Messages> createState() => _MessagesState();
@@ -850,7 +858,7 @@ final class _MessagesState extends State<_Messages> {
                     ),
                   ],
                 ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverToBoxAdapter(child: SizedBox(height: 24 + widget.endSpace)),
             ],
           ),
         );
@@ -926,6 +934,8 @@ final class _MessagesState extends State<_Messages> {
                 ),
               ),
             ),
+            if (widget.endSpace > 0)
+              SliverToBoxAdapter(child: SizedBox(height: widget.endSpace)),
           ],
         ),
       );
@@ -1021,7 +1031,8 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
             ),
             child: Padding(
               // The icon sits over the avatars, the name over the senders.
-              padding: const EdgeInsets.fromLTRB(22, 6, 6, 4),
+              // 2 above and below: "mark all read" gets its full 48.
+              padding: const EdgeInsets.fromLTRB(22, 2, 6, 2),
               child: Row(
                 children: [
                   SizedBox(

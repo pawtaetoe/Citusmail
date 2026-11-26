@@ -9,6 +9,7 @@ import 'package:citusmail/src/ui/reader_pane.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 /// On wide windows the text being read or written stays a column of
@@ -37,10 +38,7 @@ void main() {
   }
 
   Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
+    await settleMail(tester);
     await tester.pump(const Duration(milliseconds: 400));
   }
 

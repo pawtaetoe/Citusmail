@@ -11,6 +11,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 void main() {
@@ -42,10 +43,7 @@ void main() {
 
   Future<void> open(WidgetTester tester, String subject) async {
     await tester.tap(find.text(subject).first);
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
+    await settleMail(tester);
     // Phones: the row has grown into the message.
     await tester.pump();
     await tester.pump(CitusMotion.medium);
