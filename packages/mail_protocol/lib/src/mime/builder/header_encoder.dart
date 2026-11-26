@@ -74,15 +74,15 @@ final class HeaderEncoder {
   /// could break the header or is not a deliverable address.
   String validateAddress(MailAddress address) {
     final local = address.localPart;
-    final domain = address.domain;
-    if (_hasControl(local) || _hasControl(domain)) {
+    if (_hasControl(local) || _hasControl(address.domain)) {
       throw const MessageBuildException('address contains control characters');
     }
+    final domain = asciiDomain(address.domain);
     if (!_localPart.hasMatch(local) ||
         local.startsWith('.') ||
         local.endsWith('.') ||
         local.contains('..')) {
-      // Quoted local parts and SMTPUTF8 addresses are not supported yet.
+      // Quoted local parts and SMTPUTF8 local parts are not supported yet.
       throw MessageBuildException(
         'unsupported address local part: ${address.address}',
       );
@@ -91,6 +91,72 @@ final class HeaderEncoder {
       throw MessageBuildException('invalid address domain: ${address.address}');
     }
     return '$local@$domain';
+  }
+
+  /// [domain] as DNS and SMTP need it: each label with letters beyond
+  /// ASCII in its Punycode form (`münchen.de` is `xn--mnchen-3ya.de`,
+  /// RFC 3490 and 3492), lower case.
+  static String asciiDomain(String domain) {
+    if (domain.runes.every((r) => r < 0x80)) return domain;
+    return domain
+        .replaceAll(RegExp('[\u3002\uFF0E\uFF61]'), '.')
+        .split('.')
+        .map((label) {
+          final lower = label.toLowerCase();
+          return lower.runes.every((r) => r < 0x80)
+              ? lower
+              : 'xn--${_punycode(lower)}';
+        })
+        .join('.');
+  }
+
+  /// The Punycode encoding of [label] (RFC 3492 6.3).
+  static String _punycode(String label) {
+    const base = 36, tMin = 1, tMax = 26, skew = 38, damp = 700;
+    final input = label.runes.toList();
+    final out = StringBuffer();
+    for (final c in input) {
+      if (c < 0x80) out.writeCharCode(c);
+    }
+    final basic = out.length;
+    if (basic > 0) out.write('-');
+    int adapt(int delta, int points, {required bool first}) {
+      var d = first ? delta ~/ damp : delta ~/ 2;
+      d += d ~/ points;
+      var k = 0;
+      while (d > ((base - tMin) * tMax) ~/ 2) {
+        d ~/= base - tMin;
+        k += base;
+      }
+      return k + ((base - tMin + 1) * d) ~/ (d + skew);
+    }
+
+    // 0-25 are a-z, 26-35 are 0-9.
+    String symbol(int d) => String.fromCharCode(d < 26 ? 0x61 + d : 0x16 + d);
+    var n = 0x80, delta = 0, bias = 72, handled = basic;
+    while (handled < input.length) {
+      final next = input.where((c) => c >= n).reduce((a, b) => a < b ? a : b);
+      delta += (next - n) * (handled + 1);
+      n = next;
+      for (final c in input) {
+        if (c < n) delta++;
+        if (c != n) continue;
+        var q = delta;
+        for (var k = base; ; k += base) {
+          final t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+          if (q < t) break;
+          out.write(symbol(t + (q - t) % (base - t)));
+          q = (q - t) ~/ (base - t);
+        }
+        out.write(symbol(q));
+        bias = adapt(delta, handled + 1, first: handled == basic);
+        delta = 0;
+        handled++;
+      }
+      delta++;
+      n++;
+    }
+    return out.toString();
   }
 
   /// RFC 2047 "B" encoded words in UTF-8, split on whole characters.
