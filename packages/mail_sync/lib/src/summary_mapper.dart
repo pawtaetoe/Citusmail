@@ -94,6 +94,10 @@ final class SummaryMapper {
       snippet: snippet,
       headers: {
         ...headers,
+        // The date with the sender's time zone (sentAt keeps only the
+        // moment), for the writing hint on the time where they are.
+        if (envelope?.date case final date? when date.zoneKnown)
+          'date': [MailDate.format(date.utc, offset: date.offset)],
         // The attachments' names, types and sizes, for the list of files
         // without downloading anything.
         if (structure != null)

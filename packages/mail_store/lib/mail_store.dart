@@ -22,6 +22,7 @@ export 'src/model/unsubscription.dart';
 export 'src/repository/account_repository.dart';
 export 'src/repository/app_data_sync_repository.dart';
 export 'src/repository/block_repository.dart';
+export 'src/repository/correspondence_repository.dart';
 export 'src/repository/draft_repository.dart';
 export 'src/repository/folder_rule_repository.dart';
 export 'src/repository/image_sender_repository.dart';

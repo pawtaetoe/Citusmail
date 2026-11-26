@@ -100,6 +100,7 @@ void main() {
       String? preview,
       List<int>? headers,
       ImapBodyPart? structure,
+      MailDate? date,
     }) => FetchedMessage(
       sequence: 1,
       uid: uid,
@@ -109,6 +110,7 @@ void main() {
       envelope: ImapEnvelope(
         subject: 'Hello',
         messageId: 'm1@x.example',
+        date: date,
         from: const [
           MailAddress(
             displayName: 'Ana',
@@ -213,6 +215,24 @@ void main() {
       );
       // Without attachments, nothing is kept.
       expect(mapper.map(fetched())!.headers, isEmpty);
+    });
+
+    test('the sender\'s time zone is kept, when the date has one', () {
+      final at = DateTime.utc(2026, 10, 1, 7, 40);
+      final s = mapper.map(
+        fetched(date: MailDate(at, const Duration(hours: -8))),
+      )!;
+      expect(s.sentAt, at);
+      final kept = const MailDateParser().parse(s.headers['date']!.single)!;
+      expect(kept.utc, at);
+      expect(kept.offset, const Duration(hours: -8));
+      // "-0000": the zone is unknown, so nothing is kept.
+      expect(
+        mapper
+            .map(fetched(date: MailDate(at, Duration.zero, zoneKnown: false)))!
+            .headers,
+        isEmpty,
+      );
     });
 
     test('messages without a UID are skipped', () {
