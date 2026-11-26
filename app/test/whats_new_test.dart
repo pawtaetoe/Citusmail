@@ -61,8 +61,8 @@ void main() {
   test('what is new since the version last seen', () {
     final whatsNew = WhatsNew(app.store);
     // First start after this update: this version and the 0.5 highlights.
-    final first = [for (final f in whatsNew.pending) f.id];
-    expect(first.first, releaseNotes.first.features.first);
+    final first = [for (final f in whatsNew.pending) f.id.name];
+    expect(first.first, releaseNotes.first.features.first.name);
     expect(first, containsAll(['screener', 'snooze', 'appointments']));
 
     // Coming from the version before: only what this one brought.

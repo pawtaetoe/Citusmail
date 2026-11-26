@@ -25,6 +25,7 @@ import '../../organise/ui/privacy_report_page.dart';
 import '../../organise/ui/sender_cleanup_page.dart';
 import '../../settings/ui/image_senders_page.dart';
 import '../../settings/ui/settings_page.dart';
+import '../state/feature_id.dart';
 
 /// How the features are grouped on the "All features" page: like the
 /// sidebar first, then by what people do.
@@ -57,7 +58,7 @@ final class Feature {
   });
 
   /// Stable: "What's new" and the tips name features by it.
-  final String id;
+  final FeatureId id;
   final FeatureGroup group;
   final IconData icon;
   final String title;
@@ -74,10 +75,11 @@ final class Feature {
 
 /// Every feature, in the order "All features" lists them.
 abstract final class Features {
-  static Feature? byId(String id) => all.where((f) => f.id == id).firstOrNull;
+  static Feature? byId(FeatureId id) =>
+      all.where((f) => f.id == id).firstOrNull;
 
   /// The feature [id], if this kind of device has it.
-  static Feature? availableById(String id, {bool? android}) =>
+  static Feature? availableById(FeatureId id, {bool? android}) =>
       available(android: android).where((f) => f.id == id).firstOrNull;
 
   /// The features on this kind of device.
@@ -110,7 +112,7 @@ abstract final class Features {
 
   static final all = <Feature>[
     Feature(
-      id: 'subscriptions',
+      id: FeatureId.subscriptions,
       group: FeatureGroup.found,
       icon: AppIcons.subscriptions,
       title: 'Subscriptions',
@@ -121,7 +123,7 @@ abstract final class Features {
           _push(context, (_) => SubscriptionsPage(controller: c)),
     ),
     Feature(
-      id: 'deliveries',
+      id: FeatureId.deliveries,
       group: FeatureGroup.found,
       icon: AppIcons.deliveries,
       title: 'Deliveries',
@@ -132,7 +134,7 @@ abstract final class Features {
           _push(context, (_) => DeliveriesPage(controller: c)),
     ),
     Feature(
-      id: 'trips',
+      id: FeatureId.trips,
       group: FeatureGroup.found,
       icon: AppIcons.trips,
       title: 'Trips',
@@ -140,7 +142,7 @@ abstract final class Features {
       open: (context, c) => _push(context, (_) => TripsPage(controller: c)),
     ),
     Feature(
-      id: 'appointments',
+      id: FeatureId.appointments,
       group: FeatureGroup.found,
       icon: AppIcons.appointments,
       title: 'Appointments',
@@ -149,7 +151,7 @@ abstract final class Features {
           _push(context, (_) => AppointmentsPage(controller: c)),
     ),
     Feature(
-      id: 'onlineAccounts',
+      id: FeatureId.onlineAccounts,
       group: FeatureGroup.found,
       icon: AppIcons.onlineAccounts,
       title: 'Online accounts',
@@ -157,7 +159,7 @@ abstract final class Features {
       open: (context, c) => _push(context, (_) => AccountsPage(controller: c)),
     ),
     Feature(
-      id: 'cleanUp',
+      id: FeatureId.cleanUp,
       group: FeatureGroup.tools,
       icon: AppIcons.cleanUp,
       title: 'Clean up',
@@ -166,7 +168,7 @@ abstract final class Features {
           _push(context, (_) => SenderCleanupPage(controller: c)),
     ),
     Feature(
-      id: 'privacyReport',
+      id: FeatureId.privacyReport,
       group: FeatureGroup.tools,
       icon: AppIcons.privacyReport,
       title: 'Privacy report',
@@ -177,7 +179,7 @@ abstract final class Features {
       ),
     ),
     Feature(
-      id: 'files',
+      id: FeatureId.files,
       group: FeatureGroup.tools,
       icon: AppIcons.attachment,
       title: 'Files',
@@ -186,7 +188,7 @@ abstract final class Features {
           _push(context, (_) => AttachmentsPage(controller: c)),
     ),
     Feature(
-      id: 'commandBar',
+      id: FeatureId.commandBar,
       group: FeatureGroup.tools,
       icon: AppIcons.commandBar,
       title: 'Command bar (Ctrl+K)',
@@ -201,7 +203,7 @@ abstract final class Features {
       desktopOnly: true,
     ),
     Feature(
-      id: 'aiAssistant',
+      id: FeatureId.aiAssistant,
       group: FeatureGroup.tools,
       icon: AppIcons.assistant,
       title: 'AI assistant (your own key)',
@@ -211,7 +213,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'aiAssistant'),
     ),
     Feature(
-      id: 'aiTranslate',
+      id: FeatureId.aiTranslate,
       group: FeatureGroup.tools,
       icon: AppIcons.translate,
       title: 'Translate',
@@ -221,7 +223,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'ai-translate'),
     ),
     Feature(
-      id: 'askMail',
+      id: FeatureId.askMail,
       group: FeatureGroup.tools,
       icon: AppIcons.assistant,
       title: 'Ask your mail',
@@ -231,7 +233,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'ai-ask'),
     ),
     Feature(
-      id: 'screener',
+      id: FeatureId.screener,
       group: FeatureGroup.inbox,
       icon: AppIcons.screener,
       title: 'Screener',
@@ -241,7 +243,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'screener'),
     ),
     Feature(
-      id: 'newSinceAway',
+      id: FeatureId.newSinceAway,
       group: FeatureGroup.inbox,
       icon: AppIcons.newSinceAway,
       title: 'New since you were away',
@@ -249,7 +251,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'newSinceAway'),
     ),
     Feature(
-      id: 'summaryLine',
+      id: FeatureId.summaryLine,
       group: FeatureGroup.inbox,
       icon: AppIcons.summaryLine,
       title: 'Summary line',
@@ -259,7 +261,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'summaryLine'),
     ),
     Feature(
-      id: 'peek',
+      id: FeatureId.peek,
       group: FeatureGroup.inbox,
       icon: AppIcons.peek,
       title: 'Peek',
@@ -269,7 +271,7 @@ abstract final class Features {
       open: (context, c) => _goTo(context, c, const InboxLocation()),
     ),
     Feature(
-      id: 'snooze',
+      id: FeatureId.snooze,
       group: FeatureGroup.inbox,
       icon: AppIcons.snooze,
       title: 'Snooze',
@@ -279,7 +281,7 @@ abstract final class Features {
       open: (context, c) => _goTo(context, c, const SnoozedLocation()),
     ),
     Feature(
-      id: 'pins',
+      id: FeatureId.pins,
       group: FeatureGroup.inbox,
       icon: AppIcons.pins,
       title: 'Pins',
@@ -287,7 +289,7 @@ abstract final class Features {
       open: (context, c) => _goTo(context, c, const PinsLocation()),
     ),
     Feature(
-      id: 'unsubscribe',
+      id: FeatureId.unsubscribe,
       group: FeatureGroup.inbox,
       icon: AppIcons.unsubscribe,
       title: 'Unsubscribe in one tap',
@@ -298,7 +300,7 @@ abstract final class Features {
           _goTo(context, c, const SectionLocation(SmartSection.newsletters)),
     ),
     Feature(
-      id: 'aiTidy',
+      id: FeatureId.aiTidy,
       group: FeatureGroup.inbox,
       icon: AppIcons.assistant,
       title: 'Ask AI to tidy',
@@ -308,7 +310,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'ai-actions'),
     ),
     Feature(
-      id: 'codes',
+      id: FeatureId.codes,
       group: FeatureGroup.inbox,
       icon: AppIcons.codes,
       title: 'Verification codes',
@@ -318,7 +320,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'codeCleanup'),
     ),
     Feature(
-      id: 'aiSorting',
+      id: FeatureId.aiSorting,
       group: FeatureGroup.inbox,
       icon: AppIcons.assistant,
       title: 'AI sorting backup',
@@ -328,7 +330,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'ai-sorting'),
     ),
     Feature(
-      id: 'sendLater',
+      id: FeatureId.sendLater,
       group: FeatureGroup.writing,
       icon: AppIcons.sendLater,
       title: 'Send later',
@@ -336,7 +338,7 @@ abstract final class Features {
       open: (context, c) => c.compose(),
     ),
     Feature(
-      id: 'writingHints',
+      id: FeatureId.writingHints,
       group: FeatureGroup.writing,
       icon: AppIcons.tip,
       title: 'Writing hints',
@@ -346,7 +348,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'writingHints'),
     ),
     Feature(
-      id: 'followUps',
+      id: FeatureId.followUps,
       group: FeatureGroup.writing,
       icon: AppIcons.reminder,
       title: 'Remind me if no reply',
@@ -356,7 +358,7 @@ abstract final class Features {
       open: (context, c) => _goTo(context, c, const FollowUpsLocation()),
     ),
     Feature(
-      id: 'readReceipt',
+      id: FeatureId.readReceipt,
       group: FeatureGroup.writing,
       icon: AppIcons.receipt,
       title: 'Ask for a read receipt',
@@ -364,7 +366,7 @@ abstract final class Features {
       open: (context, c) => c.compose(),
     ),
     Feature(
-      id: 'writeWithAi',
+      id: FeatureId.writeWithAi,
       group: FeatureGroup.writing,
       icon: AppIcons.writeWithAi,
       title: 'Write with AI',
@@ -374,7 +376,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'ai-writing'),
     ),
     Feature(
-      id: 'signOffs',
+      id: FeatureId.signOffs,
       group: FeatureGroup.writing,
       icon: AppIcons.signOff,
       title: 'Sign-offs',
@@ -385,7 +387,7 @@ abstract final class Features {
           _push(context, (_) => SignOffsPage(services: c.services)),
     ),
     Feature(
-      id: 'aiQuickReplies',
+      id: FeatureId.aiQuickReplies,
       group: FeatureGroup.writing,
       icon: AppIcons.quickReply,
       title: 'Quick replies',
@@ -395,7 +397,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'ai-quickReplies'),
     ),
     Feature(
-      id: 'images',
+      id: FeatureId.images,
       group: FeatureGroup.privacy,
       icon: AppIcons.image,
       title: 'Images and trackers blocked',
@@ -406,7 +408,7 @@ abstract final class Features {
           _push(context, (_) => ImageSendersPage(services: c.services)),
     ),
     Feature(
-      id: 'block',
+      id: FeatureId.block,
       group: FeatureGroup.privacy,
       icon: AppIcons.block,
       title: 'Block senders',
@@ -415,7 +417,7 @@ abstract final class Features {
           _push(context, (_) => BlockedSendersPage(services: c.services)),
     ),
     Feature(
-      id: 'appLock',
+      id: FeatureId.appLock,
       group: FeatureGroup.privacy,
       icon: AppIcons.lock,
       title: 'App lock',
@@ -423,7 +425,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'appLock'),
     ),
     Feature(
-      id: 'scamWarnings',
+      id: FeatureId.scamWarnings,
       group: FeatureGroup.privacy,
       icon: AppIcons.scam,
       title: 'Scam warnings',
@@ -433,7 +435,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'safeBrowsing'),
     ),
     Feature(
-      id: 'notifications',
+      id: FeatureId.notifications,
       group: FeatureGroup.devices,
       icon: AppIcons.notifications,
       title: 'Notifications and reminders',
@@ -443,7 +445,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'notifications'),
     ),
     Feature(
-      id: 'instantMail',
+      id: FeatureId.instantMail,
       group: FeatureGroup.devices,
       icon: AppIcons.instantMail,
       title: 'Instant mail',
@@ -452,7 +454,7 @@ abstract final class Features {
       androidOnly: true,
     ),
     Feature(
-      id: 'codeTile',
+      id: FeatureId.codeTile,
       group: FeatureGroup.devices,
       icon: AppIcons.codes,
       title: 'Latest code in Quick Settings',
@@ -463,7 +465,7 @@ abstract final class Features {
       androidOnly: true,
     ),
     Feature(
-      id: 'pairing',
+      id: FeatureId.pairing,
       group: FeatureGroup.devices,
       icon: AppIcons.pairing,
       title: 'Add accounts from your phone',
@@ -473,7 +475,7 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'pairing'),
     ),
     Feature(
-      id: 'deviceSync',
+      id: FeatureId.deviceSync,
       group: FeatureGroup.devices,
       icon: AppIcons.devices,
       title: 'Sync between devices',

@@ -10,6 +10,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../organise/ui/snooze_sheet.dart';
+import '../state/feature_id.dart';
 import 'features.dart';
 
 /// A short tip, shown once, at the moment its feature could help.
@@ -117,7 +118,7 @@ final class Tips {
         'Bookings like this one are put together into trips, with times '
         'and confirmation numbers.',
     action: 'Open Trips',
-    onAction: (context, c) => Features.byId('trips')?.open(context, c),
+    onAction: (context, c) => Features.byId(FeatureId.trips)?.open(context, c),
   );
 
   static final screener = Tip(
@@ -128,7 +129,8 @@ final class Tips {
         'With the Screener on, people writing to you for the first time '
         'wait for your OK before their mail reaches your inbox.',
     action: 'Set up Screener',
-    onAction: (context, c) => Features.byId('screener')?.open(context, c),
+    onAction: (context, c) =>
+        Features.byId(FeatureId.screener)?.open(context, c),
   );
 
   /// The tip for reading [message], if one could help. [firstTimeSender]

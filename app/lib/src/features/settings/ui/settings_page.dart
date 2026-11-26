@@ -25,6 +25,7 @@ import '../../accounts/ui/send_accounts_page.dart';
 import '../../ai/ui/ai_feature_tiles.dart';
 import '../../ai/ui/ai_settings_page.dart';
 import '../../compose/ui/sign_offs_page.dart';
+import '../../discover/state/feature_id.dart';
 import '../../discover/ui/discover_page.dart';
 import '../../discover/ui/features.dart';
 import '../../discover/ui/tips.dart';
@@ -1156,7 +1157,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               'and actions',
             ),
             trailing: const Icon(AppIcons.chevron),
-            onTap: () => Features.byId('commandBar')!.open(context, c),
+            onTap: () => Features.byId(FeatureId.commandBar)!.open(context, c),
           ),
         ),
       _find(

@@ -491,7 +491,7 @@ final class FoundHub extends StatelessWidget {
           for (final f in Features.all)
             if (f.group == FeatureGroup.found)
               ListTile(
-                key: ValueKey('found-${f.id}'),
+                key: ValueKey('found-${f.id.name}'),
                 minVerticalPadding: 10,
                 leading: Container(
                   width: 40,

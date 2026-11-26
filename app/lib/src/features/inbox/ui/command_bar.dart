@@ -15,6 +15,7 @@ import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../ai/ui/ai_translate.dart';
+import '../../discover/state/feature_id.dart';
 import '../../discover/ui/discover_page.dart';
 import '../../discover/ui/features.dart';
 import '../../discover/ui/keyboard_shortcuts.dart';
@@ -288,7 +289,7 @@ final class CommandCatalog {
     );
 
     Command feature(
-      String id, {
+      FeatureId id, {
       String? as,
       String? title,
       String? subtitle,
@@ -296,7 +297,7 @@ final class CommandCatalog {
     }) {
       final f = Features.byId(id)!;
       return place(
-        as ?? id,
+        as ?? id.name,
         title ?? f.title,
         f.icon,
         () => f.open(context, c),
@@ -386,25 +387,34 @@ final class CommandCatalog {
               ],
             ),
       ],
-      feature('subscriptions', words: const ['bills', 'renewals', 'paid']),
-      feature('deliveries', words: const ['parcels', 'packages', 'shipping']),
       feature(
-        'deliveries',
+        FeatureId.subscriptions,
+        words: const ['bills', 'renewals', 'paid'],
+      ),
+      feature(
+        FeatureId.deliveries,
+        words: const ['parcels', 'packages', 'shipping'],
+      ),
+      feature(
+        FeatureId.deliveries,
         as: 'returns',
         title: 'Returns',
         subtitle: 'In Deliveries',
         words: const ['refunds', 'send back'],
       ),
-      feature('trips', words: const ['flights', 'hotels', 'bookings']),
-      feature('appointments', words: const ['bookings', 'tables', 'events']),
-      feature('onlineAccounts', words: const ['sign ups', 'websites']),
+      feature(FeatureId.trips, words: const ['flights', 'hotels', 'bookings']),
       feature(
-        'files',
+        FeatureId.appointments,
+        words: const ['bookings', 'tables', 'events'],
+      ),
+      feature(FeatureId.onlineAccounts, words: const ['sign ups', 'websites']),
+      feature(
+        FeatureId.files,
         title: 'Attachments',
         words: const ['files', 'documents', 'photos'],
       ),
-      feature('cleanUp', words: const ['senders', 'tidy']),
-      feature('privacyReport', words: const ['trackers', 'images']),
+      feature(FeatureId.cleanUp, words: const ['senders', 'tidy']),
+      feature(FeatureId.privacyReport, words: const ['trackers', 'images']),
       place(
         'settings',
         'Settings',

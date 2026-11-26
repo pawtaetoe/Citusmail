@@ -4,6 +4,7 @@
 
 import 'package:citusmail/src/core/theme/appearance.dart';
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/discover/state/feature_id.dart';
 import 'package:citusmail/src/features/discover/ui/discover_page.dart';
 import 'package:citusmail/src/features/discover/ui/features.dart';
 import 'package:citusmail/src/features/inbox/state/commands.dart';
@@ -452,9 +453,9 @@ void main() {
   group('ways to it', () {
     testWidgets('in All features, and it opens', (tester) async {
       await shell(tester);
-      expect(Features.byId('commandBar'), isNotNull);
+      expect(Features.byId(FeatureId.commandBar), isNotNull);
       expect(
-        Features.available(android: true).map((f) => f.id),
+        Features.available(android: true).map((f) => f.id.name),
         isNot(contains('commandBar')),
       );
       await tester.tap(find.text('All features'));

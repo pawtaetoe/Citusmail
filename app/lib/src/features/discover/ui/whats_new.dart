@@ -10,6 +10,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../inbox/state/mail_location.dart';
+import '../state/feature_id.dart';
 import 'features.dart';
 
 /// The app's version, as in app/pubspec.yaml (a test checks they agree).
@@ -17,39 +18,45 @@ const appVersion = '0.6.2';
 
 /// What a version brought that people can see, newest first: feature ids
 /// from [Features]. Only features that shipped.
-const releaseNotes = <({String version, List<String> features})>[
+const releaseNotes = <({String version, List<FeatureId> features})>[
   (
     version: '0.6.2',
-    features: ['summaryLine', 'peek', 'writingHints', 'commandBar', 'codeTile'],
+    features: [
+      FeatureId.summaryLine,
+      FeatureId.peek,
+      FeatureId.writingHints,
+      FeatureId.commandBar,
+      FeatureId.codeTile,
+    ],
   ),
   (
     version: '0.6.0',
     features: [
-      'aiAssistant',
-      'writeWithAi',
-      'aiTidy',
-      'aiTranslate',
-      'aiQuickReplies',
-      'askMail',
-      'aiSorting',
+      FeatureId.aiAssistant,
+      FeatureId.writeWithAi,
+      FeatureId.aiTidy,
+      FeatureId.aiTranslate,
+      FeatureId.aiQuickReplies,
+      FeatureId.askMail,
+      FeatureId.aiSorting,
     ],
   ),
-  (version: '0.5.12', features: ['deviceSync']),
-  (version: '0.5.11', features: ['signOffs']),
-  (version: '0.5.10', features: ['pairing']),
+  (version: '0.5.12', features: [FeatureId.deviceSync]),
+  (version: '0.5.11', features: [FeatureId.signOffs]),
+  (version: '0.5.10', features: [FeatureId.pairing]),
   // The 0.5 highlights, for the first start after updating to a version
   // with "What's new".
   (
     version: '0.5.0',
     features: [
-      'appointments',
-      'screener',
-      'snooze',
-      'sendLater',
-      'followUps',
-      'readReceipt',
-      'newSinceAway',
-      'trips',
+      FeatureId.appointments,
+      FeatureId.screener,
+      FeatureId.snooze,
+      FeatureId.sendLater,
+      FeatureId.followUps,
+      FeatureId.readReceipt,
+      FeatureId.newSinceAway,
+      FeatureId.trips,
     ],
   ),
 ];

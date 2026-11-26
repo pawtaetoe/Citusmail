@@ -8,6 +8,7 @@ import 'package:citusmail/src/core/theme/citusmail_theme.dart';
 import 'package:citusmail/src/features/ai/state/ask_mail_model.dart';
 import 'package:citusmail/src/features/ai/ui/ai_feature_tiles.dart';
 import 'package:citusmail/src/features/ai/ui/ask_mail_panel.dart';
+import 'package:citusmail/src/features/discover/state/feature_id.dart';
 import 'package:citusmail/src/features/discover/ui/features.dart';
 import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
 import 'package:citusmail/src/features/inbox/ui/message_list_pane.dart';
@@ -475,7 +476,7 @@ void main() {
       expect(ids('ask'), contains('ai-ask'));
       expect(ids('question'), contains('ai-ask'));
       expect(AiFeatures.byId('ask'), AiFeatures.ask);
-      expect(Features.byId('askMail'), isNotNull);
+      expect(Features.byId(FeatureId.askMail), isNotNull);
     });
   });
 
