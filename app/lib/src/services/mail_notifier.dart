@@ -12,9 +12,9 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
-import '../app.dart' show appName;
-import '../mail/follow_up_times.dart';
-import '../security/app_lock.dart';
+import '../app/app.dart' show appName;
+import '../features/organise/state/follow_up_times.dart';
+import '../features/security/state/app_lock.dart';
 import 'app_settings.dart';
 import 'mail_notices.dart';
 import 'reminders.dart';

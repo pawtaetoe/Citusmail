@@ -7,8 +7,8 @@
 // line while their emails are read; with it off, the card is offered as
 // before.
 
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';

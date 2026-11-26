@@ -10,6 +10,7 @@ export 'src/charset/index_packer.dart';
 export 'src/dependency_graph.dart';
 export 'src/dependency_policy.dart';
 export 'src/import_checker.dart';
+export 'src/layer_checker.dart';
 export 'src/lock_file.dart';
 export 'src/policy_checker.dart';
 export 'src/public_suffix_generator.dart';

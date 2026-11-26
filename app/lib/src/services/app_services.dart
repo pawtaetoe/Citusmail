@@ -19,9 +19,9 @@ import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_web/mail_web.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../mail/summaries.dart';
-import '../security/app_lock.dart';
-import '../security/pin_hasher.dart';
+import '../features/reader/state/summaries.dart';
+import '../features/security/state/app_lock.dart';
+import '../features/security/state/pin_hasher.dart';
 import 'ai_assistant.dart';
 import 'ai_sorter.dart';
 import 'app_settings.dart';

@@ -8,12 +8,12 @@ import 'package:flutter/foundation.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
-import '../mail/accounts_model.dart';
-import '../mail/appointments_model.dart';
-import '../mail/deliveries_model.dart';
-import '../mail/message_reads.dart';
-import '../mail/subscriptions_model.dart';
-import '../mail/trips_model.dart';
+import '../features/accounts/state/accounts_model.dart';
+import '../features/found/state/appointments_model.dart';
+import '../features/found/state/deliveries_model.dart';
+import '../features/found/state/subscriptions_model.dart';
+import '../features/found/state/trips_model.dart';
+import '../features/inbox/state/message_reads.dart';
 import 'app_settings.dart';
 
 /// Downloads one message's body into the store (BODY.PEEK: it stays

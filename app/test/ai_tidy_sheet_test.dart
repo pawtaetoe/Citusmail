@@ -4,10 +4,10 @@
 
 import 'dart:convert';
 
-import 'package:citusmail/src/mail/ai_tidy_model.dart';
-import 'package:citusmail/src/mail/mail_controller.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/mail_shell.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/ai/state/ai_tidy_model.dart';
+import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
+import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_ai/mail_ai.dart';

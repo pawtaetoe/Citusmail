@@ -4,10 +4,10 @@
 
 import 'dart:async';
 
-import 'package:citusmail/src/app.dart';
-import 'package:citusmail/src/security/lock_screen.dart';
+import 'package:citusmail/src/app/app.dart';
+import 'package:citusmail/src/features/security/ui/lock_screen.dart';
+import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:citusmail/src/services/app_services.dart';
-import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

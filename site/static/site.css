@@ -22,7 +22,7 @@
   src: url("/fonts/IBMPlexSans-Bold-Latin1.woff2") format("woff2");
 }
 
-/* The app's palette (CitusPalette in app/lib/src/ui/citusmail_theme.dart). */
+/* The app's palette (CitusPalette in app/lib/src/core/theme/citusmail_theme.dart). */
 :root {
   --lagoon: #0F7A69;
   --lagoon-light: #5DCAB4;

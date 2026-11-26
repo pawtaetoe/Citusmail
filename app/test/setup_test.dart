@@ -3,11 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:citusmail/main.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/accounts/state/setup_controller.dart';
+import 'package:citusmail/src/features/accounts/ui/setup_page.dart';
 import 'package:citusmail/src/services/app_services.dart';
 import 'package:citusmail/src/services/secret_store.dart';
-import 'package:citusmail/src/setup/setup_controller.dart';
-import 'package:citusmail/src/setup/setup_page.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';

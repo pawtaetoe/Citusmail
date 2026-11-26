@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'package:citusmail/src/compose/writing_help.dart';
+import 'package:citusmail/src/features/compose/state/writing_help.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_ai/testing.dart';

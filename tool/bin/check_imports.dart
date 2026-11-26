@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-/// Fails if shipped code imports network libraries it must not.
+/// Fails if shipped code imports network libraries it must not, or if the
+/// app's layers reach across (docs/architecture.md).
 ///
 /// Run from the repository root:
 ///   dart run repo_tools:check_imports
@@ -14,6 +15,7 @@ import 'package:repo_tools/repo_tools.dart';
 
 void main() {
   final checker = ImportChecker();
+  const layers = LayerChecker();
   final roots = [
     Directory('app/lib'),
     ...Directory('packages')
@@ -30,7 +32,10 @@ void main() {
     for (final root in roots)
       for (final file in root.listSync(recursive: true).whereType<File>())
         if (file.path.endsWith('.dart'))
-          ...checker.check(file.path, file.readAsStringSync()),
+          for (final content in [file.readAsStringSync()]) ...[
+            ...checker.check(file.path, content),
+            ...layers.check(file.path, content),
+          ],
   ];
   for (final v in violations) {
     stderr.writeln('error: $v');

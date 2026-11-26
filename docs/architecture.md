@@ -44,21 +44,25 @@ app/lib/src/
 ```
 
 Inside a feature, `ui/` holds widgets (views) and `state/` holds view
-models and controllers (plain Dart: `ChangeNotifier`/`ValueNotifier`, no
-widgets). A feature exposes what others may use from its top-level files;
-everything under its `ui/` and `state/` is its own.
+models, controllers and the plain logic behind them (`ChangeNotifier`,
+`ValueNotifier`, value types: no widgets).
 
 ## Who may import what
 
-Checked on every pull request by `dart run repo_tools:check_imports`:
+Checked on every pull request by `dart run repo_tools:check_imports`
+(`tool/lib/src/layer_checker.dart`):
 
 - `core/` imports no feature, no service, nothing from `app/`.
 - `services/` and every `state/` folder import no widget code (`ui/`,
-  `core/widgets/`, `package:flutter/material.dart`).
-- A feature's `ui/` may import its own `state/`, `core/`, `services/`
-  and other features' public files, never another feature's `ui/` or
-  `state/` internals.
+  `core/widgets/`, `package:flutter/material.dart`): they can be tested
+  and reused without a screen.
 - Network code only where the existing rules allow it (unchanged).
+
+A feature's `ui/` may use its own `state/`, `core/`, `services/` and
+other features where the screens really meet (the inbox opens the
+reader; the reader offers snooze). Keep those links few and pointing one
+way; a type two features both need belongs in the lower one's `state/` or
+in `core/`.
 
 ## Conventions
 

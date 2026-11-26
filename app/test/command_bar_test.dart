@@ -2,15 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'package:citusmail/src/mail/commands.dart';
-import 'package:citusmail/src/ui/appearance.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
-import 'package:citusmail/src/ui/command_bar.dart';
-import 'package:citusmail/src/ui/discover_page.dart';
-import 'package:citusmail/src/ui/features.dart';
-import 'package:citusmail/src/ui/mail_shell.dart';
-import 'package:citusmail/src/ui/settings_catalog.dart';
-import 'package:citusmail/src/ui/settings_page.dart';
+import 'package:citusmail/src/core/theme/appearance.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/discover/ui/discover_page.dart';
+import 'package:citusmail/src/features/discover/ui/features.dart';
+import 'package:citusmail/src/features/inbox/state/commands.dart';
+import 'package:citusmail/src/features/inbox/ui/command_bar.dart';
+import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
+import 'package:citusmail/src/features/settings/ui/settings_catalog.dart';
+import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';

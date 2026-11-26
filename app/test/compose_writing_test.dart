@@ -4,9 +4,9 @@
 
 import 'dart:convert';
 
-import 'package:citusmail/src/compose/compose_controller.dart';
-import 'package:citusmail/src/compose/compose_page.dart';
-import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/compose/state/compose_controller.dart';
+import 'package:citusmail/src/features/compose/ui/compose_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_ai/mail_ai.dart';

@@ -4,7 +4,7 @@
 
 import 'dart:convert';
 
-import 'package:citusmail/src/security/pin_hasher.dart';
+import 'package:citusmail/src/features/security/state/pin_hasher.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 String _hex(List<int> b) =>
