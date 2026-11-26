@@ -20,10 +20,14 @@ import '../../compose/state/send_later_times.dart';
 import '../../organise/state/follow_up_times.dart';
 import '../../reader/state/invitation_answers.dart';
 import 'inbox_summary.dart';
+import 'mail_counts.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
 import 'new_since_away.dart';
-import 'store_changes.dart';
+import 'sync_status.dart';
+
+export 'mail_counts.dart' show MailCounts;
+export 'sync_status.dart' show SyncIdle, SyncProblem, SyncRunning, SyncStatus;
 
 /// How a sender can be blocked.
 final class BlockChoice {
@@ -122,80 +126,6 @@ final class ReaderFailed extends ReaderState {
   final String reason;
 }
 
-/// Counts for the sidebar and section headers, read together.
-final class MailCounts {
-  const MailCounts({
-    required this.sections,
-    required this.perAccountUnread,
-    required this.folderUnread,
-    required this.outbox,
-    this.snoozed = 0,
-    this.followUps = 0,
-  });
-
-  static const empty = MailCounts(
-    sections: {},
-    perAccountUnread: {},
-    folderUnread: {},
-    outbox: 0,
-  );
-
-  /// Messages snoozed in the inboxes.
-  final int snoozed;
-
-  /// Sent messages waiting for a reply ("Remind me if no reply"),
-  /// including those back with "No reply yet".
-  final int followUps;
-
-  final Map<SmartSection, SectionCount> sections;
-  final Map<int, int> perAccountUnread;
-  final Map<int, int> folderUnread;
-  final int outbox;
-
-  /// Unread mail in the Smart Inbox (mail waiting in the Screener isn't
-  /// counted until its sender is let in, nor snoozed mail until it comes
-  /// back).
-  int get inboxUnread => unreadIn(sections);
-
-  static int unreadIn(Map<SmartSection, SectionCount> sections) => [
-    for (final MapEntry(:key, :value) in sections.entries)
-      if (key != SmartSection.screener && key != SmartSection.snoozed)
-        value.unread,
-  ].fold(0, (sum, n) => sum + n);
-}
-
-/// How the accounts' sync is going, in one line for the list header.
-sealed class SyncStatus {
-  const SyncStatus();
-}
-
-final class SyncIdle extends SyncStatus {
-  const SyncIdle(this.lastSynced);
-
-  final DateTime? lastSynced;
-}
-
-final class SyncRunning extends SyncStatus {
-  const SyncRunning();
-}
-
-final class SyncProblem extends SyncStatus {
-  const SyncProblem(
-    this.kind,
-    this.account, {
-    this.accountId,
-    this.oauth = false,
-  });
-
-  final SyncFailureKind kind;
-  final String account;
-  final int? accountId;
-
-  /// The account signs in with OAuth: a refused login means its sign-in
-  /// ended, not a wrong password.
-  final bool oauth;
-}
-
 /// The mail screen's state, in separate pieces so each part of the screen
 /// rebuilds only when its own data changes:
 ///
@@ -208,8 +138,9 @@ final class SyncProblem extends SyncStatus {
 final class MailController {
   MailController(this.services)
     : list = MessageListModel(services.store),
-      codeCleaner = CodeCleaner(services.store, services.actions) {
-    _events = services.worker.events.listen(_onSyncEvent);
+      codeCleaner = CodeCleaner(services.store, services.actions),
+      syncStatus = SyncStatusController(services.store, services.worker) {
+    syncStatus.onEvent = _onSyncEvent;
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
     // What arrived since the app was last used (closed, or in the
@@ -228,10 +159,16 @@ final class MailController {
   final AppServices services;
   final MessageListModel list;
   final location = ValueNotifier<MailLocation>(const InboxLocation());
-  final counts = ValueNotifier<MailCounts>(MailCounts.empty);
+
+  /// Sidebar and section counts.
+  late final countsController = CountsController(_store, list, followUps);
+  ValueNotifier<MailCounts> get counts => countsController.counts;
   final reader = ValueNotifier<ReaderState>(const ReaderEmpty());
   final selection = ValueNotifier<Set<int>>(const {});
-  final status = ValueNotifier<SyncStatus>(const SyncIdle(null));
+
+  /// The sync worker's events and the status line.
+  final SyncStatusController syncStatus;
+  ValueNotifier<SyncStatus> get status => syncStatus.status;
 
   /// Moves old verification codes out of the inbox, once agreed.
   final CodeCleaner codeCleaner;
@@ -243,8 +180,6 @@ final class MailController {
   InboxSummary get summary => _summary ??= InboxSummary(services, list);
   InboxSummary? _summary;
 
-  late final StreamSubscription<SyncEvent> _events;
-  final Map<int, SyncEvent> _lastEvent = {};
   Timer? _refreshSoon;
   bool _disposed = false;
 
@@ -260,7 +195,9 @@ final class MailController {
 
   /// Asks for an account's new password or sign-in (set by the screen
   /// that can show it).
-  void Function(Account account)? onReconnect;
+  void Function(Account account)? get onReconnect => syncStatus.onReconnect;
+  set onReconnect(void Function(Account account)? value) =>
+      syncStatus.onReconnect = value;
 
   /// Announces snoozed mail that came back (set by the screen that can
   /// post notifications).
@@ -271,12 +208,7 @@ final class MailController {
   void Function()? onFollowUpsBack;
 
   /// Fixes the login of the account in [status], if that is the problem.
-  void reconnect(SyncProblem problem) {
-    final account = problem.accountId == null
-        ? null
-        : _store.accounts.byId(problem.accountId!);
-    if (account != null) onReconnect?.call(account);
-  }
+  void reconnect(SyncProblem problem) => syncStatus.reconnect(problem);
 
   // ------------------------------------------------------------ location
 
@@ -355,32 +287,7 @@ final class MailController {
     _scheduleWake();
   }
 
-  /// Counts are read again only when something in the store changed.
-  late final _changes = StoreChanges(_store);
-  (int, int)? _countsStamp;
-
-  void _refreshCounts() {
-    final stamp = _changes.stamp;
-    if (stamp == _countsStamp) return;
-    _countsStamp = stamp;
-    final accounts = _store.accounts.all();
-    final sections = list.sectionCounts();
-    counts.value = MailCounts(
-      sections: sections,
-      perAccountUnread: {
-        for (final a in accounts)
-          a.id: MailCounts.unreadIn(
-            accounts.length == 1
-                ? sections
-                : list.sectionCounts(accountId: a.id),
-          ),
-      },
-      folderUnread: _store.messages.unreadCounts(),
-      outbox: _store.outbox.sends().length,
-      snoozed: _store.snoozes.count(),
-      followUps: followUps.all().length,
-    );
-  }
+  void _refreshCounts() => countsController.refresh();
 
   // ---------------------------------------------------------- old codes
 
@@ -1848,19 +1755,12 @@ final class MailController {
 
   // ---------------------------------------------------------------- sync
 
-  SyncEvent? lastEvent(int accountId) => _lastEvent[accountId];
+  SyncEvent? lastEvent(int accountId) => syncStatus.lastEvent(accountId);
 
-  Future<void> syncNow() async {
-    try {
-      await services.worker.syncNow();
-    } on SyncWorkerException {
-      // Shown through the account's failure event.
-    }
-  }
+  Future<void> syncNow() => syncStatus.syncNow();
 
+  /// After each sync event (the status line is up to date by then).
   void _onSyncEvent(SyncEvent event) {
-    _lastEvent[event.accountId] = event;
-    status.value = _computeStatus();
     if (event is AccountSynced) {
       tidyCodes();
       wakeSnoozes();
@@ -1871,39 +1771,20 @@ final class MailController {
     _refreshSoon = Timer(const Duration(milliseconds: 250), refresh);
   }
 
-  SyncStatus _computeStatus() {
-    if (_lastEvent.values.any((e) => e is AccountSyncStarted)) {
-      return const SyncRunning();
-    }
-    for (final MapEntry(key: accountId, value: event) in _lastEvent.entries) {
-      if (event is AccountSyncFailed) {
-        final account = _store.accounts.byId(accountId);
-        return SyncProblem(
-          event.failure.kind,
-          account?.email ?? '',
-          accountId: accountId,
-          oauth: account?.usesOAuth ?? false,
-        );
-      }
-    }
-    return SyncIdle(DateTime.now());
-  }
-
   void dispose() {
     _disposed = true;
     _refreshSoon?.cancel();
     _wakeTimer?.cancel();
-    unawaited(_events.cancel());
+    syncStatus.dispose();
     services.resorted.removeListener(refresh);
     _summary?.dispose();
     list.dispose();
     location.dispose();
-    counts.dispose();
+    countsController.dispose();
     reader.dispose();
     selection.dispose();
     invitationsChanged.dispose();
     accountsChanged.dispose();
-    status.dispose();
     codesOffer.dispose();
   }
 }
