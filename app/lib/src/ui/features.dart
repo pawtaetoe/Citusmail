@@ -231,6 +231,16 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'summaryLine'),
     ),
     Feature(
+      id: 'peek',
+      group: FeatureGroup.inbox,
+      icon: AppIcons.peek,
+      title: 'Peek',
+      sentence:
+          'Look at an email without opening it: press and hold it, or '
+          'press Space. It stays unread.',
+      open: (context, c) => _goTo(context, c, const InboxLocation()),
+    ),
+    Feature(
       id: 'snooze',
       group: FeatureGroup.inbox,
       icon: AppIcons.snooze,

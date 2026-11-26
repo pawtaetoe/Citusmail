@@ -260,9 +260,14 @@ void main() {
   testWidgets('selected messages are snoozed together', (tester) async {
     seed();
     await show(tester);
-    await tester.longPress(find.text('Draft contract for review'));
+    // A tap on the avatar selects; then taps select.
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.label == 'Select Maria Lopez',
+      ),
+    );
     await tester.pump();
-    await tester.longPress(find.text('Team offsite agenda'));
+    await tester.tap(find.text('Team offsite agenda'));
     await tester.pump();
     await tester.tap(find.byTooltip('Snooze (B)'));
     await settle(tester);
