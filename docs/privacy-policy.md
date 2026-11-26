@@ -122,7 +122,7 @@ instead that only that computer can open, while its code is showing.
 | Permission | Why |
 | --- | --- |
 | Internet, network state | To connect to your mail provider |
-| Notifications | To tell you about new mail (sender, subject and, unless you turn previews off, the first lines; on the lock screen only that there is new mail) |
+| Notifications | To tell you about new mail (sender, subject and, unless you turn previews off, the first lines and any verification code; on the lock screen only that there is new mail) |
 | Foreground service, start at boot | To keep a live connection to your mail server ("Instant mail", on unless you turn it off), or check for new mail in the background |
 | Run in the background without battery limits | Asked once, with Android's own dialog, so Instant mail keeps its connection while the phone sleeps |
 | Fingerprint or face unlock | Only if you turn on the app lock; checked by Android, the app only learns "yes" or "no" |
@@ -135,8 +135,10 @@ advertising ID.
 
 Connections to mail servers are encrypted (TLS). Mail and settings on the
 device are stored in an encrypted database whose key is kept in the
-device's secure keychain. Passwords and sign-in tokens are kept only in
-that keychain. Images and trackers in emails are blocked unless you load
+device's secure keychain. While the "Latest code" tile is in Android's
+Quick Settings, the newest verification code, its sender and time are also
+kept, encrypted with a key in the Android Keystore, and dropped at the
+next check for mail once the code is 10 minutes old. Passwords and sign-in tokens are kept only in that keychain. Images and trackers in emails are blocked unless you load
 them, and the app checks messages for signs of phishing on the device.
 
 ## Keeping and deleting your data

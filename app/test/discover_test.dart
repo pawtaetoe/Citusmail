@@ -45,7 +45,10 @@ void main() {
     ], isNot(contains('instantMail')));
     expect([
       for (final f in Features.available(android: true)) f.id,
-    ], contains('instantMail'));
+    ], containsAll(['instantMail', 'codeTile']));
+    expect([
+      for (final f in Features.available(android: false)) f.id,
+    ], isNot(contains('codeTile')));
   });
 
   testWidgets('from the sidebar: every feature, grouped, each opens', (

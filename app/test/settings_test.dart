@@ -5,6 +5,7 @@
 import 'package:citusmail/src/background/background_mail.dart';
 import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
+import 'package:citusmail/src/services/latest_code.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
 import 'package:flutter/material.dart';
@@ -274,6 +275,87 @@ void main() {
       expect(asked, 1, reason: 'never twice');
     },
   );
+
+  group('"Latest code" in Quick Settings', () {
+    const title = 'Add “Latest code” to Quick Settings';
+
+    Future<void> open(
+      WidgetTester tester,
+      TileRequest answer, {
+      bool android = true,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsPage(
+            services: app.services,
+            isAndroid: android,
+            batteryLimited: () async => false,
+            requestCodeTile: () async => answer,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> add(WidgetTester tester) async {
+      await tester.scrollUntilVisible(find.text(title), 200);
+      final button = find.descendant(
+        of: find.ancestor(
+          of: find.text(title),
+          matching: find.byType(ListTile),
+        ),
+        matching: find.widgetWithText(TextButton, 'Add'),
+      );
+      await tester.ensureVisible(button);
+      await tester.pumpAndSettle();
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Android 13+: Android adds it', (tester) async {
+      await open(tester, TileRequest.added);
+      await add(tester);
+      expect(find.text('Added to Quick Settings'), findsOneWidget);
+    });
+
+    testWidgets('already there: says so', (tester) async {
+      await open(tester, TileRequest.alreadyAdded);
+      await add(tester);
+      expect(
+        find.text('“Latest code” is already in Quick Settings'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('older Android: how to add it', (tester) async {
+      await open(tester, TileRequest.unsupported);
+      await add(tester);
+      expect(find.text('Add “Latest code”'), findsOneWidget);
+      expect(find.textContaining('tap the pencil'), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('says what is kept, and that the code is never shown', (
+      tester,
+    ) async {
+      await open(tester, TileRequest.notAdded);
+      await tester.scrollUntilVisible(find.text(title), 200);
+      await add(tester);
+      expect(find.byType(SnackBar), findsNothing, reason: 'declined: quiet');
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        SettingsPage.codeTileExplanation,
+        allOf(contains('never the code'), contains('encrypted')),
+      );
+    });
+
+    testWidgets('not on desktop', (tester) async {
+      await open(tester, TileRequest.unsupported, android: false);
+      expect(find.text(title, skipOffstage: false), findsNothing);
+    });
+  });
 
   testWidgets('Android: when the background check last ran', (tester) async {
     app.services.settings.instantMail = false;

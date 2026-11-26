@@ -179,6 +179,22 @@ abstract final class SettingsCatalog {
       words: ['battery', 'background', 'fetch', 'interval', 'how often'],
       androidOnly: true,
     ),
+    SettingEntry(
+      'codeTile',
+      'notifications',
+      'Add “Latest code” to Quick Settings',
+      words: [
+        'latest code',
+        'quick settings',
+        'tile',
+        'verification code',
+        'one-time code',
+        'otp',
+        'copy code',
+        '2fa',
+      ],
+      androidOnly: true,
+    ),
     // Inbox & sorting.
     SettingEntry(
       'newSinceAway',

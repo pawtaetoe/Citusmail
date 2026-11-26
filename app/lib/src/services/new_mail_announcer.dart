@@ -8,24 +8,33 @@ import 'package:flutter/widgets.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import 'app_services.dart';
+import 'latest_code.dart';
 import 'mail_notifier.dart';
 
 /// While the app runs: after each sync, claims new mail and announces it,
 /// unless the user is looking at the app (then the list shows it); posts
 /// reminders of bills and trials when it is time; and announces snoozed
-/// mail that came back ([backFromSnooze]).
+/// mail that came back ([backFromSnooze]). Also keeps the "Latest code"
+/// tile's value up to date ([LatestCode]): a new code, or one deleted
+/// here (a sync follows every change).
 final class NewMailAnnouncer {
-  NewMailAnnouncer(this._services, this._notifier)
-    : _tracker = NewMailTracker(_services.store) {
+  NewMailAnnouncer(this._services, this._notifier, {LatestCode? latestCode})
+    : _tracker = NewMailTracker(_services.store),
+      _latestCode = latestCode ?? LatestCode(_services.store) {
     _events = _services.worker.events.listen(_onEvent);
   }
 
   final AppServices _services;
   final MailNotifier? _notifier;
   final NewMailTracker _tracker;
+  final LatestCode _latestCode;
   late final StreamSubscription<SyncEvent> _events;
 
   void _onEvent(SyncEvent event) {
+    // Also when offline: a code deleted here is let go of at once.
+    if (event is AccountSynced || event is AccountSyncFailed) {
+      unawaited(_latestCode.update());
+    }
     if (event is! AccountSynced) return;
     // Always claimed, so mail seen here is not announced later by the
     // background job.
