@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_sort/mail_sort.dart';
 
+import '../../../core/state/load_state.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
@@ -138,129 +139,124 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
       top: false,
       child: ListenableBuilder(
         listenable: _model,
-        builder: (context, _) {
-          if (_model.loading) {
-            return const SkeletonRows(
-              label: 'Finding subscriptions…',
-              maxWidth: PageScaffold.width,
-            );
-          }
-          final all = _model.subscriptions;
-          final soon = _model.renewingSoon.toSet();
-          final comingUp = _model.comingUp;
-          final active = [
-            for (final s in all)
-              if (s.status == SubscriptionStatus.active) s,
-          ];
-          final ended = [
-            for (final s in all)
-              if (s.status != SubscriptionStatus.active) s,
-          ];
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                children: [
-                  // What needs doing soon, first.
-                  if (comingUp.isNotEmpty) ...[
-                    const _SectionTitle('Coming up', top: 8),
-                    for (final r in comingUp)
-                      _ReminderTile(
-                        reminder: r,
-                        now: _today,
-                        onOpen: () => _openReminder(r),
-                        onDismiss: () => _dismiss(r),
-                      ),
-                  ],
-                  if (all.isEmpty && comingUp.isEmpty)
-                    const _Empty()
-                  else if (all.isNotEmpty)
-                    _Overview(
-                      model: _model,
-                      soon: soon.length,
-                      onSelect: _select,
-                      today: _today,
-                    ),
-                  if (_model.reading case final r?)
-                    _Reading(
-                      done: r.done,
-                      total: r.total,
-                      onStop: _model.stopReading,
-                    )
-                  else if (_model.toRead.isNotEmpty && !readsAhead)
-                    _ReadOffer(
-                      count: _model.toRead.length,
-                      onRead: _model.readReceipts,
-                    )
-                  else if (_model.toRead.isNotEmpty && readingAhead)
-                    ReadingQuietly(
-                      'Reading ${_model.toRead.length} receipt'
-                      '${_model.toRead.length == 1 ? '' : 's'}…',
-                    ),
-                  if (active.isNotEmpty) ...[
-                    const _SectionTitle('Active'),
-                    // Renewing within a week first.
-                    for (final s in [
-                      ...active.where(soon.contains),
-                      ...active.where((s) => !soon.contains(s)),
-                    ])
-                      _SubscriptionTile(
-                        subscription: s,
-                        today: _today,
-                        soon: soon.contains(s),
-                        onSelect: () => _select(s),
-                      ),
-                  ],
-                  if (ended.isNotEmpty) ...[
-                    const _SectionTitle('Ended or cancelled'),
-                    for (final s in ended)
-                      _SubscriptionTile(
-                        subscription: s,
-                        today: _today,
-                        onSelect: () => _select(s),
-                      ),
-                  ],
-                  if (_model.hiddenOnes.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () =>
-                            setState(() => _showHidden = !_showHidden),
-                        child: Text(
-                          _showHidden
-                              ? 'Hide the ones marked "not a subscription"'
-                              : 'Show ${_model.hiddenOnes.length} marked "not a subscription"',
-                        ),
-                      ),
-                    ),
-                    if (_showHidden)
-                      for (final s in _model.hiddenOnes)
-                        ListTile(
-                          leading: Avatar(name: s.name, address: s.company),
-                          title: Text(s.name),
-                          subtitle: Text(
-                            _model.learned.contains(s.company)
-                                ? 'Left out: like ones you said aren\'t '
-                                      'subscriptions'
-                                : s.company,
-                          ),
-                          trailing: TextButton(
-                            onPressed: () => _model.unhide(s.company),
-                            child: const Text('List again'),
-                          ),
-                        ),
-                  ],
-                ],
-              ),
-            ),
-          );
+        builder: (context, _) => switch (_model.state) {
+          // As before, a first load that failed leaves the page looking.
+          Loading() || LoadFailed() => const SkeletonRows(
+            label: 'Finding subscriptions…',
+            maxWidth: PageScaffold.width,
+          ),
+          Loaded() => _list(context),
         },
       ),
     ),
   );
+
+  Widget _list(BuildContext context) {
+    final all = _model.subscriptions;
+    final soon = _model.renewingSoon.toSet();
+    final comingUp = _model.comingUp;
+    final active = [
+      for (final s in all)
+        if (s.status == SubscriptionStatus.active) s,
+    ];
+    final ended = [
+      for (final s in all)
+        if (s.status != SubscriptionStatus.active) s,
+    ];
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            // What needs doing soon, first.
+            if (comingUp.isNotEmpty) ...[
+              const _SectionTitle('Coming up', top: 8),
+              for (final r in comingUp)
+                _ReminderTile(
+                  reminder: r,
+                  now: _today,
+                  onOpen: () => _openReminder(r),
+                  onDismiss: () => _dismiss(r),
+                ),
+            ],
+            if (all.isEmpty && comingUp.isEmpty)
+              const _Empty()
+            else if (all.isNotEmpty)
+              _Overview(
+                model: _model,
+                soon: soon.length,
+                onSelect: _select,
+                today: _today,
+              ),
+            if (_model.reading case final r?)
+              _Reading(done: r.done, total: r.total, onStop: _model.stopReading)
+            else if (_model.toRead.isNotEmpty && !readsAhead)
+              _ReadOffer(count: _model.toRead.length, onRead: _model.readEmails)
+            else if (_model.toRead.isNotEmpty && readingAhead)
+              ReadingQuietly(
+                'Reading ${_model.toRead.length} receipt'
+                '${_model.toRead.length == 1 ? '' : 's'}…',
+              ),
+            if (active.isNotEmpty) ...[
+              const _SectionTitle('Active'),
+              // Renewing within a week first.
+              for (final s in [
+                ...active.where(soon.contains),
+                ...active.where((s) => !soon.contains(s)),
+              ])
+                _SubscriptionTile(
+                  subscription: s,
+                  today: _today,
+                  soon: soon.contains(s),
+                  onSelect: () => _select(s),
+                ),
+            ],
+            if (ended.isNotEmpty) ...[
+              const _SectionTitle('Ended or cancelled'),
+              for (final s in ended)
+                _SubscriptionTile(
+                  subscription: s,
+                  today: _today,
+                  onSelect: () => _select(s),
+                ),
+            ],
+            if (_model.hiddenOnes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _showHidden = !_showHidden),
+                  child: Text(
+                    _showHidden
+                        ? 'Hide the ones marked "not a subscription"'
+                        : 'Show ${_model.hiddenOnes.length} marked "not a subscription"',
+                  ),
+                ),
+              ),
+              if (_showHidden)
+                for (final s in _model.hiddenOnes)
+                  ListTile(
+                    leading: Avatar(name: s.name, address: s.company),
+                    title: Text(s.name),
+                    subtitle: Text(
+                      _model.learned.contains(s.company)
+                          ? 'Left out: like ones you said aren\'t '
+                                'subscriptions'
+                          : s.company,
+                    ),
+                    trailing: TextButton(
+                      onPressed: () => _model.unhide(s.company),
+                      child: const Text('List again'),
+                    ),
+                  ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// The overview: what the active subscriptions cost a year, a month and

@@ -4,16 +4,14 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 
-import '../../../services/app_services.dart';
-import '../../../services/auto_reader.dart';
 import '../../../services/reminders.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
+import 'found_model.dart';
 
 /// The mail subscriptions and reminders are read from: receipts, bills,
 /// renewal and trial emails of the last two years.
@@ -198,20 +196,23 @@ List<int> subscriptionMailToRead(
   }.toList();
 }
 
+/// The Subscriptions page's findings, with what is coming up that the
+/// user has not dismissed.
+typedef SubscriptionsPage = ({
+  SubscriptionsFound found,
+  List<Reminder> comingUp,
+});
+
 /// The Subscriptions page's data: paid subscriptions found in receipts and
 /// renewal mail, and what is coming up (bills due, free trials ending,
 /// renewals), on the device. Prices and dates come from the emails' text:
-/// the preview, or the whole message once downloaded. [readReceipts]
+/// the preview, or the whole message once downloaded. [readEmails]
 /// downloads the receipts and bills that are not on the device yet, only
 /// when the user asks.
-final class SubscriptionsModel extends ChangeNotifier {
-  SubscriptionsModel(this._services, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
-
-  final AppServices _services;
-  final DateTime Function() _now;
-
-  MailStore get _store => _services.store;
+final class SubscriptionsModel
+    extends FoundModel<Subscription, SubscriptionsPage> {
+  SubscriptionsModel(super.services, {super.now})
+    : super(kind: MailKind.subscription, hiddenKeys: hiddenSetting);
 
   static const hiddenSetting = StringListSetting('subscriptions.hidden');
 
@@ -229,40 +230,49 @@ final class SubscriptionsModel extends ChangeNotifier {
   /// Bills and trial emails this recent are downloaded for their dates.
   static const datesBack = Duration(days: 45);
 
-  bool loading = true;
-  List<Subscription> subscriptions = const [];
+  @override
+  Future<SubscriptionsPage> find(DateTime now, Set<int> skip) async {
+    final found = await findSubscriptions(
+      store,
+      now,
+      monthlyRenewals: services.settings.monthlyRenewals,
+      skip: skip,
+    );
+    final dismissed = ReminderState(store).dismissed;
+    return (
+      found: found,
+      comingUp: [
+        for (final r in found.reminders)
+          if (!dismissed.contains(r.key)) r,
+      ],
+    );
+  }
 
-  /// Companies the user said are not subscriptions.
-  Set<String> hidden = const {};
+  @override
+  Finds<Subscription> findsOf(SubscriptionsPage page) => (
+    all: page.found.all,
+    hidden: page.found.hidden,
+    learned: page.found.learned,
+    toRead: page.found.toRead,
+  );
 
-  /// Companies left out because they look like ones the user said are
-  /// not subscriptions ("Learn from my corrections").
-  Set<String> learned = const {};
+  @override
+  String keyOf(Subscription item) => item.company;
 
-  /// Those of [hidden] and [learned].
-  List<Subscription> hiddenOnes = const [];
+  @override
+  List<MailSample> samplesOf(Subscription item) =>
+      subscriptionSamples(item, store.messages.byId);
 
-  /// Everything the rules found.
-  List<Subscription> _all = const [];
-
-  late final _corrections = Corrections(_store);
+  /// The subscriptions listed: those not hidden.
+  List<Subscription> get subscriptions => listed;
 
   /// Bills due, free trials ending and renewals in the next days, soonest
   /// first, except those the user dismissed.
-  List<Reminder> comingUp = const [];
-
-  /// Receipts not on the device yet, of subscriptions whose price or
-  /// cadence is not known, and recent bills and trial emails whose date
-  /// is not known.
-  List<int> toRead = const [];
-
-  /// While reading receipts: how many are done, of how many.
-  ({int done, int total})? reading;
-  bool _stop = false;
+  List<Reminder> get comingUp => found?.comingUp ?? const [];
 
   /// Subscriptions charging within a week.
   List<Subscription> get renewingSoon {
-    final soon = _now().add(const Duration(days: 7));
+    final soon = now().add(const Duration(days: 7));
     return [
       for (final s in subscriptions)
         if (s.nextCharge case final next? when next.isBefore(soon)) s,
@@ -274,126 +284,25 @@ final class SubscriptionsModel extends ChangeNotifier {
       if (s.status == SubscriptionStatus.active) s,
   ];
 
-  /// Emails given up on: not offered while they are read automatically.
-  Set<int> get _skip =>
-      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
-
-  Future<void> load() async {
-    final now = _now();
-    final found = await findSubscriptions(
-      _store,
-      now,
-      monthlyRenewals: _services.settings.monthlyRenewals,
-      skip: _skip,
-    );
-    hidden = found.hidden;
-    learned = found.learned;
-    _all = found.all;
-    final left = {...hidden, ...learned};
-    final dismissed = ReminderState(_store).dismissed;
-    comingUp = [
-      for (final r in found.reminders)
-        if (!dismissed.contains(r.key)) r,
-    ];
-    subscriptions = [
-      for (final s in found.all)
-        if (!left.contains(s.company)) s,
-    ];
-    hiddenOnes = [
-      for (final s in found.all)
-        if (left.contains(s.company)) s,
-    ];
-    toRead = found.toRead;
-    loading = false;
-    notifyListeners();
-  }
-
-  /// Downloads the receipts in [toRead] from the user's own mail server
-  /// (they stay unread), then looks again. Stops early on [stopReading].
-  Future<void> readReceipts() async {
-    if (reading != null || toRead.isEmpty) return;
-    final ids = toRead;
-    _stop = false;
-    var done = 0;
-    reading = (done: 0, total: ids.length);
-    notifyListeners();
-    for (final id in ids) {
-      if (_stop) break;
-      try {
-        await _services.worker.loadBody(id);
-      } on Object {
-        // Gone, too large or offline: its price stays unknown.
-      }
-      reading = (done: ++done, total: ids.length);
-      notifyListeners();
-    }
-    reading = null;
-    await load();
-  }
-
-  void stopReading() => _stop = true;
-
-  /// "Not a subscription": hidden from the list (undoable), and learned
-  /// from.
-  void hide(String company) {
-    if (_found(company) case final s?) {
-      _corrections.rejected(MailKind.subscription, _samples(s));
-    }
-    _setHidden({...hidden, company});
-  }
-
-  /// Undo, or "List again": listed again (and never left out by
-  /// learning again).
-  void unhide(String company) {
-    final s = _found(company);
-    if (hidden.contains(company)) {
-      if (s != null) {
-        _corrections.rejected(MailKind.subscription, _samples(s), undo: true);
-      }
-      _setHidden({...hidden}..remove(company));
-    } else if (learned.contains(company)) {
-      _corrections.kept(
-        MailKind.subscription,
-        company,
-        s == null ? const [] : _samples(s),
-      );
-      unawaited(load());
-    }
-  }
-
-  /// [subscription]'s page was opened: a weak sign that it is one.
-  void opened(Subscription subscription) => _corrections.opened(
-    MailKind.subscription,
-    subscription.company,
-    _samples(subscription),
-  );
-
-  Subscription? _found(String company) =>
-      _all.where((s) => s.company == company).firstOrNull;
-
-  List<MailSample> _samples(Subscription s) =>
-      subscriptionSamples(s, _store.messages.byId);
-
-  void _setHidden(Set<String> companies) {
-    hiddenSetting.write(_store.settings, companies.toList());
-    unawaited(load());
-  }
-
   /// "Done" or "Not needed": [reminder] is no longer shown or notified
   /// (undoable).
   void dismiss(Reminder reminder) {
-    ReminderState(_store).dismiss(reminder.key);
-    comingUp = [
-      for (final r in comingUp)
-        if (r.key != reminder.key) r,
-    ];
-    notifyListeners();
+    ReminderState(store).dismiss(reminder.key);
+    if (data case final page?) {
+      change(
+        page.withFound((
+          found: page.found.found,
+          comingUp: [
+            for (final r in page.found.comingUp)
+              if (r.key != reminder.key) r,
+          ],
+        )),
+      );
+    }
   }
 
   void undismiss(Reminder reminder) {
-    ReminderState(_store).undismiss(reminder.key);
+    ReminderState(store).undismiss(reminder.key);
     unawaited(load());
   }
-
-  StoredMessage? message(int id) => _store.messages.byId(id);
 }

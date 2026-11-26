@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_sort/mail_sort.dart';
 
+import '../../../core/state/load_state.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/motion.dart';
 import '../../../core/widgets/badge.dart';
@@ -106,110 +107,105 @@ final class _TripsPageState extends State<TripsPage> with ReadsAhead {
       top: false,
       child: ListenableBuilder(
         listenable: _model,
-        builder: (context, _) {
-          if (_model.loading) {
-            return const SkeletonRows(
-              label: 'Finding trips…',
-              maxWidth: PageScaffold.width,
-            );
-          }
-          final upcoming = _model.upcoming;
-          final past = _model.past;
-          final now = (widget.now ?? DateTime.now)();
-          Widget card(Trip t, {bool over = false}) =>
-              TripCard(trip: t, over: over, now: now, onSelect: _select);
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                children: [
-                  if (_model.trips.isEmpty)
-                    const _Empty()
-                  else
-                    _Overview(upcoming: upcoming, now: now),
-                  if (_model.reading case final r?)
-                    _Reading(
-                      done: r.done,
-                      total: r.total,
-                      onStop: _model.stopReading,
-                    )
-                  else if (_model.toRead.isNotEmpty && !readsAhead)
-                    _ReadOffer(
-                      count: _model.toRead.length,
-                      onRead: _model.readEmails,
-                    )
-                  else if (_model.toRead.isNotEmpty && readingAhead)
-                    ReadingQuietly(
-                      'Reading ${_model.toRead.length} booking email'
-                      '${_model.toRead.length == 1 ? '' : 's'}…',
-                    ),
-                  if (upcoming.isNotEmpty) ...[
-                    const _SectionTitle('Upcoming'),
-                    for (final t in upcoming) card(t),
-                  ],
-                  if (past.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () => setState(() => _showPast = !_showPast),
-                        child: Text(
-                          _showPast
-                              ? 'Hide past trips'
-                              : 'Show ${past.length} past '
-                                    'trip${past.length == 1 ? '' : 's'}',
-                        ),
-                      ),
-                    ),
-                    if (_showPast) ...[
-                      const _SectionTitle('Past'),
-                      for (final t in past) card(t, over: true),
-                    ],
-                  ],
-                  if (_model.hiddenOnes.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () =>
-                            setState(() => _showHidden = !_showHidden),
-                        child: Text(
-                          _showHidden
-                              ? 'Hide the ones marked "not a booking"'
-                              : 'Show ${_model.hiddenOnes.length} marked '
-                                    '"not a booking"',
-                        ),
-                      ),
-                    ),
-                    if (_showHidden)
-                      for (final b in _model.hiddenOnes)
-                        ListTile(
-                          leading: Icon(BookingText.icon(b.kind)),
-                          title: Text(BookingText.title(b)),
-                          subtitle: Text(
-                            _model.learned.contains(b.key)
-                                ? 'Left out: like ones you said aren\'t '
-                                      'bookings'
-                                : b.records.last.email.subject,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: TextButton(
-                            onPressed: () => _model.unhide(b.key),
-                            child: const Text('List again'),
-                          ),
-                        ),
-                  ],
-                ],
-              ),
-            ),
-          );
+        builder: (context, _) => switch (_model.state) {
+          // As before, a first load that failed leaves the page looking.
+          Loading() || LoadFailed() => const SkeletonRows(
+            label: 'Finding trips…',
+            maxWidth: PageScaffold.width,
+          ),
+          Loaded() => _list(context),
         },
       ),
     ),
   );
+
+  Widget _list(BuildContext context) {
+    final upcoming = _model.upcoming;
+    final past = _model.past;
+    final now = (widget.now ?? DateTime.now)();
+    Widget card(Trip t, {bool over = false}) =>
+        TripCard(trip: t, over: over, now: now, onSelect: _select);
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            if (_model.trips.isEmpty)
+              const _Empty()
+            else
+              _Overview(upcoming: upcoming, now: now),
+            if (_model.reading case final r?)
+              _Reading(done: r.done, total: r.total, onStop: _model.stopReading)
+            else if (_model.toRead.isNotEmpty && !readsAhead)
+              _ReadOffer(count: _model.toRead.length, onRead: _model.readEmails)
+            else if (_model.toRead.isNotEmpty && readingAhead)
+              ReadingQuietly(
+                'Reading ${_model.toRead.length} booking email'
+                '${_model.toRead.length == 1 ? '' : 's'}…',
+              ),
+            if (upcoming.isNotEmpty) ...[
+              const _SectionTitle('Upcoming'),
+              for (final t in upcoming) card(t),
+            ],
+            if (past.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _showPast = !_showPast),
+                  child: Text(
+                    _showPast
+                        ? 'Hide past trips'
+                        : 'Show ${past.length} past '
+                              'trip${past.length == 1 ? '' : 's'}',
+                  ),
+                ),
+              ),
+              if (_showPast) ...[
+                const _SectionTitle('Past'),
+                for (final t in past) card(t, over: true),
+              ],
+            ],
+            if (_model.hiddenOnes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _showHidden = !_showHidden),
+                  child: Text(
+                    _showHidden
+                        ? 'Hide the ones marked "not a booking"'
+                        : 'Show ${_model.hiddenOnes.length} marked '
+                              '"not a booking"',
+                  ),
+                ),
+              ),
+              if (_showHidden)
+                for (final b in _model.hiddenOnes)
+                  ListTile(
+                    leading: Icon(BookingText.icon(b.kind)),
+                    title: Text(BookingText.title(b)),
+                    subtitle: Text(
+                      _model.learned.contains(b.key)
+                          ? 'Left out: like ones you said aren\'t '
+                                'bookings'
+                          : b.records.last.email.subject,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: TextButton(
+                      onPressed: () => _model.unhide(b.key),
+                      child: const Text('List again'),
+                    ),
+                  ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// How many trips are coming up, and when the next one starts.

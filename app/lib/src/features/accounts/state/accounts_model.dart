@@ -2,16 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:async';
-
-import 'package:flutter/foundation.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 
-import '../../../services/app_services.dart';
-import '../../../services/auto_reader.dart';
+import '../../found/state/found_model.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
 
@@ -147,14 +143,9 @@ List<MailSample> accountSamples(
 /// account with, found in welcome, sign-in, password and security mail on
 /// the device. [readEmails] downloads account emails whose preview says
 /// too little, only when the user asks.
-final class AccountsModel extends ChangeNotifier {
-  AccountsModel(this._services, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
-
-  final AppServices _services;
-  final DateTime Function() _now;
-
-  MailStore get _store => _services.store;
+final class AccountsModel extends FoundModel<OnlineAccount, AccountsFound> {
+  AccountsModel(super.services, {super.now})
+    : super(kind: MailKind.account, hiddenKeys: hiddenSetting);
 
   static const hiddenSetting = StringListSetting('accounts.hidden');
 
@@ -168,36 +159,33 @@ final class AccountsModel extends ChangeNotifier {
   static const readMax = 40;
   static const maxBytes = 256 * 1024;
 
-  bool loading = true;
-  List<OnlineAccount> accounts = const [];
+  @override
+  Future<AccountsFound> find(DateTime now, Set<int> skip) =>
+      findOnlineAccounts(store, now, skip: skip);
 
-  /// Companies the user said are not accounts.
-  Set<String> hidden = const {};
+  @override
+  Finds<OnlineAccount> findsOf(AccountsFound found) => (
+    all: found.all,
+    hidden: found.hidden,
+    learned: found.learned,
+    toRead: found.toRead,
+  );
 
-  /// Companies left out because they look like ones the user said are
-  /// not accounts ("Learn from my corrections").
-  Set<String> learned = const {};
+  @override
+  String keyOf(OnlineAccount item) => item.company;
 
-  /// Those of [hidden] and [learned].
-  List<OnlineAccount> hiddenOnes = const [];
+  @override
+  List<MailSample> samplesOf(OnlineAccount item) =>
+      accountSamples(item, store.messages.byId);
 
-  /// Everything found.
-  List<OnlineAccount> _all = const [];
-
-  late final _corrections = Corrections(_store);
+  /// The accounts listed: those not hidden.
+  List<OnlineAccount> get accounts => listed;
 
   /// The user's own addresses.
-  List<String> ownAddresses = const [];
-
-  /// Account emails not on the device yet whose preview says too little.
-  List<int> toRead = const [];
-
-  /// While reading: how many are done, of how many.
-  ({int done, int total})? reading;
-  bool _stop = false;
+  List<String> get ownAddresses => found?.ownAddresses ?? const [];
 
   /// Accounts with no mail for [quiet]: worth closing if unused.
-  bool isQuiet(OnlineAccount a) => _now().difference(a.lastActivity) > quiet;
+  bool isQuiet(OnlineAccount a) => now().difference(a.lastActivity) > quiet;
 
   /// Every address an account uses (plus-addresses included), most used
   /// first.
@@ -211,103 +199,4 @@ final class AccountsModel extends ChangeNotifier {
     return counts.keys.toList()
       ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
   }
-
-  /// Emails given up on: not offered while they are read automatically.
-  Set<int> get _skip =>
-      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
-
-  Future<void> load() async {
-    final found = await findOnlineAccounts(_store, _now(), skip: _skip);
-    hidden = found.hidden;
-    learned = found.learned;
-    ownAddresses = found.ownAddresses;
-    _all = found.all;
-    final left = {...hidden, ...learned};
-    accounts = [
-      for (final a in found.all)
-        if (!left.contains(a.company)) a,
-    ];
-    hiddenOnes = [
-      for (final a in found.all)
-        if (left.contains(a.company)) a,
-    ];
-    toRead = found.toRead;
-    loading = false;
-    notifyListeners();
-  }
-
-  /// Downloads the emails in [toRead] from the user's own mail server
-  /// (they stay unread), then looks again. Stops early on [stopReading].
-  Future<void> readEmails() async {
-    if (reading != null || toRead.isEmpty) return;
-    final ids = toRead;
-    _stop = false;
-    var done = 0;
-    reading = (done: 0, total: ids.length);
-    notifyListeners();
-    for (final id in ids) {
-      if (_stop) break;
-      try {
-        await _services.worker.loadBody(id);
-      } on Object {
-        // Gone, too large or offline: it stays as its preview.
-      }
-      reading = (done: ++done, total: ids.length);
-      notifyListeners();
-    }
-    reading = null;
-    await load();
-  }
-
-  void stopReading() => _stop = true;
-
-  /// "Not an account": hidden from the list (undoable), and learned
-  /// from.
-  void hide(String company) {
-    if (_found(company) case final a?) {
-      _corrections.rejected(
-        MailKind.account,
-        _samples(a, _store.messages.byId),
-      );
-    }
-    _setHidden({...hidden, company});
-  }
-
-  /// Undo, or "List again": listed again (and never left out by
-  /// learning again).
-  void unhide(String company) {
-    final a = _found(company);
-    final samples = a == null
-        ? const <MailSample>[]
-        : _samples(a, _store.messages.byId);
-    if (hidden.contains(company)) {
-      _corrections.rejected(MailKind.account, samples, undo: true);
-      _setHidden({...hidden}..remove(company));
-    } else if (learned.contains(company)) {
-      _corrections.kept(MailKind.account, company, samples);
-      unawaited(load());
-    }
-  }
-
-  /// [account]'s page was opened: a weak sign that it is one.
-  void opened(OnlineAccount account) => _corrections.opened(
-    MailKind.account,
-    account.company,
-    _samples(account, _store.messages.byId),
-  );
-
-  OnlineAccount? _found(String company) =>
-      _all.where((a) => a.company == company).firstOrNull;
-
-  static List<MailSample> _samples(
-    OnlineAccount account,
-    StoredMessage? Function(int id) message,
-  ) => accountSamples(account, message);
-
-  void _setHidden(Set<String> companies) {
-    hiddenSetting.write(_store.settings, companies.toList());
-    unawaited(load());
-  }
-
-  StoredMessage? message(int id) => _store.messages.byId(id);
 }

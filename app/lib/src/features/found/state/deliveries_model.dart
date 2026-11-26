@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
@@ -11,10 +9,9 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
-import '../../../services/app_services.dart';
-import '../../../services/auto_reader.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
+import 'found_model.dart';
 
 /// What [findDeliveries] found: every delivery the rules found ([hidden]
 /// and [learned] ones too, by key), those the user [marked] delivered,
@@ -120,19 +117,22 @@ List<MailSample> deliverySamples(
     ),
 ];
 
+/// The Deliveries page's findings, with the return windows marked
+/// "Returned" and "Keeping it" (by key).
+typedef DeliveriesPage = ({
+  DeliveriesFound found,
+  Set<String> returned,
+  Set<String> kept,
+});
+
 /// The Deliveries page's data: shipped orders found in shop and carrier
 /// mail, on the device. Downloaded emails are read whole, with the
 /// schema.org data in their HTML; the others by their preview.
 /// [readEmails] downloads shipping emails that are not on the device yet,
 /// only when the user asks.
-final class DeliveriesModel extends ChangeNotifier {
-  DeliveriesModel(this._services, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
-
-  final AppServices _services;
-  final DateTime Function() _now;
-
-  MailStore get _store => _services.store;
+final class DeliveriesModel extends FoundModel<Delivery, DeliveriesPage> {
+  DeliveriesModel(super.services, {super.now})
+    : super(kind: MailKind.delivery, hiddenKeys: hiddenSetting);
 
   static const hiddenSetting = StringListSetting('deliveries.hidden');
   static const deliveredSetting = StringListSetting('deliveries.delivered');
@@ -151,49 +151,51 @@ final class DeliveriesModel extends ChangeNotifier {
   static const readMax = 40;
   static const maxBytes = 256 * 1024;
 
-  bool loading = true;
+  Set<String> _readSet(StringListSetting setting) =>
+      setting.read(store.settings).toSet();
+
+  @override
+  Future<DeliveriesPage> find(DateTime now, Set<int> skip) async {
+    final returned = _readSet(returnedSetting);
+    final kept = _readSet(keptSetting);
+    final found = await findDeliveries(store, now, skip: skip);
+    return (found: found, returned: returned, kept: kept);
+  }
+
+  @override
+  Finds<Delivery> findsOf(DeliveriesPage page) => (
+    all: page.found.all,
+    hidden: page.found.hidden,
+    learned: page.found.learned,
+    toRead: page.found.toRead,
+  );
+
+  @override
+  String keyOf(Delivery item) => item.key;
+
+  @override
+  List<MailSample> samplesOf(Delivery item) =>
+      deliverySamples(item, store.messages.byId);
 
   /// Every delivery not hidden, newest first.
-  List<Delivery> deliveries = const [];
-
-  /// Deliveries the user said are not deliveries (by key).
-  Set<String> hidden = const {};
-
-  /// Deliveries left out because they look like ones the user said are
-  /// not deliveries ("Learn from my corrections"; by key).
-  Set<String> learned = const {};
-
-  /// Those of [hidden] and [learned].
-  List<Delivery> hiddenOnes = const [];
-
-  /// Everything the rules found.
-  List<Delivery> _all = const [];
-
-  late final _corrections = Corrections(_store);
+  List<Delivery> get deliveries => listed;
 
   /// Deliveries the user marked delivered (by key).
-  Set<String> marked = const {};
+  Set<String> get marked => found?.found.marked ?? const {};
 
   /// Return windows stated in purchase mail (closed ones too), the
   /// soonest deadline first.
-  List<ReturnWindow> returns = const [];
+  List<ReturnWindow> get returns => found?.found.returns ?? const [];
 
   /// Return windows marked "Returned" and "Keeping it" (by key).
-  Set<String> returned = const {};
-  Set<String> kept = const {};
-
-  /// Shipping emails not on the device yet, newest first.
-  List<int> toRead = const [];
-
-  /// While reading emails: how many are done, of how many.
-  ({int done, int total})? reading;
-  bool _stop = false;
+  Set<String> get returned => found?.returned ?? const {};
+  Set<String> get kept => found?.kept ?? const {};
 
   /// Not delivered yet, the soonest expected first: out for delivery and
   /// ready to collect, then by expected date, then the rest by latest
   /// news.
   List<Delivery> get onTheWay {
-    final today = _now();
+    final today = now();
     final list = [
       for (final d in deliveries)
         if (!d.arrived && today.difference(d.lastUpdate) <= recent) d,
@@ -216,7 +218,7 @@ final class DeliveriesModel extends ChangeNotifier {
   /// Delivered or returned in the last 30 days, the latest first.
   List<Delivery> get delivered => [
     for (final d in deliveries)
-      if (d.arrived && _now().difference(_arrivedAt(d)) <= recent) d,
+      if (d.arrived && now().difference(_arrivedAt(d)) <= recent) d,
   ]..sort((a, b) => _arrivedAt(b).compareTo(_arrivedAt(a)));
 
   /// Everything else: delivered longer ago, or a problem with no news
@@ -235,7 +237,7 @@ final class DeliveriesModel extends ChangeNotifier {
   /// "Returned" or "Keeping it", the soonest deadline first.
   List<ReturnWindow> get canStillReturn => [
     for (final w in returns)
-      if (w.daysLeft(_now()) >= 0 &&
+      if (w.daysLeft(now()) >= 0 &&
           !returned.contains(w.key) &&
           !kept.contains(w.key))
         w,
@@ -244,7 +246,7 @@ final class DeliveriesModel extends ChangeNotifier {
   /// Open windows marked "Returned" or "Keeping it", to list again.
   List<ReturnWindow> get doneReturns => [
     for (final w in returns)
-      if (w.daysLeft(_now()) >= 0 &&
+      if (w.daysLeft(now()) >= 0 &&
           (returned.contains(w.key) || kept.contains(w.key)))
         w,
   ];
@@ -253,130 +255,28 @@ final class DeliveriesModel extends ChangeNotifier {
   ReturnWindow? returnFor(String key) =>
       returns.where((w) => w.deliveryKey == key).firstOrNull;
 
-  Set<String> _readSet(StringListSetting setting) =>
-      setting.read(_store.settings).toSet();
-
-  /// Emails given up on: not offered while they are read automatically.
-  Set<int> get _skip =>
-      _services.settings.autoRead ? ReadFailures(_store).givenUp : const {};
-
-  Future<void> load() async {
-    returned = _readSet(returnedSetting);
-    kept = _readSet(keptSetting);
-    final found = await findDeliveries(_store, _now(), skip: _skip);
-    hidden = found.hidden;
-    marked = found.marked;
-    learned = found.learned;
-    returns = found.returns;
-    _all = found.all;
-    final left = {...hidden, ...learned};
-    deliveries = [
-      for (final d in found.all)
-        if (!left.contains(d.key)) d,
-    ];
-    hiddenOnes = [
-      for (final d in found.all)
-        if (left.contains(d.key)) d,
-    ];
-    toRead = found.toRead;
-    loading = false;
-    notifyListeners();
-  }
-
-  /// Downloads the emails in [toRead] from the user's own mail server
-  /// (they stay unread), then looks again. Stops early on [stopReading].
-  Future<void> readEmails() async {
-    if (reading != null || toRead.isEmpty) return;
-    final ids = toRead;
-    _stop = false;
-    var done = 0;
-    reading = (done: 0, total: ids.length);
-    notifyListeners();
-    for (final id in ids) {
-      if (_stop) break;
-      try {
-        await _services.worker.loadBody(id);
-      } on Object {
-        // Gone, too large or offline: read from its preview only.
-      }
-      reading = (done: ++done, total: ids.length);
-      notifyListeners();
-    }
-    reading = null;
-    await load();
-  }
-
-  void stopReading() => _stop = true;
-
-  /// "Not a delivery": hidden from the list (undoable), and learned
-  /// from.
-  void hide(String key) {
-    if (_found(key) case final d?) {
-      _corrections.rejected(
-        MailKind.delivery,
-        _samples(d, _store.messages.byId),
-      );
-    }
-    _write(hiddenSetting, {...hidden, key});
-  }
-
-  /// Undo, or "List again": listed again (and never left out by
-  /// learning again).
-  void unhide(String key) {
-    final d = _found(key);
-    final samples = d == null
-        ? const <MailSample>[]
-        : _samples(d, _store.messages.byId);
-    if (hidden.contains(key)) {
-      _corrections.rejected(MailKind.delivery, samples, undo: true);
-      _write(hiddenSetting, {...hidden}..remove(key));
-    } else if (learned.contains(key)) {
-      _corrections.kept(MailKind.delivery, key, samples);
-      unawaited(load());
-    }
-  }
-
-  /// [delivery]'s page was opened: a weak sign that it is one.
-  void opened(Delivery delivery) => _corrections.opened(
-    MailKind.delivery,
-    delivery.key,
-    _samples(delivery, _store.messages.byId),
-  );
-
-  Delivery? _found(String key) => _all.where((d) => d.key == key).firstOrNull;
-
-  static List<MailSample> _samples(
-    Delivery delivery,
-    StoredMessage? Function(int id) message,
-  ) => deliverySamples(delivery, message);
-
   /// "Mark as delivered", for one stuck on the way (undoable).
-  void markDelivered(String key) => _write(deliveredSetting, {...marked, key});
+  void markDelivered(String key) =>
+      writeKeys(deliveredSetting, {...marked, key});
 
   void unmarkDelivered(String key) =>
-      _write(deliveredSetting, {...marked}..remove(key));
+      writeKeys(deliveredSetting, {...marked}..remove(key));
 
   /// "Returned" and "Keeping it": no longer listed under "Can still be
   /// returned" (undoable).
-  void markReturned(String key) => _write(returnedSetting, {...returned, key});
+  void markReturned(String key) =>
+      writeKeys(returnedSetting, {...returned, key});
 
-  void markKept(String key) => _write(keptSetting, {...kept, key});
+  void markKept(String key) => writeKeys(keptSetting, {...kept, key});
 
   /// Listed again as one that can still be returned.
   void unmarkReturn(String key) {
-    returnedSetting.write(_store.settings, [
+    returnedSetting.write(store.settings, [
       for (final k in returned)
         if (k != key) k,
     ]);
-    _write(keptSetting, {...kept}..remove(key));
+    writeKeys(keptSetting, {...kept}..remove(key));
   }
-
-  void _write(StringListSetting setting, Set<String> keys) {
-    setting.write(_store.settings, keys.toList());
-    unawaited(load());
-  }
-
-  StoredMessage? message(int id) => _store.messages.byId(id);
 }
 
 /// Shop and carrier mail on the device: [messages], read as [emails];

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
 
+import '../../../core/state/load_state.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/motion.dart';
 import '../../../core/widgets/avatar.dart';
@@ -112,121 +113,115 @@ final class _DeliveriesPageState extends State<DeliveriesPage> with ReadsAhead {
       top: false,
       child: ListenableBuilder(
         listenable: _model,
-        builder: (context, _) {
-          if (_model.loading) {
-            return const SkeletonRows(
-              label: 'Finding deliveries…',
-              maxWidth: PageScaffold.width,
-            );
-          }
-          final onTheWay = _model.onTheWay;
-          final delivered = _model.delivered;
-          final older = _model.older;
-          Widget tile(Delivery d) =>
-              DeliveryTile(delivery: d, onSelect: () => _select(d));
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                children: [
-                  if (_model.deliveries.isNotEmpty)
-                    _Overview(
-                      onTheWay: onTheWay,
-                      delivered: delivered,
-                      returnable: _model.canStillReturn.length,
-                    )
-                  else if (_model.returns.isEmpty)
-                    const _Empty(),
-                  if (_model.reading case final r?)
-                    _Reading(
-                      done: r.done,
-                      total: r.total,
-                      onStop: _model.stopReading,
-                    )
-                  else if (_model.toRead.isNotEmpty && !readsAhead)
-                    _ReadOffer(
-                      count: _model.toRead.length,
-                      onRead: _model.readEmails,
-                    )
-                  else if (_model.toRead.isNotEmpty && readingAhead)
-                    ReadingQuietly(
-                      'Reading ${_model.toRead.length} shipping email'
-                      '${_model.toRead.length == 1 ? '' : 's'}…',
-                    ),
-                  if (onTheWay.isNotEmpty) ...[
-                    const _SectionTitle('On the way'),
-                    for (final d in onTheWay) tile(d),
-                  ],
-                  ReturnsSection(
-                    model: _model,
-                    controller: widget.controller,
-                    now: widget.now ?? DateTime.now,
-                  ),
-                  if (delivered.isNotEmpty) ...[
-                    const _SectionTitle('Delivered'),
-                    for (final d in delivered) tile(d),
-                  ],
-                  if (older.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () =>
-                            setState(() => _showOlder = !_showOlder),
-                        child: Text(
-                          _showOlder
-                              ? 'Hide older deliveries'
-                              : 'Show ${older.length} older '
-                                    'deliver${older.length == 1 ? 'y' : 'ies'}',
-                        ),
-                      ),
-                    ),
-                    if (_showOlder)
-                      for (final d in older) tile(d),
-                  ],
-                  if (_model.hiddenOnes.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () =>
-                            setState(() => _showHidden = !_showHidden),
-                        child: Text(
-                          _showHidden
-                              ? 'Hide the ones marked "not a delivery"'
-                              : 'Show ${_model.hiddenOnes.length} marked "not a delivery"',
-                        ),
-                      ),
-                    ),
-                    if (_showHidden)
-                      for (final d in _model.hiddenOnes)
-                        ListTile(
-                          leading: Avatar(name: d.shopName, address: d.shop),
-                          title: Text(d.shopName),
-                          subtitle: Text(
-                            _model.learned.contains(d.key)
-                                ? 'Left out: like ones you said aren\'t '
-                                      'deliveries'
-                                : d.records.last.email.subject,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: TextButton(
-                            onPressed: () => _model.unhide(d.key),
-                            child: const Text('List again'),
-                          ),
-                        ),
-                  ],
-                ],
-              ),
-            ),
-          );
+        builder: (context, _) => switch (_model.state) {
+          // As before, a first load that failed leaves the page looking.
+          Loading() || LoadFailed() => const SkeletonRows(
+            label: 'Finding deliveries…',
+            maxWidth: PageScaffold.width,
+          ),
+          Loaded() => _list(context),
         },
       ),
     ),
   );
+
+  Widget _list(BuildContext context) {
+    final onTheWay = _model.onTheWay;
+    final delivered = _model.delivered;
+    final older = _model.older;
+    Widget tile(Delivery d) =>
+        DeliveryTile(delivery: d, onSelect: () => _select(d));
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            if (_model.deliveries.isNotEmpty)
+              _Overview(
+                onTheWay: onTheWay,
+                delivered: delivered,
+                returnable: _model.canStillReturn.length,
+              )
+            else if (_model.returns.isEmpty)
+              const _Empty(),
+            if (_model.reading case final r?)
+              _Reading(done: r.done, total: r.total, onStop: _model.stopReading)
+            else if (_model.toRead.isNotEmpty && !readsAhead)
+              _ReadOffer(count: _model.toRead.length, onRead: _model.readEmails)
+            else if (_model.toRead.isNotEmpty && readingAhead)
+              ReadingQuietly(
+                'Reading ${_model.toRead.length} shipping email'
+                '${_model.toRead.length == 1 ? '' : 's'}…',
+              ),
+            if (onTheWay.isNotEmpty) ...[
+              const _SectionTitle('On the way'),
+              for (final d in onTheWay) tile(d),
+            ],
+            ReturnsSection(
+              model: _model,
+              controller: widget.controller,
+              now: widget.now ?? DateTime.now,
+            ),
+            if (delivered.isNotEmpty) ...[
+              const _SectionTitle('Delivered'),
+              for (final d in delivered) tile(d),
+            ],
+            if (older.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _showOlder = !_showOlder),
+                  child: Text(
+                    _showOlder
+                        ? 'Hide older deliveries'
+                        : 'Show ${older.length} older '
+                              'deliver${older.length == 1 ? 'y' : 'ies'}',
+                  ),
+                ),
+              ),
+              if (_showOlder)
+                for (final d in older) tile(d),
+            ],
+            if (_model.hiddenOnes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _showHidden = !_showHidden),
+                  child: Text(
+                    _showHidden
+                        ? 'Hide the ones marked "not a delivery"'
+                        : 'Show ${_model.hiddenOnes.length} marked "not a delivery"',
+                  ),
+                ),
+              ),
+              if (_showHidden)
+                for (final d in _model.hiddenOnes)
+                  ListTile(
+                    leading: Avatar(name: d.shopName, address: d.shop),
+                    title: Text(d.shopName),
+                    subtitle: Text(
+                      _model.learned.contains(d.key)
+                          ? 'Left out: like ones you said aren\'t '
+                                'deliveries'
+                          : d.records.last.email.subject,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: TextButton(
+                      onPressed: () => _model.unhide(d.key),
+                      child: const Text('List again'),
+                    ),
+                  ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// What a delivery's status reads as.
