@@ -138,7 +138,7 @@ abstract final class InboxScan {
 final class InboxPass {
   InboxPass._(
     this._store,
-    this._key,
+    this._mark,
     this._value,
     this.inbox,
     this._seen,
@@ -154,15 +154,15 @@ final class InboxPass {
     String fingerprint, {
     bool everything = false,
   }) {
-    final key = 'scan.$kind.${inbox.id}';
+    final setting = StringSetting('scan.$kind.${inbox.id}');
     final prefix = '${inbox.syncState.uidValidity}:$fingerprint:';
-    final mark = store.settings.read(key);
+    final mark = setting.readOrNull(store.settings);
     final seen = mark != null && mark.startsWith(prefix)
         ? int.tryParse(mark.substring(prefix.length))
         : null;
     return InboxPass._(
       store,
-      key,
+      setting,
       prefix,
       inbox,
       seen,
@@ -172,7 +172,9 @@ final class InboxPass {
   }
 
   final MailStore _store;
-  final String _key;
+
+  /// Where the pass is noted: [_value] and the highest UID looked at.
+  final StringSetting _mark;
   final String _value;
   final StoredMailbox inbox;
   final int? _seen;
@@ -202,7 +204,7 @@ final class InboxPass {
 
   /// Remembers that every message up to the highest UID at the start
   /// was looked at.
-  void finish() => _store.settings.write(_key, '$_value$_highest');
+  void finish() => _mark.write(_store.settings, '$_value$_highest');
 
   /// A short digest of [parts], for [fingerprint]s.
   static String digest(Iterable<Object?> parts) =>

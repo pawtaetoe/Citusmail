@@ -9,6 +9,8 @@ import 'support/temp_store.dart';
 
 enum _Shade { light, dark, system }
 
+String _code(_Shade shade) => shade.name[0].toUpperCase();
+
 final class _Point {
   const _Point(this.x, this.y);
 
@@ -169,6 +171,20 @@ void main() {
       }
     });
 
+    test('by another stored name', () {
+      const coded = EnumSetting(
+        'test.coded',
+        _Shade.values,
+        fallback: _Shade.system,
+        storedAs: _code,
+      );
+      coded.write(settings(), _Shade.dark);
+      expect(settings().read('test.coded'), 'D');
+      expect(coded.read(settings()), _Shade.dark);
+      settings().write('test.coded', 'dark');
+      expect(coded.read(settings()), _Shade.system);
+    });
+
     test('an unknown name reads as the fallback', () {
       expect(shade.read(settings()), _Shade.system);
       for (final stored in ['', 'Dark', 'sepia']) {
@@ -255,6 +271,29 @@ void main() {
 
     test('defaults to empty', () {
       expect(list.read(settings()), isEmpty);
+    });
+  });
+
+  group('JsonListSetting', () {
+    const ids = JsonListSetting('test.ids');
+
+    test('round trips as a JSON array, any text in an item', () {
+      ids.write(settings(), ['a@b', 'with, comma', 'line\nbreak']);
+      expect(
+        settings().read('test.ids'),
+        r'["a@b","with, comma","line\nbreak"]',
+      );
+      expect(ids.read(settings()), ['a@b', 'with, comma', 'line\nbreak']);
+      ids.write(settings(), []);
+      expect(settings().read('test.ids'), '[]');
+    });
+
+    test('anything but an array of texts reads as the fallback', () {
+      expect(ids.read(settings()), isEmpty);
+      for (final stored in ['', 'a,b', '["a",1]', '{"a":"b"}', '"a"']) {
+        settings().write('test.ids', stored);
+        expect(ids.read(settings()), isEmpty, reason: stored);
+      }
     });
   });
 

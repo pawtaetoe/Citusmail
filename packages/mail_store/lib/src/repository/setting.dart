@@ -123,23 +123,34 @@ final class IntSetting extends Setting<int> {
   }
 }
 
-/// One of an enum's [values], by its `name`. An unknown name (from
-/// another version) reads as [fallback].
+/// One of an enum's [values], by its `name` (or by [storedAs], for an
+/// enum whose stored names differ). An unknown name (from another
+/// version) reads as [fallback].
 final class EnumSetting<E extends Enum> extends Setting<E> {
-  const EnumSetting(super.key, this.values, {required super.fallback});
+  const EnumSetting(
+    super.key,
+    this.values, {
+    required super.fallback,
+    this.storedAs = _name,
+  });
 
   final List<E> values;
+
+  /// The text a value is stored as.
+  final String Function(E value) storedAs;
+
+  static String _name(Enum value) => value.name;
 
   @override
   E? tryDecode(String stored) {
     for (final value in values) {
-      if (value.name == stored) return value;
+      if (storedAs(value) == stored) return value;
     }
     return null;
   }
 
   @override
-  String encode(E value) => value.name;
+  String encode(E value) => storedAs(value);
 }
 
 /// Free text, stored as it is.
@@ -209,6 +220,29 @@ final class StringListSetting extends Setting<List<String>> {
   String encode(List<String> value) => value.join(separator);
 }
 
+/// A list of texts stored as a JSON array (any text allowed in an item).
+/// Anything but an array of texts reads as [fallback].
+final class JsonListSetting extends Setting<List<String>> {
+  const JsonListSetting(super.key, {super.fallback = const []});
+
+  @override
+  List<String>? tryDecode(String stored) {
+    final Object? json;
+    try {
+      json = jsonDecode(stored);
+    } on FormatException {
+      return null;
+    }
+    if (json is! List<Object?> || json.any((item) => item is! String)) {
+      return null;
+    }
+    return json.cast<String>().toList();
+  }
+
+  @override
+  String encode(List<String> value) => jsonEncode(value);
+}
+
 /// A value stored as JSON, through [fromJson] and [toJson]. Text that
 /// isn't JSON, or that [fromJson] rejects (by throwing or returning
 /// null), reads as [fallback].
@@ -228,10 +262,10 @@ final class JsonSetting<T> extends Setting<T> {
   T? tryDecode(String stored) {
     try {
       return fromJson(jsonDecode(stored));
-    } on FormatException {
+    } on Object {
+      // Not JSON, or JSON of the wrong shape: whatever [fromJson] threw,
+      // reading a setting never throws.
       return null;
-    } on TypeError {
-      return null; // valid JSON of the wrong shape
     }
   }
 

@@ -18,11 +18,11 @@ void main() {
 
   setUp(() async {
     app = await TestApp.create();
-    app.store.settings.write(Resorter.versionKey, 'older rules');
+    app.store.settings.write(Resorter.rulesVersion.key, 'older rules');
   });
   tearDown(() => app.dispose());
 
-  String? version() => app.store.settings.read(Resorter.versionKey);
+  String? version() => app.store.settings.read(Resorter.rulesVersion.key);
 
   testWidgets('after the first frame and a pause, in the sync worker', (
     tester,

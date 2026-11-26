@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:convert';
-
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -51,16 +49,19 @@ enum KeepMail {
   final String storageName;
   final int? _days;
 
-  static const key = 'sync.keepMail';
   static const standard = KeepMail.twoYears;
 
-  static KeepMail read(MailStore store) {
-    final value = store.settings.read(key);
-    return values.firstWhere(
-      (k) => k.storageName == value,
-      orElse: () => standard,
-    );
-  }
+  /// The user's choice, by [storageName].
+  static const setting = EnumSetting(
+    'sync.keepMail',
+    values,
+    fallback: standard,
+    storedAs: _storageNameOf,
+  );
+
+  static String _storageNameOf(KeepMail keep) => keep.storageName;
+
+  static KeepMail read(MailStore store) => setting.read(store.settings);
 
   /// The oldest date kept, or null for everything.
   DateTime? since(DateTime now) =>
@@ -641,36 +642,50 @@ final class _FolderMemo {
   /// The [KeepMail.storageName] older mail was complete for.
   final String? backfillDone;
 
-  static String _key(int mailboxId) => 'sync.folder.$mailboxId';
+  /// One folder's memo, by its id.
+  static JsonSetting<_FolderMemo?> _setting(int mailboxId) => JsonSetting(
+    'sync.folder.$mailboxId',
+    fallback: null,
+    fromJson: _fromJson,
+    toJson: _toJson,
+  );
+
+  static _FolderMemo _fromJson(Object? json) {
+    final map = json! as Map<String, Object?>;
+    return _FolderMemo(
+      uidValidity: map['v']! as int,
+      uidNext: map['n'] as int?,
+      exists: map['e']! as int,
+      low: map['l'] as int?,
+      removalsCheckedAt: switch (map['r']) {
+        final int ms => DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true),
+        _ => null,
+      },
+      backfillDone: map['b'] as String?,
+    );
+  }
+
+  static Object? _toJson(_FolderMemo? memo) => {
+    'v': memo!.uidValidity,
+    'n': memo.uidNext,
+    'e': memo.exists,
+    'l': memo.low,
+    if (memo.removalsCheckedAt case final at?) 'r': at.millisecondsSinceEpoch,
+    'b': ?memo.backfillDone,
+  };
 
   static _FolderMemo? read(
     MailStore store,
     int mailboxId,
     MailboxSyncState state,
   ) {
-    final text = store.settings.read(_key(mailboxId));
-    if (text == null) return null;
-    try {
-      final json = jsonDecode(text) as Map<String, Object?>;
-      final memo = _FolderMemo(
-        uidValidity: json['v']! as int,
-        uidNext: json['n'] as int?,
-        exists: json['e']! as int,
-        low: json['l'] as int?,
-        removalsCheckedAt: switch (json['r']) {
-          final int ms => DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true),
-          _ => null,
-        },
-        backfillDone: json['b'] as String?,
-      );
-      if (memo.uidValidity != state.uidValidity ||
-          memo.uidNext != state.uidNext) {
-        return null; // from another time: trust nothing in it
-      }
-      return memo;
-    } on Object {
-      return null;
+    final memo = _setting(mailboxId).read(store.settings);
+    if (memo == null ||
+        memo.uidValidity != state.uidValidity ||
+        memo.uidNext != state.uidNext) {
+      return null; // none, or from another time: trust nothing in it
     }
+    return memo;
   }
 
   _FolderMemo withLow(int low) => _FolderMemo(
@@ -682,15 +697,6 @@ final class _FolderMemo {
     backfillDone: backfillDone,
   );
 
-  void save(MailStore store, int mailboxId) => store.settings.write(
-    _key(mailboxId),
-    jsonEncode({
-      'v': uidValidity,
-      'n': uidNext,
-      'e': exists,
-      'l': low,
-      if (removalsCheckedAt case final at?) 'r': at.millisecondsSinceEpoch,
-      'b': ?backfillDone,
-    }),
-  );
+  void save(MailStore store, int mailboxId) =>
+      _setting(mailboxId).write(store.settings, this);
 }

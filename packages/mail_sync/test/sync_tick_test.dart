@@ -285,7 +285,10 @@ void main() {
       expect(server.since(mark, 'UID SEARCH'), isEmpty);
 
       // Keeping more mail looks again.
-      store.settings.write(KeepMail.key, KeepMail.everything.storageName);
+      store.settings.write(
+        KeepMail.setting.key,
+        KeepMail.everything.storageName,
+      );
       await sync.sync(account);
       expect(server.since(mark, 'UID SEARCH'), hasLength(1));
     });

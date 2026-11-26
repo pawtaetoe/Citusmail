@@ -39,7 +39,9 @@ final class ReceiptCollector {
   /// report).
   static const matcherVersion = 2;
 
-  static String _versionKey(int accountId) => 'receipts.matcher.$accountId';
+  /// The [matcherVersion] the account's reports were last read with.
+  static IntSetting _readWith(int accountId) =>
+      IntSetting('receipts.matcher.$accountId');
 
   /// Reads new reports of [account], over [imap] for those not on the
   /// device yet; returns how many receipts were recorded.
@@ -189,9 +191,9 @@ final class ReceiptCollector {
 
   /// Reports read by an older version are read once more.
   void _upgrade(Account account, StoredMailbox inbox) {
-    final key = _versionKey(account.id);
-    if (_store.settings.read(key) == '$matcherVersion') return;
+    final setting = _readWith(account.id);
+    if (setting.readOrNull(_store.settings) == matcherVersion) return;
     _store.receipts.rereadReports(inbox.id);
-    _store.settings.write(key, '$matcherVersion');
+    setting.write(_store.settings, matcherVersion);
   }
 }

@@ -66,7 +66,7 @@ void main() {
 
   tearDown(() async {
     // Take the script away again, whatever happened.
-    device.store.settings.write(ServerRules.settingKey, 'off');
+    device.store.settings.write(ServerRules.setting.key, 'off');
     await ServerRules(device.store, connector.sieve).run(device.account);
     final other = await servers.otherDevice('alice');
     for (final box in ['INBOX', 'Junk']) {
@@ -145,7 +145,7 @@ void main() {
     );
     device.store.blocks.block(BlockKind.address, 'pest-$tag@x.example');
     device.store.blocks.block(BlockKind.domain, 'spam-$tag.example');
-    device.store.settings.write(ServerRules.settingKey, 'on');
+    device.store.settings.write(ServerRules.setting.key, 'on');
 
     final report = await synchronizer.sync(
       device.account,
@@ -172,7 +172,7 @@ void main() {
   test('the server checks the script; turning off removes it', () async {
     await synchronizer.sync(device.account, mailboxIds: const {});
     device.store.blocks.block(BlockKind.address, 'pest-$tag@x.example');
-    device.store.settings.write(ServerRules.settingKey, 'on');
+    device.store.settings.write(ServerRules.setting.key, 'on');
     await synchronizer.sync(device.account, mailboxIds: const {});
 
     final sieve = await connector.sieve(device.account);
@@ -185,7 +185,7 @@ void main() {
     expect(await sieve.checkScript(script), isNull, reason: 'valid as stored');
     await sieve.logout();
 
-    device.store.settings.write(ServerRules.settingKey, 'off');
+    device.store.settings.write(ServerRules.setting.key, 'off');
     await ServerRules(device.store, connector.sieve).run(device.account);
     final after = await connector.sieve(device.account);
     expect(await after.listScripts(), isEmpty);

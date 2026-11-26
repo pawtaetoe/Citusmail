@@ -26,10 +26,11 @@ final class Resorter {
             StoreSenderHistory(_store),
           );
 
-  static const versionKey = 'sorting.rulesVersion';
+  /// The rules' version the stored categories were computed with.
+  static const rulesVersion = StringSetting('sorting.rulesVersion');
 
   /// How far an unfinished run got: `<rules version>:<last message id>`.
-  static const progressKey = 'sorting.resortProgress';
+  static const progress = StringSetting('sorting.resortProgress');
 
   final MailStore _store;
   final MessageClassifier classifier;
@@ -40,7 +41,7 @@ final class Resorter {
 
   /// Whether stored categories were computed with other rules.
   bool get isNeeded =>
-      _store.settings.read(versionKey) != '${classifier.version}';
+      rulesVersion.readOrNull(_store.settings) != '${classifier.version}';
 
   /// Re-sorts everything if [isNeeded]. Returns how many messages were
   /// looked at.
@@ -76,21 +77,21 @@ final class Resorter {
           for (final message in batch) decide(message, ai: ai),
         ]);
         count += batch.length;
-        _store.settings.write(progressKey, '$version:${batch.last.id}');
+        progress.write(_store.settings, '$version:${batch.last.id}');
         return batch.last.id;
       });
       if (last == null) break;
       afterId = last;
       await Future<void>.delayed(pause);
     }
-    _store.settings.write(versionKey, version);
-    _store.settings.delete(progressKey);
+    rulesVersion.write(_store.settings, version);
+    progress.clear(_store.settings);
     return count;
   }
 
   /// Where an earlier, unfinished run with the same rules stopped.
   int _resumeAfter(String version) {
-    final saved = _store.settings.read(progressKey)?.split(':');
+    final saved = progress.readOrNull(_store.settings)?.split(':');
     if (saved == null || saved.length != 2 || saved[0] != version) return 0;
     return int.tryParse(saved[1]) ?? 0;
   }

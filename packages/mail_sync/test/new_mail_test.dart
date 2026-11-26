@@ -94,7 +94,7 @@ void main() {
     arrive(3, category: MessageCategory.newsletters);
     expect(tracker.claim(account.id).messages.map((m) => m.subject), ['m2']);
 
-    store.settings.write(NewMailTracker.notificationsKey, 'off');
+    store.settings.write(NewMailTracker.notificationsSection.key, 'off');
     arrive(4, category: MessageCategory.notifications);
     arrive(5);
     expect(tracker.claim(account.id).messages.map((m) => m.subject), ['m5']);

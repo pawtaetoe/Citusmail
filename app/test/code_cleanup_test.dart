@@ -123,7 +123,7 @@ void main() {
     expect(moves(), isEmpty);
 
     // Not taken again in the next run.
-    store.settings.delete(CodeCleanupSettings.lastRunKey);
+    store.settings.delete(CodeCleanupSettings.lastRunSetting.key);
     controller.tidyCodes();
     await tester.pump();
     expect(find.text('Reset your password'), findsOneWidget);

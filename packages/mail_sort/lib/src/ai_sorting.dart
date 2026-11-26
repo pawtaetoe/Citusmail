@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:convert';
-
 import 'package:mail_store/mail_store.dart';
 
 import 'classification.dart';
@@ -240,29 +238,33 @@ final class AiSortLog {
 
   final MailStore _store;
 
-  static const key = 'ai.sorting.log';
+  /// The entries as a JSON array; unreadable entries are left out.
+  static const setting = JsonSetting<List<AiSortEntry>>(
+    'ai.sorting.log',
+    fallback: [],
+    fromJson: _fromJson,
+    toJson: _toJson,
+  );
+
+  static List<AiSortEntry>? _fromJson(Object? json) => json is List<Object?>
+      ? [for (final item in json) ?AiSortEntry.fromJson(item)]
+      : null;
+
+  static Object? _toJson(List<AiSortEntry> entries) => [
+    for (final e in entries) e.toJson(),
+  ];
 
   /// Entries kept at most; the oldest go first (their mail is long past
   /// the age the sorter looks at).
   static const keep = 500;
 
-  List<AiSortEntry> get entries {
-    final raw = _store.settings.read(key);
-    if (raw == null) return const [];
-    try {
-      final list = jsonDecode(raw);
-      if (list is! List<Object?>) return const [];
-      return [for (final item in list) ?AiSortEntry.fromJson(item)];
-    } on FormatException {
-      return const [];
-    }
-  }
+  List<AiSortEntry> get entries => setting.read(_store.settings);
 
   void _write(List<AiSortEntry> entries) {
     final kept = entries.length > keep
         ? entries.sublist(entries.length - keep)
         : entries;
-    _store.settings.write(key, jsonEncode([for (final e in kept) e.toJson()]));
+    setting.write(_store.settings, kept);
   }
 
   /// The messages asked about (whatever came of it).
@@ -304,7 +306,7 @@ final class AiSortLog {
   }
 
   /// Forgets everything (the feature's "forget" and tests).
-  void clear() => _store.settings.delete(key);
+  void clear() => setting.clear(_store.settings);
 }
 
 /// Where the user put a sender's mail when they corrected the AI sorter
@@ -318,27 +320,32 @@ final class SenderSortChoices {
 
   final MailStore _store;
 
-  static const key = 'sorting.senderChoices';
+  /// The choices as a JSON object: address to category name.
+  static const setting = JsonSetting<Map<String, MessageCategory>>(
+    'sorting.senderChoices',
+    fallback: {},
+    fromJson: _fromJson,
+    toJson: _toJson,
+  );
+
+  static Map<String, MessageCategory>? _fromJson(Object? json) =>
+      json is Map<String, Object?>
+      ? {
+          for (final MapEntry(:key, :value) in json.entries)
+            if (MessageCategory.values.where((c) => c.name == value).firstOrNull
+                case final category? when category != MessageCategory.codes)
+              key: category,
+        }
+      : null;
+
+  static Object? _toJson(Map<String, MessageCategory> choices) => {
+    for (final e in choices.entries) e.key: e.value.name,
+  };
 
   /// Senders kept at most; the oldest choices go first.
   static const keep = 300;
 
-  Map<String, MessageCategory> get all {
-    final raw = _store.settings.read(key);
-    if (raw == null) return const {};
-    try {
-      final map = jsonDecode(raw);
-      if (map is! Map<String, Object?>) return const {};
-      return {
-        for (final MapEntry(:key, :value) in map.entries)
-          if (MessageCategory.values.where((c) => c.name == value).firstOrNull
-              case final category? when category != MessageCategory.codes)
-            key: category,
-      };
-    } on FormatException {
-      return const {};
-    }
-  }
+  Map<String, MessageCategory> get all => setting.read(_store.settings);
 
   /// Where [address]'s mail goes, if the user said.
   MessageCategory? forSender(String address) => all[address.toLowerCase()];
@@ -352,14 +359,11 @@ final class SenderSortChoices {
     final kept = choices.entries.skip(
       choices.length > keep ? choices.length - keep : 0,
     );
-    _store.settings.write(
-      key,
-      jsonEncode({for (final e in kept) e.key: e.value.name}),
-    );
+    setting.write(_store.settings, Map.fromEntries(kept));
   }
 
   /// Forgets every choice ("Forget what was learned").
-  void clear() => _store.settings.delete(key);
+  void clear() => setting.clear(_store.settings);
 }
 
 /// New inbox mail the rules are unsure about, which the AI sorter may

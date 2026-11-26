@@ -178,8 +178,9 @@ final class ServerRules {
   final SieveOpener _open;
   final DateTime Function() _now;
 
-  /// The setting that turns it on (`on`); shared with the app.
-  static const settingKey = 'mail.serverRules';
+  /// On: rules run on the server too (off by default); shared with the
+  /// app.
+  static const setting = BoolSetting('mail.serverRules');
 
   /// The script's name on the server.
   static const scriptName = 'citusmail';
@@ -187,16 +188,18 @@ final class ServerRules {
   static const recheck = Duration(days: 1);
   static const retryFailed = Duration(hours: 1);
 
-  static String _statusKey(int accountId) => 'serverRules.$accountId';
+  /// The account's last known state, as [ServerRulesStatus.toJson].
+  static StringSetting _status(int accountId) =>
+      StringSetting('serverRules.$accountId');
 
-  bool get enabled => _store.settings.read(settingKey) == 'on';
+  bool get enabled => setting.read(_store.settings);
 
   /// The account's last known state, or null if never checked (or off).
   ServerRulesStatus? status(int accountId) => statusOf(_store, accountId);
 
   /// The same, read by the app.
   static ServerRulesStatus? statusOf(MailStore store, int accountId) =>
-      ServerRulesStatus.fromJson(store.settings.read(_statusKey(accountId)));
+      ServerRulesStatus.fromJson(_status(accountId).readOrNull(store.settings));
 
   /// Brings the server in line; returns the new state (null when off).
   Future<ServerRulesStatus?> run(Account account) async {
@@ -207,7 +210,7 @@ final class ServerRules {
       if (previous == null) return null;
       if (previous.state == ServerRulesState.notSupported ||
           previous.state == ServerRulesState.otherScriptActive) {
-        _store.settings.delete(_statusKey(account.id));
+        _status(account.id).clear(_store.settings);
         return null;
       }
       // Ours may be on the server: take it away.
@@ -216,7 +219,7 @@ final class ServerRules {
         return null;
       });
       if (removed.state != ServerRulesState.failed) {
-        _store.settings.delete(_statusKey(account.id));
+        _status(account.id).clear(_store.settings);
         return null;
       }
       return _save(account, removed);
@@ -317,7 +320,7 @@ final class ServerRules {
   }
 
   ServerRulesStatus _save(Account account, ServerRulesStatus status) {
-    _store.settings.write(_statusKey(account.id), status.toJson());
+    _status(account.id).write(_store.settings, status.toJson());
     return status;
   }
 

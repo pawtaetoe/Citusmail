@@ -95,14 +95,14 @@ void main() {
     final second = Resorter(store, batchSize: 2);
     expect(await second.resortIfNeeded(), 2);
     expect(second.isNeeded, isFalse);
-    expect(store.settings.read(Resorter.progressKey), isNull);
+    expect(store.settings.read(Resorter.progress.key), isNull);
   });
 
   test('progress from other rules is not used', () async {
     for (var uid = 1; uid <= 3; uid++) {
       storeUnsorted(uid, bank, const {});
     }
-    store.settings.write(Resorter.progressKey, '1:999999');
+    store.settings.write(Resorter.progress.key, '1:999999');
     expect(await Resorter(store).resortIfNeeded(), 3);
   });
 
@@ -168,7 +168,7 @@ void main() {
       store.messages.byUid(inbox.id, 1)!.category,
       MessageCategory.notifications,
     );
-    expect(store.settings.read(Resorter.versionKey), '99');
+    expect(store.settings.read(Resorter.rulesVersion.key), '99');
   });
 
   test('stopped between batches: the version waits for the next run', () async {
@@ -178,7 +178,7 @@ void main() {
     final resorter = Resorter(store, batchSize: 2);
     var batches = 0;
     expect(await resorter.resortAll(stopped: () => batches++ == 2), 4);
-    expect(store.settings.read(Resorter.versionKey), isNull);
+    expect(store.settings.read(Resorter.rulesVersion.key), isNull);
     expect(resorter.isNeeded, isTrue);
     expect(
       await resorter.resortIfNeeded(),
@@ -192,7 +192,7 @@ void main() {
     final resorter = Resorter(store);
     expect(await resorter.resortIfNeeded(), 0);
     expect(
-      store.settings.read(Resorter.versionKey),
+      store.settings.read(Resorter.rulesVersion.key),
       '${resorter.classifier.version}',
     );
     expect(
