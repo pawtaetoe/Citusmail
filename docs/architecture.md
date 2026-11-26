@@ -78,10 +78,40 @@ in `core/`.
   pairing and import files, mailto links, AI answers) goes through a
   validator that returns a typed value or a reason, before the rest of
   the code sees it. Inside, values are trusted.
-- **Shared behaviour in base classes, not copies.** View models that load
-  a page extend one base; AI features share one way to ask, stream, stop
-  and fail; detail pages share one scaffold. Inheritance only where the
-  "is a" holds; otherwise composition.
+- **Shared behaviour in base classes, not copies.** Inheritance only where
+  the "is a" holds; otherwise composition. The bases:
+  - `LoadState<T>` (`core/state/load_state.dart`): sealed `Loading`,
+    `Loaded(value)`, `LoadFailed(reason)`. Pages show it with a `switch`.
+  - `PageModel<T>` (`core/state/page_model.dart`): extend it for a view
+    model that loads a page's data. Write `fetch()`; it owns the state,
+    runs one fetch at a time (the newest `load()` wins, a stale result is
+    dropped), keeps the data while loading again, reloads on a
+    `reloadOn` listenable, and is safe after `dispose`. Not for paged
+    lists or models that work out their data synchronously (the message
+    list, the summary line, attachments).
+  - `FoundModel<T, F>` (`features/found/state/found_model.dart`), on
+    `PageModel`: a "Found in your mail" page (subscriptions, deliveries,
+    trips, appointments, online accounts). It does "Not a …" with Undo,
+    "List again", learning from corrections and reading emails on
+    request; the page gives its finder, mail kind, keys and samples.
+  - `AiTask<R>` (`features/ai/state/ai_task.dart`): one request to the AI
+    assistant, with a sealed `AiTaskState` (idle, running with the text so
+    far, done, failed with a plain message, stopped). Extend it when the
+    request is the thing (a writing run, a translation, quick replies);
+    hold one when a screen asks (the summary card, the tidy sheet). The
+    feature keeps its prompt (`MailPrompt`), checks and cache and asks
+    through its `AiFeatureProvider`; `run` gives it the cancel token and
+    the streaming, `explain` words the problems.
+  - `DetailScaffold` with `DetailHeader`, `DetailFact` and
+    `DetailSection` (`core/widgets/detail_scaffold.dart`): the page of
+    one thing found in the mail. Its emails open in `EmailPage`
+    (`features/reader/ui/email_page.dart`).
+  - Smaller shared pieces: `confirmDialog` (`core/widgets`) for "Are you
+    sure?" questions; `found_parts.dart` for the found pages' read offer,
+    reading progress, section titles and `LeftOutList`.
+
+  Before copying a widget or a state machine a third time, fold it into
+  one of these or a new shared piece.
 - **Small classes.** A controller does one job. `MailController` is a
   facade over focused controllers (selection, reading, actions, snooze,
   Screener, send later, …).
