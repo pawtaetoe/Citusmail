@@ -221,6 +221,16 @@ abstract final class Features {
       open: (context, c) => _setting(context, c, 'newSinceAway'),
     ),
     Feature(
+      id: 'summaryLine',
+      group: FeatureGroup.inbox,
+      icon: AppIcons.summaryLine,
+      title: 'Summary line',
+      sentence:
+          'One line at the top of your inbox: what is new, the latest code, '
+          'and what is on today.',
+      open: (context, c) => _setting(context, c, 'summaryLine'),
+    ),
+    Feature(
       id: 'snooze',
       group: FeatureGroup.inbox,
       icon: AppIcons.snooze,

@@ -187,6 +187,21 @@ abstract final class SettingsCatalog {
       words: ['away', 'catch up', 'while you were gone', 'back'],
     ),
     SettingEntry(
+      'summaryLine',
+      'inbox',
+      'Summary line',
+      words: [
+        'summary',
+        'today',
+        'glance',
+        'overview',
+        'new mail',
+        'code',
+        'parcel',
+        'appointment',
+      ],
+    ),
+    SettingEntry(
       'screener',
       'inbox',
       'Screen first-time senders',

@@ -61,6 +61,8 @@ final class SyncedPreferences {
     // "New since you were away" at the top of the inbox: how the user
     // likes their inbox to look.
     'inbox.newSinceAway',
+    // The summary line at the top of the inbox: the same reasoning.
+    'inbox.summaryLine',
     // "Read receipts and bookings automatically": what may be downloaded
     // ahead of time from the user's own mail; a choice about their mail.
     'autoRead.on',

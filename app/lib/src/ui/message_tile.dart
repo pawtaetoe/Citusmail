@@ -403,6 +403,23 @@ final class _MessageTileState extends State<MessageTile> {
   }
 }
 
+/// Copies a verification code, and says so.
+abstract final class CopyCode {
+  static Future<void> copy(BuildContext context, String code) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    // Marked sensitive, as from a notification: Android 13+ then keeps it
+    // out of its clipboard preview.
+    await BackgroundClipboard.copy(
+      code,
+      label: 'Verification code',
+      sensitive: true,
+    );
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('Copied $code')));
+  }
+}
+
 /// A verification code in place of the preview, so it can be read (and
 /// copied with a tap) without opening the message. Exactly one text line
 /// high, like the preview it replaces.
@@ -425,19 +442,7 @@ final class _CodeLine extends StatelessWidget {
           child: InkWell(
             key: ValueKey('copy-code-$code'),
             borderRadius: BorderRadius.circular(CitusmailTheme.radiusMark),
-            onTap: () async {
-              final messenger = ScaffoldMessenger.maybeOf(context);
-              // Marked sensitive, as from a notification: Android 13+
-              // then keeps it out of its clipboard preview.
-              await BackgroundClipboard.copy(
-                code,
-                label: 'Verification code',
-                sensitive: true,
-              );
-              messenger
-                ?..hideCurrentSnackBar()
-                ..showSnackBar(SnackBar(content: Text('Copied $code')));
-            },
+            onTap: () => CopyCode.copy(context, code),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

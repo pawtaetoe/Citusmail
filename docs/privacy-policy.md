@@ -99,7 +99,7 @@ summaries are kept only on your device, encrypted.
 
 Off until you turn it on. Then your blocked senders, Screener decisions,
 snoozed emails, unsubscribes, folder rules, image choices, sign-offs and
-mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off) are kept the same on your devices. They travel
+mail-handling preferences (the Screener on or off, "New since you were away", the summary line, reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off) are kept the same on your devices. They travel
 through a folder in **your own mail account**, never through a server of
 ours, and are end-to-end encrypted with a code only your devices hold.
 Other settings stay on each device: notifications, instant mail and

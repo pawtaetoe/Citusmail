@@ -43,6 +43,7 @@ abstract final class AppIcons {
   static const notifications = Icons.notifications_outlined;
   static const newsletters = Icons.rss_feed;
   static const newSinceAway = Icons.waving_hand_outlined;
+  static const summaryLine = Icons.short_text;
 
   // What can be done with a message.
   static const archive = Icons.archive_outlined;

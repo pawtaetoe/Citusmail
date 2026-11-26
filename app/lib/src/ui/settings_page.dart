@@ -648,6 +648,26 @@ final class _SettingsPageState extends State<SettingsPage> {
           },
         ),
       ),
+      _find(
+        'summaryLine',
+        SwitchListTile(
+          secondary: const Icon(AppIcons.summaryLine),
+          title: const Text('Summary line'),
+          subtitle: const SettingExplained(
+            about: 'Summary line',
+            'One line at the top of your inbox: new mail, a code, today',
+            more:
+                'Says how many emails are new, which code just came, and '
+                'what is on today: parcels arriving, an appointment or a '
+                'trip, a bill due. Made on this device from your mail.',
+          ),
+          value: settings.summaryLine,
+          onChanged: (on) {
+            setState(() => settings.summaryLine = on);
+            widget.controller?.refresh();
+          },
+        ),
+      ),
       ScreenerSettings(
         services: widget.services,
         controller: widget.controller,
