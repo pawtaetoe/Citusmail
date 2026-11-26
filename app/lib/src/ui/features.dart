@@ -394,6 +394,17 @@ abstract final class Features {
       androidOnly: true,
     ),
     Feature(
+      id: 'codeTile',
+      group: FeatureGroup.devices,
+      icon: AppIcons.codes,
+      title: 'Latest code in Quick Settings',
+      sentence:
+          'Copy a new verification code from Quick Settings, or from its '
+          'notification, without opening the app.',
+      open: (context, c) => _setting(context, c, 'codeTile'),
+      androidOnly: true,
+    ),
+    Feature(
       id: 'pairing',
       group: FeatureGroup.devices,
       icon: AppIcons.pairing,

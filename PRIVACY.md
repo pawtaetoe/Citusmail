@@ -191,9 +191,14 @@ New-mail notifications show the sender, the subject and the first lines
 of the message (turn off "Show message previews" to leave the text out),
 and only for Verification, Important, General and Notifications mail (and
 pins; Notifications can be turned off; never newsletters). A
-verification code is shown in the title, with a Copy code button that puts
-it on the clipboard (marked sensitive, so Android 13+ hides it in its
-preview). On Android the lock screen shows only that there is new mail;
+verification code is shown in the title (not with previews off), with a
+Copy code button that puts it on the clipboard without opening the app
+(marked sensitive, so Android 13+ hides it in its preview). The optional
+"Latest code" tile in Android's Quick Settings copies the newest code from
+the last 10 minutes and shows only its sender: while the tile is added and
+the app lock is off, that one code, its sender and time are kept on the
+device, encrypted with a key in the Android Keystore, and dropped at the
+next check for mail once it is 10 minutes old. On Android the lock screen shows only that there is new mail;
 with the app lock on, so do the notifications themselves. They are created
 on your device; no push service is involved. On Android, Citusmail keeps
 a live connection to your own mail server ("Instant mail", on unless you

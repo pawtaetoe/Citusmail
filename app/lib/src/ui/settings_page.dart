@@ -19,6 +19,7 @@ import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/ai_assistant.dart';
 import '../services/app_services.dart';
+import '../services/latest_code.dart';
 import '../services/link_safety.dart';
 import '../services/virus_total_checks.dart';
 import 'ai_feature_tiles.dart';
@@ -71,6 +72,7 @@ final class SettingsPage extends StatefulWidget {
     this.onAddAccount,
     this.show,
     this.batteryLimited = BackgroundMail.batteryLimited,
+    this.requestCodeTile = LatestCode.requestTile,
   });
 
   final AppServices services;
@@ -95,8 +97,24 @@ final class SettingsPage extends StatefulWidget {
   /// Whether Android holds background checks back to save battery.
   final Future<bool> Function() batteryLimited;
 
+  /// Asks Android to add the "Latest code" tile to Quick Settings.
+  final Future<TileRequest> Function() requestCodeTile;
+
   /// From this width the groups and the settings are side by side.
   static const twoPaneWidth = 720.0;
+
+  /// What the "Latest code" tile does, and what it keeps.
+  static const codeTileExplanation =
+      'A tap on the tile copies the newest verification code from the last '
+      '10 minutes. The tile shows who sent it, never the code, and asks you '
+      'to unlock your phone first. The code is kept on this phone, '
+      'encrypted, only while the tile is added, and not while the app '
+      'lock is on.';
+
+  /// How to add the tile where Android can't be asked (before Android 13).
+  static const codeTileHowTo =
+      'Swipe down from the top of the screen twice, tap the pencil to edit '
+      'your tiles, and drag “Latest code” up among them.';
 
   /// Opens Settings, showing the setting [show] if given.
   static Future<void> open(
@@ -540,7 +558,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             'The first lines of each email, in the notification',
             more:
                 'When off, notifications show only the sender and the '
-                'subject.',
+                'subject, without codes; Copy code still works.',
           ),
           value: settings.notifications && settings.notificationPreviews,
           onChanged: settings.notifications
@@ -622,7 +640,54 @@ final class _SettingsPageState extends State<SettingsPage> {
             batteryLimited: widget.batteryLimited,
           ),
         ),
+      if (_android)
+        _find(
+          'codeTile',
+          ListTile(
+            leading: const Icon(AppIcons.codes),
+            title: const Text('Add “Latest code” to Quick Settings'),
+            subtitle: const SettingExplained(
+              about: 'Latest code',
+              'Copy a new code from Quick Settings, without opening the app',
+              more: SettingsPage.codeTileExplanation,
+            ),
+            trailing: TextButton(
+              onPressed: _addCodeTile,
+              child: const Text('Add'),
+            ),
+          ),
+        ),
     ];
+  }
+
+  /// Asks Android to add the tile; where it can't be asked, says how.
+  Future<void> _addCodeTile() async {
+    final answer = await widget.requestCodeTile();
+    if (!mounted) return;
+    final done = switch (answer) {
+      TileRequest.added => 'Added to Quick Settings',
+      TileRequest.alreadyAdded => '“Latest code” is already in Quick Settings',
+      TileRequest.notAdded => null,
+      TileRequest.unsupported => null,
+    };
+    if (done != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(done)));
+      return;
+    }
+    if (answer != TileRequest.unsupported) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add “Latest code”'),
+        content: const Text(SettingsPage.codeTileHowTo),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Widget> _inboxSettings() {

@@ -46,6 +46,17 @@ void main() {
       );
     });
 
+    test('Android: "Latest code" by its words', () {
+      for (final words in ['quick settings', 'tile', 'latest code', '2fa']) {
+        expect(ids(words, android: true), contains('codeTile'), reason: words);
+      }
+      expect(ids('quick settings'), isEmpty, reason: 'Android only');
+      expect(
+        SettingsCatalog.search('tile', android: true).first.section,
+        'notifications',
+      );
+    });
+
     test('nothing for nothing, or for nonsense', () {
       expect(ids(''), isEmpty);
       expect(ids('   '), isEmpty);
@@ -209,6 +220,24 @@ void main() {
       expect(tester.getTopLeft(tile).dy, inInclusiveRange(0, 800));
       expect(marked(tester, 'Clean up old codes'), isTrue);
     });
+  });
+
+  testWidgets('Android: a feature opens "Latest code", marked', (tester) async {
+    size(tester, const Size(1200, 800));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          services: app.services,
+          isAndroid: true,
+          batteryLimited: () async => false,
+          show: 'codeTile',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    const title = 'Add “Latest code” to Quick Settings';
+    expect(tester.getTopLeft(find.text(title)).dy, inInclusiveRange(0, 800));
+    expect(marked(tester, title), isTrue);
   });
 
   group('phones', () {
