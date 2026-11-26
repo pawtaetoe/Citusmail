@@ -151,12 +151,12 @@ section { padding: 56px 0; }
 .eyebrow { color: var(--link); font-weight: 600; margin: 0 0 8px; }
 .lead { font-size: 1.2rem; color: var(--muted); margin: 0 0 24px; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
-/* The phone sits on the desktop shot's lower right corner, inside it:
-   at 26% wide it is a little shorter than the desktop shot. */
-.hero-shots { position: relative; margin: 0; }
-.hero-shots .desktop { width: 100%; display: block; }
+/* The phone overlaps the desktop shot's corner and spills past it on
+   purpose, so the two read as two devices, not one screen. */
+.hero-shots { position: relative; margin: 0; padding-bottom: 40px; }
+.hero-shots .desktop { width: 100%; }
 .hero-shots .phone {
-  position: absolute; right: 2%; bottom: 3%; width: 26%;
+  position: absolute; right: -8px; bottom: 0; width: 26%;
   border-radius: 18px;
 }
 
@@ -237,6 +237,7 @@ section { padding: 56px 0; }
   .top nav { gap: 14px; }
   .downloads { grid-template-columns: minmax(0, 1fr); }
   .phones .shot { width: 31%; }
+  .hero-shots .phone { width: 30%; right: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
