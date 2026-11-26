@@ -67,9 +67,14 @@ void main() {
 
     // Coming from the version before: only what this one brought.
     app.store.settings.write(WhatsNew.seenKey, releaseNotes[1].version);
-    expect([
-      for (final f in whatsNew.pending) f.id,
-    ], releaseNotes.first.features);
+    // (Only what this kind of device has: no Android tile on a desktop.)
+    expect(
+      [for (final f in whatsNew.pending) f.id],
+      [
+        for (final id in releaseNotes.first.features)
+          if (Features.availableById(id) != null) id,
+      ],
+    );
 
     whatsNew.markSeen();
     expect(whatsNew.pending, isEmpty);
