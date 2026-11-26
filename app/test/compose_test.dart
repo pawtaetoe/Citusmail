@@ -273,6 +273,36 @@ void main() {
     expect(app.store.outbox.byId(entry.id)!.state, OutboxState.pending);
   });
 
+  group('a reply or forward closed without writing', () {
+    const bob = MailAddress(localPart: 'bob', domain: 'x.example');
+    Draft reply() => Draft(
+      accountId: accountIdOf(),
+      to: const [bob],
+      subject: 'Re: Plans',
+      quote: 'On Mon, Bob wrote:\n> Plans?',
+      inReplyTo: 'plans@x.example',
+    );
+
+    test('is not kept in Drafts', () {
+      final c = ComposeController(app.services, reply());
+      addTearDown(c.dispose);
+      expect(c.close(), isA<ComposeClosed>());
+      expect(app.store.outbox.all(accountIdOf()), isEmpty);
+      expect(app.store.drafts.all(), isEmpty);
+    });
+
+    test('is kept once something was written', () {
+      final c = ComposeController(app.services, reply());
+      addTearDown(c.dispose);
+      c.setBody('Sounds good');
+      c.close();
+      expect(
+        app.store.outbox.all(accountIdOf()).single.action,
+        isA<AppendAction>(),
+      );
+    });
+  });
+
   group('a draft sent or kept from another account', () {
     late Account alice;
     late Account work;

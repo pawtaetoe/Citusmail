@@ -390,8 +390,12 @@ final class ComposeController extends ChangeNotifier {
   Draft _withRecipients(Draft d) =>
       d.copyWith(to: to.addresses, cc: cc.addresses, bcc: bcc.addresses);
 
+  /// Whether the user changed anything in this window.
+  bool _edited = false;
+
   void _update(Draft next, {bool notify = true}) {
     if (_finished) return;
+    _edited = true;
     _draft = next;
     problems = const {};
     _autosave?.cancel();
@@ -499,7 +503,16 @@ final class ComposeController extends ChangeNotifier {
       list.commit();
     }
     _draft = _withRecipients(_draft);
-    final outcome = services.drafts.close(_draft);
+    // A reply or forward opened and closed without writing anything is
+    // not kept: only its recipients and quote are in it, made by the app.
+    final untouched =
+        !_edited &&
+        _draft.id == null &&
+        _draft.savedMessageId == null &&
+        _draft.body.trim().isEmpty;
+    final outcome = untouched
+        ? DraftOutcome.discarded
+        : services.drafts.close(_draft);
     _finish();
     services.worker.requestSync(_draft.accountId);
     return ComposeClosed(outcome);
