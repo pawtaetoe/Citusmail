@@ -36,6 +36,7 @@ import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
 import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
+import 'package:citusmail/src/ui/sidebar.dart';
 import 'package:citusmail/src/ui/sign_offs_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:citusmail/src/ui/trips_page.dart';
@@ -190,6 +191,22 @@ void main() {
       await shoot(tester, 'phone_inbox$suffix');
       await tester.tap(find.text('Hello there'));
       await shoot(tester, 'phone_reader$suffix');
+    });
+
+    // The phone's tabs: the inbox with search on top and the navigation
+    // bar, what is found in your mail, and the folders.
+    testWidgets('phone tabs$suffix', (tester) async {
+      await show(tester, shell(), size: const Size(390, 844), dark: dark);
+      await shoot(tester, 'phone_tabs_inbox$suffix');
+      await tester.tap(find.text('Found'));
+      await shoot(tester, 'phone_tabs_found$suffix');
+      await tester.tap(find.text('Folders'));
+      await shoot(tester, 'phone_tabs_folders$suffix');
+      // Selecting: the actions take the bar's place.
+      await tester.tap(find.text('Inbox').last);
+      await settle(tester);
+      await tester.longPress(find.text('Hello there'));
+      await shoot(tester, 'phone_tabs_selecting$suffix');
     });
   }
 
@@ -1256,7 +1273,7 @@ void main() {
     await tester.tap(find.byTooltip('Folders'));
     await settle(tester);
     await tester.tap(
-      find.descendant(of: find.byType(Drawer), matching: find.text('Snoozed')),
+      find.descendant(of: find.byType(Sidebar), matching: find.text('Snoozed')),
     );
     await shoot(tester, 'phone_snoozed');
   });
@@ -1407,7 +1424,7 @@ void main() {
     await tester.tap(find.byTooltip('Folders'));
     await settle(tester);
     await tester.tap(
-      find.descendant(of: find.byType(Drawer), matching: find.text('Outbox')),
+      find.descendant(of: find.byType(Sidebar), matching: find.text('Outbox')),
     );
     await shoot(tester, 'phone_send_later_outbox');
   });
@@ -1471,7 +1488,7 @@ void main() {
     await tester.tap(find.byTooltip('Folders'));
     await settle(tester);
     await tester.tap(
-      find.descendant(of: find.byType(Drawer), matching: find.text('Sent')),
+      find.descendant(of: find.byType(Sidebar), matching: find.text('Sent')),
     );
     await settle(tester);
     await tester.tap(find.text('Trip to Lisbon'));
@@ -1502,7 +1519,7 @@ void main() {
     await settle(tester);
     await tester.tap(
       find.descendant(
-        of: find.byType(Drawer),
+        of: find.byType(Sidebar),
         matching: find.text('Waiting for a reply'),
       ),
     );
@@ -1521,7 +1538,7 @@ void main() {
     await settle(tester);
     await tester.tap(
       find.descendant(
-        of: find.byType(Drawer),
+        of: find.byType(Sidebar),
         matching: find.text('Waiting for a reply'),
       ),
     );

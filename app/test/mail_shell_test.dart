@@ -195,9 +195,10 @@ void main() {
   testWidgets('sidebar: mail places, accounts, then the feature groups', (
     tester,
   ) async {
+    // Tablets have the sidebar in a drawer (phones: see phone_tabs_test).
     for (final (size, drawer) in [
       (const Size(1400, 900), false),
-      (const Size(400, 860), true),
+      (const Size(800, 860), true),
     ]) {
       await show(tester, size);
       if (drawer) {
@@ -472,45 +473,11 @@ void main() {
     expect(find.text('Pinned'), findsOneWidget);
   });
 
-  testWidgets('phone: controls at the bottom, within reach of the thumb', (
-    tester,
-  ) async {
-    await show(tester, const Size(400, 800));
-    // List: menu, search and New message under the messages.
-    final search = tester.getTopLeft(find.byType(TextField)).dy;
-    expect(search, greaterThan(top(tester, 'Hello there')));
-    expect(search, greaterThan(600));
-    expect(tester.getTopLeft(find.byTooltip('Folders')).dy, greaterThan(600));
-    expect(
-      tester.getTopLeft(find.byTooltip('New message (C)')).dy,
-      greaterThan(600),
-    );
-    // Open message: its actions under it too.
-    await tester.tap(find.text('Hello there'));
-    await settle(tester);
-    expect(
-      tester.getTopLeft(find.byTooltip('Back (Esc)')).dy,
-      greaterThan(600),
-    );
-    expect(
-      tester.getTopLeft(find.byTooltip('Move to Trash (#)')).dy,
-      greaterThan(600),
-    );
-    // Selecting: the actions replace the search bar at the bottom.
-    await tester.tap(find.byTooltip('Back (Esc)'));
-    await tester.pump();
-    await tester.longPress(find.text('Hello there'));
-    await tester.pump();
-    expect(find.text('1 selected'), findsOneWidget);
-    expect(tester.getTopLeft(find.text('1 selected')).dy, greaterThan(600));
-    expect(find.byType(TextField), findsNothing);
-  });
-
   testWidgets('narrow: one pane at a time, back returns to the list', (
     tester,
   ) async {
     await show(tester, const Size(400, 800));
-    expect(find.text('Pins'), findsNothing, reason: 'sidebar is in the drawer');
+    expect(find.byType(Sidebar), findsNothing, reason: 'Folders is a tab');
     await tester.tap(find.text('Hello there'));
     await settle(tester);
     expect(find.byTooltip('Back (Esc)'), findsOneWidget);
@@ -519,8 +486,6 @@ void main() {
     await tester.pump();
     expect(find.text('Lunch?'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Folders'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Pins'));
     await tester.pumpAndSettle();
     expect(find.text('Keep this'), findsOneWidget);
@@ -758,6 +723,7 @@ void main() {
   testWidgets('Tools: Clean up and the Privacy report open from the sidebar', (
     tester,
   ) async {
+    // Phones: on the Folders tab.
     for (final (size, drawer) in [
       (const Size(1400, 900), false),
       (const Size(400, 860), true),

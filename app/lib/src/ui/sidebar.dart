@@ -40,6 +40,7 @@ final class Sidebar extends StatelessWidget {
     required this.onReconnectAccount,
     this.onNavigated,
     this.onCompose,
+    this.asTab = false,
   });
 
   final MailController controller;
@@ -56,6 +57,11 @@ final class Sidebar extends StatelessWidget {
   /// sidebar is always visible).
   final VoidCallback? onCompose;
 
+  /// The Folders tab on phones: the list's colours, taller rows for the
+  /// thumb, and everything in one scrolling list. Inbox, Pins and "Found
+  /// in your mail" have tabs of their own there, so they are left out.
+  final bool asTab;
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([
@@ -64,8 +70,39 @@ final class Sidebar extends StatelessWidget {
       controller.status,
       controller.accountsChanged,
     ]),
-    builder: (context, _) => _build(context),
+    builder: (context, _) => asTab
+        ? _Tall(
+            child: Theme(
+              data: _tabTheme(context),
+              child: Builder(builder: _build),
+            ),
+          )
+        : _build(context),
   );
+
+  /// The sidebar's colours on the phone's Folders tab: those of the list,
+  /// so the tab reads like the others.
+  static ThemeData _tabTheme(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return theme.copyWith(
+      extensions: [
+        for (final e in theme.extensions.values)
+          if (e is! SidebarColors) e,
+        SidebarColors(
+          background: ListColors.of(context).background,
+          selected: colors.onSurface.withValues(alpha: 0.08),
+          hover: colors.onSurface.withValues(alpha: 0.04),
+          text: colors.onSurface,
+          muted: colors.onSurfaceVariant,
+          badge: CitusPalette.citrus,
+          onBadge: CitusPalette.onCitrus,
+          indicator: colors.primary,
+          problem: colors.error,
+        ),
+      ],
+    );
+  }
 
   Widget _build(BuildContext context) {
     final colors = SidebarColors.of(context);
@@ -80,6 +117,42 @@ final class Sidebar extends StatelessWidget {
       controller.goTo(location);
       onNavigated?.call();
     }
+
+    // Under the list (on a phone's Folders tab, at its end).
+    final footer = <Widget>[
+      Divider(color: colors.selected, height: 1),
+      const SizedBox(height: 2),
+      // One line for all accounts (a single problem shows only on its
+      // account's block).
+      _SyncSummary(
+        accounts: accounts,
+        eventOf: controller.lastEvent,
+        onTap: () {
+          onNavigated?.call();
+          CheckingMailSheet.show(context, controller);
+        },
+      ),
+      // Not inside a folded group, so everything the app does is one
+      // tap away.
+      _Entry(
+        icon: AppIcons.allFeatures,
+        label: 'All features',
+        onTap: () {
+          onNavigated?.call();
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => DiscoverPage(controller: controller),
+            ),
+          );
+        },
+      ),
+      _Entry(
+        icon: AppIcons.addAccount,
+        label: 'Add account',
+        onTap: onAddAccount,
+      ),
+      const SizedBox(height: 6),
+    ];
 
     return Material(
       color: colors.background,
@@ -192,20 +265,22 @@ final class Sidebar extends StatelessWidget {
                       child: ListView(
                         padding: const EdgeInsets.only(top: 2, bottom: 8),
                         children: [
-                          _Entry(
-                            icon: AppIcons.inbox,
-                            label: 'Inbox',
-                            bold: true,
-                            badge: counts.inboxUnread,
-                            selected: here == const InboxLocation(),
-                            onTap: () => go(const InboxLocation()),
-                          ),
-                          _Entry(
-                            icon: AppIcons.pins,
-                            label: 'Pins',
-                            selected: here == const PinsLocation(),
-                            onTap: () => go(const PinsLocation()),
-                          ),
+                          if (!asTab) ...[
+                            _Entry(
+                              icon: AppIcons.inbox,
+                              label: 'Inbox',
+                              bold: true,
+                              badge: counts.inboxUnread,
+                              selected: here == const InboxLocation(),
+                              onTap: () => go(const InboxLocation()),
+                            ),
+                            _Entry(
+                              icon: AppIcons.pins,
+                              label: 'Pins',
+                              selected: here == const PinsLocation(),
+                              onTap: () => go(const PinsLocation()),
+                            ),
+                          ],
                           if (counts.outbox > 0)
                             _Entry(
                               icon: AppIcons.outbox,
@@ -295,49 +370,22 @@ final class Sidebar extends StatelessWidget {
                           // read it.
                           _FeaturePanel(
                             memory: _OpenSet(store, _OpenSet.groupsKey),
-                            groups: _featureGroups(),
+                            groups: [
+                              for (final group in _featureGroups())
+                                if (!asTab || group.id != _foundGroup) group,
+                            ],
                             onOpen: (page) {
                               onNavigated?.call();
                               Navigator.of(context)
                                   .push(MaterialPageRoute<void>(builder: page));
                             },
                           ),
+                          if (asTab) ...footer,
                         ],
                       ),
                     ),
                   ),
-                  Divider(color: colors.selected, height: 1),
-                  const SizedBox(height: 2),
-                  // One line for all accounts (a single problem shows
-                  // only on its account's block).
-                  _SyncSummary(
-                    accounts: accounts,
-                    eventOf: controller.lastEvent,
-                    onTap: () {
-                      onNavigated?.call();
-                      CheckingMailSheet.show(context, controller);
-                    },
-                  ),
-                  // Always in view, not inside a folded group, so
-                  // everything the app does is one tap away.
-                  _Entry(
-                    icon: AppIcons.allFeatures,
-                    label: 'All features',
-                    onTap: () {
-                      onNavigated?.call();
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => DiscoverPage(controller: controller),
-                        ),
-                      );
-                    },
-                  ),
-                  _Entry(
-                    icon: AppIcons.addAccount,
-                    label: 'Add account',
-                    onTap: onAddAccount,
-                  ),
-                  const SizedBox(height: 6),
+                  if (!asTab) ...footer,
                 ],
               ),
             ),
@@ -347,11 +395,14 @@ final class Sidebar extends StatelessWidget {
     );
   }
 
+  /// The id of "Found in your mail" (a tab of its own on phones).
+  static const _foundGroup = 'found';
+
   /// The pages below the accounts, in folding groups. Adding a page is
-  /// one line here.
+  /// one line here (and one in features.dart, for the phone's Found tab).
   List<_FeatureGroup> _featureGroups() => [
     (
-      id: 'found',
+      id: _foundGroup,
       title: 'Found in your mail',
       pages: [
         (
@@ -448,6 +499,11 @@ final class Sidebar extends StatelessWidget {
 abstract final class _Size {
   /// Height of an entry or a folding header (and so its tap target).
   static const row = 40.0;
+
+  /// [row], or taller on the phone's Folders tab, for the thumb.
+  static double rowOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_Tall>() == null ? row : 48;
+
   static const icon = 20.0;
   static const iconGap = 12.0;
 
@@ -462,6 +518,14 @@ abstract final class _Size {
 
   /// How long folding takes: enough to see where things went.
   static const fold = Duration(milliseconds: 160);
+}
+
+/// Marks the phone's Folders tab, where rows are taller.
+final class _Tall extends InheritedWidget {
+  const _Tall({required super.child});
+
+  @override
+  bool updateShouldNotify(_Tall oldWidget) => false;
 }
 
 /// A small, muted label over a group of entries.
@@ -571,7 +635,7 @@ final class _Entry extends StatelessWidget {
             focusColor: colors.selected,
             onTap: onTap,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: _Size.row),
+              constraints: BoxConstraints(minHeight: _Size.rowOf(context)),
               child: Stack(
                 alignment: AlignmentDirectional.centerStart,
                 children: [
@@ -818,7 +882,7 @@ final class _FoldHeader extends StatelessWidget {
     final foldable = onToggle != null;
     final problem = this.problem;
     final row = ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: _Size.row),
+      constraints: BoxConstraints(minHeight: _Size.rowOf(context)),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           _Size.start,
@@ -1058,8 +1122,8 @@ final class _AccountBlock extends StatelessWidget {
             color: colors.muted,
           ),
           style: IconButton.styleFrom(
-            fixedSize: const Size.square(_Size.row),
-            minimumSize: const Size.square(_Size.row),
+            fixedSize: Size.square(_Size.rowOf(context)),
+            minimumSize: Size.square(_Size.rowOf(context)),
             padding: EdgeInsets.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
