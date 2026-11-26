@@ -160,6 +160,49 @@ void main() {
       expect(draft.attachments.single.fileName, 'plan.txt');
       expect(utf8.decode(draft.attachments.single.bytes), 'the plan');
     });
+
+    test('forward keeps a photo shown in the text, not a logo', () {
+      final photo = Uint8List.fromList(List.filled(150 * 1024, 7));
+      final logo = Uint8List.fromList(List.filled(3000, 9));
+      final built = MessageBuilder().build(
+        OutgoingMessage(
+          from: a('bob@x.example', 'Bob'),
+          to: [a('alice@citusmail.test')],
+          subject: 'The leak',
+          htmlBody:
+              '<p>Look at this:</p><img src="cid:shot@x.example">'
+              '<p>Bob</p><img src="cid:logo@x.example">',
+          attachments: [
+            OutgoingAttachment(
+              filename: 'image001.png',
+              mimeType: 'image/png',
+              bytes: photo,
+              contentId: 'shot@x.example',
+            ),
+            OutgoingAttachment(
+              filename: 'logo.png',
+              mimeType: 'image/png',
+              bytes: logo,
+              contentId: 'logo@x.example',
+            ),
+          ],
+        ),
+      );
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 8,
+          receivedAt: DateTime.utc(2026, 10, 20, 9, 1),
+          subject: 'The leak',
+          from: a('bob@x.example', 'Bob'),
+        ),
+      ]);
+      final message = store.messages.byUid(inbox.id, 8)!;
+      final view = MessageView.parse(built.bytes);
+      final draft = ReplyBuilder(store).forward(message, view);
+      expect(draft.quote, contains('Look at this:'));
+      expect(draft.attachments.map((f) => f.fileName), ['image001.png']);
+      expect(draft.attachments.single.bytes, photo);
+    });
   });
 
   group('forward as attachment', () {

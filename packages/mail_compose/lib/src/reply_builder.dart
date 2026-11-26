@@ -31,7 +31,9 @@ final class ReplyBuilder {
   Draft replyAll(StoredMessage message, MessageView view) =>
       _reply(message, view, all: true);
 
-  /// Forward with the original's attachments.
+  /// Forward with the original's attachments, and the pictures its text
+  /// showed (a pasted screenshot), but not logos: the forward is plain
+  /// text, so they would be lost.
   Draft forward(StoredMessage message, MessageView view) {
     final header = StringBuffer('---------- Forwarded message ----------\n');
     if (message.from case final from?) {
@@ -46,7 +48,11 @@ final class ReplyBuilder {
       subject: _prefixed('Fwd: ', message.subject),
       quote: '$header\n${_text(view)}',
       attachments: [
-        for (final a in view.attachments)
+        for (final a in [
+          ...view.attachments,
+          for (final image in view.shownImages)
+            if (!FilePart.fromView(image).isLayoutImage) image,
+        ])
           DraftAttachment(
             fileName: a.fileName,
             mimeType: a.mimeType,

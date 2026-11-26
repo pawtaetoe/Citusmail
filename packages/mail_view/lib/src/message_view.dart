@@ -21,6 +21,7 @@ final class MessageView {
     this.isHtml,
     this.attachments,
     this.invite,
+    this.shownImages,
   );
 
   /// Parses [raw] (the full message). Never throws on malformed mail.
@@ -75,6 +76,10 @@ final class MessageView {
       htmlPart != null,
       List.unmodifiable(attachments),
       _invite(message),
+      List.unmodifiable([
+        for (final part in message.root.allParts)
+          if (images.used.contains(part)) AttachmentView._(part),
+      ]),
     );
   }
 
@@ -118,6 +123,10 @@ final class MessageView {
   /// Whether [body] came from the HTML version.
   final bool isHtml;
   final List<AttachmentView> attachments;
+
+  /// The images the text shows (by `cid:` links), which [attachments]
+  /// leaves out.
+  final List<AttachmentView> shownImages;
 
   /// The calendar event in the message, if it has one.
   final CalendarInvite? invite;
