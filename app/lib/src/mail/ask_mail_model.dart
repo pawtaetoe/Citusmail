@@ -264,8 +264,9 @@ final class AskMailModel extends ChangeNotifier {
       for (final m in found)
         if (searchable(m)) (m.id, m.receivedAt),
     ];
+    // Forgiving of typos, as the search list is.
     Iterable<(int, DateTime)> find(String text) =>
-        hits(_store.messages.search(text, limit: perSearch));
+        hits(_store.messages.searchForgiving(text, limit: perSearch).messages);
 
     final matches = AskMatches();
     for (final query in queries) {

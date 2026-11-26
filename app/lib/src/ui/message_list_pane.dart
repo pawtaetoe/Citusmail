@@ -26,6 +26,7 @@ import 'message_tile.dart';
 import 'move_dialog.dart';
 import 'new_since_away_section.dart';
 import 'screener_page.dart';
+import 'search_correction_line.dart';
 import 'send_later_sheet.dart';
 import 'skeleton_rows.dart';
 import 'snooze_sheet.dart';
@@ -92,6 +93,7 @@ final class MessageListPane extends StatelessWidget {
         WhatsNewCard(controller: controller),
         // Searching with the "Ask your mail" assistant on: its answer.
         AskMailPanel(controller: controller),
+        SearchCorrectionLine(controller: controller),
         Expanded(child: _Messages(controller: controller)),
       ],
     ),

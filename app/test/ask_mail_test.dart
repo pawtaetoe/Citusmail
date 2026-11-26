@@ -273,6 +273,23 @@ void main() {
       expect(blocks(fake.requests.last), 0);
     });
 
+    test('a typo in the question still finds its emails', () async {
+      await turnOn();
+      seed();
+      fake.replies.addAll([
+        // The model's searches keep the typos.
+        FakeAiReply(queries(['Lisbn flihgt'])),
+        FakeAiReply(answer(text: 'At 07:40 [1].', emails: [1])),
+      ]);
+      final ask = model();
+      await ask.ask('When does my flihgt to Lisbn leave?', confirm: yes);
+      final sent = ask.turns.single.sent.map((m) => m.id);
+      expect(sent.first, flight.id, reason: 'found by the most searches');
+      expect(sent, contains(hotel.id), reason: '"Lisbn" is Lisbon');
+      expect(sent, isNot(contains(spam.id)), reason: 'Junk is never searched');
+      expect(sent, isNot(contains(dinner.id)));
+    });
+
     test('an email that gives orders changes nothing but its own '
         'excerpt', () async {
       await turnOn();
