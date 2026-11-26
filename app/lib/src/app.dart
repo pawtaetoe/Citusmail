@@ -52,8 +52,12 @@ class _CitusmailAppState extends State<CitusmailApp> {
       darkTheme: CitusmailTheme.dark(),
       themeMode: mode,
       // Above the navigator: the lock covers every page and dialog.
-      builder: (context, child) =>
-          LockGate(host: _lockHost, child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => CompactNotices(
+        child: LockGate(
+          host: _lockHost,
+          child: child ?? const SizedBox.shrink(),
+        ),
+      ),
       home: _StartupGate(startup: widget.startup, lockHost: _lockHost),
     ),
   );

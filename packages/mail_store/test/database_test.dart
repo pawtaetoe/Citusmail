@@ -461,6 +461,27 @@ void main() {
       ]);
     });
 
+    test('accounts keep the order the user gives them', () {
+      final a = temp.addAccount('a@x.example');
+      final b = temp.addAccount('b@x.example');
+      final c = temp.addAccount('c@x.example');
+      List<String> order() => [
+        for (final x in temp.store.accounts.all()) x.email,
+      ];
+      expect(order(), ['a@x.example', 'b@x.example', 'c@x.example']);
+      temp.store.accounts.reorder([c.id, a.id]);
+      expect(order(), ['c@x.example', 'a@x.example', 'b@x.example']);
+      // An unknown id is ignored; a new account goes last.
+      temp.store.accounts.reorder([b.id, 999]);
+      temp.addAccount('d@x.example');
+      expect(order(), [
+        'b@x.example',
+        'c@x.example',
+        'a@x.example',
+        'd@x.example',
+      ]);
+    });
+
     test('async work inside a transaction is refused', () {
       expect(
         () => temp.store.transaction(() => Future.value(1)),

@@ -62,6 +62,7 @@ final class Sidebar extends StatelessWidget {
       controller.counts,
       controller.location,
       controller.status,
+      controller.accountsChanged,
     ]),
     builder: (context, _) => _build(context),
   );

@@ -733,46 +733,103 @@ final class _SettingsPageState extends State<SettingsPage> {
     ),
   ];
 
-  List<Widget> _accountSettings() => [
-    for (final (i, account) in widget.services.store.accounts.all().indexed)
-      _find(
-        i == 0 ? 'accounts' : 'account-${account.id}',
-        ListTile(
-          leading: const Icon(AppIcons.account),
-          title: Text(account.email),
-          subtitle: const Text('Folders, password, remove: ⋮ in the sidebar'),
-        ),
-      ),
-    if (widget.onAddAccount case final add?)
-      _find(
-        'addAccount',
-        ListTile(
-          leading: const Icon(AppIcons.addAccount),
-          title: const Text('Add account'),
-          trailing: const Icon(AppIcons.chevron),
-          onTap: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
-            add();
-          },
-        ),
-      ),
-    _find(
-      'keepMail',
+  List<Widget> _accountSettings() {
+    final accounts = widget.services.store.accounts.all();
+    Widget tile(int i, Account account) => _find(
+      i == 0 ? 'accounts' : 'account-${account.id}',
       ListTile(
-        leading: const Icon(AppIcons.keepMail),
-        title: const Text('Keep mail from'),
-        subtitle: SettingExplained(
-          about: 'Keep mail from',
-          '${_keepLabel(KeepMail.read(widget.services.store))}.',
-          more:
-              'Older mail still loads when you scroll down. Search and '
-              'Subscriptions see what is on this device.',
+        leading: const Icon(AppIcons.account),
+        title: Text(account.email),
+        subtitle: Text(
+          i == 0 && accounts.length > 1
+              ? 'Top account: new messages are sent from it'
+              : 'Folders, password, remove: ⋮ in the sidebar',
         ),
-        trailing: const Icon(AppIcons.chevron),
-        onTap: _chooseKeepMail,
+        trailing: accounts.length > 1
+            ? ReorderableDragStartListener(
+                index: i,
+                child: Tooltip(
+                  message: 'Drag to reorder ${account.email}',
+                  child: const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Icon(AppIcons.dragHandle),
+                  ),
+                ),
+              )
+            : null,
       ),
-    ),
-  ];
+    );
+    return [
+      if (accounts.length > 1)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Text(
+            'Drag to change the order. The sidebar and the From choice '
+            'follow it, and new messages are sent from the top account.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      if (accounts.length > 1)
+        ReorderableListView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          onReorderItem: (from, to) {
+            final ids = [for (final a in accounts) a.id];
+            // [to] already counts without the moved one.
+            ids.insert(to, ids.removeAt(from));
+            final controller = widget.controller;
+            if (controller != null) {
+              controller.reorderAccounts(ids);
+            } else {
+              widget.services.store.accounts.reorder(ids);
+            }
+            setState(() {});
+          },
+          children: [
+            for (final (i, account) in accounts.indexed)
+              KeyedSubtree(
+                key: ValueKey('account-order-${account.id}'),
+                child: tile(i, account),
+              ),
+          ],
+        )
+      else
+        for (final (i, account) in accounts.indexed) tile(i, account),
+      if (widget.onAddAccount case final add?)
+        _find(
+          'addAccount',
+          ListTile(
+            leading: const Icon(AppIcons.addAccount),
+            title: const Text('Add account'),
+            trailing: const Icon(AppIcons.chevron),
+            onTap: () {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              add();
+            },
+          ),
+        ),
+      _find(
+        'keepMail',
+        ListTile(
+          leading: const Icon(AppIcons.keepMail),
+          title: const Text('Keep mail from'),
+          subtitle: SettingExplained(
+            about: 'Keep mail from',
+            '${_keepLabel(KeepMail.read(widget.services.store))}.',
+            more:
+                'Older mail still loads when you scroll down. Search and '
+                'Subscriptions see what is on this device.',
+          ),
+          trailing: const Icon(AppIcons.chevron),
+          onTap: _chooseKeepMail,
+        ),
+      ),
+    ];
+  }
 
   List<Widget> _privacySettings() {
     final enabled = _lock.enabled;

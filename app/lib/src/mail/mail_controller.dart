@@ -1212,6 +1212,18 @@ final class MailController {
     _scheduleWake();
   }
 
+  // ------------------------------------------------------------ accounts
+
+  /// Changes when the accounts' order changes, so the sidebar follows.
+  final accountsChanged = ValueNotifier<int>(0);
+
+  /// Puts the accounts in the order of [ids]: the sidebar, the From
+  /// choice and new messages (from the top account) follow it.
+  void reorderAccounts(List<int> ids) {
+    _store.accounts.reorder(ids);
+    accountsChanged.value++;
+  }
+
   // --------------------------------------------------------- invitations
 
   /// The user's answers to invitations, remembered on the device.
@@ -1868,6 +1880,7 @@ final class MailController {
     reader.dispose();
     selection.dispose();
     invitationsChanged.dispose();
+    accountsChanged.dispose();
     status.dispose();
     codesOffer.dispose();
   }

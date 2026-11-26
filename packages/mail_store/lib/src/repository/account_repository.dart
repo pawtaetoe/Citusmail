@@ -93,6 +93,22 @@ final class AccountRepository {
     );
   }
 
+  /// Puts the accounts in the order of [ids] (any others keep their order,
+  /// after them). The first is the "top" account: new messages are sent
+  /// from it unless another is chosen.
+  void reorder(List<int> ids) => _db.transaction(() {
+    final current = [for (final a in all()) a.id];
+    final ordered = [
+      for (final id in ids)
+        if (current.contains(id)) id,
+      for (final id in current)
+        if (!ids.contains(id)) id,
+    ];
+    for (final (i, id) in ordered.indexed) {
+      _db.execute('UPDATE accounts SET sort_order = ? WHERE id = ?', [i, id]);
+    }
+  });
+
   /// Removes the account and everything stored for it. The caller also
   /// removes its keychain entry.
   void remove(int id) => _db.execute('DELETE FROM accounts WHERE id = ?', [id]);
