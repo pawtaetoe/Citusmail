@@ -114,7 +114,9 @@ abstract final class Features {
       group: FeatureGroup.found,
       icon: AppIcons.deliveries,
       title: 'Deliveries',
-      sentence: 'Parcels on their way, from your shipping emails.',
+      sentence:
+          'Parcels on their way, and what can still be returned, from '
+          'your shipping emails.',
       open: (context, c) =>
           _push(context, (_) => DeliveriesPage(controller: c)),
     ),

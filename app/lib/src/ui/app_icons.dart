@@ -14,6 +14,14 @@ abstract final class AppIcons {
   // Places.
   static const inbox = Icons.inbox_outlined;
   static const pins = Icons.push_pin_outlined;
+
+  /// The phone's tabs: Inbox and Pins as above, what is found in your
+  /// mail, and the folders. Filled for the tab that is shown.
+  static const inboxOn = Icons.inbox;
+  static const found = Icons.category_outlined;
+  static const foundOn = Icons.category;
+  static const folders = Icons.folder_copy_outlined;
+  static const foldersOn = Icons.folder_copy;
   static const outbox = Icons.outbox_outlined;
   static const snoozed = Icons.snooze_outlined;
   static const waiting = Icons.hourglass_empty;
