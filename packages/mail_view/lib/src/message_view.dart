@@ -51,10 +51,19 @@ final class MessageView {
       body = RichDocument.empty;
     }
 
+    // A named part meant to show inline, that the text does not show (a
+    // photo Apple Mail puts after the text), is listed too: else it could
+    // be neither seen nor saved.
+    bool unshownInline(MimePart part) =>
+        part.embeddedMessage == null &&
+        (part.disposition?.isInline ?? false) &&
+        part.filename != null &&
+        part != htmlPart &&
+        part != textPart;
     final attachments = [
       for (final part in message.root.allParts)
         if (part.children.isEmpty &&
-            part.isAttachment &&
+            (part.isAttachment || unshownInline(part)) &&
             !images.used.contains(part))
           AttachmentView._(part)
         else if (part.embeddedMessage != null)

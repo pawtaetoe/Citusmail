@@ -361,6 +361,35 @@ void main() {
       expect(inlines(view.body.blocks).whereType<ImageInline>(), hasLength(1));
       expect(view.attachments.first.bytes(), isNotEmpty);
     });
+
+    test('an inline photo the text does not show is listed', () {
+      // As Apple Mail sends a photo with a plain-text message.
+      final raw = [
+        'From: Ana <ana@x.example>',
+        'To: bob@y.example',
+        'Subject: Our new kitchen',
+        'MIME-Version: 1.0',
+        'Content-Type: multipart/mixed; boundary="b1"',
+        '',
+        '--b1',
+        'Content-Type: text/plain; charset=us-ascii',
+        '',
+        'Here it is!',
+        '--b1',
+        'Content-Disposition: inline; filename=IMG_0001.png',
+        'Content-Type: image/png; name="IMG_0001.png"',
+        'Content-Transfer-Encoding: base64',
+        '',
+        base64.encode(_png),
+        '--b1--',
+        '',
+      ].join('\r\n');
+      final view = MessageView.parse(utf8.encode(raw));
+      expect(view.body.plainText, contains('Here it is!'));
+      final photo = view.attachments.single;
+      expect(photo.fileName, 'IMG_0001.png');
+      expect(photo.bytes(), _png);
+    });
   });
 
   group('safe file names', () {
