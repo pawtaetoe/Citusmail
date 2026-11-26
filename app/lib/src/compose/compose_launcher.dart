@@ -11,6 +11,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../mail/send_later_times.dart';
 import '../services/app_services.dart';
 import '../ui/follow_up_sheet.dart';
+import '../ui/motion.dart';
 import '../ui/send_later_sheet.dart';
 import 'compose_controller.dart';
 import 'compose_page.dart';
@@ -71,7 +72,7 @@ abstract final class ComposeLauncher {
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        undoSnackBar(
           content: Text(
             [
               scheduled == null
@@ -83,25 +84,21 @@ abstract final class ComposeLauncher {
             ].join(' '),
           ),
           duration: left.isNegative ? Duration.zero : left,
-          persist: false,
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () {
-              final restored = services.sender.undo(pending);
-              if (restored != null && followUp != null) {
-                FollowUpReminders(services.store).cancel(followUp.messageId);
-              }
-              if (restored == null) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Too late: the message is on its way.'),
-                  ),
-                );
-              } else if (context.mounted) {
-                unawaited(open(context, services, restored));
-              }
-            },
-          ),
+          onUndo: () {
+            final restored = services.sender.undo(pending);
+            if (restored != null && followUp != null) {
+              FollowUpReminders(services.store).cancel(followUp.messageId);
+            }
+            if (restored == null) {
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('Too late: the message is on its way.'),
+                ),
+              );
+            } else if (context.mounted) {
+              unawaited(open(context, services, restored));
+            }
+          },
         ),
       );
   }

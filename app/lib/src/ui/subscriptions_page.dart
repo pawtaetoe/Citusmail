@@ -14,6 +14,7 @@ import 'avatar.dart';
 import 'badge.dart';
 import 'citusmail_theme.dart';
 import 'feature_settings.dart';
+import 'motion.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'skeleton_rows.dart';
@@ -103,13 +104,9 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        undoSnackBar(
           content: Text('${r.name} removed from Coming up'),
-          persist: false,
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => _model.undismiss(r),
-          ),
+          onUndo: () => _model.undismiss(r),
         ),
       );
   }
@@ -119,13 +116,9 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        undoSnackBar(
           content: Text('${s.name} won\'t be listed as a subscription'),
-          persist: false,
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => _model.unhide(s.company),
-          ),
+          onUndo: () => _model.unhide(s.company),
         ),
       );
   }

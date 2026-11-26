@@ -15,6 +15,7 @@ import '../services/ai_assistant.dart';
 import 'ai_confirm_dialog.dart';
 import 'app_icons.dart';
 import 'mail_text.dart';
+import 'motion.dart';
 import 'snooze_sheet.dart';
 
 /// "Ask AI to tidy", on the list's header and on the bar for selected
@@ -488,9 +489,11 @@ final class _TidyPanelState extends State<_TidyPanel> {
     final List<Widget> buttons = switch (_phase) {
       _Phase.ask => [
         cancel,
-        FilledButton(
-          onPressed: _words.text.trim().isEmpty ? null : _suggest,
-          child: const Text('Suggest'),
+        PressScale(
+          child: FilledButton(
+            onPressed: _words.text.trim().isEmpty ? null : _suggest,
+            child: const Text('Suggest'),
+          ),
         ),
       ],
       _Phase.asking => [
@@ -510,11 +513,13 @@ final class _TidyPanelState extends State<_TidyPanel> {
       _Phase.plan => [
         again,
         cancel,
-        FilledButton(
-          onPressed: _ticked.any((t) => t.isNotEmpty)
-              ? () => Navigator.pop(context, _chosen)
-              : null,
-          child: Text(_applyLabel),
+        PressScale(
+          child: FilledButton(
+            onPressed: _ticked.any((t) => t.isNotEmpty)
+                ? () => Navigator.pop(context, _chosen)
+                : null,
+            child: Text(_applyLabel),
+          ),
         ),
       ],
     };
