@@ -11,6 +11,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../../../core/state/validation.dart';
 import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
@@ -513,7 +514,7 @@ final class CommandCatalog {
   /// The emails matching [text] (the same search as the search field),
   /// and a search of all mail as the last row.
   List<Command> emails(String text) {
-    final query = text.trim();
+    final query = const SearchText()(text).valueOrNull ?? '';
     if (query.isEmpty) return const [];
     return [
       for (final m in _store.messages.search(query, limit: emailCount))
@@ -883,6 +884,11 @@ final class _CommandBarDialogState extends State<CommandBarDialog> {
                             focusNode: _field,
                             autofocus: true,
                             onChanged: _changed,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(
+                                SearchText.defaultMaxLength,
+                              ),
+                            ],
                             style: theme.textTheme.titleMedium,
                             textInputAction: TextInputAction.go,
                             decoration: CitusmailTheme.bareField(

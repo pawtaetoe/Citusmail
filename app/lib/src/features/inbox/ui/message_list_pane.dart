@@ -3,11 +3,13 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
+import '../../../core/state/validation.dart';
 import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
@@ -233,7 +235,14 @@ final class _TopBarState extends State<_TopBar> {
                   controller: _search,
                   focusNode: widget.searchFocus,
                   textInputAction: TextInputAction.search,
-                  onSubmitted: widget.controller.search,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(
+                      SearchText.defaultMaxLength,
+                    ),
+                  ],
+                  onSubmitted: (text) => widget.controller.search(
+                    const SearchText()(text).valueOrNull ?? '',
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Search mail',
                     prefixIcon: const Icon(AppIcons.search, size: 20),
