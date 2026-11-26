@@ -74,12 +74,15 @@ final class WritingHintLine extends StatelessWidget {
     return Padding(
       key: const ValueKey('writing-hint'),
       padding: const EdgeInsets.fromLTRB(16, 0, 4, 4),
+      // Icon and close button at the first line when the text wraps.
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 44,
-            child: Align(
-              alignment: Alignment.centerLeft,
+            child: Container(
+              alignment: Alignment.topLeft,
+              padding: const EdgeInsets.only(top: 8),
               child: Icon(
                 icon,
                 size: 18,
@@ -90,7 +93,7 @@ final class WritingHintLine extends StatelessWidget {
           Expanded(
             child: Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 4,
+              spacing: 12,
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -103,9 +106,11 @@ final class WritingHintLine extends StatelessWidget {
                   TextButton(
                     key: const ValueKey('writing-hint-action'),
                     onPressed: onPressed,
+                    // Flush with the text when it wraps below it.
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 36),
                     ),
                     child: Text(label),
                   ),

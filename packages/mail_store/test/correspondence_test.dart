@@ -223,7 +223,10 @@ void main() {
       'INBOX',
       1,
       at: DateTime.utc(2026, 11, 1),
-      to: [list, const MailAddress(localPart: 'sam', domain: 'x.example')],
+      to: [
+        list,
+        const MailAddress(localPart: 'sam', domain: 'x.example'),
+      ],
       listId: 'dev.lists.example.org',
     );
     expect(mail.isList('dev@lists.example.org'), isTrue);
