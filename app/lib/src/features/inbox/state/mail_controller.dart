@@ -7,7 +7,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
-import 'package:mail_sort/mail_sort.dart' show VerificationCodes;
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 import 'package:mail_trust/mail_trust.dart';
@@ -16,9 +15,12 @@ import 'package:mail_view/mail_view.dart';
 
 import '../../../background/background_mail.dart';
 import '../../../services/app_services.dart';
+import '../../compose/state/compose_starter.dart';
 import '../../compose/state/send_later_times.dart';
 import '../../organise/state/follow_up_times.dart';
 import '../../reader/state/invitation_answers.dart';
+import '../../reader/state/reader_controller.dart';
+import '../../reader/state/reader_state.dart';
 import 'inbox_summary.dart';
 import 'mail_counts.dart';
 import 'mail_location.dart';
@@ -26,6 +28,8 @@ import 'message_list_model.dart';
 import 'new_since_away.dart';
 import 'sync_status.dart';
 
+export '../../reader/state/reader_state.dart'
+    show ReaderEmpty, ReaderFailed, ReaderLoading, ReaderReady, ReaderState;
 export 'mail_counts.dart' show MailCounts;
 export 'sync_status.dart' show SyncIdle, SyncProblem, SyncRunning, SyncStatus;
 
@@ -49,83 +53,6 @@ final class BlockChoice {
   final int fromDomain;
 }
 
-/// What the reading pane shows.
-sealed class ReaderState {
-  const ReaderState();
-
-  StoredMessage? get message => null;
-}
-
-final class ReaderEmpty extends ReaderState {
-  const ReaderEmpty();
-}
-
-final class ReaderLoading extends ReaderState {
-  const ReaderLoading(this.message);
-
-  @override
-  final StoredMessage message;
-}
-
-final class ReaderReady extends ReaderState {
-  const ReaderReady(
-    this.message,
-    this.view, {
-    required this.to,
-    required this.cc,
-    required this.trust,
-    required this.unsubscribe,
-    this.unsubscribed,
-    this.imagesShown = false,
-  });
-
-  @override
-  final StoredMessage message;
-  final MessageView view;
-
-  /// What the message checks found (phishing signs, risky files).
-  final TrustReport trust;
-
-  /// How to unsubscribe from the message's list, if it has one.
-  final UnsubscribePlan unsubscribe;
-
-  /// When the user unsubscribed from this list, if they did.
-  final Unsubscription? unsubscribed;
-
-  /// Whether the message's remote images may load (the user asked, for
-  /// this message or for this verified sender).
-  final bool imagesShown;
-
-  /// Whether images may be loaded at all: never for mail that looks like
-  /// a scam.
-  bool get imagesAllowed => trust.level != TrustLevel.danger;
-
-  ReaderReady copyWith({
-    StoredMessage? message,
-    Unsubscription? unsubscribed,
-    bool? imagesShown,
-  }) => ReaderReady(
-    message ?? this.message,
-    view,
-    to: to,
-    cc: cc,
-    trust: trust,
-    unsubscribe: unsubscribe,
-    unsubscribed: unsubscribed ?? this.unsubscribed,
-    imagesShown: imagesShown ?? this.imagesShown,
-  );
-  final List<MailAddress> to;
-  final List<MailAddress> cc;
-}
-
-final class ReaderFailed extends ReaderState {
-  const ReaderFailed(this.message, this.reason);
-
-  @override
-  final StoredMessage message;
-  final String reason;
-}
-
 /// The mail screen's state, in separate pieces so each part of the screen
 /// rebuilds only when its own data changes:
 ///
@@ -140,6 +67,19 @@ final class MailController {
     : list = MessageListModel(services.store),
       codeCleaner = CodeCleaner(services.store, services.actions),
       syncStatus = SyncStatusController(services.store, services.worker) {
+    countsController = CountsController(_store, list, followUps);
+    composeStarter = ComposeStarter(
+      services,
+      accountInView: () => location.value.accountId,
+      notify: _notify,
+    );
+    readerController = ReaderController(
+      services,
+      list,
+      countsController,
+      composeStarter,
+      refresh: refresh,
+    );
     syncStatus.onEvent = _onSyncEvent;
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
@@ -161,9 +101,15 @@ final class MailController {
   final location = ValueNotifier<MailLocation>(const InboxLocation());
 
   /// Sidebar and section counts.
-  late final countsController = CountsController(_store, list, followUps);
+  late final CountsController countsController;
   ValueNotifier<MailCounts> get counts => countsController.counts;
-  final reader = ValueNotifier<ReaderState>(const ReaderEmpty());
+
+  /// The open message.
+  late final ReaderController readerController;
+  ValueNotifier<ReaderState> get reader => readerController.reader;
+
+  /// New messages, replies, forwards and drafts in the compose window.
+  late final ComposeStarter composeStarter;
   final selection = ValueNotifier<Set<int>>(const {});
 
   /// The sync worker's events and the status line.
@@ -185,13 +131,19 @@ final class MailController {
 
   MailStore get _store => services.store;
 
-  StoredMessage? get selected => reader.value.message;
+  StoredMessage? get selected => readerController.selected;
 
   /// Opens the compose window (set by the screen that can show it).
-  void Function(Draft draft)? onCompose;
+  void Function(Draft draft)? get onCompose => composeStarter.onCompose;
+  set onCompose(void Function(Draft draft)? value) =>
+      composeStarter.onCompose = value;
 
   /// Tells the user something; with [undo], offers to take it back.
   void Function(String message, {VoidCallback? undo})? onNotice;
+
+  /// What the focused controllers call to tell the user something.
+  void _notify(String message, {VoidCallback? undo}) =>
+      onNotice?.call(message, undo: undo);
 
   /// Asks for an account's new password or sign-in (set by the screen
   /// that can show it).
@@ -344,158 +296,28 @@ final class MailController {
 
   /// Opens [message]: marks it read and shows it, downloading it first if
   /// needed. Drafts open in the compose window instead.
-  Future<void> open(StoredMessage message) async {
-    if (_isDraft(message)) return _editDraft(message);
-    if (!message.flags.seen) {
-      services.actions.markRead([message]);
-      services.worker.requestSync(message.accountId);
-      message = _store.messages.byId(message.id) ?? message;
-      list.refresh();
-      _refreshCounts();
-    }
-    reader.value = ReaderLoading(message);
-    try {
-      final ready = await readerFor(message);
-      if (_disposed || selected?.id != message.id) return;
-      reader.value = ready;
-    } on BodyUnavailableException catch (e) {
-      if (_disposed || selected?.id != message.id) return;
-      reader.value = ReaderFailed(message, switch (e.problem) {
-        BodyProblem.tooLarge => 'This message is too large to show.',
-        BodyProblem.gone => 'This message is no longer on the server.',
-        BodyProblem.folderChanged =>
-          'The folder changed on the server. Try again after the next sync.',
-      });
-    } on SyncWorkerException catch (e) {
-      if (_disposed || selected?.id != message.id) return;
-      reader.value = ReaderFailed(message, switch (e.failure.kind) {
-        SyncFailureKind.network =>
-          'Can\'t reach the server. The message opens once you\'re online.',
-        SyncFailureKind.authentication =>
-          _store.accounts.byId(message.accountId)?.usesOAuth ?? false
-              ? 'The sign-in has ended. Sign in again from the account menu.'
-              : 'The server didn\'t accept your password.',
-        SyncFailureKind.security =>
-          'The connection was refused for security reasons.',
-        SyncFailureKind.server =>
-          'The server had a problem: ${e.failure.message}',
-      });
-    }
-  }
+  Future<void> open(StoredMessage message) => readerController.open(message);
 
   /// [message] read and checked, as the reading pane shows it, without
   /// opening it (it stays unread): downloads it first if needed. Throws
   /// [BodyUnavailableException] or [SyncWorkerException].
-  Future<ReaderReady> readerFor(StoredMessage message) async {
-    if (_store.messages.body(message.id) == null) {
-      await services.worker.loadBody(message.id);
-    }
-    final raw = _store.messages.body(message.id);
-    if (raw == null) throw const BodyUnavailableException(BodyProblem.gone);
-    // Parsing and checking a large message must not block the UI.
-    final (view, trust, plan) = await compute(_parseAndCheck, (
-      raw,
-      _trustContext(message),
-    ));
-    _findCode(message, view);
-    return ReaderReady(
-      _store.messages.byId(message.id) ?? message,
-      view,
-      to: _store.messages.addresses(message.id, 'to'),
-      cc: _store.messages.addresses(message.id, 'cc'),
-      trust: trust,
-      unsubscribe: plan,
-      unsubscribed: _unsubscription(message),
-      imagesShown:
-          trust.level != TrustLevel.danger &&
-          trust.verified &&
-          _store.imageSenders.isAllowed(message.from?.address),
-    );
-  }
-
-  /// A verification email opened before its code was found (older mail
-  /// the code reader hasn't reached): the code is read now, so the list
-  /// shows it from here on.
-  void _findCode(StoredMessage message, MessageView view) {
-    if (message.category != MessageCategory.codes) return;
-    if (message.code?.isNotEmpty ?? false) return;
-    final code = VerificationCodes.inMessage(
-      message.subject,
-      view.body.plainText,
-    );
-    if (code == null) return;
-    _store.messages.setCode(message.id, code);
-    refresh();
-  }
+  Future<ReaderReady> readerFor(StoredMessage message) =>
+      readerController.readerFor(message);
 
   /// When the user unsubscribed from [message]'s list, if they did.
   Unsubscription? unsubscriptionFor(StoredMessage message) =>
-      _unsubscription(message);
+      readerController.unsubscriptionFor(message);
 
-  /// What the message checks need besides the message: which server's
-  /// verification results to believe, learned from the account's recent
-  /// inbox mail, and the user's own domains. Null for the user's own
-  /// mail (Sent, Drafts), which needs no checking.
-  TrustContext? _trustContext(StoredMessage message) {
-    final use = _store.mailboxes.byId(message.mailboxId)?.specialUse;
-    if (use == SpecialUse.sent || use == SpecialUse.drafts) return null;
-    final inbox = _store.mailboxes.inbox(message.accountId);
-    final account = _store.accounts.byId(message.accountId);
-    return TrustContext(
-      trustedAuthServId: inbox == null
-          ? null
-          : AuthServIds.learn(
-              _store.messages.firstHeaderValues(
-                inbox.id,
-                'authentication-results',
-              ),
-              serverHosts: {?account?.imap.host},
-            ),
-      ownDomains: {
-        for (final account in _store.accounts.all())
-          ?Domains.registrable(
-            account.email.substring(account.email.lastIndexOf('@') + 1),
-          ),
-      },
-    );
-  }
-
-  void closeMessage() => reader.value = const ReaderEmpty();
+  void closeMessage() => readerController.close();
 
   // -------------------------------------------------------------- images
 
   /// Loads the open message's images; with [always], also for later mail
   /// from this sender (only offered when the server verified the sender).
-  void showImages(ReaderReady r, {bool always = false}) {
-    if (!r.imagesAllowed) return;
-    final from = r.message.from?.address;
-    if (always && r.trust.verified && from != null) {
-      try {
-        _store.imageSenders.allow(from);
-      } on ArgumentError {
-        // An address that can't be stored: load this time only.
-      }
-    }
-    if (reader.value case final ReaderReady open
-        when open.message.id == r.message.id) {
-      reader.value = open.copyWith(imagesShown: true);
-    }
-  }
+  void showImages(ReaderReady r, {bool always = false}) =>
+      readerController.showImages(r, always: always);
 
   // --------------------------------------------------------- unsubscribe
-
-  /// What identifies [message]'s list (List-Id, else the sender).
-  static String? _listKey(StoredMessage message) => Unsubscription.listKeyOf(
-    listId: message.listId,
-    fromAddress: message.from?.address,
-  );
-
-  Unsubscription? _unsubscription(StoredMessage message) {
-    final key = _listKey(message);
-    return key == null
-        ? null
-        : _store.unsubscriptions.find(message.accountId, key);
-  }
 
   /// Inbox mail from the same list as [r] (to offer archiving it).
   List<StoredMessage> sameList(ReaderReady r) => _store.messages.inboxFromList(
@@ -524,7 +346,7 @@ final class MailController {
       EmailMethod() => UnsubscribeKind.email,
       WebPageMethod() => UnsubscribeKind.webPage,
     };
-    final key = _listKey(r.message);
+    final key = ReaderController.listKey(r.message);
     if (key != null) {
       final record = _store.unsubscriptions.record(
         accountId: r.message.accountId,
@@ -584,31 +406,10 @@ final class MailController {
   }
 
   /// Opens the message after (or before) the open one in the list.
-  void openNext({bool previous = false}) {
-    final visible = list.visible;
-    if (visible.isEmpty) return;
-    final index = visible.indexWhere((m) => m.id == selected?.id);
-    final next = index < 0
-        ? 0
-        : (previous ? index - 1 : index + 1).clamp(0, visible.length - 1);
-    if (next != index) unawaited(open(visible[next]));
-  }
+  void openNext({bool previous = false}) =>
+      readerController.openNext(previous: previous);
 
-  void _refreshSelected() {
-    final current = selected;
-    if (current == null) return;
-    final fresh = _store.messages.byId(current.id);
-    if (fresh == null) {
-      reader.value = const ReaderEmpty();
-      return;
-    }
-    reader.value = switch (reader.value) {
-      ReaderLoading() => ReaderLoading(fresh),
-      final ReaderReady ready => ready.copyWith(message: fresh),
-      ReaderFailed(:final reason) => ReaderFailed(fresh, reason),
-      ReaderEmpty() => const ReaderEmpty(),
-    };
-  }
+  void _refreshSelected() => readerController.refreshOpen();
 
   // ----------------------------------------------------------- selection
 
@@ -1235,22 +1036,8 @@ final class MailController {
 
   /// For the user's own mail that asked for read receipts: the receipts
   /// so far (maybe none). Null when it didn't ask.
-  List<ReadReceipt>? receiptsFor(StoredMessage message) {
-    final id = message.messageId;
-    if (id == null) return null;
-    final account = _store.accounts.byId(message.accountId);
-    final own =
-        account != null &&
-        message.from?.address.toLowerCase() == account.email.toLowerCase();
-    if (!own) return null;
-    final asked =
-        _store.receipts.wasRequested(message.accountId, id) ||
-        _store.messages
-            .headers(message.id)
-            .containsKey('disposition-notification-to');
-    if (!asked) return null;
-    return _store.receipts.forMessage(message.accountId, id);
-  }
+  List<ReadReceipt>? receiptsFor(StoredMessage message) =>
+      readerController.receiptsFor(message);
 
   // ------------------------------------------------------------ blocking
 
@@ -1471,9 +1258,7 @@ final class MailController {
 
   /// A new message from the account being viewed (or the first account).
   void compose() {
-    final accountId =
-        location.value.accountId ?? _store.accounts.all().firstOrNull?.id;
-    if (accountId != null) onCompose?.call(Draft(accountId: accountId));
+    composeStarter.compose();
   }
 
   /// A new message to a `mailto:` link's address (and subject, if given).
@@ -1493,45 +1278,20 @@ final class MailController {
     );
   }
 
-  void reply(ReaderReady r) =>
-      onCompose?.call(services.replies.reply(r.message, r.view));
+  void reply(ReaderReady r) => composeStarter.reply(r);
 
-  void replyAll(ReaderReady r) =>
-      onCompose?.call(services.replies.replyAll(r.message, r.view));
+  void replyAll(ReaderReady r) => composeStarter.replyAll(r);
 
-  void forward(ReaderReady r) =>
-      onCompose?.call(services.replies.forward(r.message, r.view));
+  void forward(ReaderReady r) => composeStarter.forward(r);
 
   /// The open message exactly as the server sent it (stored when opened),
   /// or null if it is not on the device.
   Uint8List? rawMessage(StoredMessage message) =>
-      _store.messages.body(message.id);
+      composeStarter.rawMessage(message);
 
   /// Forward the whole message as an attached email.
-  void forwardAsAttachment(ReaderReady r) {
-    final raw = rawMessage(r.message);
-    if (raw == null) return;
-    onCompose?.call(services.replies.forwardAsAttachment(r.message, raw));
-  }
-
-  bool _isDraft(StoredMessage m) =>
-      m.flags.draft &&
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.drafts;
-
-  Future<void> _editDraft(StoredMessage message) async {
-    try {
-      if (_store.messages.body(message.id) == null) {
-        await services.worker.loadBody(message.id);
-      }
-      final raw = _store.messages.body(message.id);
-      if (raw == null || _disposed) return;
-      onCompose?.call(services.drafts.fromDraftsFolder(message, raw));
-    } on SyncWorkerException {
-      onNotice?.call('Can\'t open the draft while offline.');
-    } on BodyUnavailableException {
-      onNotice?.call('This draft is no longer on the server.');
-    }
-  }
+  void forwardAsAttachment(ReaderReady r) =>
+      composeStarter.forwardAsAttachment(r);
 
   // ------------------------------------------------------ custom folders
 
@@ -1781,22 +1541,11 @@ final class MailController {
     list.dispose();
     location.dispose();
     countsController.dispose();
-    reader.dispose();
+    readerController.dispose();
+    composeStarter.dispose();
     selection.dispose();
     invitationsChanged.dispose();
     accountsChanged.dispose();
     codesOffer.dispose();
   }
-}
-
-/// Top level, so [compute] sends only the bytes to the helper isolate.
-(MessageView, TrustReport, UnsubscribePlan) _parseAndCheck(
-  (Uint8List, TrustContext?) input,
-) {
-  final (raw, context) = input;
-  final view = MessageView.parse(raw);
-  final trust = context == null
-      ? TrustReport.empty
-      : const TrustChecker().check(view, context);
-  return (view, trust, UnsubscribePlanner.plan(view.message, trust));
 }
