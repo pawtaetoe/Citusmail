@@ -22,10 +22,12 @@ import '../../reader/state/invitation_answers.dart';
 import '../../reader/state/reader_controller.dart';
 import '../../reader/state/reader_state.dart';
 import 'inbox_summary.dart';
+import 'location_controller.dart';
 import 'mail_counts.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
 import 'new_since_away.dart';
+import 'selection_controller.dart';
 import 'sync_status.dart';
 
 export '../../reader/state/reader_state.dart'
@@ -80,6 +82,18 @@ final class MailController {
       composeStarter,
       refresh: refresh,
     );
+    selectionController = SelectionController(
+      _store,
+      list,
+      openMessage: () => readerController.selected,
+    );
+    locationController = LocationController(
+      _store,
+      services.worker,
+      list,
+      selectionController,
+      refresh: refresh,
+    );
     syncStatus.onEvent = _onSyncEvent;
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
@@ -98,7 +112,10 @@ final class MailController {
 
   final AppServices services;
   final MessageListModel list;
-  final location = ValueNotifier<MailLocation>(const InboxLocation());
+
+  /// Where the user is, and loading more of its list.
+  late final LocationController locationController;
+  ValueNotifier<MailLocation> get location => locationController.location;
 
   /// Sidebar and section counts.
   late final CountsController countsController;
@@ -110,7 +127,10 @@ final class MailController {
 
   /// New messages, replies, forwards and drafts in the compose window.
   late final ComposeStarter composeStarter;
-  final selection = ValueNotifier<Set<int>>(const {});
+
+  /// Messages picked for a bulk action.
+  late final SelectionController selectionController;
+  ValueNotifier<Set<int>> get selection => selectionController.selection;
 
   /// The sync worker's events and the status line.
   final SyncStatusController syncStatus;
@@ -164,70 +184,18 @@ final class MailController {
 
   // ------------------------------------------------------------ location
 
-  void goTo(MailLocation target) {
-    clearSelection();
-    location.value = target;
-    list.show(target);
-    // Views like Gmail's Starred are not synced in the background.
-    if (target case FolderLocation(:final mailboxId)
-        when _store.mailboxes.byId(mailboxId)?.isView ?? false) {
-      unawaited(
-        services.worker
-            .syncFolder(mailboxId)
-            .then((_) => refresh())
-            .catchError((Object _) {}),
-      );
-    }
-  }
+  void goTo(MailLocation target) => locationController.goTo(target);
 
-  void search(String text) {
-    final trimmed = text.trim();
-    goTo(trimmed.isEmpty ? const InboxLocation() : SearchLocation(trimmed));
-  }
+  void search(String text) => locationController.search(text);
 
   /// Searches for exactly what was typed, without correcting typos.
-  void searchExactly(String text) {
-    final trimmed = text.trim();
-    goTo(
-      trimmed.isEmpty
-          ? const InboxLocation()
-          : SearchLocation(trimmed, exact: true),
-    );
-  }
+  void searchExactly(String text) => locationController.searchExactly(text);
 
   // --------------------------------------------------------------- lists
 
   /// Shows more of a flat list: stored messages first, then older mail
   /// from the server.
-  Future<void> loadMore() async {
-    if (list.loadMoreStored() || list.loadingOlder || list.reachedEnd) return;
-    final folders = _foldersToExtend(location.value);
-    if (folders.isEmpty) {
-      list.setLoadingOlder(false, reachedEnd: true);
-      return;
-    }
-    list.setLoadingOlder(true);
-    var added = 0;
-    try {
-      for (final mailboxId in folders) {
-        added += await services.worker.fetchOlder(mailboxId);
-      }
-    } on SyncWorkerException {
-      // Offline: try again on the next scroll.
-    }
-    if (_disposed) return;
-    list.setLoadingOlder(false, reachedEnd: added == 0);
-    list.loadMoreStored();
-  }
-
-  List<int> _foldersToExtend(MailLocation at) => switch (at) {
-    FolderLocation(:final mailboxId) => [mailboxId],
-    InboxLocation(:final accountId) ||
-    SectionLocation(:final accountId) => _store.messages.inboxIds(
-      accountIds: accountId == null ? null : [accountId],
-    ),
-    _ => const [],
-  };
+  Future<void> loadMore() => locationController.loadMore();
 
   /// Re-reads the list, the counts and the open message.
   void refresh() {
@@ -413,43 +381,19 @@ final class MailController {
 
   // ----------------------------------------------------------- selection
 
-  bool get selecting => selection.value.isNotEmpty;
+  bool get selecting => selectionController.selecting;
 
-  void toggleSelected(StoredMessage m) {
-    final next = {...selection.value};
-    if (!next.remove(m.id)) next.add(m.id);
-    selection.value = next;
-  }
+  void toggleSelected(StoredMessage m) => selectionController.toggle(m);
 
   /// Selects from the last selected message to [m] (Shift-click).
-  void selectRange(StoredMessage m) {
-    final visible = list.visible;
-    final anchor = visible.lastIndexWhere(
-      (x) => selection.value.contains(x.id),
-    );
-    final end = visible.indexWhere((x) => x.id == m.id);
-    if (anchor < 0 || end < 0) return toggleSelected(m);
-    final (from, to) = anchor < end ? (anchor, end) : (end, anchor);
-    selection.value = {
-      ...selection.value,
-      for (var i = from; i <= to; i++) visible[i].id,
-    };
-  }
+  void selectRange(StoredMessage m) => selectionController.selectRange(m);
 
-  void selectAllVisible() =>
-      selection.value = {for (final m in list.visible) m.id};
+  void selectAllVisible() => selectionController.selectAllVisible();
 
-  void clearSelection() {
-    if (selection.value.isNotEmpty) selection.value = const {};
-  }
+  void clearSelection() => selectionController.clear();
 
   /// The selected messages, or else the open one.
-  List<StoredMessage> get targets {
-    if (selection.value.isNotEmpty) {
-      return [for (final id in selection.value) ?_store.messages.byId(id)];
-    }
-    return [?selected];
-  }
+  List<StoredMessage> get targets => selectionController.targets;
 
   // ------------------------------------------------------------- actions
 
@@ -1539,11 +1483,11 @@ final class MailController {
     services.resorted.removeListener(refresh);
     _summary?.dispose();
     list.dispose();
-    location.dispose();
+    locationController.dispose();
     countsController.dispose();
     readerController.dispose();
     composeStarter.dispose();
-    selection.dispose();
+    selectionController.dispose();
     invitationsChanged.dispose();
     accountsChanged.dispose();
     codesOffer.dispose();
