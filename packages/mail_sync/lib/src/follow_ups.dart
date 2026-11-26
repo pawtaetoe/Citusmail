@@ -254,6 +254,16 @@ final class FollowUpReminders {
     return found;
   });
 
+  /// Ends every follow-up of [accountId] (the account was removed).
+  void forgetAccount(int accountId) => _store.transaction(() {
+    final current = all();
+    final kept = [
+      for (final f in current)
+        if (f.accountId != accountId) f,
+    ];
+    if (kept.length != current.length) _save(kept);
+  });
+
   /// The follow-up of a message that went out under another Message-ID
   /// ("Send later" changed or sent now), moved [shift] in time.
   void move(String from, String to, {Duration shift = Duration.zero}) =>
