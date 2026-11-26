@@ -526,6 +526,13 @@ abstract final class SettingsCatalog {
       words: ['discover', 'what can it do', 'help', 'features'],
     ),
     SettingEntry(
+      'commandBar',
+      'about',
+      'Command bar (Ctrl+K)',
+      words: ['command', 'palette', 'keyboard', 'shortcuts', 'go to', 'find'],
+      desktopOnly: true,
+    ),
+    SettingEntry(
       'whatsNew',
       'about',
       'What\'s new',

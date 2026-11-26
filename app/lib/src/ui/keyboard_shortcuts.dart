@@ -2,10 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../mail/mail_controller.dart';
+import 'command_bar.dart';
 import 'move_dialog.dart';
 import 'snooze_sheet.dart';
 
@@ -26,12 +29,16 @@ final class MailKeyboardShortcuts extends StatelessWidget {
     required this.searchFocus,
     required this.focusNode,
     required this.child,
+    this.onAddAccount,
   });
 
   final MailController controller;
   final FocusNode searchFocus;
   final FocusNode focusNode;
   final Widget child;
+
+  /// "Add account" in the command bar.
+  final VoidCallback? onAddAccount;
 
   static const shortcuts = [
     _Shortcut('J / K', 'Next / previous message'),
@@ -62,6 +69,11 @@ final class MailKeyboardShortcuts extends StatelessWidget {
   KeyEventResult _onKey(BuildContext context, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
+    }
+    // Ctrl+K (Cmd+K): the command bar, also from a text field.
+    if (CommandBar.isShortcut(event) && CommandBar.fits(context)) {
+      unawaited(CommandBar.show(context, controller));
+      return KeyEventResult.handled;
     }
     if (_typing()) return KeyEventResult.ignored;
     final keys = HardwareKeyboard.instance;
@@ -103,7 +115,7 @@ final class MailKeyboardShortcuts extends StatelessWidget {
       (_, 'f') when reader is ReaderReady => () => c.forward(reader),
       (_, 'c') => c.compose,
       (_, '/') => searchFocus.requestFocus,
-      (_, '?') => () => showShortcuts(context),
+      (_, '?') => () => showShortcuts(context, controller: c),
       _ => null,
     };
     if (handled == null) return KeyEventResult.ignored;
@@ -119,16 +131,27 @@ final class MailKeyboardShortcuts extends StatelessWidget {
     controller.delete(messages);
   }
 
-  static Future<void> showShortcuts(BuildContext context) => showDialog<void>(
+  /// With [controller], on a wide window: the command bar too.
+  static Future<void> showShortcuts(
+    BuildContext context, {
+    MailController? controller,
+  }) => showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (dialog) => AlertDialog(
       title: const Text('Keyboard shortcuts'),
       content: SizedBox(
         width: 380,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final s in shortcuts)
+            for (final s in [
+              ...shortcuts,
+              if (controller != null && CommandBar.fits(context))
+                _Shortcut(
+                  CommandBar.keys,
+                  'Command bar: emails, folders, settings, actions',
+                ),
+            ])
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
@@ -151,8 +174,16 @@ final class MailKeyboardShortcuts extends StatelessWidget {
         ),
       ),
       actions: [
+        if (controller != null && CommandBar.fits(context))
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialog);
+              unawaited(CommandBar.show(context, controller));
+            },
+            child: const Text('Open the command bar'),
+          ),
         FilledButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(dialog),
           child: const Text('Done'),
         ),
       ],
@@ -160,10 +191,13 @@ final class MailKeyboardShortcuts extends StatelessWidget {
   );
 
   @override
-  Widget build(BuildContext context) => Focus(
-    focusNode: focusNode,
-    autofocus: true,
-    onKeyEvent: (_, event) => _onKey(context, event),
-    child: child,
-  );
+  Widget build(BuildContext context) {
+    CommandBar.register(controller, addAccount: onAddAccount);
+    return Focus(
+      focusNode: focusNode,
+      autofocus: true,
+      onKeyEvent: (_, event) => _onKey(context, event),
+      child: child,
+    );
+  }
 }

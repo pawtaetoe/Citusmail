@@ -235,6 +235,7 @@ final class _MailShellState extends State<MailShell> {
     controller: _controller,
     searchFocus: _searchFocus,
     focusNode: _shellFocus,
+    onAddAccount: widget.onAddAccount,
     child: LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;

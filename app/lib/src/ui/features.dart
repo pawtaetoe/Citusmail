@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ import 'app_icons.dart';
 import 'appointments_page.dart';
 import 'attachments_page.dart';
 import 'block_dialog.dart';
+import 'command_bar.dart';
 import 'deliveries_page.dart';
 import 'image_senders_page.dart';
 import 'privacy_report_page.dart';
@@ -51,6 +53,7 @@ final class Feature {
     required this.sentence,
     required this.open,
     this.androidOnly = false,
+    this.desktopOnly = false,
   });
 
   /// Stable: "What's new" and the tips name features by it.
@@ -66,6 +69,7 @@ final class Feature {
   final void Function(BuildContext context, MailController controller) open;
 
   final bool androidOnly;
+  final bool desktopOnly;
 }
 
 /// Every feature, in the order "All features" lists them.
@@ -73,10 +77,13 @@ abstract final class Features {
   static Feature? byId(String id) => all.where((f) => f.id == id).firstOrNull;
 
   /// The features on this kind of device.
-  static List<Feature> available({bool? android}) => [
-    for (final f in all)
-      if (!f.androidOnly || (android ?? Platform.isAndroid)) f,
-  ];
+  static List<Feature> available({bool? android}) {
+    final onAndroid = android ?? Platform.isAndroid;
+    return [
+      for (final f in all)
+        if ((!f.androidOnly || onAndroid) && !(f.desktopOnly && onAndroid)) f,
+    ];
+  }
 
   static void _push(BuildContext context, WidgetBuilder page) =>
       Navigator.of(context).push(MaterialPageRoute<void>(builder: page));
@@ -173,6 +180,21 @@ abstract final class Features {
       sentence: 'Every attachment in your mail, with its own search.',
       open: (context, c) =>
           _push(context, (_) => AttachmentsPage(controller: c)),
+    ),
+    Feature(
+      id: 'commandBar',
+      group: FeatureGroup.tools,
+      icon: AppIcons.commandBar,
+      title: 'Command bar (Ctrl+K)',
+      sentence:
+          'One box to find emails, folders, settings and actions, '
+          'all from the keyboard.',
+      open: (context, c) {
+        final navigator = Navigator.of(context)
+          ..popUntil((route) => route.isFirst);
+        unawaited(CommandBar.show(navigator.context, c, explain: true));
+      },
+      desktopOnly: true,
     ),
     Feature(
       id: 'aiAssistant',

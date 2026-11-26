@@ -16,6 +16,7 @@ import 'dart:ui' as ui;
 import 'package:citusmail/src/compose/compose_controller.dart';
 import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/mail/ai_tidy_model.dart';
+import 'package:citusmail/src/mail/commands.dart';
 import 'package:citusmail/src/mail/corrections.dart';
 import 'package:citusmail/src/mail/inbox_summary.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
@@ -30,6 +31,7 @@ import 'package:citusmail/src/ui/ai_settings_page.dart';
 import 'package:citusmail/src/ui/appointments_page.dart';
 import 'package:citusmail/src/ui/attachments_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/command_bar.dart';
 import 'package:citusmail/src/ui/deliveries_page.dart';
 import 'package:citusmail/src/ui/device_sync_page.dart';
 import 'package:citusmail/src/ui/discover_page.dart';
@@ -244,6 +246,36 @@ void main() {
         await shoot(tester, '${name}_peek$suffix');
       });
     }
+    testWidgets('desktop command bar$suffix', (tester) async {
+      // A few commands used before, with an email open.
+      final projects = app.store.mailboxes
+          .forAccount(app.store.accounts.all().single.id)
+          .firstWhere((m) => m.name == 'Projects');
+      final history = CommandHistory(app.store);
+      for (final id in [
+        'new.message',
+        'setting.theme',
+        'go.folder.${projects.id}',
+        'go.pins',
+      ]) {
+        history.used(id);
+      }
+      await show(tester, shell(), size: const Size(1440, 900), dark: dark);
+      await tester.tap(find.text('Hello there'));
+      await settle(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await shoot(tester, 'desktop_command_bar$suffix');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(CommandBarDialog),
+          matching: find.byType(TextField),
+        ),
+        'pin',
+      );
+      await shoot(tester, 'desktop_command_bar_search$suffix');
+    });
   }
 
   // The README's demo screens: a fuller inbox with made-up senders.
