@@ -391,7 +391,7 @@ final class _Toolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final archive = controller.archiveFor(message);
-    final inTrash = controller.isInTrash(message);
+    final inTrash = controller.deletesForever(message);
     // Grouped by what they do: where it goes, how it's marked, the sender.
     // Replying is in the bar under the message.
     final everyday = <_Action>[
