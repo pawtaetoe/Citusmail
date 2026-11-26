@@ -88,7 +88,7 @@ abstract final class MailNotices {
   ///
   /// With [hideContent] (the app lock is on) only that there is new mail:
   /// no sender, subject, preview or code. Without [previews], sender and
-  /// subject only; codes keep their Copy code button.
+  /// subject only: a code is not shown, but keeps its Copy code button.
   static List<MailNotice> build(
     Account account,
     NewMail mail, {
@@ -125,7 +125,7 @@ abstract final class MailNotices {
         return [
           for (final m in messages) _notice(m, previews: previews),
           if (messages.length > 1 || mail.total > messages.length)
-            _summary(account, mail),
+            _summary(account, mail, previews: previews),
         ];
       case NoticeLayout.separate:
         final shown = messages.length > separateLimit
@@ -168,7 +168,7 @@ abstract final class MailNotices {
     return MailNotice(
       id: idFor(m.id),
       title: 'Back from snooze: ${senderName(m)}',
-      body: _subjectOf(m),
+      body: _subjectOf(m, previews: previews),
       preview: previews ? _preview(m.snippet) : null,
       messageId: m.id,
       receivedAt: m.listedAt,
@@ -181,8 +181,16 @@ abstract final class MailNotices {
     final code = m.shownCode;
     return MailNotice(
       id: idFor(m.id),
-      title: code == null ? sender : 'Code $code from $sender',
-      body: subject == null || subject.isEmpty ? '(no subject)' : subject,
+      title: code == null
+          ? sender
+          : previews
+          ? 'Code $code from $sender'
+          : 'Code from $sender',
+      body: subject == null || subject.isEmpty
+          ? '(no subject)'
+          : previews || code == null
+          ? subject
+          : hideCode(subject, code),
       preview: previews ? _preview(m.snippet) : null,
       messageId: m.id,
       code: code,
@@ -190,11 +198,15 @@ abstract final class MailNotices {
     );
   }
 
-  static MailNotice _summary(Account account, NewMail mail) {
+  static MailNotice _summary(
+    Account account,
+    NewMail mail, {
+    required bool previews,
+  }) {
     final newest = mail.messages.reversed.toList();
     final lines = [
       for (final m in newest.take(summaryLines))
-        '${senderName(m)} — ${_subjectOf(m)}',
+        '${senderName(m)} — ${_subjectOf(m, previews: previews)}',
     ];
     final more = mail.total - lines.length;
     return MailNotice(
@@ -215,11 +227,22 @@ abstract final class MailNotices {
     return from?.address ?? 'Unknown sender';
   }
 
-  static String _subjectOf(StoredMessage m) {
+  /// The code instead of the subject, with [previews] on.
+  static String _subjectOf(StoredMessage m, {required bool previews}) {
     final code = m.shownCode;
-    if (code != null) return 'Code $code';
+    if (code != null && previews) return 'Code $code';
     final subject = m.subject?.trim();
-    return subject == null || subject.isEmpty ? '(no subject)' : subject;
+    if (subject == null || subject.isEmpty) return '(no subject)';
+    return code == null ? subject : hideCode(subject, code);
+  }
+
+  /// [text] with [code] (also written `482 913` or `482-913`) left out,
+  /// for notifications without previews.
+  static String hideCode(String text, String code) {
+    final pattern = RegExp(
+      [for (final c in code.split('')) RegExp.escape(c)].join('[ -]?'),
+    );
+    return text.replaceAll(pattern, '••••');
   }
 
   /// Distinct sender names, in the given order.

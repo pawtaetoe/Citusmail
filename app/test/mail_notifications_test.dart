@@ -305,8 +305,78 @@ void main() {
       );
       expect(notices.map((n) => n.preview), [null, null]);
       expect(notices.last.text, 'Reminder: check-up on Thursday at 3:30 pm');
-      expect(notices.first.title, 'Code 482913 from Northwind Bank');
+      expect(notices.first.title, 'Code from Northwind Bank');
       expect(notices.first.copyActionId, 'copy:${bank.id}:482913');
+    });
+
+    test('previews off: the code is in no text, also not the subject\'s', () {
+      final shop = _message(
+        'Lumen Shop',
+        'no-reply@lumenshop.example',
+        'Your code is 731 044',
+        'Enter 731044 to finish signing in.',
+        code: '731044',
+      );
+      final bank = _bank();
+      for (final layout in NoticeLayout.values) {
+        final notices = MailNotices.build(
+          _account,
+          _mail([shop, bank, _mum()]),
+          layout: layout,
+          previews: false,
+        );
+        for (final n in notices) {
+          final shown = [n.title, n.text, ...n.lines, ?n.more].join(' ');
+          expect(shown, isNot(contains('731')), reason: '$layout');
+          expect(shown, isNot(contains('482913')), reason: '$layout');
+        }
+        final first = notices.first;
+        expect(first.title, 'Code from Lumen Shop');
+        expect(first.body, 'Your code is ••••');
+        expect(first.copyActionId, 'copy:${shop.id}:731044');
+      }
+      final summary = MailNotices.build(
+        _account,
+        _mail([shop, bank]),
+        layout: NoticeLayout.grouped,
+        previews: false,
+      ).last;
+      expect(summary.lines, [
+        'Northwind Bank — Your one-time passcode',
+        'Lumen Shop — Your code is ••••',
+      ]);
+      final back = MailNotices.backFromSnooze(shop, previews: false);
+      expect(back.body, 'Your code is ••••');
+    });
+
+    test('a Copy code button only for mail with a code', () {
+      for (final layout in NoticeLayout.values) {
+        final notices = MailNotices.build(
+          _account,
+          _mail([_mum(), _bank(), _dentist()]),
+          layout: layout,
+        );
+        expect(
+          [for (final n in notices) n.copyActionId != null],
+          [false, true, false, if (layout == NoticeLayout.grouped) false],
+          reason: '$layout',
+        );
+      }
+      final details = [
+        for (final m in [_mum(), _bank()])
+          MailNotifier.detailsFor(
+            _account,
+            MailNotices.build(
+              _account,
+              _mail([m]),
+              layout: NoticeLayout.grouped,
+            ).single,
+          ),
+      ];
+      expect(details.first.android!.actions, isEmpty);
+      expect(details.first.linux!.actions, isEmpty);
+      expect(details.first.windows!.actions, isEmpty);
+      expect(details.last.android!.actions!.single.title, 'Copy code');
     });
 
     test('app lock on: only "New mail", nothing from the messages', () {
@@ -520,6 +590,7 @@ void main() {
       AppSettings(app.store).notificationPreviews = false;
       await notifier.announce(app.store, _account, _mail([_bank()]));
       final quiet = plugin.shown.single;
+      expect(quiet.title, 'Code from Northwind Bank');
       expect(quiet.body, 'Your one-time passcode');
       expect(quiet.android.styleInformation, isNull);
       expect(quiet.android.actions, hasLength(1));
