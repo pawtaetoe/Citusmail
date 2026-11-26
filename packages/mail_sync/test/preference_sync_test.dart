@@ -241,7 +241,7 @@ void main() {
   });
 
   test('the Keep list merges additions and removals per sender', () {
-    const kept = SyncedPreferences.keptSenders;
+    final kept = SyncedPreferences.keptSenders.key;
     phone.store.settings.write(
       kept,
       'mum@family.example,news@shop.example',

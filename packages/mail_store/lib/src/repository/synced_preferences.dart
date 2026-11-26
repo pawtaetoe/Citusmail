@@ -7,6 +7,7 @@ import 'dart:convert';
 import '../database/mail_database.dart';
 import 'app_data_sync_repository.dart';
 import 'screener_repository.dart';
+import 'setting.dart';
 import 'settings_repository.dart';
 
 /// One synced preference as this device has it, ready to travel to the
@@ -45,38 +46,68 @@ final class SyncedPreferences {
 
   final MailDatabase _db;
 
+  // The synced settings are declared here, and only here, so that the
+  // list below can't miss one; the app's settings refer to these.
+
+  /// The Screener on or off: stored by [ScreenerRepository] itself (as
+  /// when it was turned on), read through [ScreenerRepository.enabled].
   static const screener = ScreenerRepository.sinceKey;
+
+  /// Clean-up of old codes: one preference made of three settings, typed
+  /// in mail_sync's `CodeCleanupSettings` under these keys.
   static const codeCleanup = 'codes.cleanup';
   static const codeCleanupAge = 'codes.cleanup.age';
   static const codeCleanupAction = 'codes.cleanup.action';
   static const codeCleanupConsent = 'codes.cleanup.consent';
-  static const keptSenders = 'cleanup.kept';
 
-  /// The preferences that sync, each for a reason.
-  static const all = <String>{
+  static const newSinceAway = BoolSetting('inbox.newSinceAway', fallback: true);
+  static const summaryLine = BoolSetting('inbox.summaryLine', fallback: true);
+  static const autoRead = BoolSetting('autoRead.on', fallback: true);
+  static const learnFromCorrections = BoolSetting(
+    'learning.on',
+    fallback: true,
+  );
+  static const reminders = BoolSetting('reminders.on', fallback: true);
+
+  /// Off by default: they come every month.
+  static const monthlyRenewals = BoolSetting('reminders.monthly');
+  static const followUpNotifications = BoolSetting(
+    'followUps.notify',
+    fallback: true,
+  );
+
+  /// Clean up's Keep list: the senders' keys.
+  static const keptSenders = StringListSetting('cleanup.kept');
+  static const writingHints = BoolSetting('writing.hints', fallback: true);
+
+  /// On: the user turned tips off.
+  static const tipsOff = BoolSetting('tips.off');
+
+  /// The preferences that sync, by key, each for a reason.
+  static final all = <String>{
     // The Screener on or off: the user wants mail from new senders to
     // wait, whichever device they read on. Synced as on or off; a device
     // that turns it on counts the senders it has mail from as let in.
     screener,
     // "New since you were away" at the top of the inbox: how the user
     // likes their inbox to look.
-    'inbox.newSinceAway',
+    newSinceAway.key,
     // The summary line at the top of the inbox: the same reasoning.
-    'inbox.summaryLine',
+    summaryLine.key,
     // "Read receipts and bookings automatically": what may be downloaded
     // ahead of time from the user's own mail; a choice about their mail.
-    'autoRead.on',
+    autoRead.key,
     // "Learn from my corrections": the user's wish that their "not a
     // subscription" answers count follows them.
-    'learning.on',
+    learnFromCorrections.key,
     // Bill and trial reminders, and monthly renewals among them: which
     // reminders the user wants. Whether a device shows notifications at
     // all stays on that device.
-    'reminders.on',
-    'reminders.monthly',
+    reminders.key,
+    monthlyRenewals.key,
     // Follow-up reminders ("Remind me if no reply") as notifications;
     // the same reasoning as reminders.
-    'followUps.notify',
+    followUpNotifications.key,
     // Clean-up of old codes: after how long ([codeCleanupAge]), Archive
     // or Trash ([codeCleanupAction]) and the user's agreement to it
     // ([codeCleanupConsent]), as one: the agreement only travels with
@@ -84,13 +115,13 @@ final class SyncedPreferences {
     codeCleanup,
     // Clean up's Keep list: senders the user keeps. A set: an addition
     // on one device and a removal on another both count.
-    keptSenders,
+    keptSenders.key,
     // Writing hints in the compose window: how the user likes to write,
     // on every device. Worked out on each device from its own mail.
-    'writing.hints',
+    writingHints.key,
     // Tips switched off: someone who turned tips off doesn't want them
     // again on their next device.
-    'tips.off',
+    tipsOff.key,
   };
 
   /// The synced preference a setting belongs to, or null when the setting
@@ -127,7 +158,7 @@ final class SyncedPreferences {
     final preference = preferenceOf(settingKey);
     if (preference == null || old == value) return;
     final when = (at ?? DateTime.now()).toUtc();
-    if (preference == keptSenders) {
+    if (preference == keptSenders.key) {
       final before = _items(old).toSet(), after = _items(value).toSet();
       final stamps = _itemStamps();
       for (final item in after.difference(before)) {
@@ -136,13 +167,13 @@ final class SyncedPreferences {
       for (final item in before.difference(after)) {
         stamps.remove(item);
         AppDataSyncRepository(_db).recordRemoval(
-          AppDataKeys.preference(keptSenders, item),
+          AppDataKeys.preference(keptSenders.key, item),
           'preference',
           at: when,
           device: device,
         );
       }
-      _write('$_stampPrefix$keptSenders', jsonEncode(stamps));
+      _write('$_stampPrefix${keptSenders.key}', jsonEncode(stamps));
       return;
     }
     // Only agreeing travels; "Not now" is this device's own answer.
@@ -154,12 +185,12 @@ final class SyncedPreferences {
   List<PreferenceEntry> entries() {
     final out = <PreferenceEntry>[];
     for (final preference in all) {
-      if (preference == keptSenders) {
+      if (preference == keptSenders.key) {
         final stamps = _itemStamps();
-        for (final item in _items(_read(keptSenders))) {
+        for (final item in _items(_read(keptSenders.key))) {
           out.add(
-            PreferenceEntry(AppDataKeys.preference(keptSenders, item), {
-              'key': keptSenders,
+            PreferenceEntry(AppDataKeys.preference(keptSenders.key, item), {
+              'key': keptSenders.key,
               'item': item,
             }, _time(stamps[item] ?? 0)),
           );
@@ -201,7 +232,7 @@ final class SyncedPreferences {
     }
     final ms = at.millisecondsSinceEpoch;
     if (parts.length == 2) {
-      if (preference != keptSenders) throw FormatException('bad key $key');
+      if (preference != keptSenders.key) throw FormatException('bad key $key');
       return _applyItem(parts[1], deleted: deleted, at: at, device: device);
     }
     if (parts.length != 1 || deleted) throw FormatException('bad key $key');
@@ -258,7 +289,7 @@ final class SyncedPreferences {
     required DateTime at,
     required String device,
   }) {
-    final items = _items(_read(keptSenders));
+    final items = _items(_read(keptSenders.key));
     final has = items.contains(item);
     final settings = SettingsRepository(_db);
     if (deleted) {
@@ -266,16 +297,11 @@ final class SyncedPreferences {
       if (!has || (kept != null && kept > at.millisecondsSinceEpoch)) {
         return false; // kept again here since
       }
-      settings.write(
-        keptSenders,
-        (items..remove(item)).join(','),
-        at: at,
-        device: device,
-      );
+      keptSenders.write(settings, items..remove(item), at: at, device: device);
       return true;
     }
     if (has) return false;
-    settings.write(keptSenders, [...items, item].join(','), at: at);
+    keptSenders.write(settings, [...items, item], at: at);
     return true;
   }
 
@@ -300,7 +326,9 @@ final class SyncedPreferences {
 
   Map<String, int> _itemStamps() {
     try {
-      final decoded = jsonDecode(_read('$_stampPrefix$keptSenders') ?? '{}');
+      final decoded = jsonDecode(
+        _read('$_stampPrefix${keptSenders.key}') ?? '{}',
+      );
       if (decoded is Map) {
         return {
           for (final MapEntry(:key, :value) in decoded.entries)
@@ -313,9 +341,8 @@ final class SyncedPreferences {
     return {};
   }
 
-  static List<String> _items(String? value) => [
-    ...?value?.split(',').where((s) => s.isNotEmpty),
-  ];
+  static List<String> _items(String? value) =>
+      value == null ? [] : keptSenders.decode(value);
 
   static DateTime _time(int ms) =>
       DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
