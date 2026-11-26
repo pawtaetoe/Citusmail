@@ -9,8 +9,8 @@ import 'package:mail_store/mail_store.dart';
 import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
-import '../../found/ui/subscription_detail_page.dart' show EmailPage;
 import '../../inbox/state/mail_controller.dart';
+import 'email_page.dart';
 
 /// Who read one of the user's messages, from a read receipt that came
 /// back: [name] (null when it went to one person only), when, and the

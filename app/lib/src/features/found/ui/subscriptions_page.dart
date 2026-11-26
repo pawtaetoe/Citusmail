@@ -16,6 +16,7 @@ import '../../../core/widgets/skeleton_rows.dart';
 import '../../../services/app_services.dart';
 import '../../../services/reminders.dart';
 import '../../inbox/state/mail_controller.dart';
+import '../../reader/ui/email_page.dart';
 import '../../settings/ui/feature_settings.dart';
 import '../../settings/ui/read_ahead.dart';
 import '../state/prices.dart';

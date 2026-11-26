@@ -10,8 +10,8 @@ import '../../../core/theme/motion.dart';
 import '../../../core/widgets/avatar.dart';
 import '../../../services/reminders.dart' show ReminderWords;
 import '../../inbox/state/mail_controller.dart';
+import '../../reader/ui/email_page.dart';
 import '../state/deliveries_model.dart';
-import 'subscription_detail_page.dart' show EmailPage;
 
 /// What a return window reads as.
 abstract final class ReturnText {

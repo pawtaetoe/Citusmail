@@ -8,11 +8,12 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/detail_scaffold.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../reader/ui/calendar_files.dart';
+import '../../reader/ui/email_page.dart';
 import '../../reader/ui/link_opener.dart';
 import 'appointment_text.dart';
-import 'subscription_detail_page.dart' show EmailPage;
 
 /// What the user chose on an appointment's page; the list carries it out
 /// and offers Undo.
@@ -91,18 +92,14 @@ final class AppointmentDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     final a = appointment;
     final today = (now ?? DateTime.now)();
     final material = MaterialLocalizations.of(context);
     final reference = a.reference;
-    final muted = theme.textTheme.bodyMedium?.copyWith(
-      color: colors.onSurfaceVariant,
-    );
     final day = AppointmentWords.day(a.start, now: today);
     final facts = <Widget>[
-      _Fact(
+      DetailFact.wide(
         label: 'When',
         value: [
           day == 'Today' || day == 'Tomorrow'
@@ -112,15 +109,15 @@ final class AppointmentDetailPage extends StatelessWidget {
         ].join('\n'),
       ),
       if (a.online)
-        const _Fact(label: 'Where', value: 'Online')
+        const DetailFact.wide(label: 'Where', value: 'Online')
       else if (a.place case final p?)
-        _Fact(label: 'Where', value: p),
+        DetailFact.wide(label: 'Where', value: p),
       if (a.service case final s? when s != a.title)
-        _Fact(label: 'For', value: s),
+        DetailFact.wide(label: 'For', value: s),
       if (a.business != null && a.business != a.title)
-        _Fact(label: 'With', value: a.business!),
+        DetailFact.wide(label: 'With', value: a.business!),
       if (reference != null)
-        _Fact(
+        DetailFact.wide(
           label: 'Reference',
           value: reference,
           trailing: IconButton(
@@ -132,234 +129,107 @@ final class AppointmentDetailPage extends StatelessWidget {
           onTap: () => _copy(context, reference, 'Booking reference'),
         ),
       if (AppointmentWords.bookedWith(a) case final w?)
-        _Fact(label: 'Booked with', value: w),
+        DetailFact.wide(label: 'Booked with', value: w),
     ];
     final links = a.links;
 
-    return Scaffold(
-      appBar: AppBar(title: Text(a.title)),
-      body: SafeArea(
-        top: false,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundColor: a.cancelled
-                                  ? colors.errorContainer
-                                  : colors.primaryContainer,
-                              foregroundColor: a.cancelled
-                                  ? colors.onErrorContainer
-                                  : colors.onPrimaryContainer,
-                              child: Icon(AppointmentWords.icon(a.kind)),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    a.title,
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                      decoration: a.cancelled
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    a.cancelled
-                                        ? 'Cancelled'
-                                        : AppointmentWords.when(
-                                            context,
-                                            a.start,
-                                            now: today,
-                                          ),
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: a.cancelled
-                                          ? colors.error
-                                          : colors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (a.cancelled) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            'An email says this appointment was cancelled.',
-                            style: muted,
-                          ),
-                        ] else if (a.previousStart case final was?) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            'It was moved. It was '
-                            '${AppointmentWords.when(context, was, now: today)}.',
-                            style: muted,
-                          ),
-                        ],
-                        const Divider(height: 28),
-                        ...facts,
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            if (CalendarFiles.canOpen && !a.cancelled)
-                              FilledButton.tonalIcon(
-                                onPressed: () => _addToCalendar(context),
-                                icon: const Icon(
-                                  AppIcons.addToCalendar,
-                                  size: 18,
-                                ),
-                                label: const Text('Add to calendar'),
-                              ),
-                            for (final l in links)
-                              // The app's own button does that.
-                              if (!l.label.toLowerCase().contains('calendar'))
-                                OutlinedButton.icon(
-                                  onPressed: () => _openLink(context, l.url),
-                                  icon: const Icon(
-                                    AppIcons.openExternal,
-                                    size: 18,
-                                  ),
-                                  label: Text(l.label),
-                                ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
-                  child: Text(
-                    'Emails',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: [
-                      for (final (i, r) in a.records.indexed) ...[
-                        if (i > 0) const Divider(height: 1, indent: 56),
-                        ListTile(
-                          key: ValueKey(
-                            'appointment-email-${r.email.messageId}',
-                          ),
-                          leading: Icon(
-                            r.cancels
-                                ? AppIcons.eventCancelled
-                                : r.changes
-                                ? AppIcons.eventChanged
-                                : r.reminds
-                                ? AppIcons.notifications
-                                : AppIcons.mail,
-                          ),
-                          title: Text(
-                            r.cancels
-                                ? 'Cancelled'
-                                : r.changes
-                                ? 'Moved'
-                                : r.reminds
-                                ? 'Reminder'
-                                : i == 0
-                                ? 'Booked'
-                                : 'Update',
-                          ),
-                          subtitle: Text(
-                            '${material.formatMediumDate(r.email.at.toLocal())} · '
-                            '${r.email.subject.isEmpty ? '(no subject)' : r.email.subject}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: const Icon(AppIcons.chevron),
-                          onTap: () => _openEmail(context, r.email.messageId),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => Navigator.pop(
-                      context,
-                      AppointmentAction.notAnAppointment,
-                    ),
-                    icon: const Icon(AppIcons.hide, size: 18),
-                    label: const Text('Not an appointment'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    return DetailScaffold(
+      title: a.title,
+      header: DetailHeader(
+        leading: CircleAvatar(
+          radius: 22,
+          backgroundColor: a.cancelled
+              ? colors.errorContainer
+              : colors.primaryContainer,
+          foregroundColor: a.cancelled
+              ? colors.onErrorContainer
+              : colors.onPrimaryContainer,
+          child: Icon(AppointmentWords.icon(a.kind)),
         ),
-      ),
-    );
-  }
-}
-
-final class _Fact extends StatelessWidget {
-  const _Fact({
-    required this.label,
-    required this.value,
-    this.trailing,
-    this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: trailing == null
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 96,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+        title: a.title,
+        struck: a.cancelled,
+        subtitle: a.cancelled
+            ? 'Cancelled'
+            : AppointmentWords.when(context, a.start, now: today),
+        subtitleColor: a.cancelled ? colors.error : null,
+        notes: [
+          if (a.cancelled)
+            'An email says this appointment was cancelled.'
+          else if (a.previousStart case final was?)
+            'It was moved. It was ${AppointmentWords.when(context, was, now: today)}.',
+        ],
+        facts: facts,
+        footer: [
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (CalendarFiles.canOpen && !a.cancelled)
+                FilledButton.tonalIcon(
+                  onPressed: () => _addToCalendar(context),
+                  icon: const Icon(AppIcons.addToCalendar, size: 18),
+                  label: const Text('Add to calendar'),
+                ),
+              for (final l in links)
+                // The app's own button does that.
+                if (!l.label.toLowerCase().contains('calendar'))
+                  OutlinedButton.icon(
+                    onPressed: () => _openLink(context, l.url),
+                    icon: const Icon(AppIcons.openExternal, size: 18),
+                    label: Text(l.label),
+                  ),
+            ],
           ),
-          Expanded(
-            child: GestureDetector(
-              onTap: onTap,
-              child: Text(value, style: theme.textTheme.bodyMedium),
-            ),
-          ),
-          ?trailing,
         ],
       ),
+      actions: [
+        TextButton.icon(
+          onPressed: () =>
+              Navigator.pop(context, AppointmentAction.notAnAppointment),
+          icon: const Icon(AppIcons.hide, size: 18),
+          label: const Text('Not an appointment'),
+        ),
+      ],
+      children: [
+        DetailSection(
+          title: 'Emails',
+          children: [
+            for (final (i, r) in a.records.indexed)
+              ListTile(
+                key: ValueKey('appointment-email-${r.email.messageId}'),
+                leading: Icon(
+                  r.cancels
+                      ? AppIcons.eventCancelled
+                      : r.changes
+                      ? AppIcons.eventChanged
+                      : r.reminds
+                      ? AppIcons.notifications
+                      : AppIcons.mail,
+                ),
+                title: Text(
+                  r.cancels
+                      ? 'Cancelled'
+                      : r.changes
+                      ? 'Moved'
+                      : r.reminds
+                      ? 'Reminder'
+                      : i == 0
+                      ? 'Booked'
+                      : 'Update',
+                ),
+                subtitle: Text(
+                  '${material.formatMediumDate(r.email.at.toLocal())} · '
+                  '${r.email.subject.isEmpty ? '(no subject)' : r.email.subject}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(AppIcons.chevron),
+                onTap: () => _openEmail(context, r.email.messageId),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

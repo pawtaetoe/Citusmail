@@ -10,9 +10,10 @@ import 'package:mail_store/mail_store.dart';
 
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/avatar.dart';
+import '../../../core/widgets/detail_scaffold.dart';
 import '../../inbox/state/mail_controller.dart';
+import '../../reader/ui/email_page.dart';
 import '../../reader/ui/link_opener.dart';
-import '../../reader/ui/reader_pane.dart';
 import 'deliveries_page.dart' show DeliveryText;
 import 'returns_section.dart' show ReturnText;
 
@@ -46,15 +47,7 @@ final class DeliveryDetailPage extends StatelessWidget {
   Future<void> _openEmail(BuildContext context, int messageId) async {
     final message = messageById(messageId);
     if (message == null) return;
-    await controller.open(message);
-    if (!context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _EmailPage(controller: controller),
-      ),
-    );
-    // Back here: the mail screen behind shows no message.
-    controller.closeMessage();
+    await EmailPage.open(context, controller, message, title: 'Email');
   }
 
   /// Opens the carrier's tracking page, after asking (the link opener
@@ -81,8 +74,7 @@ final class DeliveryDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     final d = delivery;
     final material = MaterialLocalizations.of(context);
     String date(DateTime t) => material.formatMediumDate(t.toLocal());
@@ -90,258 +82,100 @@ final class DeliveryDetailPage extends StatelessWidget {
     final tracking = d.trackingNumber;
     final url = d.trackingUrl;
 
-    return Scaffold(
-      appBar: AppBar(title: Text(d.shopName)),
-      body: SafeArea(
-        top: false,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Avatar(name: d.shopName, address: d.shop, size: 44),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    DeliveryText.status(context, d),
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                      color: problem ? colors.error : null,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Last news ${date(d.lastUpdate)}',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (d.probablyDelivered) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            'No news for over a month, so it was probably '
-                            'delivered.',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                        const Divider(height: 28),
-                        if (d.items.isNotEmpty)
-                          _Fact(label: 'Items', value: d.items.join('\n')),
-                        if (d.carrierName case final c?)
-                          _Fact(label: 'Carrier', value: c),
-                        if (tracking != null)
-                          _Fact(
-                            label: 'Tracking',
-                            value: tracking,
-                            trailing: IconButton(
-                              tooltip: 'Copy tracking number',
-                              visualDensity: VisualDensity.compact,
-                              icon: const Icon(AppIcons.copy, size: 18),
-                              onPressed: () => _copy(context, tracking),
-                            ),
-                            onTap: () => _copy(context, tracking),
-                          ),
-                        if (d.orderNumber case final o?)
-                          _Fact(label: 'Order', value: o),
-                        _Fact(label: 'From', value: d.shop),
-                        if (returnWindow case final w?)
-                          _Fact(
-                            label: 'Returns',
-                            value:
-                                '${ReturnText.deadline(w, (now ?? DateTime.now)())}'
-                                '\n${ReturnText.basis(w)}',
-                          ),
-                        if (url != null) ...[
-                          const SizedBox(height: 14),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: FilledButton.tonalIcon(
-                              onPressed: () => _track(context, url),
-                              icon: const Icon(AppIcons.openExternal, size: 18),
-                              label: Text(
-                                'Track on ${d.carrierName ?? url.host}',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
-                  child: Text(
-                    'Emails',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: [
-                      for (final (i, r) in d.records.indexed) ...[
-                        if (i > 0) const Divider(height: 1, indent: 56),
-                        ListTile(
-                          key: ValueKey('delivery-email-${r.email.messageId}'),
-                          leading: Icon(DeliveryText.icon(r.status)),
-                          title: Text(DeliveryText.event(r.status)),
-                          subtitle: Text(
-                            '${date(r.email.at)} · '
-                            '${r.email.subject.isEmpty ? '(no subject)' : r.email.subject}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: const Icon(AppIcons.chevron),
-                          onTap: () => _openEmail(context, r.email.messageId),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    if (!d.arrived || d.probablyDelivered)
-                      TextButton.icon(
-                        onPressed: () => Navigator.pop(
-                          context,
-                          DeliveryAction.markDelivered,
-                        ),
-                        icon: const Icon(AppIcons.done, size: 18),
-                        label: const Text('Mark as delivered'),
-                      ),
-                    if (d.markedDelivered)
-                      TextButton.icon(
-                        onPressed: () =>
-                            Navigator.pop(context, DeliveryAction.notDelivered),
-                        icon: const Icon(AppIcons.undo, size: 18),
-                        label: const Text('Not delivered yet'),
-                      ),
-                    TextButton.icon(
-                      onPressed: () =>
-                          Navigator.pop(context, DeliveryAction.notADelivery),
-                      icon: const Icon(AppIcons.hide, size: 18),
-                      label: const Text('Not a delivery'),
-                    ),
-                  ],
-                ),
-              ],
+    return DetailScaffold(
+      title: d.shopName,
+      header: DetailHeader(
+        leading: Avatar(name: d.shopName, address: d.shop, size: 44),
+        title: DeliveryText.status(context, d),
+        titleColor: problem ? colors.error : null,
+        subtitle: 'Last news ${date(d.lastUpdate)}',
+        notes: [
+          if (d.probablyDelivered)
+            'No news for over a month, so it was probably delivered.',
+        ],
+        facts: [
+          if (d.items.isNotEmpty)
+            DetailFact(label: 'Items', value: d.items.join('\n')),
+          if (d.carrierName case final c?)
+            DetailFact(label: 'Carrier', value: c),
+          if (tracking != null)
+            DetailFact(
+              label: 'Tracking',
+              value: tracking,
+              trailing: IconButton(
+                tooltip: 'Copy tracking number',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(AppIcons.copy, size: 18),
+                onPressed: () => _copy(context, tracking),
+              ),
+              onTap: () => _copy(context, tracking),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-final class _Fact extends StatelessWidget {
-  const _Fact({
-    required this.label,
-    required this.value,
-    this.trailing,
-    this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: trailing == null
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 84,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+          if (d.orderNumber case final o?) DetailFact(label: 'Order', value: o),
+          DetailFact(label: 'From', value: d.shop),
+          if (returnWindow case final w?)
+            DetailFact(
+              label: 'Returns',
+              value:
+                  '${ReturnText.deadline(w, (now ?? DateTime.now)())}'
+                  '\n${ReturnText.basis(w)}',
+            ),
+        ],
+        footer: [
+          if (url != null) ...[
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                onPressed: () => _track(context, url),
+                icon: const Icon(AppIcons.openExternal, size: 18),
+                label: Text('Track on ${d.carrierName ?? url.host}'),
               ),
             ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: onTap,
-              child: Text(value, style: theme.textTheme.bodyMedium),
-            ),
-          ),
-          ?trailing,
+          ],
         ],
       ),
+      actions: [
+        if (!d.arrived || d.probablyDelivered)
+          TextButton.icon(
+            onPressed: () =>
+                Navigator.pop(context, DeliveryAction.markDelivered),
+            icon: const Icon(AppIcons.done, size: 18),
+            label: const Text('Mark as delivered'),
+          ),
+        if (d.markedDelivered)
+          TextButton.icon(
+            onPressed: () =>
+                Navigator.pop(context, DeliveryAction.notDelivered),
+            icon: const Icon(AppIcons.undo, size: 18),
+            label: const Text('Not delivered yet'),
+          ),
+        TextButton.icon(
+          onPressed: () => Navigator.pop(context, DeliveryAction.notADelivery),
+          icon: const Icon(AppIcons.hide, size: 18),
+          label: const Text('Not a delivery'),
+        ),
+      ],
+      children: [
+        DetailSection(
+          title: 'Emails',
+          children: [
+            for (final r in d.records)
+              ListTile(
+                key: ValueKey('delivery-email-${r.email.messageId}'),
+                leading: Icon(DeliveryText.icon(r.status)),
+                title: Text(DeliveryText.event(r.status)),
+                subtitle: Text(
+                  '${date(r.email.at)} · '
+                  '${r.email.subject.isEmpty ? '(no subject)' : r.email.subject}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(AppIcons.chevron),
+                onTap: () => _openEmail(context, r.email.messageId),
+              ),
+          ],
+        ),
+      ],
     );
   }
-}
-
-/// An email about the delivery, read in place: Back returns to it.
-final class _EmailPage extends StatefulWidget {
-  const _EmailPage({required this.controller});
-
-  final MailController controller;
-
-  @override
-  State<_EmailPage> createState() => _EmailPageState();
-}
-
-final class _EmailPageState extends State<_EmailPage> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.reader.addListener(_closedElsewhere);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.reader.removeListener(_closedElsewhere);
-    super.dispose();
-  }
-
-  /// Archived, deleted or closed from its own actions: back to the
-  /// delivery.
-  void _closedElsewhere() {
-    // Only while this page is on top: going back closes the message too.
-    if (widget.controller.reader.value.message == null &&
-        mounted &&
-        (ModalRoute.of(context)?.isCurrent ?? false)) {
-      Navigator.of(context).maybePop();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Email')),
-    body: SafeArea(
-      top: false,
-      child: ReaderPane(controller: widget.controller, toolbarAtBottom: true),
-    ),
-  );
 }
