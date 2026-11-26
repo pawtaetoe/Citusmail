@@ -10,6 +10,7 @@ import '../mail/mail_controller.dart';
 import '../services/reminders.dart' show ReminderWords;
 import 'app_icons.dart';
 import 'avatar.dart';
+import 'motion.dart';
 import 'subscription_detail_page.dart' show EmailPage;
 
 /// What a return window reads as.
@@ -100,17 +101,13 @@ final class _ReturnsSectionState extends State<ReturnsSection> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        undoSnackBar(
           content: Text(
             returned
                 ? 'Marked as returned'
                 : 'Keeping it: ${w.shopName} won\'t be listed for returns',
           ),
-          persist: false,
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => _model.unmarkReturn(w.key),
-          ),
+          onUndo: () => _model.unmarkReturn(w.key),
         ),
       );
   }

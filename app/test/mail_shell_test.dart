@@ -156,9 +156,11 @@ void main() {
     );
     await tester.tap(find.text('Newsletters'));
     await tester.pump();
+    await tester.pumpAndSettle(); // unfolded
     expect(find.text('Weekly deals'), findsOneWidget);
     await tester.tap(find.text('Newsletters'));
     await tester.pump();
+    await tester.pumpAndSettle(); // folded
     expect(find.text('Weekly deals'), findsNothing);
     expect(
       store.settings.read('ui.collapsedSections'),
@@ -485,6 +487,7 @@ void main() {
     expect(find.byType(Sidebar), findsNothing, reason: 'Folders is a tab');
     await tester.tap(find.text('Hello there'));
     await settle(tester);
+    await tester.pumpAndSettle(); // grown into the message
     expect(find.byTooltip('Back (Esc)'), findsOneWidget);
     expect(find.text('Lunch?'), findsNothing);
     await tester.tap(find.byTooltip('Back (Esc)'));

@@ -13,6 +13,7 @@ import 'ask_mail_panel.dart';
 import 'citusmail_theme.dart';
 import 'features.dart';
 import 'message_list_pane.dart';
+import 'motion.dart';
 import 'reader_pane.dart';
 
 /// The tabs of the phone layout, in the navigation bar's order.
@@ -213,20 +214,28 @@ final class _PhoneHomeState extends State<PhoneHome>
       final open = _c.selected != null;
       final selecting = _c.selecting;
       final atRoot = _atRoot(location);
+      final reader = ReaderPane(
+        controller: _c,
+        showBack: true,
+        toolbarAtBottom: true,
+        replyBar: false,
+      );
+      final hub = atRoot && _tab == PhoneTab.found
+          ? FoundHub(controller: _c)
+          : atRoot && _tab == PhoneTab.folders
+          ? widget.folders
+          : null;
       final Widget body;
-      if (open) {
-        body = ReaderPane(
-          controller: _c,
-          showBack: true,
-          toolbarAtBottom: true,
-          replyBar: false,
-        );
-      } else if (atRoot && _tab == PhoneTab.found) {
-        body = FoundHub(controller: _c);
-      } else if (atRoot && _tab == PhoneTab.folders) {
-        body = widget.folders;
+      if (hub != null) {
+        body = open ? reader : hub;
       } else {
-        body = _list(search: atRoot && _tab == PhoneTab.inbox);
+        // The row grows into the message, and back; the list stays where
+        // it was underneath.
+        body = OpenTransition(
+          message: _c.selected?.id,
+          list: _list(search: atRoot && _tab == PhoneTab.inbox),
+          reader: reader,
+        );
       }
       final Widget? bottom;
       if (open) {
@@ -411,17 +420,19 @@ final class _ComposeButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => FloatingActionButton(
-    tooltip: 'New message (C)',
-    // No flight between pages (it also goes while one leaves).
-    heroTag: null,
-    backgroundColor: CitusPalette.citrus,
-    foregroundColor: CitusPalette.onCitrus,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(CitusmailTheme.radiusCard),
+  Widget build(BuildContext context) => PressScale(
+    child: FloatingActionButton(
+      tooltip: 'New message (C)',
+      // No flight between pages (it also goes while one leaves).
+      heroTag: null,
+      backgroundColor: CitusPalette.citrus,
+      foregroundColor: CitusPalette.onCitrus,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(CitusmailTheme.radiusCard),
+      ),
+      onPressed: onPressed,
+      child: const Icon(AppIcons.compose),
     ),
-    onPressed: onPressed,
-    child: const Icon(AppIcons.compose),
   );
 }
 

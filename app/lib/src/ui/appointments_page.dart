@@ -14,6 +14,7 @@ import 'appointment_text.dart';
 import 'badge.dart';
 import 'citusmail_theme.dart';
 import 'feature_settings.dart';
+import 'motion.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'skeleton_rows.dart';
@@ -82,13 +83,9 @@ final class _AppointmentsPageState extends State<AppointmentsPage>
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            SnackBar(
+            undoSnackBar(
               content: Text('${a.title} won\'t be listed as an appointment'),
-              persist: false,
-              action: SnackBarAction(
-                label: 'Undo',
-                onPressed: () => _model.unhide(a.key),
-              ),
+              onUndo: () => _model.unhide(a.key),
             ),
           );
     }

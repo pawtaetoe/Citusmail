@@ -24,6 +24,7 @@ import '../setup/reconnect.dart';
 import 'app_icons.dart';
 import 'keyboard_shortcuts.dart';
 import 'message_list_pane.dart';
+import 'motion.dart';
 import 'phone_home.dart';
 import 'reader_pane.dart';
 import 'reconnect_dialog.dart';
@@ -131,16 +132,18 @@ final class _MailShellState extends State<MailShell> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(text),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: undo == null ? 3 : 5),
-          // With Undo too it goes away after [duration].
-          persist: false,
-          action: undo == null
-              ? null
-              : SnackBarAction(label: 'Undo', onPressed: undo),
-        ),
+        undo == null
+            ? SnackBar(
+                content: Text(text),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              )
+            : undoSnackBar(
+                content: Text(text),
+                onUndo: undo,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 5),
+              ),
       );
   }
 

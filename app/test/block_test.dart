@@ -71,7 +71,7 @@ void main() {
   ) async {
     await show(tester);
     await tester.tap(find.text('Newsletters')); // collapsed at first
-    await tester.pump();
+    await tester.pumpAndSettle(); // unfolded
     await open(tester, 'Weekly deals');
     await action(tester, 'Block sender');
 
@@ -109,7 +109,7 @@ void main() {
   testWidgets('blocking a whole domain', (tester) async {
     await show(tester);
     await tester.tap(find.text('Newsletters')); // collapsed at first
-    await tester.pump();
+    await tester.pumpAndSettle(); // unfolded
     await open(tester, 'Weekly deals');
     await action(tester, 'Block sender');
     await tester.tap(find.text('Everyone at shop.example'));

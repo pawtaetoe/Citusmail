@@ -46,6 +46,9 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 400)),
     );
     await tester.pump(const Duration(milliseconds: 200));
+    // Phones: the row has grown into the message.
+    await tester.pump();
+    await tester.pump(CitusMotion.medium);
   }
 
   void seed(String fixture, String subject, int uid) => app.seedFixture(

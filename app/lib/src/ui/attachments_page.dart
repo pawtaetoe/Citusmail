@@ -15,6 +15,7 @@ import 'app_icons.dart';
 import 'attachment_save_flow.dart';
 import 'citusmail_theme.dart';
 import 'mail_text.dart';
+import 'motion.dart';
 import 'page_scaffold.dart';
 import 'reader_pane.dart';
 import 'trust_banner.dart';
@@ -109,13 +110,9 @@ final class _AttachmentsPageState extends State<AttachmentsPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        undoSnackBar(
           content: Text('${f.file.name} won\'t be listed'),
-          persist: false,
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => _model.unhide(f),
-          ),
+          onUndo: () => _model.unhide(f),
         ),
       );
   }

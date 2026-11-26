@@ -20,6 +20,7 @@ import 'discover_page.dart';
 import 'feature_settings.dart';
 import 'folder_dialogs.dart';
 import 'mail_text.dart';
+import 'motion.dart';
 import 'privacy_report_page.dart';
 import 'sender_cleanup_page.dart';
 import 'settings_page.dart';
@@ -237,16 +238,20 @@ final class Sidebar extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                       child: Tooltip(
                         message: 'New message (C)',
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: colors.badge,
-                            foregroundColor: colors.onBadge,
-                            alignment: Alignment.centerLeft,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: PressScale(
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: colors.badge,
+                              foregroundColor: colors.onBadge,
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                            ),
+                            onPressed: compose,
+                            icon: const Icon(AppIcons.compose, size: 20),
+                            label: const Text('New message'),
                           ),
-                          onPressed: compose,
-                          icon: const Icon(AppIcons.compose, size: 20),
-                          label: const Text('New message'),
                         ),
                       ),
                     ),
@@ -517,7 +522,7 @@ abstract final class _Size {
   static const end = 10.0;
 
   /// How long folding takes: enough to see where things went.
-  static const fold = Duration(milliseconds: 160);
+  static const fold = CitusMotion.fold;
 }
 
 /// Marks the phone's Folders tab, where rows are taller.
@@ -575,13 +580,16 @@ final class _Count extends StatelessWidget {
         color: colors.badge,
         borderRadius: BorderRadius.circular(CitusmailTheme.radius),
       ),
-      child: Text(
-        count > 999 ? '999+' : '$count',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: colors.onBadge,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+      child: CountSwitcher(
+        count: count,
+        builder: (context, count) => Text(
+          count > 999 ? '999+' : '$count',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: colors.onBadge,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
@@ -802,7 +810,7 @@ final class _FoldState extends State<_Fold> {
       final fits = height <= scrollable.position.viewportDimension;
       Scrollable.ensureVisible(
         context,
-        duration: _Size.fold,
+        duration: CitusMotion.of(context, _Size.fold),
         alignmentPolicy: fits
             ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
             : ScrollPositionAlignmentPolicy.explicit,
@@ -819,8 +827,8 @@ final class _FoldState extends State<_Fold> {
       children: [
         widget.header(open, foldable ? _toggle : null),
         AnimatedSize(
-          duration: _Size.fold,
-          curve: Curves.easeOut,
+          duration: CitusMotion.of(context, _Size.fold),
+          curve: CitusMotion.standard,
           alignment: Alignment.topCenter,
           onEnd: _revealOpened,
           child: Column(
@@ -895,7 +903,7 @@ final class _FoldHeader extends StatelessWidget {
             if (foldable) ...[
               AnimatedRotation(
                 turns: open ? 0 : -0.25,
-                duration: _Size.fold,
+                duration: CitusMotion.of(context, _Size.fold),
                 child: Icon(
                   AppIcons.expand,
                   size: _Size.icon,

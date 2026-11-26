@@ -16,6 +16,7 @@ import 'avatar.dart';
 import 'badge.dart';
 import 'citusmail_theme.dart';
 import 'mail_text.dart';
+import 'motion.dart';
 import 'peek.dart';
 import 'snooze_sheet.dart';
 
@@ -79,6 +80,20 @@ final class MessageTile extends StatefulWidget {
 final class _MessageTileState extends State<MessageTile> {
   bool _hovered = false;
 
+  /// Just read: the unread dot fades out instead of going at once.
+  bool _dotFading = false;
+
+  /// A finger is on the row (so a swipe is the user's, not the row
+  /// sliding back).
+  bool _swiping = false;
+
+  @override
+  void didUpdateWidget(MessageTile old) {
+    super.didUpdateWidget(old);
+    final seen = widget.message.flags.seen;
+    if (seen != old.message.flags.seen) _dotFading = seen;
+  }
+
   StoredMessage get _m => widget.message;
   MailController get _c => widget.controller;
 
@@ -93,7 +108,7 @@ final class _MessageTileState extends State<MessageTile> {
     unawaited(Peek.show(context, _c, _m, anchor: anchor));
   }
 
-  void _select() => _c.toggleSelected(_m);
+  void _select() => _toggleSelected();
 
   bool get _touch => switch (Theme.of(context).platform) {
     TargetPlatform.android || TargetPlatform.iOS => true,
@@ -107,10 +122,19 @@ final class _MessageTileState extends State<MessageTile> {
     } else if (widget.selecting ||
         keys.isControlPressed ||
         keys.isMetaPressed) {
-      _c.toggleSelected(_m);
+      _toggleSelected();
     } else {
+      // Phones: the row grows into the message.
+      OpenTransition.growFrom(context, _m.id);
       _c.open(_m);
     }
+  }
+
+  /// Selects or unselects it, with a click under the finger on touch
+  /// (not after a long press, which has the system's own buzz).
+  void _toggleSelected({bool click = true}) {
+    if (click && _touch) unawaited(HapticFeedback.selectionClick());
+    _c.toggleSelected(_m);
   }
 
   @override
@@ -129,6 +153,17 @@ final class _MessageTileState extends State<MessageTile> {
         : _hovered
         ? theme.hoverColor
         : Colors.transparent;
+
+    final dot = Center(
+      child: Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          color: listColors.unreadDot,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
 
     final row = Semantics(
       selected: widget.open || widget.checked,
@@ -209,16 +244,9 @@ final class _MessageTileState extends State<MessageTile> {
                               width: 10,
                               height: 36,
                               child: unread
-                                  ? Center(
-                                      child: Container(
-                                        width: 7,
-                                        height: 7,
-                                        decoration: BoxDecoration(
-                                          color: listColors.unreadDot,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    )
+                                  ? dot
+                                  : _dotFading && !CitusMotion.reduced(context)
+                                  ? FadeAway(child: dot)
                                   : null,
                             ),
                             // A 48 square to tap (the avatar is 36, at the
@@ -233,7 +261,7 @@ final class _MessageTileState extends State<MessageTile> {
                                     dimension: 36,
                                     child: Checkbox(
                                       value: widget.checked,
-                                      onChanged: (_) => _c.toggleSelected(_m),
+                                      onChanged: (_) => _toggleSelected(),
                                       semanticLabel: 'Select',
                                     ),
                                   ),
@@ -296,6 +324,13 @@ final class _MessageTileState extends State<MessageTile> {
         icon: AppIcons.delete,
         label: 'Delete',
       ),
+      // A tap under the finger where letting go would act, and again
+      // where it no longer would (not as the row slides back by itself).
+      onUpdate: (details) {
+        if (_swiping && details.reached != details.previousReached) {
+          unawaited(HapticFeedback.lightImpact());
+        }
+      },
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.endToStart) {
           if (_c.isInTrash(_m)) return false; // forever needs the reader
@@ -309,7 +344,12 @@ final class _MessageTileState extends State<MessageTile> {
         _c.toggleRead([_m]);
         return false;
       },
-      child: row,
+      child: Listener(
+        onPointerDown: (_) => _swiping = true,
+        onPointerUp: (_) => _swiping = false,
+        onPointerCancel: (_) => _swiping = false,
+        child: row,
+      ),
     );
   }
 
@@ -461,10 +501,7 @@ final class _MessageTileState extends State<MessageTile> {
             value: () => _c.delete([_m]),
             child: const Text('Move to Trash'),
           ),
-        PopupMenuItem(
-          value: () => _c.toggleSelected(_m),
-          child: const Text('Select'),
-        ),
+        PopupMenuItem(value: _toggleSelected, child: const Text('Select')),
       ],
     );
     action?.call();

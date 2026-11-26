@@ -295,7 +295,7 @@ void main() {
     receiptArrives();
     await show(tester);
     await tester.tap(find.text('Notifications'));
-    await tester.pump();
+    await tester.pumpAndSettle(); // unfolded
     expect(find.text('Your parcel'), findsOneWidget);
     expect(find.text('Read: Final report'), findsNothing);
     expect(find.textContaining('Bob Example'), findsNothing);

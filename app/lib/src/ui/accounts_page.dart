@@ -13,6 +13,7 @@ import 'app_icons.dart';
 import 'avatar.dart';
 import 'badge.dart';
 import 'feature_settings.dart';
+import 'motion.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'skeleton_rows.dart';
@@ -87,13 +88,9 @@ final class _AccountsPageState extends State<AccountsPage> with ReadsAhead {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        undoSnackBar(
           content: Text('${a.name} won\'t be listed as an account'),
-          persist: false,
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => _model.unhide(a.company),
-          ),
+          onUndo: () => _model.unhide(a.company),
         ),
       );
   }

@@ -15,6 +15,7 @@ import 'badge.dart';
 import 'block_dialog.dart';
 import 'citusmail_theme.dart';
 import 'mail_shell.dart';
+import 'motion.dart';
 import 'page_scaffold.dart';
 import 'skeleton_rows.dart';
 import 'unsubscribe_dialog.dart';
@@ -83,13 +84,9 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(text),
-          persist: false,
-          action: undo == null
-              ? null
-              : SnackBarAction(label: 'Undo', onPressed: undo),
-        ),
+        undo == null
+            ? SnackBar(content: Text(text))
+            : undoSnackBar(content: Text(text), onUndo: undo),
       );
   }
 
@@ -173,14 +170,10 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        undoSnackBar(
           content: Text(text),
           behavior: SnackBarBehavior.floating,
-          persist: false,
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => _model.unkeep(keys),
-          ),
+          onUndo: () => _model.unkeep(keys),
         ),
       );
   }
