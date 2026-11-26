@@ -27,7 +27,7 @@ final class ReplyBuilder {
       _reply(message, view, all: false);
 
   /// Reply to the sender and everyone else on the message, except the
-  /// user's own addresses.
+  /// address the reply is sent from.
   Draft replyAll(StoredMessage message, MessageView view) =>
       _reply(message, view, all: true);
 
@@ -77,13 +77,17 @@ final class ReplyBuilder {
   }
 
   Draft _reply(StoredMessage message, MessageView view, {required bool all}) {
-    final own = {
-      for (final account in _store.accounts.all()) account.email.toLowerCase(),
-    };
-    bool isOwn(MailAddress a) => own.contains(a.address.toLowerCase());
+    // Only the address this reply is sent from counts as the user's: mail
+    // from another of the user's own accounts is answered like anyone's.
+    final own = _store.accounts.byId(message.accountId)?.email.toLowerCase();
+    bool isOwn(MailAddress a) => a.address.toLowerCase() == own;
 
     final replyTo = _store.messages.addresses(message.id, 'reply_to');
-    final target = replyTo.isNotEmpty ? replyTo : [?message.from];
+    final sender = switch (message.from) {
+      final from? => [from],
+      null => _store.messages.addresses(message.id, 'from'),
+    };
+    final target = replyTo.isNotEmpty ? replyTo : sender;
     final seen = <String>{};
     List<MailAddress> unique(Iterable<MailAddress> list) => [
       for (final a in list)

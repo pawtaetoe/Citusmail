@@ -141,6 +141,25 @@ void main() {
       expect(draft.cc.map((x) => x.address), ['dave@x.example']);
     });
 
+    test('a message from another of the user\'s own accounts is answered '
+        'to that account', () {
+      // Bob's address is also an account in the app; replying from Alice
+      // still goes to him (only the replying account counts as "me").
+      addAccount('bob@x.example', name: 'Bob');
+      addAccount('bob-replies@x.example', name: 'Bob');
+      final (message, view) = received();
+      expect(
+        ReplyBuilder(store).reply(message, view).to.map((x) => x.address),
+        ['bob-replies@x.example'],
+      );
+      final all = ReplyBuilder(store).replyAll(message, view);
+      expect(all.to.map((x) => x.address), [
+        'bob-replies@x.example',
+        'carol@x.example',
+      ]);
+      expect(all.cc.map((x) => x.address), ['dave@x.example']);
+    });
+
     test('forward carries attachments and no threading', () {
       final (message, view) = received(
         attachments: [

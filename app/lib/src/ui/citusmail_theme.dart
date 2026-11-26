@@ -597,3 +597,39 @@ final class _MarkPainter extends CustomPainter {
   @override
   bool shouldRepaint(_MarkPainter oldDelegate) => false;
 }
+
+/// Notices (snack bars) on a wide window: a compact card in the
+/// bottom-right corner, not a bar across the whole window. Phones keep
+/// the theme's notices, which already fit their width.
+final class CompactNotices extends StatelessWidget {
+  const CompactNotices({super.key, required this.child});
+
+  final Widget child;
+
+  /// From this window width notices are compact.
+  static const minWidth = 840.0;
+
+  /// The widest a compact notice gets.
+  static const maxWidth = 400.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < minWidth) return child;
+    final theme = Theme.of(context);
+    const edge = CitusSpace.xl;
+    return Theme(
+      data: theme.copyWith(
+        snackBarTheme: theme.snackBarTheme.copyWith(
+          insetPadding: EdgeInsets.fromLTRB(
+            width - edge - maxWidth,
+            0,
+            edge,
+            edge,
+          ),
+        ),
+      ),
+      child: child,
+    );
+  }
+}
