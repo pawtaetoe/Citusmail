@@ -10,17 +10,39 @@ import '../mail/snooze_times.dart';
 import 'app_icons.dart';
 import 'snooze_sheet.dart';
 
+/// A time offered first in "Send later", chosen for this message (a
+/// writing hint's "8:00 AM their time").
+final class SendLaterSuggestion {
+  const SendLaterSuggestion({
+    required this.title,
+    required this.detail,
+    required this.at,
+  });
+
+  final String title;
+
+  /// A second line, such as the time on the user's own clock.
+  final String detail;
+  final DateTime at;
+}
+
 /// "Send later": ready-made times with the actual time next to each, and
 /// "Pick date & time", with a plain word on what it takes for the message
 /// to go out. A bottom sheet on phones, a small dialog on larger screens
 /// (as for snoozing).
 abstract final class SendLaterSheet {
   /// When to send, or null if the user closed it. [current] is the time
-  /// of a scheduled message being changed.
-  static Future<DateTime?> pick(BuildContext context, {DateTime? current}) {
+  /// of a scheduled message being changed; [suggested] comes first,
+  /// already selected.
+  static Future<DateTime?> pick(
+    BuildContext context, {
+    DateTime? current,
+    SendLaterSuggestion? suggested,
+  }) {
     final panel = _SendLaterPanel(
       now: SendLaterTimes.clock(),
       current: current,
+      suggested: suggested,
     );
     if (MediaQuery.sizeOf(context).width < SnoozeSheet.sheetWidth) {
       return showModalBottomSheet<DateTime>(
@@ -92,10 +114,11 @@ abstract final class SendLaterSheet {
 }
 
 final class _SendLaterPanel extends StatelessWidget {
-  const _SendLaterPanel({required this.now, this.current});
+  const _SendLaterPanel({required this.now, this.current, this.suggested});
 
   final DateTime now;
   final DateTime? current;
+  final SendLaterSuggestion? suggested;
 
   static IconData _icon(SendLaterKind kind) => switch (kind) {
     SendLaterKind.morning => AppIcons.morning,
@@ -131,6 +154,19 @@ final class _SendLaterPanel extends StatelessWidget {
             ],
           ),
         ),
+        if (suggested case final s?)
+          ListTile(
+            key: const ValueKey('send-later-suggested'),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+            selected: true,
+            autofocus: true,
+            selectedTileColor: theme.colorScheme.secondaryContainer,
+            selectedColor: theme.colorScheme.onSecondaryContainer,
+            leading: const Icon(AppIcons.morning),
+            title: Text(s.title),
+            subtitle: Text(s.detail),
+            onTap: () => Navigator.pop(context, s.at),
+          ),
         for (final c in SendLaterTimes.choicesAt(now))
           ListTile(
             key: ValueKey('send-later-${c.kind.name}'),

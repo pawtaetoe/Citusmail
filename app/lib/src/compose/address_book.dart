@@ -20,10 +20,7 @@ final class AddressBook {
   List<MailAddress> suggest(String text, {int limit = 8}) {
     final typed = text.trim().toLowerCase();
     if (typed.isEmpty) return const [];
-    final entries = _entries ??= [
-      for (final a in _load())
-        (a, '${a.address}\n${a.displayName ?? ''}'.toLowerCase()),
-    ];
+    final entries = _read();
     final found = <MailAddress>[];
     for (final (address, words) in entries) {
       if (!words.contains(typed)) continue;
@@ -32,4 +29,12 @@ final class AddressBook {
     }
     return found;
   }
+
+  /// Everyone who can be suggested, the best first.
+  List<MailAddress> get all => [for (final (a, _) in _read()) a];
+
+  List<(MailAddress, String)> _read() => _entries ??= [
+    for (final a in _load())
+      (a, '${a.address}\n${a.displayName ?? ''}'.toLowerCase()),
+  ];
 }

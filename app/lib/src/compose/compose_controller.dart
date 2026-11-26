@@ -18,6 +18,7 @@ import '../services/app_services.dart';
 import '../ui/follow_up_sheet.dart' show FollowUpPick;
 import 'address_book.dart';
 import 'writing_help.dart';
+import 'writing_hints.dart';
 
 /// Addresses in one recipient field, plus text typed but not yet turned
 /// into an address.
@@ -51,6 +52,21 @@ final class RecipientList extends ChangeNotifier {
   void remove(MailAddress address) {
     _addresses.remove(address);
     notifyListeners();
+  }
+
+  /// Puts [next] where [old] is (any case); false if [old] isn't here.
+  bool replace(MailAddress old, MailAddress next) {
+    bool same(MailAddress a, MailAddress b) =>
+        a.address.toLowerCase() == b.address.toLowerCase();
+    final i = _addresses.indexWhere((a) => same(a, old));
+    if (i < 0) return false;
+    if (_addresses.any((a) => same(a, next))) {
+      _addresses.removeAt(i);
+    } else {
+      _addresses[i] = next;
+    }
+    notifyListeners();
+    return true;
   }
 
   /// Turns typed text into addresses (`Bob <bob@x.example>, carol@y`).
@@ -379,6 +395,32 @@ final class ComposeController extends ChangeNotifier {
     services.store.messages.suggestionCandidates,
   );
 
+  /// The hints under the recipients (their local time, how quickly they
+  /// reply, a likely typo).
+  WritingHints get hints => _hints ??= WritingHints(
+    store: services.store,
+    recipients: Listenable.merge([to, cc, bcc]),
+    read: () => (to: to.addresses, cc: cc.addresses, bcc: bcc.addresses),
+    known: () => _addressBook.all,
+    enabled: () => services.settings.writingHints,
+  );
+  WritingHints? _hints;
+
+  /// "Use maya@example.com": the address the hint suggests instead of
+  /// the one typed, in the same place.
+  void useSuggestedAddress(NearMissHint hint) {
+    final suggested = hint.suggested.displayName == null
+        ? MailAddress(
+            displayName: hint.typed.displayName,
+            localPart: hint.suggested.localPart,
+            domain: hint.suggested.domain,
+          )
+        : hint.suggested;
+    for (final list in [to, cc, bcc]) {
+      if (list.replace(hint.typed, suggested)) return;
+    }
+  }
+
   Draft _withRecipients(Draft d) =>
       d.copyWith(to: to.addresses, cc: cc.addresses, bcc: bcc.addresses);
 
@@ -513,6 +555,7 @@ final class ComposeController extends ChangeNotifier {
   @override
   void dispose() {
     _autosave?.cancel();
+    _hints?.dispose();
     for (final list in [to, cc, bcc]) {
       list.dispose();
     }
