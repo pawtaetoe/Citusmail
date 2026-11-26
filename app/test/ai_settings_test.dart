@@ -210,6 +210,113 @@ void main() {
     expect(ai().features.defaultChoice?.provider, AiProviderKind.custom);
   });
 
+  group('what is typed is checked before anything is sent', () {
+    Future<void> custom(WidgetTester tester) async {
+      await show(tester);
+      await tapKey(tester, 'ai-add-provider');
+      await tester.tap(find.byKey(const ValueKey('ai-provider-kind')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Custom (OpenAI-compatible)').last);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> address(WidgetTester tester, String text) async {
+      await tester.enterText(find.byKey(const ValueKey('ai-address')), text);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('an endpoint must be https, or http on your own network', (
+      tester,
+    ) async {
+      await custom(tester);
+      for (final (text, reason) in [
+        ('file:///etc/passwd', 'Use an address that starts with https://.'),
+        ('javascript:alert(1)', 'Use an address that starts with https://.'),
+        (
+          'https://me:secret@openrouter.ai/api/v1',
+          'Leave the user name and password out of the address.',
+        ),
+        ('http://8.8.8.8/v1', 'Use https:// for this address'),
+      ]) {
+        await address(tester, text);
+        expect(find.textContaining(reason), findsOneWidget, reason: text);
+        await tapKey(tester, 'ai-test-key');
+        expect(made, isEmpty, reason: '$text reached no provider');
+      }
+      await address(tester, 'http://192.168.1.20:11434/v1');
+      expect(find.textContaining('Use https://'), findsNothing);
+      await tapKey(tester, 'ai-test-key');
+      expect(made.single.baseUrl, Uri.parse('http://192.168.1.20:11434/v1'));
+    });
+
+    testWidgets('a key with a line break or spaces is pointed out', (
+      tester,
+    ) async {
+      await show(tester);
+      await tapKey(tester, 'ai-add-provider');
+      final key = find.byKey(const ValueKey('ai-key'));
+      // Pasted with the next line of a note: it would end up in a header.
+      await tester.enterText(key, 'sk-ant-api03-abcdef\nX-Evil: 1');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('no spaces or line breaks'), findsOneWidget);
+      await tapKey(tester, 'ai-test-key');
+      expect(made, isEmpty);
+      await tester.enterText(key, '  sk-ant-api03-abcdef  ');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('no spaces or line breaks'), findsNothing);
+      await tapKey(tester, 'ai-test-key');
+      expect(made.single.apiKey, 'sk-ant-api03-abcdef');
+    });
+
+    testWidgets('a monthly limit of NaN or Infinity is not an amount', (
+      tester,
+    ) async {
+      await show(tester);
+      await tapKey(tester, 'ai-cap');
+      FilledButton save() => tester.widget<FilledButton>(
+        find.byKey(const ValueKey('ai-number-save')),
+      );
+      for (final bad in ['NaN', 'Infinity', '1e9', '-5', '500000']) {
+        await tester.enterText(find.byKey(const ValueKey('ai-number-0')), bad);
+        await tester.pumpAndSettle();
+        expect(save().onPressed, isNull, reason: bad);
+        expect(find.textContaining('Enter an amount'), findsOneWidget);
+      }
+      // NaN used to be saved: never reached, it was no limit at all.
+      expect(ai().ledger.monthlyCap, isNull);
+      await tester.enterText(find.byKey(const ValueKey('ai-number-0')), '7.5');
+      await tester.pumpAndSettle();
+      await tapKey(tester, 'ai-number-save');
+      expect(ai().ledger.monthlyCap, 7.5);
+    });
+
+    testWidgets('a default model\'s name has no spaces', (tester) async {
+      await ai().saveProvider(
+        AiProviderKind.claude,
+        key: 'sk-ant-1234567890',
+        model: 'claude-opus-5-5',
+      );
+      await show(tester);
+      await tapKey(tester, 'ai-default-model');
+      // Typed where the key's list of models couldn't be fetched.
+      tester
+              .widget<DropdownMenu<String>>(
+                find.byKey(const ValueKey('ai-default-model-menu')),
+              )
+              .controller!
+              .text =
+          'my model';
+      await tester.pumpAndSettle();
+      expect(find.text('A model\'s name has no spaces.'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('ai-default-save')))
+            .onPressed,
+        isNull,
+      );
+    });
+  });
+
   testWidgets('remove a provider: its key goes, features stop', (tester) async {
     await ai().saveProvider(
       AiProviderKind.claude,

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_ai/mail_ai.dart';
 
 import '../../../app/app.dart' show appName;
+import '../../../core/state/validation.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/page_scaffold.dart';
 import '../../../services/ai_assistant.dart';
@@ -305,27 +306,42 @@ final class _AiProviderDialogState extends State<AiProviderDialog> {
     _error = null;
   });
 
+  /// A custom endpoint's address: https, or http on the user's own
+  /// computer or network.
+  static const _endpoint = WebAddress(
+    httpOnLocalNetwork: true,
+    reason:
+        'Enter the endpoint\'s address, such as '
+        'http://localhost:11434/v1 or https://openrouter.ai/api/v1.',
+  );
+
+  /// The key as typed: needed for every provider but a custom endpoint,
+  /// whose keys may be short ("ollama").
+  ApiKey get _keyRule => _kind.needsKey
+      ? ApiKey(empty: 'Paste your ${_kind.company} API key first.')
+      : const ApiKey(minLength: 1);
+
   /// The custom endpoint's address, or null if it isn't one.
-  Uri? get _baseUrl {
-    if (_kind != AiProviderKind.custom) return null;
-    final uri = Uri.tryParse(_address.text.trim());
-    if (uri == null || !uri.hasAuthority || uri.host.isEmpty) return null;
-    if (uri.scheme != 'https' && uri.scheme != 'http') return null;
-    return uri;
-  }
+  Uri? get _baseUrl => _kind == AiProviderKind.custom
+      ? _endpoint(_address.text).valueOrNull
+      : null;
+
+  /// The reason to show under [field] as it is typed (nothing while it is
+  /// empty: the Test key button says what is missing).
+  static String? _typed(TextEditingController field, Validator<Object> rule) =>
+      field.text.trim().isEmpty ? null : rule(field.text).reason;
 
   Future<void> _test() async {
-    if (_kind == AiProviderKind.custom && _baseUrl == null) {
-      setState(
-        () => _error =
-            'Enter the endpoint\'s address, such as '
-            'http://localhost:11434/v1 or https://openrouter.ai/api/v1.',
-      );
-      return;
-    }
-    if (_kind.needsKey && _key.text.trim().isEmpty) {
-      setState(() => _error = 'Paste your ${_kind.company} API key first.');
-      return;
+    final address = _kind == AiProviderKind.custom
+        ? _endpoint(_address.text)
+        : const Valid<Uri?>(null);
+    final key = _keyRule(_key.text);
+    for (final (field, checked) in [(_address, address), (_key, key)]) {
+      if (checked case Invalid(:final reason)) {
+        // A field with text shows its own reason.
+        if (field.text.trim().isEmpty) setState(() => _error = reason);
+        return;
+      }
     }
     setState(() {
       _busy = true;
@@ -335,7 +351,7 @@ final class _AiProviderDialogState extends State<AiProviderDialog> {
     try {
       final models = await widget.ai.testKey(
         _kind,
-        key: _key.text,
+        key: key.valueOrNull,
         baseUrl: _baseUrl,
       );
       if (!mounted) return;
@@ -367,16 +383,24 @@ final class _AiProviderDialogState extends State<AiProviderDialog> {
   }
 
   Future<void> _save() async {
-    final model = _model.text.trim();
+    final String? model;
+    switch (const ModelId()(_model.text)) {
+      case Valid(:final value):
+        model = value;
+      case Invalid() when _model.text.trim().isEmpty:
+        model = null;
+      case Invalid(:final reason):
+        return setState(() => _error = reason);
+    }
     final ai = widget.ai;
     await ai.saveProvider(
       _kind,
-      key: _key.text,
+      key: _keyRule(_key.text).valueOrNull,
       baseUrl: _baseUrl,
-      model: model.isEmpty ? null : model,
+      model: model,
     );
     // The provider's key changed: its model is the one chosen here.
-    if (model.isNotEmpty && ai.features.defaultChoice?.provider == _kind) {
+    if (model != null && ai.features.defaultChoice?.provider == _kind) {
       ai.setDefault(AiChoice(_kind, model));
     }
     if (mounted) Navigator.pop(context);
@@ -445,13 +469,15 @@ final class _AiProviderDialogState extends State<AiProviderDialog> {
                 enableSuggestions: false,
                 keyboardType: TextInputType.url,
                 onChanged: (_) => _changed(),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Endpoint address',
                   hintText: 'https://openrouter.ai/api/v1',
                   helperText:
                       'Secure https, or http only to your own computer or '
                       'network',
-                  border: OutlineInputBorder(),
+                  errorText: _typed(_address, _endpoint),
+                  errorMaxLines: 3,
+                  border: const OutlineInputBorder(),
                 ),
               ),
             ],
@@ -468,6 +494,8 @@ final class _AiProviderDialogState extends State<AiProviderDialog> {
                 labelText: _kind.needsKey ? 'API key' : 'API key (optional)',
                 helperText: _keyHelp,
                 helperMaxLines: 3,
+                errorText: _typed(_key, _keyRule),
+                errorMaxLines: 2,
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   tooltip: _showKey ? 'Hide key' : 'Show key',
@@ -609,6 +637,7 @@ final class _DefaultModelDialogState extends State<_DefaultModelDialog> {
         ? choice.provider
         : configured.first;
     if (choice?.provider == _kind) _model.text = choice!.model;
+    _model.addListener(() => setState(() {}));
     _load();
   }
 
@@ -693,6 +722,9 @@ final class _DefaultModelDialogState extends State<_DefaultModelDialog> {
               controller: _model,
               expandedInsets: EdgeInsets.zero,
               label: const Text('Model'),
+              errorText: _model.text.trim().isEmpty
+                  ? null
+                  : const ModelId()(_model.text).reason,
               menuHeight: 320,
               dropdownMenuEntries: [
                 for (final m in models)
@@ -721,11 +753,12 @@ final class _DefaultModelDialogState extends State<_DefaultModelDialog> {
         ),
         FilledButton(
           key: const ValueKey('ai-default-save'),
-          onPressed: () {
-            final model = _model.text.trim();
-            if (model.isEmpty) return;
-            ai.setDefault(AiChoice(_kind, model));
-            Navigator.pop(context);
+          onPressed: switch (const ModelId()(_model.text)) {
+            Valid(:final value) => () {
+              ai.setDefault(AiChoice(_kind, value));
+              Navigator.pop(context);
+            },
+            Invalid() => null,
           },
           child: const Text('Use'),
         ),
@@ -829,6 +862,9 @@ final class AiMonthlyLimitTile extends StatelessWidget {
 
   final AiAssistant ai;
 
+  /// The highest limit that can be typed.
+  static const maxDollars = 100000.0;
+
   Future<void> _edit(BuildContext context) async {
     final result = await showDialog<_Numbers>(
       context: context,
@@ -838,6 +874,7 @@ final class AiMonthlyLimitTile extends StatelessWidget {
             'When this month\'s cost reaches it, $appName sends nothing more '
             'until next month. Leave it empty for no limit.',
         fields: [('US dollars a month', ai.ledger.monthlyCap)],
+        max: AiMonthlyLimitTile.maxDollars,
         allowEmpty: true,
       ),
     );
@@ -873,6 +910,9 @@ final class AiPricesPage extends StatelessWidget {
   const AiPricesPage({super.key, required this.ai});
 
   final AiAssistant ai;
+
+  /// The highest price per million tokens that can be typed.
+  static const maxPrice = 10000.0;
 
   List<(AiProviderKind, String)> _models() {
     final seen = <String>{};
@@ -938,6 +978,7 @@ final class AiPricesPage extends StatelessWidget {
           ('Per million tokens sent', price?.inputPerMillion),
           ('Per million tokens received', price?.outputPerMillion),
         ],
+        max: AiPricesPage.maxPrice,
         canReset: ai.prices.isOwn(kind, model),
       ),
     );
@@ -963,6 +1004,7 @@ final class _NumbersDialog extends StatefulWidget {
   const _NumbersDialog({
     required this.title,
     required this.fields,
+    required this.max,
     this.text,
     this.allowEmpty = false,
     this.canReset = false,
@@ -973,6 +1015,9 @@ final class _NumbersDialog extends StatefulWidget {
 
   /// Each field's label and value.
   final List<(String, double?)> fields;
+
+  /// The highest amount in each field.
+  final double max;
 
   /// Whether a field may be left empty (no limit).
   final bool allowEmpty;
@@ -992,7 +1037,13 @@ final class _NumbersDialogState extends State<_NumbersDialog> {
         text: value == null ? '' : _NumbersDialog.number(value),
       ),
   ];
-  bool _invalid = false;
+  @override
+  void initState() {
+    super.initState();
+    for (final f in _fields) {
+      f.addListener(() => setState(() {}));
+    }
+  }
 
   @override
   void dispose() {
@@ -1002,19 +1053,33 @@ final class _NumbersDialogState extends State<_NumbersDialog> {
     super.dispose();
   }
 
-  void _save() {
+  /// Never NaN or infinite: a limit of NaN would never be reached.
+  Amount get _amount => Amount(max: widget.max);
+
+  /// A field's amount (null when empty and that is allowed), or why not.
+  Validated<double?> _check(TextEditingController field) =>
+      field.text.trim().isEmpty && widget.allowEmpty
+      ? const Valid(null)
+      : _amount(field.text);
+
+  /// Every field's amount, or null while one is not an amount.
+  List<double?>? get _values {
     final values = <double?>[];
     for (final f in _fields) {
-      final text = f.text.trim().replaceAll(',', '.').replaceAll(r'$', '');
-      final value = double.tryParse(text);
-      if ((text.isEmpty && !widget.allowEmpty) ||
-          (text.isNotEmpty && (value == null || value < 0))) {
-        setState(() => _invalid = true);
-        return;
+      switch (_check(f)) {
+        case Valid(:final value):
+          values.add(value);
+        case Invalid():
+          return null;
       }
-      values.add(value);
     }
-    Navigator.pop(context, (reset: false, values: values));
+    return values;
+  }
+
+  void _save() {
+    if (_values case final values?) {
+      Navigator.pop(context, (reset: false, values: values));
+    }
   }
 
   @override
@@ -1039,15 +1104,12 @@ final class _NumbersDialogState extends State<_NumbersDialog> {
             decoration: InputDecoration(
               prefixText: '\$ ',
               labelText: label,
+              // Nothing typed yet is not a mistake yet.
+              errorText: _fields[i].text.trim().isEmpty
+                  ? null
+                  : _check(_fields[i]).reason,
               border: const OutlineInputBorder(),
             ),
-          ),
-        ],
-        if (_invalid) ...[
-          const SizedBox(height: 12),
-          Text(
-            'Enter an amount such as 5 or 0.25.',
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ],
       ],
@@ -1065,7 +1127,7 @@ final class _NumbersDialogState extends State<_NumbersDialog> {
       ),
       FilledButton(
         key: const ValueKey('ai-number-save'),
-        onPressed: _save,
+        onPressed: _values == null ? null : _save,
         child: const Text('Save'),
       ),
     ],
