@@ -141,7 +141,15 @@ final class ComposeController extends ChangeNotifier {
   /// Sending from another account starts with that account's sign-off,
   /// unless the user chose one for this message.
   void setAccount(int accountId) {
-    final next = _draft.copyWith(accountId: accountId);
+    if (accountId == _draft.accountId) return;
+    var next = _draft.copyWith(accountId: accountId);
+    if (_draft.savedMessageId != null) {
+      // The copy in the first account's Drafts folder goes now: saving
+      // or sending only replaces copies in the account it goes from.
+      services.drafts.discard(_draft.copyWith(clearId: true));
+      services.worker.requestSync(_draft.accountId);
+      next = next.copyWith(clearSaved: true);
+    }
     _update(signOffChosen ? next : _withDefaultSignOff(next));
   }
 
