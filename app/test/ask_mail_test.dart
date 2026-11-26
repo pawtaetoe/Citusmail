@@ -471,7 +471,7 @@ void main() {
 
     test('found by its words, and listed with the features', () {
       List<String> ids(String query) => [
-        for (final e in SettingsCatalog.search(query, android: false)) e.id,
+        for (final e in SettingsCatalog.search(query, android: false)) e.id.id,
       ];
       expect(ids('ask'), contains('ai-ask'));
       expect(ids('question'), contains('ai-ask'));

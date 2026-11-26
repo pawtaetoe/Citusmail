@@ -10,6 +10,7 @@ import 'package:citusmail/src/features/found/ui/deliveries_page.dart';
 import 'package:citusmail/src/features/inbox/state/inbox_summary.dart';
 import 'package:citusmail/src/features/inbox/ui/inbox_summary_line.dart';
 import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
+import 'package:citusmail/src/features/settings/state/setting_id.dart';
 import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -470,7 +471,7 @@ void main() {
           services: app.services,
           onShowMail: (_) {},
           isAndroid: false,
-          show: 'summaryLine',
+          show: SettingId.summaryLine,
         ),
       ),
     );

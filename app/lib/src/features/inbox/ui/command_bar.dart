@@ -446,7 +446,7 @@ final class CommandCatalog {
     for (final e in SettingsCatalog.available(android: _android))
       if (e.id != CommandBar.settingId)
         Command(
-          id: 'setting.${e.id}',
+          id: 'setting.${e.id.id}',
           group: CommandGroup.settings,
           title: e.title,
           subtitle: SettingsCatalog.section(e.section).shortTitle,
@@ -599,7 +599,7 @@ abstract final class CommandBar {
   static const minWidth = 720.0;
 
   /// Its entry in the settings search.
-  static const settingId = 'commandBar';
+  static const settingId = SettingId.commandBar;
 
   static bool get _mac => defaultTargetPlatform == TargetPlatform.macOS;
 

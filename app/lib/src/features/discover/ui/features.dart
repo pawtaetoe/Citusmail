@@ -23,6 +23,7 @@ import '../../inbox/ui/command_bar.dart';
 import '../../organise/ui/block_dialog.dart';
 import '../../organise/ui/privacy_report_page.dart';
 import '../../organise/ui/sender_cleanup_page.dart';
+import '../../settings/state/setting_id.dart';
 import '../../settings/ui/image_senders_page.dart';
 import '../../settings/ui/settings_page.dart';
 import '../state/feature_id.dart';
@@ -107,7 +108,7 @@ abstract final class Features {
   static void _setting(
     BuildContext context,
     MailController controller,
-    String id,
+    SettingId id,
   ) => SettingsPage.open(context, controller: controller, show: id);
 
   static final all = <Feature>[
@@ -210,7 +211,7 @@ abstract final class Features {
       sentence:
           'Optional: with your own key for Claude, GPT, Gemini, Meta Muse or a model on '
           'your computer, summarise an email or a whole conversation.',
-      open: (context, c) => _setting(context, c, 'aiAssistant'),
+      open: (context, c) => _setting(context, c, SettingId.aiAssistant),
     ),
     Feature(
       id: FeatureId.aiTranslate,
@@ -220,7 +221,7 @@ abstract final class Features {
       sentence:
           'Read an email in another language in yours, with the AI '
           'assistant and your own key.',
-      open: (context, c) => _setting(context, c, 'ai-translate'),
+      open: (context, c) => _setting(context, c, SettingId.aiTranslate),
     ),
     Feature(
       id: FeatureId.askMail,
@@ -230,7 +231,7 @@ abstract final class Features {
       sentence:
           'Search with a question and get a short answer from your own '
           'mail, with your own AI key.',
-      open: (context, c) => _setting(context, c, 'ai-ask'),
+      open: (context, c) => _setting(context, c, SettingId.aiAsk),
     ),
     Feature(
       id: FeatureId.screener,
@@ -240,7 +241,7 @@ abstract final class Features {
       sentence:
           'People writing for the first time wait for your OK before '
           'reaching your inbox.',
-      open: (context, c) => _setting(context, c, 'screener'),
+      open: (context, c) => _setting(context, c, SettingId.screener),
     ),
     Feature(
       id: FeatureId.newSinceAway,
@@ -248,7 +249,7 @@ abstract final class Features {
       icon: AppIcons.newSinceAway,
       title: 'New since you were away',
       sentence: 'Mail that came while you were away, together at the top.',
-      open: (context, c) => _setting(context, c, 'newSinceAway'),
+      open: (context, c) => _setting(context, c, SettingId.newSinceAway),
     ),
     Feature(
       id: FeatureId.summaryLine,
@@ -258,7 +259,7 @@ abstract final class Features {
       sentence:
           'One line at the top of your inbox: what is new, the latest code, '
           'and what is on today.',
-      open: (context, c) => _setting(context, c, 'summaryLine'),
+      open: (context, c) => _setting(context, c, SettingId.summaryLine),
     ),
     Feature(
       id: FeatureId.peek,
@@ -307,7 +308,7 @@ abstract final class Features {
       sentence:
           'With your own AI key: say what to archive, move, pin or snooze, '
           'and check the list before anything happens.',
-      open: (context, c) => _setting(context, c, 'ai-actions'),
+      open: (context, c) => _setting(context, c, SettingId.aiActions),
     ),
     Feature(
       id: FeatureId.codes,
@@ -317,7 +318,7 @@ abstract final class Features {
       sentence:
           'Codes show in the list, ready to copy; old ones can tidy '
           'themselves away.',
-      open: (context, c) => _setting(context, c, 'codeCleanup'),
+      open: (context, c) => _setting(context, c, SettingId.codeCleanup),
     ),
     Feature(
       id: FeatureId.aiSorting,
@@ -327,7 +328,7 @@ abstract final class Features {
       sentence:
           'Optional, with your own AI key: new mail the sorting rules '
           'can\'t place is sorted by the assistant, and says why.',
-      open: (context, c) => _setting(context, c, 'ai-sorting'),
+      open: (context, c) => _setting(context, c, SettingId.aiSorting),
     ),
     Feature(
       id: FeatureId.sendLater,
@@ -345,7 +346,7 @@ abstract final class Features {
       sentence:
           'While you write: when it is night for them, how quickly they '
           'usually reply, or "Did you mean" for a mistyped address.',
-      open: (context, c) => _setting(context, c, 'writingHints'),
+      open: (context, c) => _setting(context, c, SettingId.writingHints),
     ),
     Feature(
       id: FeatureId.followUps,
@@ -373,7 +374,7 @@ abstract final class Features {
       sentence:
           'Optional, with your own key: draft a reply, or make your text '
           'shorter, friendlier, more formal, corrected or translated.',
-      open: (context, c) => _setting(context, c, 'ai-writing'),
+      open: (context, c) => _setting(context, c, SettingId.aiWriting),
     ),
     Feature(
       id: FeatureId.signOffs,
@@ -394,7 +395,7 @@ abstract final class Features {
       sentence:
           'Up to three short replies to a personal email, to start from, '
           'with the AI assistant and your own key.',
-      open: (context, c) => _setting(context, c, 'ai-quickReplies'),
+      open: (context, c) => _setting(context, c, SettingId.aiQuickReplies),
     ),
     Feature(
       id: FeatureId.images,
@@ -422,7 +423,7 @@ abstract final class Features {
       icon: AppIcons.lock,
       title: 'App lock',
       sentence: 'Ask for a PIN, or your fingerprint, to open the app.',
-      open: (context, c) => _setting(context, c, 'appLock'),
+      open: (context, c) => _setting(context, c, SettingId.appLock),
     ),
     Feature(
       id: FeatureId.scamWarnings,
@@ -432,7 +433,7 @@ abstract final class Features {
       sentence:
           'Emails that pretend to be someone else, and risky links and '
           'files, are flagged.',
-      open: (context, c) => _setting(context, c, 'safeBrowsing'),
+      open: (context, c) => _setting(context, c, SettingId.safeBrowsing),
     ),
     Feature(
       id: FeatureId.notifications,
@@ -442,7 +443,7 @@ abstract final class Features {
       sentence:
           'New mail, bills and trials ending, and replies you are '
           'waiting for.',
-      open: (context, c) => _setting(context, c, 'notifications'),
+      open: (context, c) => _setting(context, c, SettingId.notifications),
     ),
     Feature(
       id: FeatureId.instantMail,
@@ -450,7 +451,7 @@ abstract final class Features {
       icon: AppIcons.instantMail,
       title: 'Instant mail',
       sentence: 'New mail at once, also while your phone sleeps.',
-      open: (context, c) => _setting(context, c, 'instantMail'),
+      open: (context, c) => _setting(context, c, SettingId.instantMail),
       androidOnly: true,
     ),
     Feature(
@@ -461,7 +462,7 @@ abstract final class Features {
       sentence:
           'Copy a new verification code from Quick Settings, or from its '
           'notification, without opening the app.',
-      open: (context, c) => _setting(context, c, 'codeTile'),
+      open: (context, c) => _setting(context, c, SettingId.codeTile),
       androidOnly: true,
     ),
     Feature(
@@ -472,7 +473,7 @@ abstract final class Features {
       sentence:
           'Scan a code with your phone to sign in on your computer, '
           'without typing passwords.',
-      open: (context, c) => _setting(context, c, 'pairing'),
+      open: (context, c) => _setting(context, c, SettingId.pairing),
     ),
     Feature(
       id: FeatureId.deviceSync,
@@ -482,7 +483,7 @@ abstract final class Features {
       sentence:
           'Blocked senders, Screener choices, snoozes, sign-offs and how '
           'your mail is handled, the same on all your devices.',
-      open: (context, c) => _setting(context, c, 'deviceSync'),
+      open: (context, c) => _setting(context, c, SettingId.deviceSync),
     ),
   ];
 }

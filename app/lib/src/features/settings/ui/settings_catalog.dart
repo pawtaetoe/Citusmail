@@ -5,6 +5,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_icons.dart';
+import '../state/setting_id.dart';
+
+export '../state/setting_id.dart';
 
 /// A group of settings, named for what people want to do.
 final class SettingsSection {
@@ -40,7 +43,7 @@ final class SettingEntry {
     this.advanced = false,
   });
 
-  final String id;
+  final SettingId id;
 
   /// The [SettingsSection.id] it is in.
   final String section;
@@ -120,43 +123,43 @@ abstract final class SettingsCatalog {
   static const entries = <SettingEntry>[
     // Notifications & checking mail.
     SettingEntry(
-      'notifications',
+      SettingId.notifications,
       'notifications',
       'New mail notifications',
       words: ['notify', 'push', 'alerts', 'sound', 'banner', 'badge'],
     ),
     SettingEntry(
-      'notifyServices',
+      SettingId.notifyServices,
       'notifications',
       'Also for Notifications',
       words: ['bank', 'services', 'github', 'automated'],
     ),
     SettingEntry(
-      'previews',
+      SettingId.previews,
       'notifications',
       'Show message previews',
       words: ['preview', 'lock screen', 'content', 'private'],
     ),
     SettingEntry(
-      'reminders',
+      SettingId.reminders,
       'notifications',
       'Bill and trial reminders',
       words: ['bills', 'due', 'trial', 'renewal', 'appointment', 'return'],
     ),
     SettingEntry(
-      'monthlyRenewals',
+      SettingId.monthlyRenewals,
       'notifications',
       'Also remind me of monthly renewals',
       words: ['subscription', 'monthly', 'renew'],
     ),
     SettingEntry(
-      'followUps',
+      SettingId.followUps,
       'notifications',
       'Follow-up reminders',
       words: ['follow up', 'no reply', 'waiting', 'nudge', 'remind'],
     ),
     SettingEntry(
-      'instantMail',
+      SettingId.instantMail,
       'notifications',
       'Instant mail',
       words: [
@@ -173,14 +176,14 @@ abstract final class SettingsCatalog {
       androidOnly: true,
     ),
     SettingEntry(
-      'backgroundChecks',
+      SettingId.backgroundChecks,
       'notifications',
       'Background checks',
       words: ['battery', 'background', 'fetch', 'interval', 'how often'],
       androidOnly: true,
     ),
     SettingEntry(
-      'codeTile',
+      SettingId.codeTile,
       'notifications',
       'Add “Latest code” to Quick Settings',
       words: [
@@ -197,13 +200,13 @@ abstract final class SettingsCatalog {
     ),
     // Inbox & sorting.
     SettingEntry(
-      'newSinceAway',
+      SettingId.newSinceAway,
       'inbox',
       'New since you were away',
       words: ['away', 'catch up', 'while you were gone', 'back'],
     ),
     SettingEntry(
-      'summaryLine',
+      SettingId.summaryLine,
       'inbox',
       'Summary line',
       words: [
@@ -218,7 +221,7 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'screener',
+      SettingId.screener,
       'inbox',
       'Screen first-time senders',
       words: [
@@ -231,19 +234,19 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'screenOutPlace',
+      SettingId.screenOutPlace,
       'inbox',
       'Screened-out mail goes to',
       words: ['screener', 'screen out', 'where'],
     ),
     SettingEntry(
-      'screenedSenders',
+      SettingId.screenedSenders,
       'inbox',
       'Screened senders',
       words: ['let in', 'allowed', 'screener', 'decisions'],
     ),
     SettingEntry(
-      'autoRead',
+      SettingId.autoRead,
       'inbox',
       'Read receipts and bookings automatically',
       words: [
@@ -256,7 +259,7 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'codeCleanup',
+      SettingId.codeCleanup,
       'inbox',
       'Clean up old codes',
       words: [
@@ -271,19 +274,19 @@ abstract final class SettingsCatalog {
     ),
     // Writing.
     SettingEntry(
-      'signOffs',
+      SettingId.signOffs,
       'writing',
       'Sign-offs',
       words: ['signature', 'sign-off', 'sign off', 'closing', 'regards'],
     ),
     SettingEntry(
-      'writing',
+      SettingId.writing,
       'writing',
       'Writing tools',
       words: ['compose', 'send later', 'schedule', 'read receipt', 'remind me'],
     ),
     SettingEntry(
-      'writingHints',
+      SettingId.writingHints,
       'writing',
       'Writing hints',
       words: [
@@ -298,7 +301,7 @@ abstract final class SettingsCatalog {
     ),
     // Accounts.
     SettingEntry(
-      'accounts',
+      SettingId.accounts,
       'accounts',
       'Your accounts',
       words: [
@@ -313,13 +316,13 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'addAccount',
+      SettingId.addAccount,
       'accounts',
       'Add account',
       words: ['new account', 'another address', 'sign in'],
     ),
     SettingEntry(
-      'keepMail',
+      SettingId.keepMail,
       'accounts',
       'Keep mail from',
       words: [
@@ -333,26 +336,26 @@ abstract final class SettingsCatalog {
     ),
     // Privacy & security.
     SettingEntry(
-      'appLock',
+      SettingId.appLock,
       'privacy',
       'App lock',
       words: ['pin', 'passcode', 'password', 'lock', 'security'],
     ),
     SettingEntry(
-      'lockAfter',
+      SettingId.lockAfter,
       'privacy',
       'Lock after leaving the app',
       words: ['timeout', 'auto lock'],
     ),
     SettingEntry(
-      'biometrics',
+      SettingId.biometrics,
       'privacy',
       'Unlock with fingerprint or face',
       words: ['biometrics', 'fingerprint', 'face', 'touch id'],
     ),
-    SettingEntry('changePin', 'privacy', 'Change PIN', words: ['pin']),
+    SettingEntry(SettingId.changePin, 'privacy', 'Change PIN', words: ['pin']),
     SettingEntry(
-      'images',
+      SettingId.images,
       'privacy',
       'Images',
       words: [
@@ -365,27 +368,27 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'blockedSenders',
+      SettingId.blockedSenders,
       'privacy',
       'Blocked senders',
       words: ['block', 'spam', 'unwanted', 'unblock', 'junk'],
     ),
     // Devices & sync.
     SettingEntry(
-      'deviceSync',
+      SettingId.deviceSync,
       'devices',
       'Sync between devices',
       words: ['other devices', 'phone', 'computer', 'same everywhere'],
     ),
     SettingEntry(
-      'pairing',
+      SettingId.pairing,
       'devices',
       'Send accounts to a computer',
       words: ['qr', 'code', 'phone', 'move accounts', 'transfer'],
       androidOnly: true,
     ),
     SettingEntry(
-      'pairing',
+      SettingId.pairing,
       'devices',
       'Add accounts from your phone',
       words: ['qr', 'code', 'phone', 'move accounts', 'transfer'],
@@ -393,7 +396,7 @@ abstract final class SettingsCatalog {
     ),
     // AI assistant (your own key).
     SettingEntry(
-      'aiAssistant',
+      SettingId.aiAssistant,
       'ai',
       'AI assistant',
       words: [
@@ -419,19 +422,19 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'ai-summaries',
+      SettingId.aiSummaries,
       'ai',
       'Summaries',
       words: ['summarise', 'summarize', 'summary', 'ai', 'tl;dr', 'tldr'],
     ),
     SettingEntry(
-      'ai-translate',
+      SettingId.aiTranslate,
       'ai',
       'Translate',
       words: ['translate', 'translation', 'language', 'foreign', 'ai'],
     ),
     SettingEntry(
-      'ai-quickReplies',
+      SettingId.aiQuickReplies,
       'ai',
       'Quick replies',
       words: [
@@ -444,13 +447,13 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'ai-ask',
+      SettingId.aiAsk,
       'ai',
       'Ask your mail',
       words: ['ask', 'question', 'answer', 'ai', 'search', 'chat'],
     ),
     SettingEntry(
-      'aiLimit',
+      SettingId.aiLimit,
       'ai',
       'AI monthly limit',
       words: [
@@ -467,7 +470,7 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'ai-writing',
+      SettingId.aiWriting,
       'ai',
       'Writing help',
       words: [
@@ -487,7 +490,7 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'ai-actions',
+      SettingId.aiActions,
       'ai',
       'Ask AI to tidy',
       words: [
@@ -503,7 +506,7 @@ abstract final class SettingsCatalog {
       ],
     ),
     SettingEntry(
-      'ai-sorting',
+      SettingId.aiSorting,
       'ai',
       'Sorting backup',
       words: [
@@ -520,7 +523,7 @@ abstract final class SettingsCatalog {
     ),
     // Appearance.
     SettingEntry(
-      'theme',
+      SettingId.theme,
       'appearance',
       'Theme',
       words: [
@@ -534,78 +537,78 @@ abstract final class SettingsCatalog {
     ),
     // Help & about.
     SettingEntry(
-      'discover',
+      SettingId.discover,
       'about',
       'All features',
       words: ['discover', 'what can it do', 'help', 'features'],
     ),
     SettingEntry(
-      'commandBar',
+      SettingId.commandBar,
       'about',
       'Command bar (Ctrl+K)',
       words: ['command', 'palette', 'keyboard', 'shortcuts', 'go to', 'find'],
       desktopOnly: true,
     ),
     SettingEntry(
-      'whatsNew',
+      SettingId.whatsNew,
       'about',
       'What\'s new',
       words: ['update', 'release', 'version', 'changes', 'new'],
     ),
     SettingEntry(
-      'tips',
+      SettingId.tips,
       'about',
       'Show tips',
       words: ['hints', 'help', 'don\'t show tips', 'onboarding'],
     ),
     SettingEntry(
-      'privacy',
+      SettingId.privacy,
       'about',
       'Privacy',
       words: ['data', 'collects', 'trackers', 'privacy report'],
     ),
     SettingEntry(
-      'privacyPolicy',
+      SettingId.privacyPolicy,
       'about',
       'Privacy policy',
       words: ['policy', 'legal'],
     ),
     SettingEntry(
-      'terms',
+      SettingId.terms,
       'about',
       'Terms of service',
       words: ['terms', 'legal'],
     ),
     SettingEntry(
-      'licences',
+      SettingId.licences,
       'about',
       'Licences',
       words: ['license', 'open source', 'free software'],
     ),
     // Advanced (its own page).
     SettingEntry(
-      'safeBrowsing',
+      SettingId.safeBrowsing,
       'about',
       'Check links with Google Safe Browsing',
       words: ['links', 'phishing', 'scam', 'malware', 'safe browsing'],
       advanced: true,
     ),
     SettingEntry(
-      'virusTotal',
+      SettingId.virusTotal,
       'about',
       'Ask VirusTotal about flagged files and links',
       words: ['virus', 'malware', 'attachments', 'files'],
       advanced: true,
     ),
     SettingEntry(
-      'serverRules',
+      SettingId.serverRules,
       'about',
       'Rules on the mail server',
       words: ['sieve', 'server', 'filters', 'rules'],
       advanced: true,
     ),
     SettingEntry(
-      'learning',
+      SettingId.learning,
       'about',
       'Learn from my corrections',
       words: ['learning', 'corrections', 'not a subscription'],

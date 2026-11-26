@@ -173,7 +173,7 @@ void main() {
 
   test('each has a switch, a search entry and a line in All features', () {
     List<String> ids(String query) => [
-      for (final e in SettingsCatalog.search(query, android: false)) e.id,
+      for (final e in SettingsCatalog.search(query, android: false)) e.id.id,
     ];
     expect(ids('translate'), contains('ai-translate'));
     expect(ids('foreign language'), contains('ai-translate'));
