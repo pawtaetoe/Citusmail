@@ -78,11 +78,13 @@ final class AiSorter {
   static const defaultPerSync = 20;
   static const perSyncChoices = [5, 10, 20, 50];
 
-  /// At most this many after each sync (1 to 200 when written).
+  /// At most this many after each sync, 1 to 200 (anything else reads as
+  /// the default).
   static const perSyncSetting = IntSetting(
     'ai.sorting.perSync',
     fallback: defaultPerSync,
     min: 1,
+    max: 200,
   );
 
   static final _sorters = Expando<AiSorter>();

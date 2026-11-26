@@ -181,11 +181,15 @@ final class DateTimeSetting extends Setting<DateTime?> {
 
   final DateTimeFormat format;
 
+  /// The furthest a [DateTime] reaches from 1970, in milliseconds.
+  static const _maxMilliseconds = 8640000000000000;
+
   @override
   DateTime? tryDecode(String stored) => switch (format) {
     DateTimeFormat.milliseconds => switch (int.tryParse(stored)) {
-      final ms? => DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true),
-      null => null,
+      final ms? when ms.abs() <= _maxMilliseconds =>
+        DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true),
+      _ => null,
     },
     DateTimeFormat.iso8601 => DateTime.tryParse(stored)?.toUtc(),
   };
