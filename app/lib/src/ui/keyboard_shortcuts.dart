@@ -127,7 +127,7 @@ final class MailKeyboardShortcuts extends StatelessWidget {
   /// a confirmation).
   void _delete() {
     final messages = controller.targets;
-    if (messages.isEmpty || messages.every(controller.isInTrash)) return;
+    if (messages.isEmpty || messages.any(controller.deletesForever)) return;
     controller.delete(messages);
   }
 

@@ -333,7 +333,7 @@ final class _MessageTileState extends State<MessageTile> {
       },
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.endToStart) {
-          if (_c.isInTrash(_m)) return false; // forever needs the reader
+          if (_c.deletesForever(_m)) return false; // forever needs the reader
           _c.delete([_m]);
           return true;
         }
@@ -496,7 +496,7 @@ final class _MessageTileState extends State<MessageTile> {
             value: () => SnoozeSheet.show(context, _c, [_m]),
             child: const Text('Snooze…'),
           ),
-        if (!_c.isInTrash(_m))
+        if (!_c.deletesForever(_m))
           PopupMenuItem(
             value: () => _c.delete([_m]),
             child: const Text('Move to Trash'),
@@ -608,7 +608,7 @@ final class _QuickActions extends StatelessWidget {
             AppIcons.archive,
             () => controller.archive([message]),
           ),
-        if (!controller.isInTrash(message))
+        if (!controller.deletesForever(message))
           button(
             'Move to Trash (#)',
             AppIcons.delete,

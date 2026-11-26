@@ -21,6 +21,7 @@ final class MessageView {
     this.isHtml,
     this.attachments,
     this.invite,
+    this.shownImages,
   );
 
   /// Parses [raw] (the full message). Never throws on malformed mail.
@@ -51,10 +52,19 @@ final class MessageView {
       body = RichDocument.empty;
     }
 
+    // A named part meant to show inline, that the text does not show (a
+    // photo Apple Mail puts after the text), is listed too: else it could
+    // be neither seen nor saved.
+    bool unshownInline(MimePart part) =>
+        part.embeddedMessage == null &&
+        (part.disposition?.isInline ?? false) &&
+        part.filename != null &&
+        part != htmlPart &&
+        part != textPart;
     final attachments = [
       for (final part in message.root.allParts)
         if (part.children.isEmpty &&
-            part.isAttachment &&
+            (part.isAttachment || unshownInline(part)) &&
             !images.used.contains(part))
           AttachmentView._(part)
         else if (part.embeddedMessage != null)
@@ -66,6 +76,10 @@ final class MessageView {
       htmlPart != null,
       List.unmodifiable(attachments),
       _invite(message),
+      List.unmodifiable([
+        for (final part in message.root.allParts)
+          if (images.used.contains(part)) AttachmentView._(part),
+      ]),
     );
   }
 
@@ -109,6 +123,10 @@ final class MessageView {
   /// Whether [body] came from the HTML version.
   final bool isHtml;
   final List<AttachmentView> attachments;
+
+  /// The images the text shows (by `cid:` links), which [attachments]
+  /// leaves out.
+  final List<AttachmentView> shownImages;
 
   /// The calendar event in the message, if it has one.
   final CalendarInvite? invite;

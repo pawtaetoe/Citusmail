@@ -429,6 +429,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   });
 
+  testWidgets('without a Trash folder, delete asks first: it is for good', (
+    tester,
+  ) async {
+    // The test account's server names no Trash folder: deleting there
+    // removes mail for good.
+    final accountId = store.accounts.all().single.id;
+    expect(store.mailboxes.bySpecialUse(accountId, SpecialUse.trash), isNull);
+    await show(tester, const Size(1400, 900));
+    await tester.tap(find.text('Lunch?'));
+    await settle(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+    await tester.pump();
+    expect(find.text('Moved to Trash'), findsNothing);
+    expect(
+      store.messages
+          .list(const MessageQuery.inbox())
+          .where((m) => m.subject == 'Lunch?'),
+      hasLength(1),
+    );
+    expect(find.byTooltip('Move to Trash (#)'), findsNothing);
+    await tester.tap(find.byTooltip('Delete forever'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Delete forever?'), findsOneWidget);
+  });
+
   testWidgets('shortcuts never fire while typing', (tester) async {
     await show(tester, const Size(1400, 900));
     await tester.tap(find.byType(TextField).first);

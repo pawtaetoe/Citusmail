@@ -319,9 +319,10 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('^Summarise')), findsNothing);
     await type(tester, 'translate');
     expect(find.bySemanticsLabel(RegExp(', Actions')), findsNothing);
-    // Not in the Trash, not snoozed: Delete and Snooze are there.
+    // This account has no Trash folder, so deleting would be for good:
+    // like the Delete key, the bar leaves that to the reader (it asks).
     await type(tester, 'delete');
-    expect(row('Delete, On the open email, Actions, shortcut #'), findsOne);
+    expect(row('Delete, On the open email, Actions, shortcut #'), findsNothing);
   });
 
   testWidgets('recent commands first when the box is empty', (tester) async {

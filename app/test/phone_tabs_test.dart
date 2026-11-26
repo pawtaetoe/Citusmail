@@ -339,7 +339,13 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byTooltip('Archive (E)'), findsOneWidget);
-    expect(find.byTooltip('Move to Trash (#)'), findsOneWidget);
+    // This account has no Trash folder: deleting is for good, so it asks.
+    await tester.tap(find.byTooltip('Delete forever'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete forever?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 selected'), findsOneWidget, reason: 'nothing deleted');
     // The rest, under More.
     await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();

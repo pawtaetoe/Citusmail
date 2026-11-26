@@ -58,10 +58,8 @@ final class RecipientList extends ChangeNotifier {
   bool commit() {
     final text = _pending.trim();
     if (text.isEmpty) return true;
-    final parsed = const AddressParser().parse(text);
-    final found = parsed.mailboxes;
-    final looksComplete = found.isNotEmpty && parsed.defects.isEmpty;
-    if (!looksComplete) {
+    final found = addressesIn(text);
+    if (found == null) {
       invalid = text;
       notifyListeners();
       return false;
@@ -73,6 +71,68 @@ final class RecipientList extends ChangeNotifier {
     invalid = null;
     notifyListeners();
     return true;
+  }
+
+  /// The addresses in typed or pasted [text], separated by commas or
+  /// semicolons (as Outlook copies them, also with names like "Doe, John"
+  /// left unquoted). Null if some of it is not an address.
+  static List<MailAddress>? addressesIn(String text) {
+    const parser = AddressParser();
+    final found = <MailAddress>[];
+    for (final part in _splitAtSemicolons(text)) {
+      if (part.trim().isEmpty) continue;
+      final parsed = parser.parse(part);
+      if (parsed.mailboxes.isNotEmpty &&
+          parsed.defects.isEmpty &&
+          // Not two addresses read as one ("a@x.example b@y.example").
+          parsed.mailboxes.every(
+            (a) => !a.localPart.contains(RegExp(r'[@\s]')),
+          )) {
+        found.addAll(parsed.mailboxes);
+        continue;
+      }
+      // One address after a name with a comma in it: "Doe, John <j@x>".
+      final named = RegExp(r'^([^<>"@]*)<([^<>\s@]+@[^<>\s@]+)>$')
+          .firstMatch(part.trim());
+      if (named == null) return null;
+      final address = parser.parse('<${named[2]}>');
+      if (address.mailboxes.length != 1 || address.defects.isNotEmpty) {
+        return null;
+      }
+      final name = named[1]!.trim();
+      found.add(
+        MailAddress(
+          localPart: address.mailboxes.single.localPart,
+          domain: address.mailboxes.single.domain,
+          displayName: name.isEmpty ? null : name,
+        ),
+      );
+    }
+    return found.isEmpty ? null : found;
+  }
+
+  /// [text] split at semicolons outside quotes and angle brackets.
+  static List<String> _splitAtSemicolons(String text) {
+    final parts = <String>[];
+    var start = 0;
+    var quoted = false;
+    var angle = false;
+    for (var i = 0; i < text.length; i++) {
+      switch (text[i]) {
+        case '\\' when quoted:
+          i++;
+        case '"':
+          quoted = !quoted;
+        case '<' when !quoted:
+          angle = true;
+        case '>' when !quoted:
+          angle = false;
+        case ';' when !quoted && !angle:
+          parts.add(text.substring(start, i));
+          start = i + 1;
+      }
+    }
+    return [...parts, text.substring(start)];
   }
 }
 
@@ -141,7 +201,15 @@ final class ComposeController extends ChangeNotifier {
   /// Sending from another account starts with that account's sign-off,
   /// unless the user chose one for this message.
   void setAccount(int accountId) {
-    final next = _draft.copyWith(accountId: accountId);
+    if (accountId == _draft.accountId) return;
+    var next = _draft.copyWith(accountId: accountId);
+    if (_draft.savedMessageId != null) {
+      // The copy in the first account's Drafts folder goes now: saving
+      // or sending only replaces copies in the account it goes from.
+      services.drafts.discard(_draft.copyWith(clearId: true));
+      services.worker.requestSync(_draft.accountId);
+      next = next.copyWith(clearSaved: true);
+    }
     _update(signOffChosen ? next : _withDefaultSignOff(next));
   }
 
@@ -382,8 +450,12 @@ final class ComposeController extends ChangeNotifier {
   Draft _withRecipients(Draft d) =>
       d.copyWith(to: to.addresses, cc: cc.addresses, bcc: bcc.addresses);
 
+  /// Whether the user changed anything in this window.
+  bool _edited = false;
+
   void _update(Draft next, {bool notify = true}) {
     if (_finished) return;
+    _edited = true;
     _draft = next;
     problems = const {};
     _autosave?.cancel();
@@ -491,7 +563,16 @@ final class ComposeController extends ChangeNotifier {
       list.commit();
     }
     _draft = _withRecipients(_draft);
-    final outcome = services.drafts.close(_draft);
+    // A reply or forward opened and closed without writing anything is
+    // not kept: only its recipients and quote are in it, made by the app.
+    final untouched =
+        !_edited &&
+        _draft.id == null &&
+        _draft.savedMessageId == null &&
+        _draft.body.trim().isEmpty;
+    final outcome = untouched
+        ? DraftOutcome.discarded
+        : services.drafts.close(_draft);
     _finish();
     services.worker.requestSync(_draft.accountId);
     return ComposeClosed(outcome);

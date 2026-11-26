@@ -97,8 +97,15 @@ final class OutboxReplayer {
             deferred++;
           }
         } on SmtpRecipientsRejectedException catch (e) {
-          _store.outbox.markFailed(entry.id, e.message);
-          failed++;
+          // 4xx ("try again later", too many messages for now): retried.
+          final forNow = e.rejected.values.every((r) => !r.isPermanentFailure);
+          if (forNow && entry.attempts + 1 < maxAttempts) {
+            _retryLater(entry, e.message);
+            deferred++;
+          } else {
+            _store.outbox.markFailed(entry.id, e.message);
+            failed++;
+          }
         } on SmtpMessageTooLargeException catch (e) {
           _store.outbox.markFailed(entry.id, e.message);
           failed++;

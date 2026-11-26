@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/compose/compose_controller.dart';
 import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/compose/recipient_field.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
@@ -269,5 +270,111 @@ void main() {
     await tester.tap(find.byTooltip('Try again'));
     await tester.pump();
     expect(app.store.outbox.byId(entry.id)!.state, OutboxState.pending);
+  });
+
+  group('a reply or forward closed without writing', () {
+    const bob = MailAddress(localPart: 'bob', domain: 'x.example');
+    Draft reply() => Draft(
+      accountId: accountIdOf(),
+      to: const [bob],
+      subject: 'Re: Plans',
+      quote: 'On Mon, Bob wrote:\n> Plans?',
+      inReplyTo: 'plans@x.example',
+    );
+
+    test('is not kept in Drafts', () {
+      final c = ComposeController(app.services, reply());
+      addTearDown(c.dispose);
+      expect(c.close(), isA<ComposeClosed>());
+      expect(app.store.outbox.all(accountIdOf()), isEmpty);
+      expect(app.store.drafts.all(), isEmpty);
+    });
+
+    test('is kept once something was written', () {
+      final c = ComposeController(app.services, reply());
+      addTearDown(c.dispose);
+      c.setBody('Sounds good');
+      c.close();
+      expect(
+        app.store.outbox.all(accountIdOf()).single.action,
+        isA<AppendAction>(),
+      );
+    });
+  });
+
+  group('a draft sent or kept from another account', () {
+    late Account alice;
+    late Account work;
+    late StoredMailbox aliceDrafts;
+    late StoredMailbox workDrafts;
+
+    setUp(() {
+      alice = app.store.accounts.all().single;
+      aliceDrafts = app.store.mailboxes.bySpecialUse(
+        alice.id,
+        SpecialUse.drafts,
+      )!;
+      work = app.store.accounts.add(
+        NewAccount(
+          email: 'alice@work.example',
+          username: 'alice@work.example',
+          imap: ServerSettings(
+            host: 'mail.work.example',
+            port: 993,
+            security: ConnectionSecurity.implicitTls,
+          ),
+          smtp: ServerSettings(
+            host: 'mail.work.example',
+            port: 465,
+            security: ConnectionSecurity.implicitTls,
+          ),
+        ),
+      );
+      workDrafts = app.store.mailboxes.replaceAll(work.id, [
+        ImapMailboxInfo(
+          encodedName: 'Drafts',
+          delimiter: '/',
+          attributes: const {r'\Drafts'},
+        ),
+      ]).single;
+    });
+
+    /// A draft opened from Alice's Drafts folder, then sent from work.
+    ComposeController fromAliceToWork() {
+      final c = ComposeController(
+        app.services,
+        Draft(
+          accountId: alice.id,
+          to: const [MailAddress(localPart: 'bob', domain: 'x.example')],
+          subject: 'Plans',
+          body: 'See you there.',
+          savedMessageId: 'older-copy@citusmail.test',
+        ),
+      );
+      addTearDown(c.dispose);
+      c.setAccount(work.id);
+      return c;
+    }
+
+    /// Where the older copy is removed from.
+    List<int> removedFrom() => [
+      for (final account in [alice, work])
+        for (final e in app.store.outbox.all(account.id))
+          if (e.action
+              case RemoveDraftAction(:final mailboxId, :final messageId)
+              when messageId == 'older-copy@citusmail.test')
+            mailboxId,
+    ];
+
+    test('sent: the older copy leaves the first account\'s Drafts', () {
+      expect(fromAliceToWork().send(), isA<ComposeSent>());
+      expect(removedFrom(), [aliceDrafts.id]);
+      expect(removedFrom(), isNot(contains(workDrafts.id)));
+    });
+
+    test('kept: the older copy leaves the first account\'s Drafts', () {
+      fromAliceToWork().close();
+      expect(removedFrom(), [aliceDrafts.id]);
+    });
   });
 }

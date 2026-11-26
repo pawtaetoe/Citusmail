@@ -95,4 +95,31 @@ void main() {
     expect(looked, ['tommy']);
     expect(find.text('Tommy Kung'), findsOneWidget);
   });
+
+  group('pasted lists', () {
+    List<String>? commit(String text) {
+      final list = RecipientList(const [])..pending = text;
+      return list.commit() ? [for (final a in list.addresses) '$a'] : null;
+    }
+
+    test('separated by semicolons, as Outlook copies them', () {
+      expect(commit('j@x.example; a@y.example'), [
+        'j@x.example',
+        'a@y.example',
+      ]);
+      expect(commit('Doe, John <j@x.example>; Smith, Ann <a@y.example>;'), [
+        'Doe, John <j@x.example>',
+        'Smith, Ann <a@y.example>',
+      ]);
+      expect(commit('"Doe, John" <j@x.example>, ann@y.example'), [
+        'Doe, John <j@x.example>',
+        'ann@y.example',
+      ]);
+    });
+
+    test('text that is not a list of addresses is refused', () {
+      expect(commit('j@x.example a@y.example'), isNull);
+      expect(commit('John Doe'), isNull);
+    });
+  });
 }

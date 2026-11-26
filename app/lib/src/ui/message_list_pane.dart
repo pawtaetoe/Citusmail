@@ -18,6 +18,7 @@ import 'ask_mail_panel.dart';
 import 'attachments_page.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
+import 'delete_confirm.dart';
 import 'empty_state.dart';
 import 'folder_dialogs.dart';
 import 'follow_ups_list.dart';
@@ -519,6 +520,8 @@ final class _SelectionBar extends StatelessWidget {
     final snoozed = controller.location.value is SnoozedLocation;
     final canSnooze = targets.isNotEmpty && targets.every(controller.canSnooze);
     final oneAccount = targets.map((m) => m.accountId).toSet().length == 1;
+    // In Trash, or an account without one: deleting is for good, so ask.
+    final forever = targets.any(controller.deletesForever);
     final selectAll = _Action(
       'Select all shown',
       AppIcons.selectAll,
@@ -533,9 +536,15 @@ final class _SelectionBar extends StatelessWidget {
         () => controller.archive(targets),
       ),
       _Action(
-        'Move to Trash (#)',
-        AppIcons.delete,
-        () => controller.delete(targets),
+        forever ? 'Delete forever' : 'Move to Trash (#)',
+        forever ? AppIcons.deleteForever : AppIcons.delete,
+        () async {
+          if (forever &&
+              !await confirmDeleteForever(context, count: targets.length)) {
+            return;
+          }
+          controller.delete(targets);
+        },
       ),
       if (snoozed)
         _Action(

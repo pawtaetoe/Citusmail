@@ -283,7 +283,11 @@ final class AppServices {
 
   /// Removes an account, everything stored for it, and its password.
   Future<void> removeAccount(Account account) async {
-    store.accounts.remove(account.id);
+    store.transaction(() {
+      store.accounts.remove(account.id);
+      // Kept in the settings, not with the account's mail.
+      FollowUpReminders(store).forgetAccount(account.id);
+    });
     await secrets.delete(account.keychainKey);
     await worker.accountsChanged();
   }

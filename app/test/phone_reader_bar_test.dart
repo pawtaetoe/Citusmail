@@ -55,7 +55,8 @@ void main() {
     expect(archive.center.dy, closeTo(back.center.dy, 1));
     expect(back.bottom, greaterThan(844 - 80));
     // Room for the everyday actions beside Reply.
-    expect(find.byTooltip('Move to Trash (#)'), findsOneWidget);
+    // (This account has no Trash folder: deleting is for good.)
+    expect(find.byTooltip('Delete forever'), findsOneWidget);
     expect(reply.width, lessThanOrEqualTo(132));
     // No second bar of reply buttons above it.
     expect(find.widgetWithText(OutlinedButton, 'Reply all'), findsNothing);

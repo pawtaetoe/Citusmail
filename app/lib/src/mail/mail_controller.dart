@@ -815,6 +815,12 @@ final class MailController {
   bool isInTrash(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
 
+  /// Whether deleting [m] removes it for good: it is in Trash, or its
+  /// account has no Trash folder (the server then deletes it at once).
+  bool deletesForever(StoredMessage m) =>
+      isInTrash(m) ||
+      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.trash) == null;
+
   bool isInJunk(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.junk;
 
@@ -865,11 +871,11 @@ final class MailController {
     () => services.actions.move(messages, target),
   ], 'Moved to ${_folderName(target)}');
 
-  /// Moves to Trash (or deletes for good when already in Trash; the caller
-  /// confirms that).
+  /// Moves to Trash (or deletes for good when already in Trash, or the
+  /// account has none; the caller confirms that).
   void delete(List<StoredMessage> messages) => _remove(
     [() => services.actions.delete(messages)],
-    messages.every(isInTrash)
+    messages.every(deletesForever)
         ? 'Deleted'
         : (messages.length == 1
               ? 'Moved to Trash'

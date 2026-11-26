@@ -158,12 +158,12 @@ final class CommandCatalog {
           shortcut: 'E',
           words: const ['done', 'file away'],
         ),
-      if (!targets.every(c.isInTrash))
+      if (!targets.every(c.deletesForever))
         action(
           'delete',
           'Delete',
           AppIcons.delete,
-          () => c.delete(targets.where((m) => !c.isInTrash(m)).toList()),
+          () => c.delete(targets.where((m) => !c.deletesForever(m)).toList()),
           shortcut: '#',
           words: const ['trash', 'move to trash', 'remove', 'bin'],
         ),

@@ -26,6 +26,7 @@ import 'attachment_saver.dart';
 import 'avatar.dart';
 import 'block_dialog.dart';
 import 'citusmail_theme.dart';
+import 'delete_confirm.dart';
 import 'follow_up_sheet.dart';
 import 'follow_ups_list.dart';
 import 'image_senders_page.dart';
@@ -396,7 +397,7 @@ final class _Toolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final archive = controller.archiveFor(message);
-    final inTrash = controller.isInTrash(message);
+    final inTrash = controller.deletesForever(message);
     // Grouped by what they do: where it goes, how it's marked, the sender.
     // Replying is in the bar under the message.
     final everyday = <_Action>[
@@ -677,28 +678,7 @@ final class _Toolbar extends StatelessWidget {
   }
 
   Future<void> _delete(BuildContext context, bool forever) async {
-    if (forever) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete forever?'),
-          content: const Text(
-            'This message will be deleted from the server and can\'t be recovered.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-    }
+    if (forever && !await confirmDeleteForever(context)) return;
     controller.delete([message]);
   }
 }

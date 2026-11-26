@@ -88,10 +88,35 @@ final class MailNotifier {
       debugPrint('notifications unavailable: ${e.runtimeType}');
       return null;
     }
+    await openLaunchedFrom(plugin, onOpen);
     return MailNotifier._(
       plugin,
       Platform.isAndroid ? NoticeLayout.grouped : NoticeLayout.separate,
     );
+  }
+
+  /// The app was started by tapping a notification (it wasn't running):
+  /// [onOpen] gets the message it was about. Taps while the app runs
+  /// arrive in onDidReceiveNotificationResponse instead.
+  @visibleForTesting
+  static Future<void> openLaunchedFrom(
+    FlutterLocalNotificationsPlugin plugin,
+    void Function(int messageId)? onOpen,
+  ) async {
+    if (onOpen == null) return;
+    final NotificationAppLaunchDetails? details;
+    try {
+      details = await plugin.getNotificationAppLaunchDetails();
+    } on Object catch (e) {
+      debugPrint('notification launch: ${e.runtimeType}');
+      return;
+    }
+    final response = details?.notificationResponse;
+    if (details == null || !details.didNotificationLaunchApp) return;
+    // Copy code never opens the app.
+    if (CopyCodeAction.parse(response?.actionId) != null) return;
+    final id = MailNotices.messageIdOf(response?.payload);
+    if (id != null) onOpen(id);
   }
 
   /// Asks for permission where the system requires it (Android 13+).
