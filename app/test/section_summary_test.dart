@@ -40,6 +40,7 @@ void main() {
     // Fold General: the sender appears as its summary.
     await tester.tap(find.text('General'));
     await tester.pump();
+    await tester.pumpAndSettle(); // folded
     expect(find.text('Stranger Danger'), findsOneWidget);
     expect(find.text('Hello there'), findsNothing);
   });

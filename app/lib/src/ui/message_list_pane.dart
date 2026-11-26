@@ -23,6 +23,7 @@ import 'folder_dialogs.dart';
 import 'follow_ups_list.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
+import 'motion.dart';
 import 'move_dialog.dart';
 import 'new_since_away_section.dart';
 import 'screener_page.dart';
@@ -241,18 +242,20 @@ final class _TopBarState extends State<_TopBar> {
         ),
         if (widget.onCompose case final compose?) ...[
           const SizedBox(width: 8),
-          IconButton.filled(
-            tooltip: 'New message (C)',
-            style: IconButton.styleFrom(
-              backgroundColor: CitusPalette.citrus,
-              foregroundColor: CitusPalette.onCitrus,
-              fixedSize: const Size(44, 44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+          PressScale(
+            child: IconButton.filled(
+              tooltip: 'New message (C)',
+              style: IconButton.styleFrom(
+                backgroundColor: CitusPalette.citrus,
+                foregroundColor: CitusPalette.onCitrus,
+                fixedSize: const Size(44, 44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+                ),
               ),
+              onPressed: compose,
+              icon: const Icon(AppIcons.compose),
             ),
-            onPressed: compose,
-            icon: const Icon(AppIcons.compose),
           ),
         ],
       ],
@@ -698,29 +701,41 @@ final class _MessagesState extends State<_Messages> {
                       delegate: _SectionHeader(section, _c),
                     ),
                     if (section.section == SmartSection.codes) ?codesOffer,
-                    if (section.expanded) ...[
-                      SliverPrototypeExtentList.builder(
-                        prototypeItem: prototype,
-                        itemCount: section.messages.length,
-                        itemBuilder: (_, i) => _tile(section.messages[i]),
-                      ),
-                      if (section.hasMore)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(58, 0, 16, 8),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton(
-                                onPressed: () =>
-                                    list.showMoreInSection(section.section),
-                                child: Text(
-                                  'Show more (${section.count.total - section.messages.length} more)',
+                    // Folds smoothly; only the part on screen moves.
+                    FoldingSliver(
+                      key: ValueKey('fold-${section.section.name}'),
+                      open: section.expanded,
+                      builder: (_) => SliverMainAxisGroup(
+                        slivers: [
+                          SliverPrototypeExtentList.builder(
+                            prototypeItem: prototype,
+                            itemCount: section.messages.length,
+                            itemBuilder: (_, i) => _tile(section.messages[i]),
+                          ),
+                          if (section.hasMore)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  58,
+                                  0,
+                                  16,
+                                  8,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton(
+                                    onPressed: () =>
+                                        list.showMoreInSection(section.section),
+                                    child: Text(
+                                      'Show more (${section.count.total - section.messages.length} more)',
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -918,11 +933,14 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
                             ),
                             if (count.unread > 0) ...[
                               const SizedBox(width: 10),
-                              Text(
-                                '${count.unread} new',
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: colors.primary,
-                                  fontWeight: FontWeight.w600,
+                              CountSwitcher(
+                                count: count.unread,
+                                builder: (context, unread) => Text(
+                                  '$unread new',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: colors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],
@@ -952,7 +970,8 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: AnimatedRotation(
                       turns: state.expanded ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 150),
+                      duration: CitusMotion.of(context, CitusMotion.fold),
+                      curve: CitusMotion.standard,
                       child: Icon(
                         AppIcons.expand,
                         color: colors.onSurfaceVariant,
