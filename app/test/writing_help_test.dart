@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:citusmail/src/features/ai/state/ai_task.dart';
 import 'package:citusmail/src/features/compose/state/writing_help.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_ai/mail_ai.dart';
@@ -177,7 +178,7 @@ void main() {
 
   group('a run', () {
     Future<WritingRun> done(WritingRun run) async {
-      while (run.state == WritingState.running) {
+      while (run.isRunning) {
         await Future<void>.delayed(Duration.zero);
       }
       return run;
@@ -208,7 +209,7 @@ void main() {
       first.addListener(() => seen.add(first.text));
       await done(first);
       expect(seen, contains('Hi Carol,'), reason: 'it streamed');
-      expect(first.state, WritingState.done);
+      expect(first.state, isA<AiDone<String>>());
       expect(first.text, 'Hi Carol,\n\nThursday works.');
       expect(first.fromCache, isFalse);
 
@@ -239,7 +240,7 @@ void main() {
         ),
       );
       final badKey = await run();
-      expect(badKey.state, WritingState.failed);
+      expect(badKey.state, isA<AiFailed<String>>());
       expect(badKey.error, contains('didn\'t accept the key'));
       expect((await run()).error, 'Anthropic declined to write this one.');
       expect((await run()).error, contains('no text'));
@@ -265,7 +266,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 5));
       }
       run.stop();
-      expect(run.state, WritingState.stopped);
+      expect(run.state, isA<AiStopped<String>>());
       expect(run.text, 'One.');
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(run.text, 'One.', reason: 'nothing more arrives');

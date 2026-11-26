@@ -11,6 +11,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../state/ai_reader_mail.dart';
+import '../state/ai_task.dart';
 import '../state/ai_translations.dart';
 import 'ai_confirm_dialog.dart';
 import 'ai_sent_note.dart';
@@ -100,7 +101,7 @@ final class TranslateBar extends StatelessWidget {
         final t = translations.shown(id);
         if (t == null) {
           if (translations.find(id, target) case final made?
-              when made.status == TranslationStatus.done) {
+              when made.state is AiDone) {
             return _Bar(
               text: 'Translated into $into.',
               actions: [
@@ -130,8 +131,8 @@ final class TranslateBar extends StatelessWidget {
             ],
           );
         }
-        return switch (t.status) {
-          TranslationStatus.working => _Bar(
+        return switch (t.state) {
+          AiIdle() || AiRunning() || AiStopped() => _Bar(
             text: 'Translating into $into with ${t.recipient}…',
             busy: true,
             actions: [
@@ -141,12 +142,12 @@ final class TranslateBar extends StatelessWidget {
               ),
             ],
           ),
-          TranslationStatus.done => _Bar(
+          AiDone(:final cutOff) => _Bar(
             text: [
               fromName == null
                   ? 'Translated into $into by ${t.recipient}.'
                   : 'Translated from $fromName into $into by ${t.recipient}.',
-              if (t.cutOff)
+              if (cutOff)
                 'The end is missing: the email is too long to translate whole.',
             ].join(' '),
             note: AiSentNote(recipient: t.recipient),
@@ -157,8 +158,8 @@ final class TranslateBar extends StatelessWidget {
               ),
             ],
           ),
-          TranslationStatus.failed => _Bar(
-            text: t.problem ?? 'Couldn\'t translate this email.',
+          AiFailed(:final message) => _Bar(
+            text: message,
             actions: [
               TextButton(onPressed: translate, child: const Text('Try again')),
               IconButton(
@@ -278,7 +279,7 @@ final class TranslatedBody extends StatelessWidget {
         final t = AiTranslate.isOn(controller)
             ? translations.shown(message.id)
             : null;
-        if (t == null || t.status == TranslationStatus.failed) return original;
+        if (t == null || t.state is AiFailed) return original;
         final theme = Theme.of(context);
         final text = t.text;
         return SliverPadding(

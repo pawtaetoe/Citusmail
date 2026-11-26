@@ -4,8 +4,9 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:mail_ai/mail_ai.dart';
+
+import '../../ai/state/ai_task.dart';
 
 /// What the user asked "Write with AI" for.
 sealed class WritingTask {
@@ -349,16 +350,13 @@ abstract final class WritingHelp {
   }
 }
 
-/// Where one request of "Write with AI" stands.
-enum WritingState { running, done, stopped, failed }
-
 /// One request of "Write with AI": the text as it streams in, then the
 /// cleaned answer, or why there is none.
-final class WritingRun extends ChangeNotifier {
+final class WritingRun extends AiTask<String> {
   WritingRun({
     required this.task,
     required this.request,
-    required this.recipient,
+    required super.recipient,
     required this.stream,
     this.nonce,
     this.signOff,
@@ -368,9 +366,6 @@ final class WritingRun extends ChangeNotifier {
 
   final WritingTask task;
   final AiRequest request;
-
-  /// Who answers ("Anthropic").
-  final String recipient;
 
   /// The feature's provider (which checks the monthly limit).
   final Stream<AiEvent> Function(AiRequest, {AiCancel? cancel}) stream;
@@ -383,121 +378,71 @@ final class WritingRun extends ChangeNotifier {
   /// Called with the cleaned answer when it is complete.
   final void Function(String text)? onDone;
 
-  WritingState state = WritingState.running;
-
   /// What has been written so far, or the whole cleaned answer.
-  String text = '';
+  String get text => switch (state) {
+    AiRunning(:final text) => text,
+    AiDone(:final result) => result,
+    AiStopped(:final text) => WritingHelp.clean(
+      text,
+      nonce: nonce,
+      signOff: signOff,
+    ),
+    AiIdle() || AiFailed() => '',
+  };
 
   /// Why it failed, for the user.
-  String? error;
+  String? get error => switch (state) {
+    AiFailed(:final message) => message,
+    _ => null,
+  };
 
   /// The answer reached its length limit and may be cut off.
-  bool cutOff = false;
+  bool get cutOff => switch (state) {
+    AiDone(:final cutOff) => cutOff,
+    _ => false,
+  };
 
   /// Came from what was kept, not a new request.
   bool get fromCache => cached != null;
 
-  final _cancel = AiCancel();
-  StreamSubscription<AiEvent>? _subscription;
-  bool _disposed = false;
-
-  void _set(void Function() change) {
-    if (_disposed) return;
-    change();
-    notifyListeners();
-  }
-
   /// Asks (or answers from [cached]).
   void start() {
     if (cached case final kept?) {
-      _set(() {
-        text = kept;
-        state = WritingState.done;
-      });
+      answered(kept);
       return;
     }
-    final buffer = StringBuffer();
-    try {
-      _subscription = stream(request, cancel: _cancel).listen(
-        (event) {
-          switch (event) {
-            case AiTextDelta(text: final piece):
-              buffer.write(piece);
-              _set(() => text = buffer.toString().trimLeft());
-            case AiCompleted(:final response):
-              _finish(response, buffer.toString());
-          }
-        },
-        onError: (Object e) => _fail(e),
-        cancelOnError: true,
-      );
-    } on Object catch (e) {
-      _fail(e);
-    }
-  }
-
-  void _finish(AiResponse response, String streamed) {
-    if (state != WritingState.running) return;
-    if (response.stopReason == AiStopReason.refusal) {
-      _set(() {
-        state = WritingState.failed;
-        error = '$recipient declined to write this one.';
-      });
-      return;
-    }
-    final raw = response.text.isNotEmpty ? response.text : streamed;
-    final cleaned = WritingHelp.clean(raw, nonce: nonce, signOff: signOff);
-    if (cleaned.isEmpty) {
-      _set(() {
-        state = WritingState.failed;
-        error = '$recipient sent back no text. Try again.';
-      });
-      return;
-    }
-    _set(() {
-      text = cleaned;
-      cutOff = response.stopReason == AiStopReason.maxTokens;
-      state = WritingState.done;
-    });
-    onDone?.call(cleaned);
-  }
-
-  void _fail(Object e) {
-    if (state != WritingState.running) return;
-    if (e is AiException && e.problem == AiProblem.cancelled) {
-      _stopped();
-      return;
-    }
-    _set(() {
-      state = WritingState.failed;
-      error = e is AiException
-          ? e.explain(recipient)
-          : 'Something went wrong: $e';
-    });
-  }
-
-  void _stopped() => _set(() {
-    text = WritingHelp.clean(text, nonce: nonce, signOff: signOff);
-    state = WritingState.stopped;
-  });
-
-  /// Stops writing; what was written so far stays.
-  void stop() {
-    if (state != WritingState.running) return;
-    _cancel.cancel();
-    unawaited(_subscription?.cancel());
-    _stopped();
+    unawaited(
+      run((run) async {
+        final answer = await run.stream(
+          stream(request, cancel: run.cancel),
+          shape: (text) => text.trimLeft(),
+        );
+        final raw = answer.response.text.isNotEmpty
+            ? answer.response.text
+            : answer.streamed;
+        final cleaned = WritingHelp.clean(raw, nonce: nonce, signOff: signOff);
+        if (cleaned.isEmpty) throw const _NoText();
+        return cleaned;
+      }),
+    );
   }
 
   @override
-  void dispose() {
-    if (state == WritingState.running) {
-      _cancel.cancel();
-      unawaited(_subscription?.cancel());
-    }
-    _disposed = true;
-    super.dispose();
-  }
+  void finished(String result) => onDone?.call(result);
+
+  @override
+  String explain(Object error) => switch (error) {
+    AiException(problem: AiProblem.refused) =>
+      '$recipient declined to write this one.',
+    _NoText() => '$recipient sent back no text. Try again.',
+    final AiException e => e.explain(recipient),
+    _ => 'Something went wrong: $error',
+  };
+}
+
+/// The answer was empty once cleaned.
+final class _NoText implements Exception {
+  const _NoText();
 }
 
 /// "Write with AI" for one compose window: keeps each answer, so asking
