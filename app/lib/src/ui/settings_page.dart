@@ -28,9 +28,11 @@ import 'appearance.dart';
 import 'block_dialog.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
+import 'command_bar.dart';
 import 'device_sync_page.dart';
 import 'discover_page.dart';
 import 'feature_settings.dart';
+import 'features.dart';
 import 'image_senders_page.dart';
 import 'link_opener.dart';
 import 'page_scaffold.dart';
@@ -980,6 +982,20 @@ final class _SettingsPageState extends State<SettingsPage> {
             subtitle: const Text('Everything $appName can do, in one place'),
             trailing: const Icon(AppIcons.chevron),
             onTap: _openDiscover,
+          ),
+        ),
+      if (widget.controller case final c? when !_android)
+        _find(
+          'commandBar',
+          ListTile(
+            leading: const Icon(AppIcons.commandBar),
+            title: const Text('Command bar'),
+            subtitle: Text(
+              'Press ${CommandBar.keys} to find emails, folders, settings '
+              'and actions',
+            ),
+            trailing: const Icon(AppIcons.chevron),
+            onTap: () => Features.byId('commandBar')!.open(context, c),
           ),
         ),
       _find(
