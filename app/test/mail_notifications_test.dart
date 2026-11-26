@@ -32,6 +32,24 @@ final class _FakePlugin implements FlutterLocalNotificationsPlugin {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// The system says how the app was started: by tapping [response], or
+/// (null) not by a notification.
+final class _LaunchedPlugin implements FlutterLocalNotificationsPlugin {
+  _LaunchedPlugin(this.response);
+
+  final NotificationResponse? response;
+
+  @override
+  Future<NotificationAppLaunchDetails?>
+  getNotificationAppLaunchDetails() async => NotificationAppLaunchDetails(
+    response != null,
+    notificationResponse: response,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 final class _Shown {
   _Shown(this.id, this.title, this.body, this.details, this.payload);
   final int id;
@@ -532,6 +550,38 @@ void main() {
       expect(locked.body, 'Unlock Citusmail to read them.');
       expect(locked.android.actions, isEmpty);
       expect(locked.android.styleInformation, isNull);
+    });
+
+    test('a tap that started the app opens that email', () async {
+      final opened = <int>[];
+      await MailNotifier.openLaunchedFrom(
+        _LaunchedPlugin(
+          const NotificationResponse(
+            notificationResponseType:
+                NotificationResponseType.selectedNotification,
+            payload: 'message:4242',
+          ),
+        ),
+        opened.add,
+      );
+      expect(opened, [4242]);
+    });
+
+    test('nothing opens when the app was started otherwise', () async {
+      final opened = <int>[];
+      await MailNotifier.openLaunchedFrom(_LaunchedPlugin(null), opened.add);
+      await MailNotifier.openLaunchedFrom(
+        _LaunchedPlugin(
+          const NotificationResponse(
+            notificationResponseType:
+                NotificationResponseType.selectedNotificationAction,
+            actionId: 'copy:4242:482913',
+            payload: 'message:4242',
+          ),
+        ),
+        opened.add,
+      );
+      expect(opened, isEmpty);
     });
   });
 
