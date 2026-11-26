@@ -17,6 +17,7 @@ import 'package:mail_view/mail_view.dart';
 import '../background/background_mail.dart';
 import '../services/app_services.dart';
 import 'follow_up_times.dart';
+import 'inbox_summary.dart';
 import 'invitation_answers.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
@@ -237,6 +238,10 @@ final class MailController {
 
   /// Whether the Verification section asks to tidy up old codes.
   final codesOffer = ValueNotifier<bool>(false);
+
+  /// The summary line at the top of the inbox (made when first shown).
+  InboxSummary get summary => _summary ??= InboxSummary(services, list);
+  InboxSummary? _summary;
 
   late final StreamSubscription<SyncEvent> _events;
   final Map<int, SyncEvent> _lastEvent = {};
@@ -1874,6 +1879,7 @@ final class MailController {
     _wakeTimer?.cancel();
     unawaited(_events.cancel());
     services.resorted.removeListener(refresh);
+    _summary?.dispose();
     list.dispose();
     location.dispose();
     counts.dispose();

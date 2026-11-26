@@ -51,6 +51,7 @@ abstract final class AppIcons {
   static const notifications = Icons.notifications_outlined;
   static const newsletters = Icons.rss_feed;
   static const newSinceAway = Icons.waving_hand_outlined;
+  static const summaryLine = Icons.short_text;
 
   // What can be done with a message.
   static const archive = Icons.archive_outlined;
@@ -65,6 +66,9 @@ abstract final class AppIcons {
   static const reminder = Icons.alarm_outlined;
   static const pinOff = Icons.push_pin_outlined;
   static const pinOn = Icons.push_pin;
+  static const peek = Icons.visibility_outlined;
+  static const openMessage = Icons.open_in_full;
+  static const select = Icons.check_box_outlined;
   static const markRead = Icons.mark_email_read_outlined;
   static const markUnread = Icons.mark_email_unread_outlined;
   static const markAllRead = Icons.done_all;

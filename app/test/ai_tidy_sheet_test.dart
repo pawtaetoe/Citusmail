@@ -135,6 +135,11 @@ void main() {
     await answered(tester);
   }
 
+  /// Carol's avatar on the "Lunch?" row: a tap selects it.
+  final selectCarol = find.byWidgetPredicate(
+    (w) => w is Semantics && w.properties.label == 'Select Carol',
+  );
+
   Future<void> open(WidgetTester tester) async {
     await tester.tap(tidyButton);
     await settle(tester);
@@ -144,7 +149,7 @@ void main() {
       'selected mail', (tester) async {
     await show(tester);
     expect(tidyButton, findsNothing);
-    await tester.longPress(find.text('Lunch?'));
+    await tester.tap(selectCarol);
     await tester.pump();
     expect(find.text('1 selected'), findsOneWidget);
     expect(tidyButton, findsNothing);
@@ -163,7 +168,7 @@ void main() {
     app.services.ai.setOn(AiFeatures.actions.id, true);
     await tester.pump();
     expect(tidyButton, findsOneWidget);
-    await tester.longPress(find.text('Lunch?'));
+    await tester.tap(selectCarol);
     await tester.pump();
     expect(tidyButton, findsOneWidget, reason: 'on the selection bar');
     await tester.tap(find.byTooltip('Cancel selection (Esc)'));
@@ -324,7 +329,7 @@ void main() {
       const FakeAiReply.error(AiException(AiProblem.badKey, '401')),
     );
     await show(tester, size: const Size(400, 800));
-    await tester.longPress(find.text('Lunch?'));
+    await tester.tap(selectCarol);
     await tester.pump();
     await tester.tap(find.text('Hello there'));
     await tester.pump();

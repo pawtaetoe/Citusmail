@@ -57,6 +57,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
   }
 
+  /// The avatar of a row from [sender]: a tap selects.
+  Finder selectFrom(String sender) => find.byWidgetPredicate(
+    (w) => w is Semantics && w.properties.label == 'Select $sender',
+  );
+
   double top(WidgetTester tester, String text) =>
       tester.getTopLeft(find.text(text).first).dy;
 
@@ -437,8 +442,8 @@ void main() {
 
   testWidgets('select several messages and act on all of them', (tester) async {
     await show(tester, const Size(1400, 900));
-    // Touch: long-press selects (tests run as Android).
-    await tester.longPress(find.text('Lunch?'));
+    // Touch: a tap on the avatar selects (tests run as Android).
+    await tester.tap(selectFrom('Carol'));
     await tester.pump();
     expect(find.text('1 selected'), findsOneWidget);
     await tester.tap(

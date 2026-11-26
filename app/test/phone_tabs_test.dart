@@ -18,6 +18,11 @@ import 'support/test_app.dart';
 /// Phones: search at the top of the inbox, a navigation bar with Inbox,
 /// Pins, Found and Folders at the bottom, and New message above it.
 void main() {
+  /// Selecting on touch: the sender's avatar (press and hold peeks).
+  Finder selectFrom(String sender) => find.byWidgetPredicate(
+    (w) => w is Semantics && w.properties.label == 'Select $sender',
+  );
+
   late TestApp app;
   setUp(() async => app = await TestApp.create());
   tearDown(() => app.dispose());
@@ -331,7 +336,7 @@ void main() {
 
   testWidgets('selecting: the actions take the bar\'s place', (tester) async {
     await show(tester, size: const Size(360, 740));
-    await tester.longPress(find.text('Hello there'));
+    await tester.tap(selectFrom('Stranger Danger'));
     await tester.pumpAndSettle();
     expect(find.text('1 selected'), findsOneWidget);
     expect(tester.getTopLeft(find.text('1 selected')).dy, greaterThan(600));
@@ -353,7 +358,7 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
 
     // An action works on what is selected.
-    await tester.longPress(find.text('Hello there'));
+    await tester.tap(selectFrom('Stranger Danger'));
     await tester.pump();
     await tester.tap(find.byTooltip('Archive (E)'));
     await tester.pump();
@@ -375,7 +380,7 @@ void main() {
             await tab(tester, label);
             expect(tester.takeException(), isNull, reason: '$label, $what');
           }
-          await tester.longPress(find.text('Hello there'));
+          await tester.tap(selectFrom('Stranger Danger'));
           await tester.pump();
           expect(tester.takeException(), isNull, reason: 'selecting, $what');
           await back(tester);

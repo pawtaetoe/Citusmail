@@ -21,6 +21,7 @@ import 'code_cleanup_banner.dart';
 import 'empty_state.dart';
 import 'folder_dialogs.dart';
 import 'follow_ups_list.dart';
+import 'inbox_summary_line.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
 import 'move_dialog.dart';
@@ -669,6 +670,9 @@ final class _MessagesState extends State<_Messages> {
     super.dispose();
   }
 
+  /// Keeps the summary line's state while the list around it changes.
+  final _summaryKey = GlobalKey(debugLabel: 'summary line');
+
   /// Mail has been checked at least once while this list was shown; till
   /// then an empty list may just be mail on its way.
   bool _checked = false;
@@ -722,12 +726,21 @@ final class _MessagesState extends State<_Messages> {
             list.followUps.isEmpty &&
             list.newSinceAway.isEmpty) {
           if (firstCheck) return arriving;
-          return EmptyState(
-            icon: AppIcons.inbox,
-            text: 'Your inbox is empty.',
-            hint: 'Nothing new has arrived.',
-            action: 'Check for new mail',
-            onAction: _c.syncNow,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // A parcel or an appointment today, even with no mail.
+              InboxSummaryLine(key: _summaryKey, controller: _c),
+              Expanded(
+                child: EmptyState(
+                  icon: AppIcons.inbox,
+                  text: 'Your inbox is empty.',
+                  hint: 'Nothing new has arrived.',
+                  action: 'Check for new mail',
+                  onAction: _c.syncNow,
+                ),
+              ),
+            ],
           );
         }
         return Scrollbar(
@@ -735,6 +748,10 @@ final class _MessagesState extends State<_Messages> {
           child: CustomScrollView(
             controller: _scroll,
             slivers: [
+              // One quiet line: new mail, a code, what is on today.
+              SliverToBoxAdapter(
+                child: InboxSummaryLine(key: _summaryKey, controller: _c),
+              ),
               // What arrived while the user was away, at the very top.
               if (!list.newSinceAway.isEmpty)
                 SliverMainAxisGroup(

@@ -36,6 +36,7 @@ final class MailKeyboardShortcuts extends StatelessWidget {
   static const shortcuts = [
     _Shortcut('J / K', 'Next / previous message'),
     _Shortcut('Enter', 'Open the first message'),
+    _Shortcut('Space', 'Peek at the message in focus (it stays unread)'),
     _Shortcut('Esc', 'Close the message, or cancel the selection'),
     _Shortcut('E', 'Archive'),
     _Shortcut('# or Delete', 'Move to Trash'),

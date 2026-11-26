@@ -10,8 +10,9 @@ import 'package:mail_sync/mail_sync.dart';
 /// background job on Android reads the same values).
 ///
 /// Some of them (reminders, learning, reading ahead, "New since you were
-/// away") sync between the user's devices with sync between devices on:
-/// which ones is decided in one place, `SyncedPreferences` in mail_store.
+/// away", the summary line) sync between the user's devices with sync
+/// between devices on: which ones is decided in one place,
+/// `SyncedPreferences` in mail_store.
 /// The rest stay on this device.
 final class AppSettings {
   AppSettings(this._store);
@@ -36,6 +37,7 @@ final class AppSettings {
   static const _learn = 'learning.on';
   static const _autoRead = 'autoRead.on';
   static const _newSinceAway = 'inbox.newSinceAway';
+  static const _summaryLine = 'inbox.summaryLine';
 
   /// New-mail notifications (on by default).
   bool get notifications => _store.settings.read(_notifications) != 'off';
@@ -80,6 +82,12 @@ final class AppSettings {
   bool get newSinceAway => _store.settings.read(_newSinceAway) != 'off';
   set newSinceAway(bool on) =>
       _store.settings.write(_newSinceAway, on ? 'on' : 'off');
+
+  /// The summary line at the top of the inbox: new mail, the latest
+  /// code, today's deliveries, appointments and bills (on by default).
+  bool get summaryLine => _store.settings.read(_summaryLine) != 'off';
+  set summaryLine(bool on) =>
+      _store.settings.write(_summaryLine, on ? 'on' : 'off');
 
   /// Monthly (and weekly) renewals are reminded of too (off by default:
   /// they come every month).
