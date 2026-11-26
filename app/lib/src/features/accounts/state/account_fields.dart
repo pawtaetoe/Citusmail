@@ -39,10 +39,13 @@ final class SetupEmail extends Validator<String> {
       return Invalid(reason);
     }
     if (!AccountDiscovery.supportsAddress(text)) {
-      return const Invalid(
-        '$appName can only set up addresses whose domain is written in '
-        'plain letters, like name@example.com.',
-      );
+      final domain = text.substring(text.lastIndexOf('@') + 1);
+      return domain.runes.any((r) => r > 0x7F)
+          ? const Invalid(
+              '$appName can only set up addresses whose domain is written in '
+              'plain letters, like name@example.com.',
+            )
+          : Invalid(reason);
     }
     return Valid(text);
   }

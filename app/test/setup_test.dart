@@ -342,6 +342,8 @@ void main() {
         find.widgetWithText(TextFormField, 'Password'),
         'pw',
       );
+      // Continue turns on once both are valid.
+      await tester.pump();
       // Under the first run's welcome.
       await tester.ensureVisible(find.text('Continue'));
       await tester.tap(find.text('Continue'));
@@ -590,6 +592,122 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Start fresh'), findsOneWidget);
+    });
+  });
+
+  group('setup checks what is typed', () {
+    Future<Script> pump(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(900, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final s = Script();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SetupPage(
+            controller: s.controller,
+            onDone: (_) {},
+            onCancel: () {},
+          ),
+        ),
+      );
+      return s;
+    }
+
+    Future<void> type(WidgetTester tester, String label, String text) async {
+      await tester.enterText(find.widgetWithText(TextFormField, label), text);
+      await tester.pumpAndSettle();
+    }
+
+    VoidCallback? button(WidgetTester tester, String text) => tester
+        .widget<FilledButton>(find.widgetWithText(FilledButton, text))
+        .onPressed;
+
+    testWidgets('the address: reason under the field, Continue off', (
+      tester,
+    ) async {
+      final s = await pump(tester);
+      expect(button(tester, 'Continue'), isNull, reason: 'nothing typed');
+      await type(tester, 'Password', 'pw');
+      for (final bad in ['me', 'me@', 'me@tommykung', 'Me <me@x.example>']) {
+        await type(tester, 'Email address', bad);
+        expect(find.text('Enter an email address'), findsOneWidget);
+        expect(button(tester, 'Continue'), isNull, reason: bad);
+      }
+      await type(tester, 'Email address', 'me@münchen.de');
+      expect(find.textContaining('domain is written in plain'), findsOneWidget);
+      expect(button(tester, 'Continue'), isNull);
+
+      // The checked, trimmed address is what goes on.
+      await type(tester, 'Email address', '  me@tommykung.cc ');
+      expect(find.text('Enter an email address'), findsNothing);
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(s.controller.email, 'me@tommykung.cc');
+      expect(s.controller.state, isA<ReviewingSettings>());
+    });
+
+    testWidgets('a name on two lines is pointed out', (tester) async {
+      await pump(tester);
+      await type(tester, 'Email address', 'me@tommykung.cc');
+      await type(tester, 'Password', 'pw');
+      expect(button(tester, 'Continue'), isNotNull);
+      await type(
+        tester,
+        'Your name (optional)',
+        'Tommy\r\nBcc: x@evil.example',
+      );
+      expect(find.text('Keep it on one line.'), findsOneWidget);
+      expect(button(tester, 'Continue'), isNull);
+    });
+
+    testWidgets('server settings: reasons, Save off, typed values on', (
+      tester,
+    ) async {
+      final s = await pump(tester);
+      await s.controller.start(
+        email: 'me@tommykung.cc',
+        password: 'pw',
+        askMozillaConsent: noMozilla,
+      );
+      s.controller.editSettings();
+      await tester.pumpAndSettle();
+      expect(
+        button(tester, 'Check and continue'),
+        isNotNull,
+        reason: 'defaults',
+      );
+
+      final host = find.widgetWithText(TextFormField, 'Server').first;
+      final port = find.widgetWithText(TextFormField, 'Port').first;
+      await tester.enterText(host, 'imap.tommykung.cc\r\nA1 LOGOUT');
+      await tester.pumpAndSettle();
+      expect(find.text('Enter a server name'), findsOneWidget);
+      expect(button(tester, 'Check and continue'), isNull);
+      await tester.enterText(host, 'https://imap.tommykung.cc');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('without http://'), findsOneWidget);
+      await tester.enterText(host, ' IMAP.TommyKung.cc ');
+      await tester.enterText(port, '99999');
+      await tester.pumpAndSettle();
+      expect(find.text('Enter a port number'), findsOneWidget);
+      expect(button(tester, 'Check and continue'), isNull);
+      await tester.enterText(port, ' 143 ');
+
+      // A carriage return (single-line fields drop only line feeds) would
+      // end up in the login command.
+      await type(tester, 'User name', 'me@tommykung.cc\rA2 LOGOUT');
+      expect(find.text('Keep it on one line.'), findsOneWidget);
+      expect(button(tester, 'Check and continue'), isNull);
+      await type(tester, 'User name', 'me');
+      await tester.ensureVisible(find.text('Check and continue'));
+      await tester.tap(find.text('Check and continue'));
+      await tester.pump();
+      final (settings, password) = s.verified.single;
+      expect(settings.imap.host, 'imap.tommykung.cc');
+      expect(settings.imap.port, 143);
+      expect(settings.username, 'me');
+      expect(password, 'pw');
     });
   });
 

@@ -11,9 +11,11 @@ import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../../../app/app.dart' show appName;
+import '../../../core/state/validation.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../reader/ui/link_opener.dart';
+import '../state/account_fields.dart';
 import '../state/setup_controller.dart';
 
 /// The add-account flow. Calls [onDone] with the saved account.
@@ -412,28 +414,41 @@ class _CredentialsFormState extends State<_CredentialsForm> {
       final provider = widget.providerFor(_email.text);
       final known = KnownProvider.forEmail(_email.text);
       final optional = widget.optionalProviderFor(_email.text);
-      if (provider != _provider || known != _known || optional != _optional) {
-        setState(() {
-          _provider = provider;
-          _known = known;
-          _optional = optional;
-        });
-      }
+      setState(() {
+        _provider = provider;
+        _known = known;
+        _optional = optional;
+      });
     });
+    // Continue follows what is typed.
+    _password.addListener(() => setState(() {}));
+    _name.addListener(() => setState(() {}));
   }
+
+  /// The address, checked: what goes on to the controller.
+  Validated<String> get _checkedEmail => AccountFields.email(_email.text);
+
+  /// The name, checked ('' when none).
+  Validated<String> get _checkedName => AccountFields.displayName(_name.text);
+
+  /// Whether everything Continue needs is valid.
+  bool get _valid =>
+      _checkedEmail.isValid &&
+      _checkedName.isValid &&
+      (_provider != null || _password.text.isNotEmpty);
 
   /// Signing in on the provider's page needs only a valid address.
   void _withProvider(
     void Function(OAuthProvider provider, String email, String name) action,
   ) {
-    if (!_emailPattern.hasMatch(_email.text.trim())) {
-      _form.currentState!.validate();
-      return;
+    final (email, name) = (_checkedEmail, _checkedName);
+    if (email case Valid(value: final address)) {
+      if (name case Valid(value: final displayName)) {
+        return action(_optional!, address, displayName);
+      }
     }
-    action(_optional!, _email.text, _name.text);
+    _form.currentState!.validate();
   }
-
-  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   @override
   void dispose() {
@@ -447,11 +462,13 @@ class _CredentialsFormState extends State<_CredentialsForm> {
   String? get _appPassword => _known?.appPasswordUrl;
 
   void _submit() {
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validate() || !_valid) return;
+    final email = _checkedEmail.valueOrNull!;
+    final name = _checkedName.valueOrNull!;
     if (_provider case final provider?) {
-      widget.onOAuth(provider, _email.text, _name.text);
+      widget.onOAuth(provider, email, name);
     } else {
-      widget.onSubmit(_email.text, _password.text, _name.text);
+      widget.onSubmit(email, _password.text, name);
     }
   }
 
@@ -459,6 +476,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
   Widget build(BuildContext context) {
     return Form(
       key: _form,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -485,9 +503,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
             keyboardType: TextInputType.emailAddress,
             autofillHints: const [AutofillHints.email],
             autocorrect: false,
-            validator: (v) => _emailPattern.hasMatch(v?.trim() ?? '')
-                ? null
-                : 'Enter an email address',
+            validator: AccountFields.email.field,
           ),
           if (_provider case final provider?) ...[
             const SizedBox(height: 12),
@@ -507,12 +523,10 @@ class _CredentialsFormState extends State<_CredentialsForm> {
                 alignment: Alignment.centerLeft,
                 child: TextButton(
                   key: const Key('own-client-required'),
-                  onPressed: () {
-                    if (_emailPattern.hasMatch(_email.text.trim())) {
-                      widget.onOwnClient(provider, _email.text, _name.text);
-                    } else {
-                      _form.currentState!.validate();
-                    }
+                  onPressed: () => switch ((_checkedEmail, _checkedName)) {
+                    (Valid(value: final email), Valid(value: final name)) =>
+                      widget.onOwnClient(provider, email, name),
+                    _ => _form.currentState!.validate(),
                   },
                   child: Text('Use your own ${provider.name} client ID'),
                 ),
@@ -572,6 +586,7 @@ class _CredentialsFormState extends State<_CredentialsForm> {
               labelText: 'Your name (optional)',
               helperText: 'Shown to people you write to',
             ),
+            validator: AccountFields.displayName.field,
           ),
           if (widget.error != null) ...[
             const SizedBox(height: 16),
@@ -583,9 +598,10 @@ class _CredentialsFormState extends State<_CredentialsForm> {
           const SizedBox(height: 24),
           FilledButton(
             onPressed:
-                _provider == null ||
-                    widget.canSignInWith(_provider!) ||
-                    widget.canOffer(_provider!)
+                _valid &&
+                    (_provider == null ||
+                        widget.canSignInWith(_provider!) ||
+                        widget.canOffer(_provider!))
                 ? _submit
                 : null,
             child: Text(
@@ -682,11 +698,25 @@ class _OwnClientFormState extends State<_OwnClientForm> {
   bool get _google => widget.provider.id == 'google';
 
   @override
+  void initState() {
+    super.initState();
+    _clientId.addListener(() => setState(() {}));
+    _secret.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _clientId.dispose();
     _secret.dispose();
     super.dispose();
   }
+
+  /// What was typed, as a registration.
+  OAuthRegistration get _registration =>
+      OAuthRegistration(_clientId.text, _secret.text);
+
+  /// Why it isn't one for the provider (mail_oauth's own check), or null.
+  String? get _problem => _registration.problemFor(widget.provider);
 
   @override
   Widget build(BuildContext context) {
@@ -755,17 +785,21 @@ class _OwnClientFormState extends State<_OwnClientForm> {
               : 'It stays in this device\'s keychain. No client secret is needed.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        if (widget.error != null) ...[
+        // Once something is typed, what is still wrong with it; before
+        // that, why the last try failed.
+        if ((_clientId.text.trim().isEmpty ? null : _problem) ?? widget.error
+            case final error?) ...[
           const SizedBox(height: 16),
           Text(
-            widget.error!,
+            error,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ],
         const SizedBox(height: 24),
         FilledButton(
-          onPressed: () =>
-              widget.onSubmit(OAuthRegistration(_clientId.text, _secret.text)),
+          onPressed: _problem == null
+              ? () => widget.onSubmit(_registration)
+              : null,
           child: Text('Continue with $name'),
         ),
         const SizedBox(height: 8),
@@ -1004,47 +1038,58 @@ class _SettingsFormState extends State<_SettingsForm> {
     text: widget.prefill?.username ?? widget.email,
   );
 
-  static final _host = RegExp(
-    r'^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$',
-  );
+  List<TextEditingController> get _fields => [
+    _imapHost,
+    _imapPort,
+    _smtpHost,
+    _smtpPort,
+    _username,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // "Check and continue" follows what is typed.
+    for (final c in _fields) {
+      c.addListener(() => setState(() {}));
+    }
+  }
 
   @override
   void dispose() {
-    for (final c in [_imapHost, _imapPort, _smtpHost, _smtpPort, _username]) {
+    for (final c in _fields) {
       c.dispose();
     }
     super.dispose();
   }
 
-  String? _validateHost(String? v) =>
-      _host.hasMatch(v?.trim() ?? '') ? null : 'Enter a server name';
-
-  String? _validatePort(String? v) {
-    final port = int.tryParse(v?.trim() ?? '');
-    return port != null && port > 0 && port < 65536
-        ? null
-        : 'Enter a port number';
+  /// The settings as typed, each field checked; null while one isn't
+  /// valid.
+  DiscoveredSettings? get _settings {
+    final imapHost = AccountFields.host(_imapHost.text).valueOrNull;
+    final imapPort = AccountFields.port(_imapPort.text).valueOrNull;
+    final smtpHost = AccountFields.host(_smtpHost.text).valueOrNull;
+    final smtpPort = AccountFields.port(_smtpPort.text).valueOrNull;
+    final username = AccountFields.username(_username.text).valueOrNull;
+    if (imapHost == null ||
+        imapPort == null ||
+        smtpHost == null ||
+        smtpPort == null ||
+        username == null) {
+      return null;
+    }
+    return DiscoveredSettings(
+      email: widget.email,
+      imap: ServerCandidate(imapHost, imapPort, _imapSecurity),
+      smtp: ServerCandidate(smtpHost, smtpPort, _smtpSecurity),
+      username: username,
+      source: DiscoverySource.manual,
+    );
   }
 
   void _submit() {
     if (!_form.currentState!.validate()) return;
-    widget.onSubmit(
-      DiscoveredSettings(
-        email: widget.email,
-        imap: ServerCandidate(
-          _imapHost.text.trim().toLowerCase(),
-          int.parse(_imapPort.text.trim()),
-          _imapSecurity,
-        ),
-        smtp: ServerCandidate(
-          _smtpHost.text.trim().toLowerCase(),
-          int.parse(_smtpPort.text.trim()),
-          _smtpSecurity,
-        ),
-        username: _username.text.trim(),
-        source: DiscoverySource.manual,
-      ),
-    );
+    if (_settings case final settings?) widget.onSubmit(settings);
   }
 
   Widget _server(
@@ -1062,7 +1107,7 @@ class _SettingsFormState extends State<_SettingsForm> {
         TextFormField(
           controller: host,
           decoration: const InputDecoration(labelText: 'Server'),
-          validator: _validateHost,
+          validator: AccountFields.host.field,
           autocorrect: false,
         ),
         const SizedBox(height: 12),
@@ -1074,7 +1119,7 @@ class _SettingsFormState extends State<_SettingsForm> {
                 controller: port,
                 decoration: const InputDecoration(labelText: 'Port'),
                 keyboardType: TextInputType.number,
-                validator: _validatePort,
+                validator: AccountFields.port.field,
               ),
             ),
             const SizedBox(width: 12),
@@ -1106,6 +1151,7 @@ class _SettingsFormState extends State<_SettingsForm> {
   @override
   Widget build(BuildContext context) => Form(
     key: _form,
+    autovalidateMode: AutovalidateMode.onUserInteraction,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1138,13 +1184,12 @@ class _SettingsFormState extends State<_SettingsForm> {
         TextFormField(
           controller: _username,
           decoration: const InputDecoration(labelText: 'User name'),
-          validator: (v) =>
-              (v ?? '').trim().isEmpty ? 'Enter your user name' : null,
+          validator: AccountFields.username.field,
           autocorrect: false,
         ),
         const SizedBox(height: 24),
         FilledButton(
-          onPressed: _submit,
+          onPressed: _settings == null ? null : _submit,
           child: const Text('Check and continue'),
         ),
         const SizedBox(height: 8),
