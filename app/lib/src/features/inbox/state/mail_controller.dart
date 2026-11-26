@@ -17,6 +17,7 @@ import '../../../background/background_mail.dart';
 import '../../../services/app_services.dart';
 import '../../compose/state/compose_starter.dart';
 import '../../compose/state/send_later_times.dart';
+import '../../organise/state/folder_controller.dart';
 import '../../organise/state/follow_up_times.dart';
 import '../../reader/state/invitation_answers.dart';
 import '../../reader/state/reader_controller.dart';
@@ -25,6 +26,7 @@ import 'inbox_summary.dart';
 import 'location_controller.dart';
 import 'mail_counts.dart';
 import 'mail_location.dart';
+import 'message_actions.dart';
 import 'message_list_model.dart';
 import 'new_since_away.dart';
 import 'selection_controller.dart';
@@ -94,6 +96,21 @@ final class MailController {
       selectionController,
       refresh: refresh,
     );
+    messageActions = MessageActions(
+      services,
+      list,
+      locationController,
+      selectionController,
+      readerController,
+      refresh: refresh,
+      notify: _notify,
+    );
+    folderController = FolderController(
+      _store,
+      services.worker,
+      locationController,
+      countsController,
+    );
     syncStatus.onEvent = _onSyncEvent;
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
@@ -127,6 +144,12 @@ final class MailController {
 
   /// New messages, replies, forwards and drafts in the compose window.
   late final ComposeStarter composeStarter;
+
+  /// Pin, read, archive, move and delete, with Undo.
+  late final MessageActions messageActions;
+
+  /// Creating folders, and their rules.
+  late final FolderController folderController;
 
   /// Messages picked for a bulk action.
   late final SelectionController selectionController;
@@ -397,215 +420,62 @@ final class MailController {
 
   // ------------------------------------------------------------- actions
 
-  void togglePin(List<StoredMessage> messages) {
-    if (messages.isEmpty) return;
-    final on = !messages.every((m) => m.flags.flagged);
-    final receipt = services.actions.markFlagged(messages, flagged: on);
-    _afterFlags(receipt, on ? 'Pinned' : 'Unpinned', messages.length);
-  }
+  void togglePin(List<StoredMessage> messages) =>
+      messageActions.togglePin(messages);
 
-  void toggleRead(List<StoredMessage> messages) {
-    if (messages.isEmpty) return;
-    final read = !messages.every((m) => m.flags.seen);
-    final receipt = services.actions.markRead(messages, read: read);
-    _afterFlags(
-      receipt,
-      read ? 'Marked as read' : 'Marked as unread',
-      messages.length,
-    );
-  }
+  void toggleRead(List<StoredMessage> messages) =>
+      messageActions.toggleRead(messages);
 
-  void markSectionRead(SmartSection section) {
-    final accountId = location.value.accountId;
-    final unread = [
-      for (final m in _store.messages.list(
-        MessageQuery(
-          inboxesOnly: true,
-          accountIds: accountId == null ? null : [accountId],
-          section: section,
-          unreadOnly: true,
-          limit: 500,
-        ),
-      ))
-        // Shown in "New since you were away" instead.
-        if (!list.isAway(m)) m,
-    ];
-    if (unread.isEmpty) return;
-    final receipt = services.actions.markRead(unread);
-    _afterFlags(receipt, 'Marked as read', unread.length, alwaysUndo: true);
-  }
-
-  void _afterFlags(
-    FlagReceipt receipt,
-    String done,
-    int count, {
-    bool alwaysUndo = false,
-  }) {
-    for (final id in receipt.accountIds) {
-      services.worker.requestSync(id);
-    }
-    clearSelection();
-    refresh();
-    if (count > 1 || alwaysUndo) {
-      onNotice?.call(
-        '$done ($count)',
-        undo: () {
-          services.actions.undo(receipt);
-          refresh();
-        },
-      );
-    }
-  }
+  void markSectionRead(SmartSection section) =>
+      messageActions.markSectionRead(section);
 
   /// The account's Archive folder, if it has one. On Gmail, archiving
   /// means moving to All Mail (the message leaves the inbox, nothing else).
-  StoredMailbox? archiveFor(StoredMessage m) => _archiveFolder(m.accountId);
+  StoredMailbox? archiveFor(StoredMessage m) => messageActions.archiveFor(m);
 
   StoredMailbox? _archiveFolder(int accountId) =>
-      MailActions.archiveFolder(_store, accountId);
+      messageActions.archiveFolder(accountId);
 
-  bool isInTrash(StoredMessage m) =>
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
+  bool isInTrash(StoredMessage m) => messageActions.isInTrash(m);
 
   /// Whether deleting [m] removes it for good: it is in Trash, or its
   /// account has no Trash folder (the server then deletes it at once).
-  bool deletesForever(StoredMessage m) =>
-      isInTrash(m) ||
-      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.trash) == null;
+  bool deletesForever(StoredMessage m) => messageActions.deletesForever(m);
 
-  bool isInJunk(StoredMessage m) =>
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.junk;
+  bool isInJunk(StoredMessage m) => messageActions.isInJunk(m);
 
   /// "Not spam": back to each account's inbox. Moving mail out of Spam is
   /// how Gmail and other providers learn it isn't spam.
-  void notSpam(List<StoredMessage> messages) {
-    final byAccount = <int, List<StoredMessage>>{};
-    for (final m in messages) {
-      if (isInJunk(m)) byAccount.putIfAbsent(m.accountId, () => []).add(m);
-    }
-    final moves = [
-      for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-        if (_store.mailboxes.inbox(accountId) case final inbox?)
-          () => services.actions.move(group, inbox),
-    ];
-    if (moves.isEmpty) return;
-    final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
-    _remove(
-      moves,
-      count == 1
-          ? 'Not spam. Moved to Inbox.'
-          : 'Not spam. Moved $count to Inbox.',
-    );
-  }
+  void notSpam(List<StoredMessage> messages) =>
+      messageActions.notSpam(messages);
 
   /// Archives into each account's Archive folder (skipping messages already
   /// there or in accounts without one).
-  void archive(List<StoredMessage> messages, {String? done}) {
-    final byAccount = <int, List<StoredMessage>>{};
-    for (final m in messages) {
-      final archive = archiveFor(m);
-      if (archive != null && archive.id != m.mailboxId) {
-        byAccount.putIfAbsent(m.accountId, () => []).add(m);
-      }
-    }
-    if (byAccount.isEmpty) {
-      onNotice?.call('There is no Archive folder for this account.');
-      return;
-    }
-    final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
-    _remove([
-      for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-        () => services.actions.move(group, _archiveFolder(accountId)!),
-    ], done ?? (count == 1 ? 'Archived' : 'Archived $count'));
-  }
+  void archive(List<StoredMessage> messages, {String? done}) =>
+      messageActions.archive(messages, done: done);
 
-  void moveTo(List<StoredMessage> messages, StoredMailbox target) => _remove([
-    () => services.actions.move(messages, target),
-  ], 'Moved to ${_folderName(target)}');
+  void moveTo(List<StoredMessage> messages, StoredMailbox target) =>
+      messageActions.moveTo(messages, target);
 
   /// Moves to Trash (or deletes for good when already in Trash, or the
   /// account has none; the caller confirms that).
-  void delete(List<StoredMessage> messages) => _remove(
-    [() => services.actions.delete(messages)],
-    messages.every(deletesForever)
-        ? 'Deleted'
-        : (messages.length == 1
-              ? 'Moved to Trash'
-              : 'Moved ${messages.length} to Trash'),
-  );
+  void delete(List<StoredMessage> messages) => messageActions.delete(messages);
 
   /// "Always move mail from this sender here", then moves this message.
-  void moveAlways(StoredMessage message, StoredMailbox target) {
-    final from = message.from?.address;
-    if (from != null && canHaveRules(target)) {
-      try {
-        _store.folderRules.add(
-          accountId: target.accountId,
-          mailboxId: target.id,
-          field: RuleField.fromAddress,
-          value: from,
-        );
-      } on ArgumentError {
-        // An address a rule can't hold: just move this one.
-      }
-    }
-    moveTo([message], target);
-  }
+  void moveAlways(StoredMessage message, StoredMailbox target) =>
+      messageActions.moveAlways(message, target);
 
-  /// Removes messages from the list with [changes], opens the next message
-  /// if the open one left, and offers Undo for a few seconds ([alsoUndo]
-  /// reverses anything else the action did).
   void _remove(
     List<RemovalReceipt Function()> changes,
     String done, {
     VoidCallback? alsoUndo,
-  }) {
-    final open = selected;
-    final visible = list.visible;
-    final receipts = [for (final change in changes) change()];
-    final removedIds = {
-      for (final r in receipts)
-        for (final row in r.snapshot.messages) row['id']! as int,
-    };
-    for (final receipt in receipts) {
-      for (final id in receipt.accountIds) {
-        services.worker.syncAt(id, receipt.undoUntil);
-      }
-    }
-    clearSelection();
-    _leaveList(open, visible, removedIds);
-    onNotice?.call(
-      done,
-      undo: () {
-        alsoUndo?.call();
-        final undone = receipts.every(services.actions.undo);
-        refresh();
-        if (!undone) {
-          onNotice?.call('Too late to undo: the change reached the server.');
-        }
-      },
-    );
-  }
+  }) => messageActions.remove(changes, done, alsoUndo: alsoUndo);
 
-  /// After [removedIds] left the list: refreshes, and if [open] was one
-  /// of them, opens the next message (or the one before).
   void _leaveList(
     StoredMessage? open,
     List<StoredMessage> visible,
     Set<int> removedIds,
-  ) {
-    StoredMessage? next;
-    if (open != null && removedIds.contains(open.id)) {
-      final index = visible.indexWhere((m) => m.id == open.id);
-      next = [
-        ...visible.skip(index + 1),
-        ...visible.take(index < 0 ? 0 : index).toList().reversed,
-      ].where((m) => !removedIds.contains(m.id)).firstOrNull;
-      reader.value = const ReaderEmpty();
-    }
-    refresh();
-    if (next != null) unawaited(this.open(next));
-  }
+  ) => messageActions.leaveList(open, visible, removedIds);
 
   // -------------------------------------------------------------- snooze
 
@@ -783,9 +653,7 @@ final class MailController {
       for (final m in list.newSinceAway.messages)
         if (!m.flags.seen) m,
     ];
-    if (unread.isEmpty) return;
-    final receipt = services.actions.markRead(unread);
-    _afterFlags(receipt, 'Marked as read', unread.length, alwaysUndo: true);
+    messageActions.markAllRead(unread);
   }
 
   /// A timer for the next snooze or follow-up due. Checked at least
@@ -1190,13 +1058,8 @@ final class MailController {
   }
 
   /// Folders a message can be moved to.
-  List<StoredMailbox> moveTargets(StoredMessage m) => [
-    for (final box in _store.mailboxes.forAccount(m.accountId))
-      if (box.selectable && box.id != m.mailboxId && !box.isAppData) box,
-  ];
-
-  static String _folderName(StoredMailbox m) =>
-      m.isInbox ? 'Inbox' : m.name.split(m.delimiter ?? '/').last;
+  List<StoredMailbox> moveTargets(StoredMessage m) =>
+      folderController.moveTargets(m);
 
   // ----------------------------------------------------------- composing
 
@@ -1241,39 +1104,16 @@ final class MailController {
 
   /// Creates a folder on the server and opens it. Returns an error to
   /// show, or null on success.
-  Future<String?> createFolder(int accountId, String name) async {
-    try {
-      final id = await services.worker.createFolder(accountId, name);
-      if (!_disposed) {
-        _refreshCounts();
-        goTo(FolderLocation(id, accountId));
-      }
-      return null;
-    } on ArgumentError catch (e) {
-      return switch (e.message) {
-        final String message when message.contains('separator') =>
-          'Folder names can\'t contain "${message.split('"')[1]}" on this server.',
-        final String message when message.contains('INBOX') =>
-          'Inbox already exists.',
-        _ => 'That can\'t be a folder name.',
-      };
-    } on SyncWorkerException catch (e) {
-      return e.failure.kind == SyncFailureKind.network
-          ? 'Folders can only be created while online.'
-          : 'The server refused: ${e.failure.message}';
-    }
-  }
+  Future<String?> createFolder(int accountId, String name) =>
+      folderController.createFolder(accountId, name);
 
   /// Whether rules can move mail into [mailbox] (not the inbox, Drafts or
   /// Sent).
   bool canHaveRules(StoredMailbox mailbox) =>
-      !mailbox.isInbox &&
-      mailbox.selectable &&
-      mailbox.specialUse != SpecialUse.drafts &&
-      mailbox.specialUse != SpecialUse.sent;
+      FolderController.canHaveRules(mailbox);
 
   List<FolderRule> rulesFor(int mailboxId) =>
-      _store.folderRules.forMailbox(mailboxId);
+      folderController.rulesFor(mailboxId);
 
   /// Adds a rule; with [includeExisting] the inbox is filed with the next
   /// sync. Returns an error to show, or null.
@@ -1282,28 +1122,14 @@ final class MailController {
     RuleField field,
     String value, {
     bool includeExisting = false,
-  }) {
-    try {
-      _store.folderRules.add(
-        accountId: mailbox.accountId,
-        mailboxId: mailbox.id,
-        field: field,
-        value: value,
-        includeExisting: includeExisting,
-      );
-    } on ArgumentError {
-      return switch (field) {
-        RuleField.fromAddress ||
-        RuleField.toAddress => 'Enter an email address.',
-        RuleField.fromDomain => 'Enter a domain, like example.com.',
-        RuleField.subject => 'Enter some text.',
-      };
-    }
-    if (includeExisting) services.worker.requestSync(mailbox.accountId);
-    return null;
-  }
+  }) => folderController.addRule(
+    mailbox,
+    field,
+    value,
+    includeExisting: includeExisting,
+  );
 
-  void removeRule(FolderRule rule) => _store.folderRules.remove(rule.id);
+  void removeRule(FolderRule rule) => folderController.removeRule(rule);
 
   // -------------------------------------------------------------- outbox
 
@@ -1487,6 +1313,7 @@ final class MailController {
     countsController.dispose();
     readerController.dispose();
     composeStarter.dispose();
+    folderController.dispose();
     selectionController.dispose();
     invitationsChanged.dispose();
     accountsChanged.dispose();
