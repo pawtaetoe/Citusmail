@@ -41,7 +41,7 @@ abstract final class MailText {
   static Color sectionColor(SmartSection section, ColorScheme colors) =>
       switch (section) {
         SmartSection.pinned => pinColor,
-        SmartSection.codes => const Color(0xFF8E4EC6),
+        SmartSection.codes => const Color(0xFF0B8AA8),
         SmartSection.screener => const Color(0xFF0090FF),
         SmartSection.snoozed => snoozeColor,
         SmartSection.important => const Color(0xFFF5A524),

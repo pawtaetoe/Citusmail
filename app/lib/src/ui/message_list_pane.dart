@@ -1020,7 +1020,9 @@ final class _ScreenerEntry extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: colors.primaryContainer,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(
+                                CitusmailTheme.radiusSmall,
+                              ),
                             ),
                             child: Text(
                               '$waiting',
@@ -1210,7 +1212,7 @@ final class _SendLaterNote extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -164,6 +164,17 @@ final class TipCard extends StatefulWidget {
 }
 
 final class _TipCardState extends State<TipCard> {
+  static const _iconGap = 12.0;
+
+  /// Where the tip's text starts: the icon (20) and the gap after it.
+  static const _textInset = 20 + _iconGap;
+
+  /// A text button whose label sits on the text's edge, still 48 tall.
+  static final _flush = TextButton.styleFrom(
+    padding: EdgeInsets.zero,
+    minimumSize: const Size(0, 48),
+  );
+
   Tips get _tips => Tips(widget.controller.services.store);
 
   @override
@@ -185,51 +196,66 @@ final class _TipCardState extends State<TipCard> {
           borderRadius: BorderRadius.circular(CitusmailTheme.radius),
           border: Border.all(color: colors.outlineVariant),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Icon(tip.icon, size: 20, color: colors.primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Tip: ${tip.title}', style: theme.textTheme.titleSmall),
-                  const SizedBox(height: 2),
-                  Text(
-                    tip.text,
-                    style: TextStyle(color: colors.onSurfaceVariant),
-                  ),
-                  Wrap(
-                    spacing: 4,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(tip.icon, size: 20, color: colors.primary),
+                ),
+                const SizedBox(width: _iconGap),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (tip.action case final action?)
-                        TextButton(
-                          onPressed: () {
-                            close();
-                            tip.onAction?.call(context, widget.controller);
-                          },
-                          child: Text(action),
-                        ),
-                      TextButton(
-                        onPressed: () {
-                          close();
-                          _tips.enabled = false;
-                        },
-                        child: const Text('Don\'t show tips'),
+                      Text(
+                        'Tip: ${tip.title}',
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        tip.text,
+                        style: TextStyle(color: colors.onSurfaceVariant),
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Close tip',
+                  icon: const Icon(AppIcons.close, size: 18),
+                  onPressed: close,
+                ),
+              ],
+            ),
+            // The actions span the card's width under the text, starting
+            // on the text's edge, so on a phone they fit in one row.
+            Padding(
+              padding: const EdgeInsets.only(left: _textInset),
+              child: Wrap(
+                spacing: 20,
+                children: [
+                  if (tip.action case final action?)
+                    TextButton(
+                      style: _flush,
+                      onPressed: () {
+                        close();
+                        tip.onAction?.call(context, widget.controller);
+                      },
+                      child: Text(action),
+                    ),
+                  TextButton(
+                    style: _flush,
+                    onPressed: () {
+                      close();
+                      _tips.enabled = false;
+                    },
+                    child: const Text('Don\'t show tips'),
+                  ),
                 ],
               ),
-            ),
-            IconButton(
-              tooltip: 'Close tip',
-              icon: const Icon(AppIcons.close, size: 18),
-              onPressed: close,
             ),
           ],
         ),

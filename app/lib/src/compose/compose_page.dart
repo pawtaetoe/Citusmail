@@ -654,7 +654,7 @@ final class _SignOffBlock extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
             decoration: BoxDecoration(
               color: colors.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -767,7 +767,7 @@ final class _SendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const radius = Radius.circular(10);
+    const radius = Radius.circular(CitusmailTheme.radius);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

@@ -90,6 +90,7 @@ final class _ScreenerSettingsState extends State<ScreenerSettings> {
             secondary: const Icon(AppIcons.screener),
             title: const Text('Screen first-time senders'),
             subtitle: const SettingExplained(
+              about: 'Screen first-time senders',
               'New senders wait in the Screener until you let them in',
               more:
                   'The Screener is at the top of your inbox. Everyone you '

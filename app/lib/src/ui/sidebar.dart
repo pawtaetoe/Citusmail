@@ -508,7 +508,7 @@ final class _Count extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: colors.badge,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
       ),
       child: Text(
         count > 999 ? '999+' : '$count',
@@ -584,7 +584,9 @@ final class _Entry extends StatelessWidget {
                         width: 3,
                         decoration: BoxDecoration(
                           color: colors.indicator,
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius: BorderRadius.circular(
+                            CitusmailTheme.radiusMark,
+                          ),
                         ),
                       ),
                     ),

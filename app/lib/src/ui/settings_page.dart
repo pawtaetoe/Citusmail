@@ -26,6 +26,7 @@ import 'ai_settings_page.dart';
 import 'app_icons.dart';
 import 'appearance.dart';
 import 'block_dialog.dart';
+import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
 import 'device_sync_page.dart';
 import 'discover_page.dart';
@@ -501,6 +502,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         SwitchListTile(
           title: const Text('New mail notifications'),
           subtitle: const SettingExplained(
+            about: 'New mail notifications',
             'One for each new email; newsletters never notify',
             more:
                 'For new mail in Verification, Important, General and '
@@ -516,6 +518,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         SwitchListTile(
           title: const Text('Also for Notifications'),
           subtitle: const SettingExplained(
+            about: 'Also for Notifications',
             'Mail from services such as your bank or GitHub',
             more:
                 'Emails from services such as GitHub, your bank or a '
@@ -533,6 +536,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         SwitchListTile(
           title: const Text('Show message previews'),
           subtitle: const SettingExplained(
+            about: 'Show message previews',
             'The first lines of each email, in the notification',
             more:
                 'When off, notifications show only the sender and the '
@@ -549,6 +553,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         SwitchListTile(
           title: const Text('Bill and trial reminders'),
           subtitle: const SettingExplained(
+            about: 'Bill and trial reminders',
             'A few days before a bill is due or a trial ends',
             more:
                 'Also before a free trial starts charging, a yearly '
@@ -578,6 +583,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         SwitchListTile(
           title: const Text('Follow-up reminders'),
           subtitle: const SettingExplained(
+            about: 'Follow-up reminders',
             'When nobody has replied by the time you chose',
             more:
                 'For emails you sent with “Remind me if no reply”. The '
@@ -595,6 +601,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           SwitchListTile(
             title: const Text('Instant mail'),
             subtitle: const SettingExplained(
+              about: 'Instant mail',
               'New mail at once, also while your phone sleeps',
               more:
                   'Keeps a live connection to your mail server. Android '
@@ -627,6 +634,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           secondary: const Icon(AppIcons.newSinceAway),
           title: const Text('New since you were away'),
           subtitle: const SettingExplained(
+            about: 'New since you were away',
             'Mail that came while you were away, together at the top',
             more:
                 'When you come back to the app, the emails that arrived '
@@ -651,6 +659,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           secondary: const Icon(AppIcons.bill),
           title: const Text('Read receipts and bookings automatically'),
           subtitle: const SettingExplained(
+            about: 'Read receipts and bookings automatically',
             'So Subscriptions, Deliveries and Trips fill in by themselves',
             more:
                 'Downloads receipts, bills and booking emails from your '
@@ -681,6 +690,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       leading: const Icon(AppIcons.codeCleanup),
       title: const Text('Clean up old codes'),
       subtitle: SettingExplained(
+        about: 'Clean up old codes',
         '$choice.'
         '${waiting ? ' Verification asks you first.' : ''}',
         more: CodeCleanupText.explanation,
@@ -752,6 +762,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         leading: const Icon(AppIcons.keepMail),
         title: const Text('Keep mail from'),
         subtitle: SettingExplained(
+          about: 'Keep mail from',
           '${_keepLabel(KeepMail.read(widget.services.store))}.',
           more:
               'Older mail still loads when you scroll down. Search and '
@@ -772,6 +783,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           secondary: const Icon(AppIcons.lock),
           title: const Text('App lock'),
           subtitle: const SettingExplained(
+            about: 'App lock',
             'Ask for a PIN to open $appName',
             more:
                 'While locked, notifications show only that there is new '
@@ -996,6 +1008,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           leading: const Icon(AppIcons.privacy),
           title: const Text('Privacy'),
           subtitle: const SettingExplained(
+            about: 'Privacy',
             '$appName has no servers and collects nothing',
             more:
                 'Mail is stored encrypted on this device and goes only to '
@@ -1202,10 +1215,10 @@ final class _SearchButton extends StatelessWidget {
       excludeSemantics: true,
       child: Material(
         color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
         child: InkWell(
           key: const ValueKey('settings-search'),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(CitusmailTheme.radius),
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1786,10 +1799,14 @@ final class _Group extends StatelessWidget {
 /// "Learn more", so the page reads as a list of settings rather than a
 /// wall of text.
 final class SettingExplained extends StatefulWidget {
-  const SettingExplained(this.summary, {super.key, this.more});
+  const SettingExplained(this.summary, {super.key, this.more, this.about});
 
   final String summary;
   final String? more;
+
+  /// The setting's name, so "Learn more" says what it is about to a
+  /// screen reader (a page can hold several).
+  final String? about;
 
   @override
   State<SettingExplained> createState() => _ExplainedState();
@@ -1817,7 +1834,14 @@ final class _ExplainedState extends State<SettingExplained> {
             textStyle: Theme.of(context).textTheme.labelMedium,
           ),
           onPressed: () => setState(() => _open = !_open),
-          child: Text(_open ? 'Show less' : 'Learn more'),
+          child: Text(
+            _open ? 'Show less' : 'Learn more',
+            semanticsLabel: switch (widget.about) {
+              final about? =>
+                _open ? 'Show less about $about' : 'Learn more about $about',
+              null => null,
+            },
+          ),
         ),
       ],
     );

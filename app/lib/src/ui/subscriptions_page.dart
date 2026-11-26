@@ -443,7 +443,7 @@ final class _Spend extends StatelessWidget {
         const SizedBox(height: 16),
         // The split: one bar, a 2px gap between parts.
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(CitusmailTheme.radiusMark),
           child: SizedBox(
             height: 14,
             child: Row(
@@ -468,7 +468,7 @@ final class _Spend extends StatelessWidget {
         const SizedBox(height: 8),
         for (final part in parts)
           InkWell(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
             onTap: part.s == null ? null : () => onSelect(part.s!),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
@@ -479,7 +479,9 @@ final class _Spend extends StatelessWidget {
                     height: 10,
                     decoration: BoxDecoration(
                       color: part.color,
-                      borderRadius: BorderRadius.circular(3),
+                      borderRadius: BorderRadius.circular(
+                        CitusmailTheme.radiusMark,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),

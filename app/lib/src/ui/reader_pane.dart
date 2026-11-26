@@ -394,7 +394,7 @@ final class _Toolbar extends StatelessWidget {
     final inTrash = controller.isInTrash(message);
     // Grouped by what they do: where it goes, how it's marked, the sender.
     // Replying is in the bar under the message.
-    final actions = <_Action>[
+    final everyday = <_Action>[
       if (controller.isInJunk(message))
         _Action(
           'Not spam',
@@ -486,20 +486,31 @@ final class _Toolbar extends StatelessWidget {
           AppIcons.forwardAsAttachment,
           () => controller.forwardAsAttachment(reader as ReaderReady),
           group: 3,
+          rare: true,
         ),
         _Action(
           'Save as .eml',
           AppIcons.save,
           () => _saveEml(context),
           group: 3,
+          rare: true,
         ),
         _Action(
           'Show original',
           AppIcons.original,
           () => _showOriginal(context),
           group: 3,
+          rare: true,
         ),
       ],
+    ];
+    final actions = [
+      for (final a in everyday)
+        if (!a.rare) a,
+    ];
+    final rare = [
+      for (final a in everyday)
+        if (a.rare) a,
     ];
     final ready = reader is ReaderReady ? reader as ReaderReady : null;
     final replying = withReply && ready != null;
@@ -518,7 +529,8 @@ final class _Toolbar extends StatelessWidget {
 
         // Padding, Back, and Reply (its label at the theme's size).
         final room = constraints.maxWidth - 16 - 48 - (replying ? 132 : 0);
-        final all = !replying && fitting(room) == actions.length;
+        final all =
+            !replying && rare.isEmpty && fitting(room) == actions.length;
         final shown = all
             ? actions
             : actions
@@ -538,6 +550,7 @@ final class _Toolbar extends StatelessWidget {
             ),
           ],
           ...actions.skip(shown.length),
+          ...rare,
         ];
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -786,6 +799,7 @@ final class _Action {
     this.onPressed, {
     this.color,
     this.group = 0,
+    this.rare = false,
   });
 
   final String label;
@@ -795,6 +809,10 @@ final class _Action {
 
   /// Neighbouring actions with different groups get a rule between them.
   final int group;
+
+  /// Seldom needed: always under "More", so the bar shows the everyday
+  /// actions only.
+  final bool rare;
 }
 
 final class _Sender extends StatelessWidget {

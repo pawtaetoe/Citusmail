@@ -822,7 +822,7 @@ class _Notice extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: warning ? scheme.errorContainer : scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radiusCard),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

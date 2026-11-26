@@ -343,7 +343,7 @@ final class _WritingPanelState extends State<WritingPanel> {
             padding: const EdgeInsets.all(CitusSpace.m),
             decoration: BoxDecoration(
               color: colors.errorContainer,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
             ),
             child: Text(
               run.error ?? 'Something went wrong.',
@@ -357,7 +357,7 @@ final class _WritingPanelState extends State<WritingPanel> {
             padding: const EdgeInsets.all(CitusSpace.m),
             decoration: BoxDecoration(
               color: colors.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
             ),
             child: SingleChildScrollView(
               reverse: running,

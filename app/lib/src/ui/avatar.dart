@@ -24,7 +24,7 @@ final class Avatar extends StatelessWidget {
     Color(0xFF3D7A4A),
     Color(0xFF9A5B13),
     Color(0xFFB03A48),
-    Color(0xFF6B4FA0),
+    Color(0xFF3E5C9A),
     Color(0xFF0F7A69),
     Color(0xFFA23E7C),
     Color(0xFF55636E),

@@ -120,7 +120,7 @@ final class AiFeatures {
   /// you check before anything happens.
   static const actions = AiFeature(
     id: 'actions',
-    title: 'Suggested actions',
+    title: 'Ask AI to tidy',
     sentence:
         'Ask in your own words, like "archive newsletters older than a '
         'month", and check the list of changes before anything happens.',

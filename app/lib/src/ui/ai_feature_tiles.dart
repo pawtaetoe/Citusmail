@@ -54,6 +54,7 @@ final class AiFeatureSwitch extends StatelessWidget {
         key: ValueKey('ai-feature-${feature.id}'),
         title: Text(feature.title),
         subtitle: SettingExplained(
+          about: feature.title,
           ready ? feature.sentence : 'Add a provider and key first, above.',
           more:
               'Only when you ask, it sends ${feature.sends} to $to, '

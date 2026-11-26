@@ -9,6 +9,7 @@ import '../mail/mail_controller.dart';
 import '../services/app_services.dart';
 import 'app_icons.dart';
 import 'avatar.dart';
+import 'citusmail_theme.dart';
 import 'feature_settings.dart';
 import 'mail_shell.dart';
 import 'mail_text.dart';
@@ -175,7 +176,7 @@ final class _SenderCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
         side: picked
             ? BorderSide(color: colors.primary, width: 2)
             : BorderSide.none,

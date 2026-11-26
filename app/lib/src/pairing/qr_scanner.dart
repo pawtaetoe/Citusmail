@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../app.dart' show appName;
+import '../ui/citusmail_theme.dart';
 import 'qr_code.dart';
 
 /// Builds the scanner: calls [onCode] with the text of each QR code it
@@ -125,7 +126,7 @@ final class _CameraQrScannerState extends State<CameraQrScanner> {
       return const Center(child: CircularProgressIndicator());
     }
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(CitusmailTheme.radiusLarge),
       child: CameraPreview(camera),
     );
   }

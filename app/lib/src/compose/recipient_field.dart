@@ -150,7 +150,9 @@ final class _RecipientFieldState extends State<RecipientField> {
                             alignment: Alignment.topLeft,
                             child: Material(
                               elevation: 4,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(
+                                CitusmailTheme.radiusSmall,
+                              ),
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(
                                   maxWidth: 420,

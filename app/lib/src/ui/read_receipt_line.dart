@@ -8,6 +8,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../mail/mail_controller.dart';
 import 'app_icons.dart';
+import 'citusmail_theme.dart';
 import 'mail_text.dart';
 import 'subscription_detail_page.dart' show EmailPage;
 
@@ -114,7 +115,7 @@ final class ReadReceiptLine extends StatelessWidget {
         children: [
           for (final read in reads)
             InkWell(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(CitusmailTheme.radiusBadge),
               onTap: read.report == null ? null : () => _open(context, read),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),

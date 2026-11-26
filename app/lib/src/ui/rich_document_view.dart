@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:mail_view/mail_view.dart' hide TableCell;
 import 'package:mail_view/mail_view.dart' as view show TableCell;
 
+import 'citusmail_theme.dart';
+
 /// Fetches a remote image the user chose to load; null if it can't be
 /// shown.
 typedef RemoteImageSource = Future<Uint8List?> Function(Uri url);
@@ -139,7 +141,7 @@ final class _BlockViewState extends State<BlockView> {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(CitusmailTheme.radiusBadge),
         ),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
