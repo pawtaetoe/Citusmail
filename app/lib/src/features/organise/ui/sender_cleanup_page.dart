@@ -7,6 +7,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../../../app/app.dart' show appName;
+import '../../../core/state/load_state.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
@@ -272,13 +273,16 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
     },
   );
 
-  Widget _body(BuildContext context) {
-    if (_model.loading) {
-      return const SkeletonRows(
-        label: 'Looking through your mail…',
-        maxWidth: 820,
-      );
-    }
+  Widget _body(BuildContext context) => switch (_model.state) {
+    // As before, a first load that failed leaves the page looking.
+    Loading() || LoadFailed() => const SkeletonRows(
+      label: 'Looking through your mail…',
+      maxWidth: 820,
+    ),
+    Loaded() => _senders(context),
+  };
+
+  Widget _senders(BuildContext context) {
     final shown = _model.shown;
     final kept = _model.keptGroups;
     // Header, senders, then the kept ones.
