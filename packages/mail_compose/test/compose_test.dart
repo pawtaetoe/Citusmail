@@ -131,6 +131,25 @@ void main() {
       expect(draft.quote, contains('> First line\n>\n> Second line'));
     });
 
+    test('a reply to a message without References still names its parent', () {
+      final (_, view) = received();
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 9,
+          receivedAt: DateTime.utc(2026, 10, 20, 9, 1),
+          messageId: 'second@x.example',
+          inReplyTo: 'first@x.example',
+          subject: 'Re: Plans',
+          from: a('bob@x.example', 'Bob'),
+        ),
+      ]);
+      final message = store.messages.byUid(inbox.id, 9)!;
+      final draft = ReplyBuilder(store).reply(message, view);
+      // RFC 5322 3.6.4: the parent's In-Reply-To stands in for its
+      // missing References.
+      expect(draft.references, ['first@x.example', 'second@x.example']);
+    });
+
     test('reply all includes everyone except the user, once each', () {
       final (message, view) = received();
       final draft = ReplyBuilder(store).replyAll(message, view);

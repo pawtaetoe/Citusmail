@@ -106,8 +106,13 @@ final class ReplyBuilder {
     if (to.isEmpty) to = unique(_store.messages.addresses(message.id, 'to'));
 
     final messageId = message.messageId;
+    // Without References, the parent's In-Reply-To names the message
+    // before it (RFC 5322 3.6.4).
     final references = [
-      ...message.references,
+      if (message.references.isEmpty)
+        ?message.inReplyTo
+      else
+        ...message.references,
       if (messageId != null && !message.references.contains(messageId))
         messageId,
     ];
