@@ -251,7 +251,10 @@ void main() {
     expect(WhatsNew(store).seenVersion, '0.6.1');
 
     settings().write('commandBar.recent', 'go.inbox,action.archive');
-    expect(CommandHistory(store).ids, ['go.inbox', 'action.archive']);
+    expect(CommandHistory(store).ids.map((c) => c.id), [
+      'go.inbox',
+      'action.archive',
+    ]);
   });
 
   test('reminders and "New since you were away"', () {

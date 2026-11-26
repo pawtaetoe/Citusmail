@@ -269,7 +269,7 @@ void main() {
         'go.folder.${projects.id}',
         'go.pins',
       ]) {
-        history.used(id);
+        history.used(CommandId.parse(id)!);
       }
       await show(tester, shell(), size: const Size(1440, 900), dark: dark);
       await tester.tap(find.text('Hello there'));

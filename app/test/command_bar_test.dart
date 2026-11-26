@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'support/test_app.dart';
 
@@ -70,16 +71,74 @@ void main() {
     await app.dispose();
   });
 
+  test('recent commands kept by older versions still load', () {
+    const stored = [
+      'action.archive',
+      'action.replyAll',
+      'go.inbox',
+      'go.returns',
+      'go.section.newsletters',
+      'go.account.3',
+      'go.folder.12',
+      'setting.ai-sorting',
+      'setting.theme',
+      'new.message',
+      'new.account',
+    ];
+    for (final id in stored) {
+      expect(CommandId.parse(id)?.id, id, reason: id);
+    }
+    expect(
+      CommandId.parse('action.archive'),
+      const ActionCommand(CommandAction.archive),
+    );
+    expect(
+      CommandId.parse('setting.ai-sorting'),
+      const SettingCommand(SettingId.aiSorting),
+    );
+    expect(
+      CommandId.parse('go.section.newsletters'),
+      const SectionCommand(SmartSection.newsletters),
+    );
+    // Unknown ones (another version's) are left out, never an error.
+    for (final id in [
+      '',
+      'go',
+      'go.nowhere',
+      'go.folder.x',
+      'go.section.nope',
+      'action.explode',
+      'setting.nope',
+      'teleport.home',
+    ]) {
+      expect(CommandId.parse(id), isNull, reason: id);
+    }
+    app.store.settings.write(
+      CommandHistory.setting.key,
+      'go.pins,go.future,setting.theme',
+    );
+    final history = CommandHistory(app.store);
+    expect(history.ids, [
+      const PlaceCommand(CommandPlace.pins),
+      const SettingCommand(SettingId.theme),
+    ]);
+    history.used(const PlaceCommand(CommandPlace.inbox));
+    expect(
+      app.store.settings.read(CommandHistory.setting.key),
+      'go.inbox,go.pins,go.future,setting.theme',
+    );
+  });
+
   test('recent commands: the last 8, newest first, ids only', () {
     final history = CommandHistory(app.store);
     expect(history.ids, isEmpty);
     for (var i = 0; i < 10; i++) {
-      history.used('go.folder.$i');
+      history.used(FolderCommand(i));
     }
-    history.used('go.folder.5');
+    history.used(const FolderCommand(5));
     expect(history.ids, hasLength(8));
-    expect(history.ids.first, 'go.folder.5');
-    expect(history.ids.where((i) => i == 'go.folder.5'), hasLength(1));
+    expect(history.ids.first, const FolderCommand(5));
+    expect(history.ids.where((i) => i == const FolderCommand(5)), hasLength(1));
     expect(
       app.store.settings.read(CommandHistory.setting.key),
       isNot(contains(' ')),
@@ -340,13 +399,17 @@ void main() {
     expect(recent, findsOneWidget);
     expect(highlighted(tester, recent), isTrue, reason: 'first');
     // Only command ids are kept.
-    expect(CommandHistory(app.store).ids, ['go.pins']);
+    expect(CommandHistory(app.store).ids, [
+      const PlaceCommand(CommandPlace.pins),
+    ]);
 
     // Emails and searches aren't kept.
     await type(tester, 'lunch');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await settle(tester);
-    expect(CommandHistory(app.store).ids, ['go.pins']);
+    expect(CommandHistory(app.store).ids, [
+      const PlaceCommand(CommandPlace.pins),
+    ]);
   });
 
   testWidgets('arrows move, Tab goes to the next group, Enter runs', (

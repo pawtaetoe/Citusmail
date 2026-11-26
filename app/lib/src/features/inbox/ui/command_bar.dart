@@ -59,7 +59,7 @@ final class Command {
   });
 
   /// Stable, and the only thing kept of it in the recent commands.
-  final String id;
+  final CommandId id;
   final CommandGroup group;
   final String title;
 
@@ -104,7 +104,7 @@ final class CommandCatalog {
 
   List<Command> get all => [...actions, ...places, ...settings, ...create];
 
-  Command? byId(String id) => all.where((c) => c.id == id).firstOrNull;
+  Command? byId(CommandId id) => all.where((c) => c.id == id).firstOrNull;
 
   // -------------------------------------------------------------- actions
 
@@ -121,7 +121,7 @@ final class CommandCatalog {
               : 'On ${targets.length} selected emails')
         : 'On the open email';
     Command action(
-      String id,
+      CommandAction id,
       String title,
       IconData icon,
       VoidCallback run, {
@@ -129,7 +129,7 @@ final class CommandCatalog {
       List<String> words = const [],
       String? subtitle,
     }) => Command(
-      id: 'action.$id',
+      id: ActionCommand(id),
       group: CommandGroup.actions,
       title: title,
       subtitle: subtitle ?? on,
@@ -152,7 +152,7 @@ final class CommandCatalog {
     return [
       if (canArchive)
         action(
-          'archive',
+          CommandAction.archive,
           'Archive',
           AppIcons.archive,
           () => c.archive(targets),
@@ -161,7 +161,7 @@ final class CommandCatalog {
         ),
       if (!targets.every(c.deletesForever))
         action(
-          'delete',
+          CommandAction.delete,
           'Delete',
           AppIcons.delete,
           () => c.delete(targets.where((m) => !c.deletesForever(m)).toList()),
@@ -170,7 +170,7 @@ final class CommandCatalog {
         ),
       if (oneAccount)
         action(
-          'move',
+          CommandAction.move,
           'Move to…',
           AppIcons.move,
           () => unawaited(MoveDialog.show(context, c, targets)),
@@ -179,7 +179,7 @@ final class CommandCatalog {
         ),
       if (targets.any(c.canSnooze))
         action(
-          'snooze',
+          CommandAction.snooze,
           snoozedOne ? 'Change snooze time…' : 'Snooze…',
           AppIcons.snooze,
           () => unawaited(SnoozeSheet.show(context, c, targets)),
@@ -187,7 +187,7 @@ final class CommandCatalog {
           words: const ['later', 'remind', 'postpone', 'snooze'],
         ),
       action(
-        'pin',
+        CommandAction.pin,
         pinned ? 'Unpin' : 'Pin',
         pinned ? AppIcons.pinOn : AppIcons.pinOff,
         () => c.togglePin(targets),
@@ -195,7 +195,7 @@ final class CommandCatalog {
         words: const ['pin', 'unpin', 'star', 'flag', 'keep', 'important'],
       ),
       action(
-        'read',
+        CommandAction.read,
         read ? 'Mark as unread' : 'Mark as read',
         read ? AppIcons.markUnread : AppIcons.markRead,
         () => c.toggleRead(targets),
@@ -204,7 +204,7 @@ final class CommandCatalog {
       ),
       if (one != null && c.blockFor(one) == null && c.canBlock(one))
         action(
-          'block',
+          CommandAction.block,
           'Block sender',
           AppIcons.block,
           () => unawaited(BlockDialog.show(context, c, one)),
@@ -212,7 +212,7 @@ final class CommandCatalog {
         ),
       if (ready != null && open != null) ...[
         action(
-          'reply',
+          CommandAction.reply,
           'Reply',
           AppIcons.reply,
           () => c.reply(ready),
@@ -221,7 +221,7 @@ final class CommandCatalog {
           subtitle: 'To the open email',
         ),
         action(
-          'replyAll',
+          CommandAction.replyAll,
           'Reply all',
           AppIcons.replyAll,
           () => c.replyAll(ready),
@@ -230,7 +230,7 @@ final class CommandCatalog {
           subtitle: 'To the open email',
         ),
         action(
-          'forward',
+          CommandAction.forward,
           'Forward',
           AppIcons.forward,
           () => c.forward(ready),
@@ -240,7 +240,7 @@ final class CommandCatalog {
         ),
         if (summaries.available)
           action(
-            'summarise',
+            CommandAction.summarise,
             'Summarise',
             AppIcons.summarise,
             () => summaries.ask(ready.message, SummaryScope.message),
@@ -249,7 +249,7 @@ final class CommandCatalog {
           ),
         if (AiTranslate.isOn(c))
           action(
-            'translate',
+            CommandAction.translate,
             'Translate',
             AppIcons.translate,
             () => AiTranslate.run(context, c, ready),
@@ -270,7 +270,7 @@ final class CommandCatalog {
   List<Command> _places() {
     final c = controller;
     Command place(
-      String id,
+      CommandId id,
       String title,
       IconData icon,
       VoidCallback run, {
@@ -278,7 +278,7 @@ final class CommandCatalog {
       List<String> words = const [],
       String? shortcut,
     }) => Command(
-      id: 'go.$id',
+      id: id,
       group: CommandGroup.goTo,
       title: title,
       subtitle: subtitle,
@@ -289,15 +289,15 @@ final class CommandCatalog {
     );
 
     Command feature(
+      CommandPlace at,
       FeatureId id, {
-      String? as,
       String? title,
       String? subtitle,
       List<String> words = const [],
     }) {
       final f = Features.byId(id)!;
       return place(
-        as ?? id.name,
+        PlaceCommand(at),
         title ?? f.title,
         f.icon,
         () => f.open(context, c),
@@ -310,7 +310,7 @@ final class CommandCatalog {
     final several = accounts.length > 1;
     return [
       place(
-        'inbox',
+        const PlaceCommand(CommandPlace.inbox),
         'Inbox',
         AppIcons.inbox,
         () => _goTo(const InboxLocation()),
@@ -318,35 +318,35 @@ final class CommandCatalog {
         subtitle: several ? 'All accounts' : null,
       ),
       place(
-        'pins',
+        const PlaceCommand(CommandPlace.pins),
         'Pins',
         AppIcons.pins,
         () => _goTo(const PinsLocation()),
         words: const ['pinned', 'starred', 'flagged', 'important'],
       ),
       place(
-        'snoozed',
+        const PlaceCommand(CommandPlace.snoozed),
         'Snoozed',
         AppIcons.snoozed,
         () => _goTo(const SnoozedLocation()),
         words: const ['later', 'snooze'],
       ),
       place(
-        'followUps',
+        const PlaceCommand(CommandPlace.followUps),
         'Waiting for a reply',
         AppIcons.waiting,
         () => _goTo(const FollowUpsLocation()),
         words: const ['follow up', 'no reply', 'reminders'],
       ),
       place(
-        'outbox',
+        const PlaceCommand(CommandPlace.outbox),
         'Outbox',
         AppIcons.outbox,
         () => _goTo(const OutboxLocation()),
         words: const ['sending', 'unsent', 'queue', 'failed'],
       ),
       place(
-        'screener',
+        const PlaceCommand(CommandPlace.screener),
         'Screener',
         AppIcons.screener,
         () => _push((_) => ScreenerPage(controller: c)),
@@ -355,7 +355,7 @@ final class CommandCatalog {
       for (final section in SmartSection.values)
         if (section != SmartSection.screener && section != SmartSection.snoozed)
           place(
-            'section.${section.name}',
+            SectionCommand(section),
             MailText.section(section),
             MailText.sectionIcon(section),
             () => _goTo(SectionLocation(section)),
@@ -365,7 +365,7 @@ final class CommandCatalog {
       for (final account in accounts) ...[
         if (several)
           place(
-            'account.${account.id}',
+            AccountCommand(account.id),
             account.email,
             AppIcons.account,
             () => _goTo(InboxLocation(accountId: account.id)),
@@ -375,7 +375,7 @@ final class CommandCatalog {
         for (final mailbox in _store.mailboxes.forAccount(account.id))
           if (!mailbox.isInbox && !mailbox.isAppData && mailbox.selectable)
             place(
-              'folder.${mailbox.id}',
+              FolderCommand(mailbox.id),
               MailText.folder(mailbox),
               MailText.folderIcon(mailbox),
               () => _goTo(FolderLocation(mailbox.id, account.id)),
@@ -388,49 +388,69 @@ final class CommandCatalog {
             ),
       ],
       feature(
+        CommandPlace.subscriptions,
         FeatureId.subscriptions,
         words: const ['bills', 'renewals', 'paid'],
       ),
       feature(
+        CommandPlace.deliveries,
         FeatureId.deliveries,
         words: const ['parcels', 'packages', 'shipping'],
       ),
       feature(
+        CommandPlace.returns,
         FeatureId.deliveries,
-        as: 'returns',
         title: 'Returns',
         subtitle: 'In Deliveries',
         words: const ['refunds', 'send back'],
       ),
-      feature(FeatureId.trips, words: const ['flights', 'hotels', 'bookings']),
       feature(
+        CommandPlace.trips,
+        FeatureId.trips,
+        words: const ['flights', 'hotels', 'bookings'],
+      ),
+      feature(
+        CommandPlace.appointments,
         FeatureId.appointments,
         words: const ['bookings', 'tables', 'events'],
       ),
-      feature(FeatureId.onlineAccounts, words: const ['sign ups', 'websites']),
       feature(
+        CommandPlace.onlineAccounts,
+        FeatureId.onlineAccounts,
+        words: const ['sign ups', 'websites'],
+      ),
+      feature(
+        CommandPlace.files,
         FeatureId.files,
         title: 'Attachments',
         words: const ['files', 'documents', 'photos'],
       ),
-      feature(FeatureId.cleanUp, words: const ['senders', 'tidy']),
-      feature(FeatureId.privacyReport, words: const ['trackers', 'images']),
+      feature(
+        CommandPlace.cleanUp,
+        FeatureId.cleanUp,
+        words: const ['senders', 'tidy'],
+      ),
+      feature(
+        CommandPlace.privacyReport,
+        FeatureId.privacyReport,
+        words: const ['trackers', 'images'],
+      ),
       place(
-        'settings',
+        const PlaceCommand(CommandPlace.settings),
         'Settings',
         AppIcons.settings,
         () => unawaited(SettingsPage.open(context, controller: c)),
         words: const ['preferences', 'options'],
       ),
       place(
-        'features',
+        const PlaceCommand(CommandPlace.features),
         'All features',
         AppIcons.allFeatures,
         () => _push((_) => DiscoverPage(controller: c)),
         words: const ['discover', 'help', 'what can it do'],
       ),
       place(
-        'shortcuts',
+        const PlaceCommand(CommandPlace.shortcuts),
         'Keyboard shortcuts',
         AppIcons.keyboard,
         () => unawaited(MailKeyboardShortcuts.showShortcuts(context)),
@@ -446,7 +466,7 @@ final class CommandCatalog {
     for (final e in SettingsCatalog.available(android: _android))
       if (e.id != CommandBar.settingId)
         Command(
-          id: 'setting.${e.id.id}',
+          id: SettingCommand(e.id),
           group: CommandGroup.settings,
           title: e.title,
           subtitle: SettingsCatalog.section(e.section).shortTitle,
@@ -466,7 +486,7 @@ final class CommandCatalog {
 
   List<Command> _create() => [
     Command(
-      id: 'new.message',
+      id: const CreateCommand(CommandCreate.message),
       group: CommandGroup.create,
       title: 'New message',
       icon: AppIcons.compose,
@@ -476,7 +496,7 @@ final class CommandCatalog {
     ),
     if (onAddAccount case final add?)
       Command(
-        id: 'new.account',
+        id: const CreateCommand(CommandCreate.account),
         group: CommandGroup.create,
         title: 'Add account',
         icon: AppIcons.addAccount,
@@ -498,7 +518,7 @@ final class CommandCatalog {
     return [
       for (final m in _store.messages.search(query, limit: emailCount))
         Command(
-          id: 'email.${m.id}',
+          id: EmailCommand(m.id),
           group: CommandGroup.emails,
           title: MailText.subject(m),
           subtitle:
@@ -509,7 +529,7 @@ final class CommandCatalog {
           run: () => unawaited(controller.open(m)),
         ),
       Command(
-        id: 'search',
+        id: const SearchCommand(),
         group: CommandGroup.emails,
         title: 'Search all mail for “$query”',
         icon: AppIcons.search,
@@ -537,7 +557,7 @@ final class CommandResults {
   static CommandResults of(
     CommandCatalog catalog,
     String query, {
-    List<String> recent = const [],
+    List<CommandId> recent = const [],
   }) {
     if (query.trim().isEmpty) {
       final used = [for (final id in recent) ?catalog.byId(id)]
@@ -682,9 +702,9 @@ final class _CommandBarDialogState extends State<CommandBarDialog> {
   final _field = FocusNode(debugLabel: 'command bar');
   final _scroll = ScrollController();
   late CommandResults _results;
-  late List<String> _recent;
+  late List<CommandId> _recent;
   int _index = 0;
-  final _rowKeys = <String, GlobalKey>{};
+  final _rowKeys = <CommandId, GlobalKey>{};
 
   @override
   void initState() {
@@ -900,7 +920,7 @@ final class _CommandBarDialogState extends State<CommandBarDialog> {
                               _Row(
                                 key: _rowKeys.putIfAbsent(
                                   c.id,
-                                  () => GlobalKey(debugLabel: c.id),
+                                  () => GlobalKey(debugLabel: c.id.id),
                                 ),
                                 command: c,
                                 label: _label(c),
