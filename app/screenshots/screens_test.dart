@@ -236,6 +236,17 @@ void main() {
         await tester.pump(InboxSummary.delay);
         await shoot(tester, '${name}_summary_line$suffix');
         if (name == 'phone') {
+          // Below the summary line on a phone: scroll to it first.
+          await tester.scrollUntilVisible(
+            find.text('Hello there'),
+            200,
+            scrollable: find
+                .descendant(
+                  of: find.byType(CustomScrollView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          );
           await tester.longPress(find.text('Hello there'));
         } else {
           Focus.of(tester.element(find.text('Hello there'))).requestFocus();

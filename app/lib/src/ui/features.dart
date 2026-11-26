@@ -76,6 +76,10 @@ final class Feature {
 abstract final class Features {
   static Feature? byId(String id) => all.where((f) => f.id == id).firstOrNull;
 
+  /// The feature [id], if this kind of device has it.
+  static Feature? availableById(String id, {bool? android}) =>
+      available(android: android).where((f) => f.id == id).firstOrNull;
+
   /// The features on this kind of device.
   static List<Feature> available({bool? android}) {
     final onAndroid = android ?? Platform.isAndroid;
