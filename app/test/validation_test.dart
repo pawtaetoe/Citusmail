@@ -84,6 +84,9 @@ void main() {
         invalid(text('a\x07')),
         'Remove the invisible control characters.',
       );
+      const indented = TextInput(multiline: true, keepIndent: true);
+      expect(valid(indented('  Ann\n  ')), '  Ann');
+      expect(valid(indented('   ')), '');
     });
   });
 
@@ -439,6 +442,16 @@ void main() {
       expect(invalid(key('short')), 'That is shorter than an API key.');
       expect(invalid(key('k' * 513)), contains('longer than an API key'));
       expect(invalid(key(huge)), contains('longer than an API key'));
+    });
+  });
+
+  group('MatchingText', () {
+    test('the whole trimmed text must match', () {
+      const hex = MatchingText('[0-9a-f]{4}', 'Four hex digits.');
+      expect(valid(hex(' beef ')), 'beef');
+      for (final bad in ['bee', 'beef0', 'xbeef', 'be\nef', '', huge]) {
+        expect(invalid(hex(bad)), 'Four hex digits.', reason: bad);
+      }
     });
   });
 

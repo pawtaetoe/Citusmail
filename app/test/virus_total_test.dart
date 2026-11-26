@@ -203,4 +203,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(app.services.virusTotal.enabled, isFalse);
   });
+
+  testWidgets('the key dialog says what a key looks like as it is typed', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: VirusTotalDialog(checks: app.services.virusTotal)),
+    );
+    FilledButton turnOn() => tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Turn on'),
+    );
+    expect(turnOn().onPressed, isNull, reason: 'no key yet');
+    expect(find.textContaining('64 letters'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'not a key');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('64 letters'), findsOneWidget);
+    expect(turnOn().onPressed, isNull);
+    await tester.enterText(find.byType(TextField), ' ${'a' * 64} ');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('64 letters'), findsNothing);
+    expect(turnOn().onPressed, isNotNull);
+  });
 }

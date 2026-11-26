@@ -519,4 +519,43 @@ void main() {
       expect(signOffs().defaultFor(alice.email, reply: false), isNull);
     });
   });
+
+  testWidgets('the editor: long names and texts say so, Add stays off', (
+    tester,
+  ) async {
+    WrittenSignOff? written;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async => written = await SignOffEditor.show(context),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    FilledButton add() =>
+        tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Add'));
+    expect(add().onPressed, isNull, reason: 'nothing written yet');
+    final name = find.byKey(const ValueKey('sign-off-name'));
+    final text = find.byKey(const ValueKey('sign-off-text'));
+    await tester.enterText(text, 'x' * 2001);
+    await tester.pumpAndSettle();
+    expect(find.text('Use at most 2000 characters.'), findsOneWidget);
+    expect(add().onPressed, isNull);
+    await tester.enterText(text, '  Best,\r\n  Ann  ');
+    await tester.enterText(name, 'n' * 61);
+    await tester.pumpAndSettle();
+    expect(find.text('Use at most 60 characters.'), findsOneWidget);
+    expect(add().onPressed, isNull);
+    await tester.enterText(name, ' Work ');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    // The checked text: its indent kept, one kind of line break.
+    expect(written?.name, 'Work');
+    expect(written?.text, '  Best,\n  Ann');
+  });
 }

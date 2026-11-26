@@ -6,6 +6,7 @@ import 'package:mail_lookup/mail_lookup.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_web/mail_web.dart';
 
+import '../core/state/validation.dart';
 import 'secret_store.dart';
 
 /// Optional VirusTotal lookups with the user's own API key (off by
@@ -29,12 +30,21 @@ final class VirusTotalChecks {
 
   bool get enabled => setting.read(_store.settings);
 
+  /// What a VirusTotal API key looks like.
+  static const keyRule = MatchingText(
+    '[0-9a-fA-F]{64}',
+    'A VirusTotal API key is 64 letters and digits (0-9, a-f).',
+  );
+
   /// Checks [key] with one lookup and turns the checks on. Returns a
   /// problem to show, or null.
   Future<String?> enable(String key) async {
-    final trimmed = key.trim();
-    if (!RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(trimmed)) {
-      return 'A VirusTotal API key is 64 letters and digits (0-9, a-f).';
+    final String trimmed;
+    switch (keyRule(key)) {
+      case Valid(:final value):
+        trimmed = value;
+      case Invalid(:final reason):
+        return reason;
     }
     try {
       await _client(trimmed).fileByHash(_probe);

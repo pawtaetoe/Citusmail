@@ -138,7 +138,12 @@ abstract final class ControlCharacters {
 /// Text, trimmed: one line unless [multiline], at most [maxLength]
 /// characters. With [empty], it must not be empty and that is the reason.
 final class TextInput extends Validator<String> {
-  const TextInput({this.empty, this.maxLength = 200, this.multiline = false});
+  const TextInput({
+    this.empty,
+    this.maxLength = 200,
+    this.multiline = false,
+    this.keepIndent = false,
+  });
 
   /// Why empty text is not allowed; null when it may be empty.
   final String? empty;
@@ -147,13 +152,20 @@ final class TextInput extends Validator<String> {
   /// Whether line breaks (and tabs) belong in it.
   final bool multiline;
 
+  /// Whether spaces at the start are kept (a layout the user chose); then
+  /// only the end is trimmed.
+  final bool keepIndent;
+
   @override
   Validated<String> call(String input) {
-    final text =
-        (multiline
-                ? input.replaceAll('\r\n', '\n').replaceAll('\r', '\n')
-                : input)
-            .trim();
+    final lines = multiline
+        ? input.replaceAll('\r\n', '\n').replaceAll('\r', '\n')
+        : input;
+    final text = lines.trim().isEmpty
+        ? ''
+        : keepIndent
+        ? lines.trimRight()
+        : lines.trim();
     if (text.isEmpty) {
       return switch (empty) {
         final reason? => Invalid(reason),
@@ -490,6 +502,25 @@ final class ApiKey extends Validator<String> {
       return const Invalid('That is shorter than an API key.');
     }
     return Valid(key);
+  }
+}
+
+/// Text, trimmed, that must match [pattern] whole (a key of a known
+/// shape); anything else is invalid with [reason].
+final class MatchingText extends Validator<String> {
+  const MatchingText(this.pattern, this.reason);
+
+  /// A regular expression the whole text must match.
+  final String pattern;
+  final String reason;
+
+  static final _compiled = <String, RegExp>{};
+
+  @override
+  Validated<String> call(String input) {
+    final text = input.trim();
+    final regExp = _compiled.putIfAbsent(pattern, () => RegExp('^$pattern\$'));
+    return regExp.hasMatch(text) ? Valid(text) : Invalid(reason);
   }
 }
 
