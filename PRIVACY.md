@@ -24,7 +24,7 @@ no analytics, no crash reporting and no advertising.
 | A newsletter's unsubscribe page | Only when you tap Unsubscribe and choose to open it | Your browser opens the page |
 | Your computer, on your own local network | Only when you scan the computer's code in "Send accounts to a computer" and confirm (with your PIN or fingerprint if the app lock is on) | The accounts you choose: address, name, server settings and password or sign-in, and, if you tick it, the sync code. Straight from the phone to the computer over your Wi-Fi, end-to-end encrypted, never through the internet or a server of ours. See "Adding accounts from your phone" |
 | An app you choose in the share sheet | Only if your phone couldn't reach the computer and you choose "Send as a file instead" | The same accounts, sealed in a file only that computer can open while its code is showing |
-| Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, Screener decisions, snoozed emails (which message, by its Message-ID, and when it comes back), unsubscribes, folder rules, image senders, your sign-offs with each account's choice of them, and your mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off), end-to-end encrypted |
+| Your own mail account's "Citusmail Sync" folder | Only with sync between devices turned on, with each mail check | This device's blocked senders, Screener decisions, snoozed emails (which message, by its Message-ID, and when it comes back), unsubscribes, folder rules, image senders, your sign-offs with each account's choice of them, and your mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, writing hints, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off), end-to-end encrypted |
 | Google's app password page | Only when you tap "Create an app password" while adding a Gmail account | Your browser opens myaccount.google.com/apppasswords |
 | Google Safe Browsing | Only with "Check links with Google Safe Browsing" turned on (it asks first): the lists of dangerous sites are downloaded every half hour or so, and when a link you open matches the start of a listed fingerprint | List downloads send the app's API key (or yours) and the lists' versions. A confirmation sends only the first 4 bytes of the matching SHA-256 fingerprint, never the link. Google sees your IP address |
 | The AI provider you choose (your own key): "Sorting backup" | Only with "Sorting backup" turned on and agreed to, after new mail comes: only new inbox mail (less than a day old) the sorting rules can't place, each email once, at most the number you set each time (20 by default); never mail from people you write to | For each such email: the sender, the subject, the first 1,500 characters of its text and whether it comes from a mailing list. Never attachments and never other mail. Your key goes with it. The answer can only choose the email's section |
@@ -93,6 +93,8 @@ Online accounts are found the same way, from welcome, sign-in, password
 and security emails on the device; welcome emails whose preview says
 too little are downloaded the same way, and stay unread.
 
+Writing hints (the time where your recipients are, how quickly they usually reply, "Did you mean" for a mistyped address) are worked out on the device from mail already on it, and kept only while the message window is open.
+
 Blocking a sender is private: they aren't told, and the block list is kept
 on the device. Their new mail is moved to the Junk folder in your own mail
 account and never shown as a notification.
@@ -138,7 +140,7 @@ the limit you can set.
 
 Off until you turn it on. Then your blocked senders, Screener decisions,
 snoozed emails, unsubscribes, folder rules, image senders, sign-offs and
-mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off) are kept the same on all your devices. They travel
+mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, writing hints, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off) are kept the same on all your devices. They travel
 through a "Citusmail Sync" folder in your own mail account (one message per
 device), never through a server of ours. Each message is end-to-end
 encrypted with your sync code: your mail provider, and anyone else with

@@ -716,6 +716,25 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
     ),
     _find(
+      'writingHints',
+      SwitchListTile(
+        secondary: const Icon(AppIcons.tip),
+        title: const Text('Writing hints'),
+        subtitle: const SettingExplained(
+          about: 'Writing hints',
+          'Their local time, how fast they reply, a likely typo',
+          more:
+              'A quiet line under the recipients: when it is night for '
+              'them, how quickly they usually answer you, or a near miss '
+              'of an address you know. Worked out on this device from '
+              'your own mail; nothing is sent anywhere.',
+        ),
+        value: widget.services.settings.writingHints,
+        onChanged: (on) =>
+            setState(() => widget.services.settings.writingHints = on),
+      ),
+    ),
+    _find(
       'signOffs',
       ListTile(
         leading: const Icon(AppIcons.signOff),

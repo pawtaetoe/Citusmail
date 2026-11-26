@@ -72,7 +72,7 @@ abstract final class SettingsCatalog {
     SettingsSection(
       id: 'writing',
       title: 'Writing',
-      description: 'Sign-offs, send later, read receipts and reminders',
+      description: 'Sign-offs, send later, writing hints and reminders',
       icon: AppIcons.compose,
     ),
     SettingsSection(
@@ -250,6 +250,20 @@ abstract final class SettingsCatalog {
       'writing',
       'Writing tools',
       words: ['compose', 'send later', 'schedule', 'read receipt', 'remind me'],
+    ),
+    SettingEntry(
+      'writingHints',
+      'writing',
+      'Writing hints',
+      words: [
+        'time zone',
+        'local time',
+        'night',
+        'reply time',
+        'typo',
+        'did you mean',
+        'wrong address',
+      ],
     ),
     // Accounts.
     SettingEntry(

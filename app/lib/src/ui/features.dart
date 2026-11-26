@@ -288,6 +288,16 @@ abstract final class Features {
       open: (context, c) => c.compose(),
     ),
     Feature(
+      id: 'writingHints',
+      group: FeatureGroup.writing,
+      icon: AppIcons.tip,
+      title: 'Writing hints',
+      sentence:
+          'While you write: when it is night for them, how quickly they '
+          'usually reply, or "Did you mean" for a mistyped address.',
+      open: (context, c) => _setting(context, c, 'writingHints'),
+    ),
+    Feature(
       id: 'followUps',
       group: FeatureGroup.writing,
       icon: AppIcons.reminder,

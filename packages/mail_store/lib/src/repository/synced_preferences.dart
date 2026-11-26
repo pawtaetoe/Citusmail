@@ -83,6 +83,9 @@ final class SyncedPreferences {
     // Clean up's Keep list: senders the user keeps. A set: an addition
     // on one device and a removal on another both count.
     keptSenders,
+    // Writing hints in the compose window: how the user likes to write,
+    // on every device. Worked out on each device from its own mail.
+    'writing.hints',
     // Tips switched off: someone who turned tips off doesn't want them
     // again on their next device.
     'tips.off',
