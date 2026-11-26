@@ -224,12 +224,11 @@ final class AiUsageLedger {
   /// The most to spend in a month, in US dollars (null: no limit).
   /// Text that isn't a finite amount (a "NaN" from an older version)
   /// reads as no limit, which is what it did.
-  double? get monthlyCap => switch (double.tryParse(
-    _store.read(_capKey) ?? '',
-  )) {
-    final cap? when cap.isFinite && cap >= 0 => cap,
-    _ => null,
-  };
+  double? get monthlyCap =>
+      switch (double.tryParse(_store.read(_capKey) ?? '')) {
+        final cap? when cap.isFinite && cap >= 0 => cap,
+        _ => null,
+      };
 
   /// Throws [ArgumentError] for an amount that isn't finite: NaN would
   /// never be reached, so it would silently be no limit at all.

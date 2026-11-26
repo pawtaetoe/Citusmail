@@ -14,7 +14,6 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_compose/mail_compose.dart';
-import 'package:mail_protocol/mail_protocol.dart';
 
 import 'support/test_app.dart';
 

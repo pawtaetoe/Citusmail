@@ -317,7 +317,7 @@ abstract final class FolderNames {
       case FolderNameProblem.reserved
           when parts.length == 1 && parts.single.toUpperCase() == 'INBOX':
         throw ArgumentError.value(name, 'name', 'INBOX already exists');
-      case final problem?:
+      case final problem:
         throw ArgumentError.value(
           name,
           'name',
