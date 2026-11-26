@@ -3,12 +3,16 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:citusmail/src/features/compose/state/compose_starter.dart';
+import 'package:citusmail/src/features/inbox/state/away_controller.dart';
 import 'package:citusmail/src/features/inbox/state/location_controller.dart';
 import 'package:citusmail/src/features/inbox/state/mail_counts.dart';
 import 'package:citusmail/src/features/inbox/state/mail_location.dart';
 import 'package:citusmail/src/features/inbox/state/message_actions.dart';
 import 'package:citusmail/src/features/inbox/state/message_list_model.dart';
 import 'package:citusmail/src/features/inbox/state/selection_controller.dart';
+import 'package:citusmail/src/features/organise/state/follow_up_controller.dart';
+import 'package:citusmail/src/features/organise/state/snooze_controller.dart';
+import 'package:citusmail/src/features/organise/state/wake_timer.dart';
 import 'package:citusmail/src/features/reader/state/reader_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mail_compose/mail_compose.dart';
@@ -87,18 +91,66 @@ final class Controllers {
     notify: notify,
   );
 
+  /// How often the wake timer fired.
+  var wakes = 0;
+  late final WakeTimer wakeTimer = WakeTimer(
+    store,
+    followUps,
+    onDue: () => wakes++,
+  );
+  late final SnoozeController snoozes = SnoozeController(
+    app.services,
+    list,
+    location,
+    selection,
+    reader,
+    actions,
+    wakeTimer,
+    refresh: refresh,
+    notify: notify,
+  );
+  late final FollowUpController followUpController = FollowUpController(
+    store,
+    followUps,
+    wakeTimer,
+    refresh: refresh,
+    notify: notify,
+  );
+  late final AwayController away = AwayController(
+    app.services.worker,
+    list,
+    actions,
+    snoozes,
+    followUpController,
+    refresh: refresh,
+    notify: notify,
+  );
+
   int get accountId => store.accounts.all().single.id;
 
   StoredMailbox box(String name) => store.mailboxes
       .forAccount(accountId)
       .firstWhere((b) => b.encodedName == name);
 
-  /// The stored message with [subject], wherever it is now.
+  /// The stored message with [subject], wherever it is now (snoozed
+  /// too).
   StoredMessage message(String subject) => store.messages
       .list(MessageQuery(accountIds: [accountId], limit: 500))
+      .followedBy(
+        store.messages.list(
+          MessageQuery(
+            accountIds: [accountId],
+            section: SmartSection.snoozed,
+            limit: 500,
+          ),
+        ),
+      )
       .firstWhere((m) => m.subject == subject);
 
   void dispose() {
+    wakeTimer.dispose();
+    snoozes.dispose();
+    followUpController.dispose();
     location.dispose();
     selection.dispose();
     reader.dispose();

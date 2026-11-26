@@ -15,20 +15,23 @@ import 'package:mail_view/mail_view.dart';
 
 import '../../../background/background_mail.dart';
 import '../../../services/app_services.dart';
+import '../../accounts/state/own_addresses.dart';
 import '../../compose/state/compose_starter.dart';
 import '../../compose/state/send_later_times.dart';
 import '../../organise/state/folder_controller.dart';
-import '../../organise/state/follow_up_times.dart';
+import '../../organise/state/follow_up_controller.dart';
+import '../../organise/state/snooze_controller.dart';
+import '../../organise/state/wake_timer.dart';
 import '../../reader/state/invitation_answers.dart';
 import '../../reader/state/reader_controller.dart';
 import '../../reader/state/reader_state.dart';
+import 'away_controller.dart';
 import 'inbox_summary.dart';
 import 'location_controller.dart';
 import 'mail_counts.dart';
 import 'mail_location.dart';
 import 'message_actions.dart';
 import 'message_list_model.dart';
-import 'new_since_away.dart';
 import 'selection_controller.dart';
 import 'sync_status.dart';
 
@@ -70,6 +73,7 @@ final class MailController {
   MailController(this.services)
     : list = MessageListModel(services.store),
       codeCleaner = CodeCleaner(services.store, services.actions),
+      followUps = FollowUpReminders(services.store),
       syncStatus = SyncStatusController(services.store, services.worker) {
     countsController = CountsController(_store, list, followUps);
     composeStarter = ComposeStarter(
@@ -111,6 +115,34 @@ final class MailController {
       locationController,
       countsController,
     );
+    wakeTimer = WakeTimer(_store, followUps, onDue: _wakeDue);
+    snoozeController = SnoozeController(
+      services,
+      list,
+      locationController,
+      selectionController,
+      readerController,
+      messageActions,
+      wakeTimer,
+      refresh: refresh,
+      notify: _notify,
+    );
+    followUpController = FollowUpController(
+      _store,
+      followUps,
+      wakeTimer,
+      refresh: refresh,
+      notify: _notify,
+    );
+    awayController = AwayController(
+      services.worker,
+      list,
+      messageActions,
+      snoozeController,
+      followUpController,
+      refresh: refresh,
+      notify: _notify,
+    );
     syncStatus.onEvent = _onSyncEvent;
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
@@ -150,6 +182,18 @@ final class MailController {
 
   /// Creating folders, and their rules.
   late final FolderController folderController;
+
+  /// When snoozed mail and follow-ups are next due.
+  late final WakeTimer wakeTimer;
+
+  /// Snoozing mail and bringing it back.
+  late final SnoozeController snoozeController;
+
+  /// "Remind me if no reply".
+  late final FollowUpController followUpController;
+
+  /// Leaving the app and coming back ("New since you were away").
+  late final AwayController awayController;
 
   /// Messages picked for a bulk action.
   late final SelectionController selectionController;
@@ -196,11 +240,16 @@ final class MailController {
 
   /// Announces snoozed mail that came back (set by the screen that can
   /// post notifications).
-  void Function(BackFromSnooze back)? onBackFromSnooze;
+  void Function(BackFromSnooze back)? get onBackFromSnooze =>
+      snoozeController.onBackFromSnooze;
+  set onBackFromSnooze(void Function(BackFromSnooze back)? value) =>
+      snoozeController.onBackFromSnooze = value;
 
   /// Announces sent mail back with "No reply yet" (set by the screen that
   /// can post notifications).
-  void Function()? onFollowUpsBack;
+  void Function()? get onFollowUpsBack => followUpController.onFollowUpsBack;
+  set onFollowUpsBack(void Function()? value) =>
+      followUpController.onFollowUpsBack = value;
 
   /// Fixes the login of the account in [status], if that is the problem.
   void reconnect(SyncProblem problem) => syncStatus.reconnect(problem);
@@ -227,7 +276,7 @@ final class MailController {
     _refreshCounts();
     _refreshSelected();
     _refreshCodesOffer();
-    _scheduleWake();
+    wakeTimer.schedule();
   }
 
   void _refreshCounts() => countsController.refresh();
@@ -471,154 +520,40 @@ final class MailController {
     VoidCallback? alsoUndo,
   }) => messageActions.remove(changes, done, alsoUndo: alsoUndo);
 
-  void _leaveList(
-    StoredMessage? open,
-    List<StoredMessage> visible,
-    Set<int> removedIds,
-  ) => messageActions.leaveList(open, visible, removedIds);
-
   // -------------------------------------------------------------- snooze
-
-  Timer? _wakeTimer;
 
   /// Whether [m] can be snoozed: inbox mail with a Message-ID (what keeps
   /// it the same message on every device).
-  bool canSnooze(StoredMessage m) =>
-      m.messageId != null &&
-      (_store.mailboxes.byId(m.mailboxId)?.isInbox ?? false);
+  bool canSnooze(StoredMessage m) => snoozeController.canSnooze(m);
 
   /// When [m] comes back, while it is snoozed.
-  DateTime? snoozedUntil(StoredMessage m) {
-    final id = m.messageId;
-    if (id == null || m.section != SmartSection.snoozed) return null;
-    return list.snoozedUntil[id] ?? _store.snoozes.find(id)?.until;
-  }
+  DateTime? snoozedUntil(StoredMessage m) => snoozeController.snoozedUntil(m);
 
   /// Snoozes [messages] until [until] (or changes when they come back),
   /// says [done], and offers Undo. They leave the inbox now; nothing
   /// changes on the mail server.
-  void snooze(List<StoredMessage> messages, DateTime until, String done) {
-    final targets = [
-      for (final m in messages)
-        if (canSnooze(m)) m,
-    ];
-    if (targets.isEmpty) {
-      onNotice?.call('This email can\'t be snoozed.');
-      return;
-    }
-    final ids = {for (final m in targets) m.messageId!};
-    final previous = {for (final id in ids) id: _store.snoozes.find(id)};
-    _store.transaction(() {
-      for (final id in ids) {
-        _store.snoozes.snooze(id, until);
-      }
-    });
-    final open = selected;
-    final visible = list.visible;
-    clearSelection();
-    if (location.value is SnoozedLocation) {
-      refresh();
-    } else {
-      _leaveList(open, visible, {for (final m in targets) m.id});
-    }
-    onNotice?.call(
-      done,
-      undo: () {
-        _store.transaction(() {
-          for (final MapEntry(key: id, value: before) in previous.entries) {
-            if (before == null) {
-              _store.snoozes.cancel(id);
-            } else {
-              _store.snoozes.snooze(id, before.until);
-            }
-          }
-        });
-        refresh();
-      },
-    );
-  }
+  void snooze(List<StoredMessage> messages, DateTime until, String done) =>
+      snoozeController.snooze(messages, until, done);
 
   /// Brings [messages] back now, where they were in the inbox (not as
   /// new), with Undo.
-  void unsnooze(List<StoredMessage> messages) {
-    final ended = <Snooze>[];
-    _store.transaction(() {
-      for (final m in messages) {
-        final id = m.messageId;
-        if (id == null) continue;
-        if (_store.snoozes.cancel(id) case final s?) ended.add(s);
-      }
-    });
-    if (ended.isEmpty) return;
-    final open = selected;
-    final visible = list.visible;
-    clearSelection();
-    if (location.value is SnoozedLocation) {
-      _leaveList(open, visible, {for (final m in messages) m.id});
-    } else {
-      refresh();
-    }
-    onNotice?.call(
-      ended.length == 1 ? 'Unsnoozed' : 'Unsnoozed ${ended.length}',
-      undo: () {
-        _store.transaction(() {
-          for (final s in ended) {
-            _store.snoozes.snooze(s.messageId, s.until);
-          }
-        });
-        refresh();
-      },
-    );
-  }
+  void unsnooze(List<StoredMessage> messages) =>
+      snoozeController.unsnooze(messages);
 
   /// Brings back snoozed mail whose time came (or that got a reply),
   /// marked unread, and announces it ([onBackFromSnooze]). Run after each
   /// sync, when the app comes to the foreground, and at the next due time.
-  void wakeSnoozes([DateTime? now]) {
-    if (_disposed) return;
-    try {
-      final back = SnoozeWaker(_store, services.actions).wake(now: now);
-      if (!back.isEmpty) {
-        for (final id in back.accountIds) {
-          services.worker.requestSync(id);
-        }
-        refresh();
-        onBackFromSnooze?.call(back);
-      }
-    } on Object catch (e) {
-      debugPrint('snooze: ${e.runtimeType}');
-    }
-    _scheduleWake();
-  }
-
-  /// When the app was last hidden (another app in front, or minimized).
-  DateTime? _hiddenAt;
+  void wakeSnoozes([DateTime? now]) => snoozeController.wake(now);
 
   /// The app went to the background (or is closing): remembered for "New
   /// since you were away", also if the app is then closed.
-  void onHide() {
-    _hiddenAt ??= DateTime.now();
-    list.away.wentAway();
-  }
+  void onHide() => awayController.onHide();
 
   /// Coming back to the app: a look for new mail at once (a sign-in code
   /// is often why someone switches back), then snoozed mail and
   /// follow-ups that are due. After a minute away the mail connections
   /// may have died quietly, so they are opened afresh.
-  void onResume() {
-    final hiddenAt = _hiddenAt;
-    _hiddenAt = null;
-    // After more than a minute away, a new "New since you were away".
-    if (list.away.cameBack()) list.refresh();
-    if (hiddenAt != null) {
-      if (DateTime.now().difference(hiddenAt) > awayBeforeReconnect) {
-        services.worker.reconnect();
-      } else {
-        services.worker.checkInboxes();
-      }
-    }
-    _wakeDue();
-  }
+  void onResume() => awayController.onResume();
 
   /// Snoozed mail and follow-ups whose time came.
   void _wakeDue() {
@@ -627,131 +562,42 @@ final class MailController {
   }
 
   /// How long the app can be away before [onResume] reconnects.
-  static const awayBeforeReconnect = NewSinceAway.awayFor;
+  static const awayBeforeReconnect = AwayController.awayBeforeReconnect;
 
   // ------------------------------------------------ new since you were away
 
   /// "Done" on "New since you were away": its messages go back to their
   /// sections, still unread (only a view; nothing changes on the server).
-  void doneWithAway() {
-    final window = list.away.window;
-    if (window == null) return;
-    list.away.done();
-    refresh();
-    onNotice?.call(
-      'Back in their sections',
-      undo: () {
-        list.away.window = window;
-        refresh();
-      },
-    );
-  }
+  void doneWithAway() => awayController.doneWithAway();
 
   /// "Mark all as read" on "New since you were away".
-  void markAwayRead() {
-    final unread = [
-      for (final m in list.newSinceAway.messages)
-        if (!m.flags.seen) m,
-    ];
-    messageActions.markAllRead(unread);
-  }
-
-  /// A timer for the next snooze or follow-up due. Checked at least
-  /// hourly: timers may stop while the device sleeps (coming back to the
-  /// app checks too).
-  void _scheduleWake() {
-    _wakeTimer?.cancel();
-    _wakeTimer = null;
-    if (_disposed) return;
-    final next = [
-      ?_store.snoozes.nextDue(),
-      ?followUps.nextDue(),
-    ].fold<DateTime?>(null, (a, b) => a == null || b.isBefore(a) ? b : a);
-    if (next == null) return;
-    var delay = next.difference(DateTime.now());
-    if (delay > const Duration(hours: 1)) delay = const Duration(hours: 1);
-    if (delay < const Duration(seconds: 1)) delay = const Duration(seconds: 1);
-    _wakeTimer = Timer(delay, _wakeDue);
-  }
+  void markAwayRead() => awayController.markAwayRead();
 
   // ---------------------------------------------------------- follow-ups
 
   /// "Remind me if no reply" on sent mail, kept on this device.
-  late final followUps = FollowUpReminders(_store);
+  final FollowUpReminders followUps;
 
   /// Whether [m] is mail the user sent (in Sent, or from one of their
   /// addresses) that can get a follow-up reminder.
-  bool canFollowUp(StoredMessage m) {
-    if (m.messageId == null) return false;
-    final use = _store.mailboxes.byId(m.mailboxId)?.specialUse;
-    if (use == SpecialUse.drafts || use == SpecialUse.trash) return false;
-    if (use == SpecialUse.sent) return true;
-    final from = m.from?.address.toLowerCase();
-    return from != null && ownAddresses.any((a) => a.toLowerCase() == from);
-  }
+  bool canFollowUp(StoredMessage m) => followUpController.canFollowUp(m);
 
   /// The follow-up of [m], if one is set.
-  FollowUp? followUpFor(StoredMessage m) {
-    final id = m.messageId;
-    return id == null ? null : followUps.find(id);
-  }
+  FollowUp? followUpFor(StoredMessage m) => followUpController.followUpFor(m);
 
   /// Sets (or changes) "Remind me if no reply" on [m], with Undo.
-  void remindIfNoReply(StoredMessage m, DateTime due, String done) {
-    if (!canFollowUp(m)) {
-      onNotice?.call('Only mail you sent can remind you.');
-      return;
-    }
-    final before = followUpFor(m);
-    followUps.remind(followUps.forMessage(m, due));
-    refresh();
-    // Android: a background check at that time.
-    unawaited(BackgroundMail.checkWhenDue(_store));
-    onNotice?.call(
-      done,
-      undo: () {
-        if (before == null) {
-          followUps.cancel(m.messageId!);
-        } else {
-          followUps.restore(before);
-        }
-        refresh();
-      },
-    );
-  }
+  void remindIfNoReply(StoredMessage m, DateTime due, String done) =>
+      followUpController.remindIfNoReply(m, due, done);
 
   /// Ends a follow-up: "Cancel" while waiting, "Done" once it came back.
   /// With Undo.
-  void endFollowUp(FollowUp f) {
-    final ended = followUps.cancel(f.messageId);
-    if (ended == null) return;
-    refresh();
-    onNotice?.call(
-      ended.returned ? 'Marked done' : 'Reminder cancelled',
-      undo: () {
-        followUps.restore(ended);
-        refresh();
-      },
-    );
-  }
+  void endFollowUp(FollowUp f) => followUpController.endFollowUp(f);
 
   /// Ends follow-ups that got a reply, and brings back those whose time
   /// came without one ("No reply yet", announced by [onFollowUpsBack]).
   /// Run after each sync, when the app comes to the foreground, and at
   /// the next due time.
-  void checkFollowUps([DateTime? now]) {
-    if (_disposed) return;
-    try {
-      final result = followUps.check(
-        now: (now ?? FollowUpTimes.clock()).toUtc(),
-      );
-      if (!result.isEmpty) refresh();
-      if (result.returned.isNotEmpty) onFollowUpsBack?.call();
-    } on Object catch (e) {
-      debugPrint('follow-ups: ${e.runtimeType}');
-    }
-    _scheduleWake();
-  }
+  void checkFollowUps([DateTime? now]) => followUpController.check(now);
 
   // ------------------------------------------------------------ accounts
 
@@ -774,9 +620,7 @@ final class MailController {
   final invitationsChanged = ValueNotifier<int>(0);
 
   /// Every address of the user's accounts.
-  List<String> get ownAddresses => [
-    for (final a in _store.accounts.all()) a.email,
-  ];
+  List<String> get ownAddresses => _store.ownAddresses;
 
   /// The user among [invite]'s guests: the account it came to first,
   /// else any of their addresses. Null if they aren't on the list.
@@ -1304,7 +1148,9 @@ final class MailController {
   void dispose() {
     _disposed = true;
     _refreshSoon?.cancel();
-    _wakeTimer?.cancel();
+    wakeTimer.dispose();
+    snoozeController.dispose();
+    followUpController.dispose();
     syncStatus.dispose();
     services.resorted.removeListener(refresh);
     _summary?.dispose();
