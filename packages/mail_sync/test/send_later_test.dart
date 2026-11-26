@@ -255,4 +255,18 @@ void main() {
     restart();
     expect(ScheduledSends(store, Sender(store)).claimFailures(), isEmpty);
   });
+
+  test('refused for now by the server: tried again, then sent', () async {
+    servers.refuseForNow.add('bob@x.example');
+    final messageId = schedule();
+    final first = await replayAt(thursday);
+    expect(first.failed, 0);
+    expect(first.deferred, 1);
+    expect(store.outbox.sends().single.state, isNot(OutboxState.failed));
+
+    servers.refuseForNow.clear();
+    await replayAt(DateTime.now().add(const Duration(hours: 2)));
+    expect(servers.deliveredCount(messageId), 1);
+    expect(store.outbox.sends(), isEmpty);
+  });
 }

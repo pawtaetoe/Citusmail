@@ -61,6 +61,9 @@ final class FakeMailServers {
   /// Recipient addresses the SMTP server refuses (550).
   final refuse = <String>{};
 
+  /// Recipient addresses the SMTP server refuses for now (450).
+  final refuseForNow = <String>{};
+
   int get imapPort => _imap.port;
   int get smtpPort => _smtp.port;
 
@@ -242,6 +245,8 @@ final class FakeMailServers {
             'MAIL' || 'RSET' => '250 ok\r\n',
             'RCPT' when refuse.any((r) => line.contains('<$r>')) =>
               '550 no such mailbox\r\n',
+            'RCPT' when refuseForNow.any((r) => line.contains('<$r>')) =>
+              '450 4.2.1 try again later\r\n',
             'RCPT' => '250 ok\r\n',
             'DATA' => () {
               data = BytesBuilder();
