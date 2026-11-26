@@ -17,6 +17,7 @@ import 'package:citusmail/src/compose/compose_controller.dart';
 import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/mail/ai_tidy_model.dart';
 import 'package:citusmail/src/mail/corrections.dart';
+import 'package:citusmail/src/mail/inbox_summary.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/mail/new_since_away.dart';
 import 'package:citusmail/src/mail/send_later_times.dart';
@@ -62,6 +63,7 @@ import '../test/support/privacy_mail.dart';
 import '../test/support/return_mail.dart';
 import '../test/support/sample_files.dart';
 import '../test/support/test_app.dart';
+import '../test/support/today_mail.dart';
 import '../test/support/trip_mail.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
@@ -191,6 +193,34 @@ void main() {
       await tester.tap(find.text('Hello there'));
       await shoot(tester, 'phone_reader$suffix');
     });
+
+    // The summary line over the inbox (a code, a parcel, the dentist),
+    // and a peek at an email that stays unread.
+    for (final (name, size) in [
+      ('phone', const Size(390, 844)),
+      ('desktop', const Size(1440, 900)),
+    ]) {
+      testWidgets('summary line and peek $name$suffix', (tester) async {
+        final now = DateTime.now();
+        final morning = DateTime(now.year, now.month, now.day, 9);
+        InboxSummary.clock = () => morning;
+        addTearDown(() => InboxSummary.clock = DateTime.now);
+        seedToday(app.store, now: morning);
+        await show(tester, shell(), size: size, dark: dark);
+        // Today's findings are read a moment after the line shows.
+        await tester.pump(InboxSummary.delay);
+        await shoot(tester, '${name}_summary_line$suffix');
+        if (name == 'phone') {
+          await tester.longPress(find.text('Hello there'));
+        } else {
+          Focus.of(tester.element(find.text('Hello there'))).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        }
+        await tester.pump(const Duration(milliseconds: 400));
+        await shoot(tester, '${name}_peek$suffix');
+      });
+    }
   }
 
   // The README's demo screens: a fuller inbox with made-up senders.
