@@ -56,7 +56,7 @@ final class DiscoverPage extends StatelessWidget {
               for (final f in features)
                 if (f.group == group)
                   ListTile(
-                    key: ValueKey('feature-${f.id}'),
+                    key: ValueKey('feature-${f.id.name}'),
                     leading: Icon(f.icon),
                     title: Text(f.title),
                     subtitle: Text(f.sentence),

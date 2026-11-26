@@ -169,14 +169,15 @@ final class FollowUpReminders {
 
   final MailStore _store;
 
-  static const _key = 'followUps.list';
+  /// The follow-ups as JSON (decoded here, with a cache of the text).
+  static const _list = StringSetting('followUps.list');
 
   /// At most this many are kept (the oldest returned ones go first).
   static const maxKept = 500;
 
   /// Every follow-up, soonest due first (unmodifiable).
   List<FollowUp> all() {
-    final raw = _store.settings.read(_key);
+    final raw = _list.readOrNull(_store.settings);
     if (raw == null || raw.isEmpty) return const [];
     // The mail screen asks several times on every refresh: the list is
     // decoded again only when it changed.
@@ -426,10 +427,13 @@ final class FollowUpReminders {
       if (kept.length > maxKept) kept = kept.sublist(0, maxKept);
     }
     if (kept.isEmpty) {
-      _store.settings.delete(_key);
+      _list.clear(_store.settings);
       return;
     }
-    _store.settings.write(_key, jsonEncode([for (final f in kept) f.toJson()]));
+    _list.write(
+      _store.settings,
+      jsonEncode([for (final f in kept) f.toJson()]),
+    );
   }
 
   static int _byDue(FollowUp a, FollowUp b) {

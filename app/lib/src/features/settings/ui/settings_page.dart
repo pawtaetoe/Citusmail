@@ -25,6 +25,7 @@ import '../../accounts/ui/send_accounts_page.dart';
 import '../../ai/ui/ai_feature_tiles.dart';
 import '../../ai/ui/ai_settings_page.dart';
 import '../../compose/ui/sign_offs_page.dart';
+import '../../discover/state/feature_id.dart';
 import '../../discover/ui/discover_page.dart';
 import '../../discover/ui/features.dart';
 import '../../discover/ui/tips.dart';
@@ -91,7 +92,7 @@ final class SettingsPage extends StatefulWidget {
 
   /// A setting to show and mark on opening: a [SettingEntry.id], so a
   /// feature can open its own setting.
-  final String? show;
+  final SettingId? show;
 
   /// Overrides the platform (tests).
   final bool? isAndroid;
@@ -122,7 +123,7 @@ final class SettingsPage extends StatefulWidget {
   static Future<void> open(
     BuildContext context, {
     required MailController controller,
-    String? show,
+    SettingId? show,
   }) => Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => SettingsPage(
@@ -153,7 +154,7 @@ final class _SettingsPageState extends State<SettingsPage> {
   final _revision = ValueNotifier(0);
 
   /// The setting found by a search (or [SettingsPage.show]), marked.
-  String? _highlight;
+  SettingId? _highlight;
 
   /// The group in view (wide screens).
   String _current = SettingsCatalog.sections.first.id;
@@ -207,16 +208,16 @@ final class _SettingsPageState extends State<SettingsPage> {
   bool _onPage = false;
 
   /// [tile], findable by the search as [id].
-  Widget _find(String id, Widget tile) =>
+  Widget _find(SettingId id, Widget tile) =>
       _onPage ? _findOnPage(id, tile) : _findHere(id, tile);
 
-  Widget _findHere(String id, Widget tile) => KeyedSubtree(
-    key: _key(id),
+  Widget _findHere(SettingId id, Widget tile) => KeyedSubtree(
+    key: _key(id.id),
     child: SettingHighlight(on: _highlight == id, child: tile),
   );
 
-  Widget _findOnPage(String id, Widget tile) => KeyedSubtree(
-    key: _key('page:$id'),
+  Widget _findOnPage(SettingId id, Widget tile) => KeyedSubtree(
+    key: _key('page:${id.id}'),
     child: SettingHighlight(on: _highlight == id, child: tile),
   );
 
@@ -224,7 +225,7 @@ final class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _search() async {
     final route = _twoPane
-        ? DialogRoute<String>(
+        ? DialogRoute<SettingId>(
             context: context,
             builder: (_) => Dialog(
               alignment: Alignment.topCenter,
@@ -239,7 +240,7 @@ final class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           )
-        : MaterialPageRoute<String>(
+        : MaterialPageRoute<SettingId>(
             fullscreenDialog: true,
             builder: (_) => Scaffold(
               appBar: AppBar(title: const Text('Search settings')),
@@ -259,11 +260,11 @@ final class _SettingsPageState extends State<SettingsPage> {
   }
 
   /// Scrolls to setting [id] (on phones, opens its group) and marks it.
-  void _reveal(String id) {
+  void _reveal(SettingId id) {
     final entry = SettingsCatalog.available(android: _android)
         .where((e) => e.id == id)
         .firstOrNull;
-    final section = entry?.section ?? id;
+    final section = entry?.section ?? id.id;
     if (entry != null && entry.advanced) {
       _openAdvanced(highlight: id);
       return;
@@ -280,7 +281,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final target =
-          _anchors[id]?.currentContext ??
+          _anchors[id.id]?.currentContext ??
           _anchors['section:$section']?.currentContext;
       if (target != null && target.mounted) {
         Scrollable.ensureVisible(
@@ -333,7 +334,7 @@ final class _SettingsPageState extends State<SettingsPage> {
   }
 
   /// Phones: one group's settings on a page of their own.
-  void _openSection(String section, {String? reveal}) {
+  void _openSection(String section, {SettingId? reveal}) {
     Navigator.of(context)
         .push(
           MaterialPageRoute<void>(
@@ -349,7 +350,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         });
   }
 
-  void _openAdvanced({String? highlight}) => Navigator.of(context).push(
+  void _openAdvanced({SettingId? highlight}) => Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) =>
           AdvancedSettingsPage(services: widget.services, highlight: highlight),
@@ -463,7 +464,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (chosen == null || chosen == current) return;
-    store.settings.write(KeepMail.key, chosen.storageName);
+    KeepMail.setting.write(store.settings, chosen);
     setState(() {});
     try {
       await widget.services.worker.syncNow();
@@ -518,7 +519,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     final settings = widget.services.settings;
     return [
       _find(
-        'notifications',
+        SettingId.notifications,
         SwitchListTile(
           title: const Text('New mail notifications'),
           subtitle: const SettingExplained(
@@ -534,7 +535,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'notifyServices',
+        SettingId.notifyServices,
         SwitchListTile(
           title: const Text('Also for Notifications'),
           subtitle: const SettingExplained(
@@ -552,7 +553,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'previews',
+        SettingId.previews,
         SwitchListTile(
           title: const Text('Show message previews'),
           subtitle: const SettingExplained(
@@ -569,7 +570,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'reminders',
+        SettingId.reminders,
         SwitchListTile(
           title: const Text('Bill and trial reminders'),
           subtitle: const SettingExplained(
@@ -588,7 +589,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'monthlyRenewals',
+        SettingId.monthlyRenewals,
         SwitchListTile(
           title: const Text('Also remind me of monthly renewals'),
           subtitle: const Text(
@@ -599,7 +600,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'followUps',
+        SettingId.followUps,
         SwitchListTile(
           title: const Text('Follow-up reminders'),
           subtitle: const SettingExplained(
@@ -617,7 +618,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
       if (_android)
         _find(
-          'instantMail',
+          SettingId.instantMail,
           SwitchListTile(
             title: const Text('Instant mail'),
             subtitle: const SettingExplained(
@@ -636,7 +637,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       if (_android && !settings.instantMail)
         _find(
-          'backgroundChecks',
+          SettingId.backgroundChecks,
           _BackgroundChecks(
             store: widget.services.store,
             batteryLimited: widget.batteryLimited,
@@ -644,7 +645,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       if (_android)
         _find(
-          'codeTile',
+          SettingId.codeTile,
           ListTile(
             leading: const Icon(AppIcons.codes),
             title: const Text('Add “Latest code” to Quick Settings'),
@@ -696,7 +697,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     final settings = widget.services.settings;
     return [
       _find(
-        'newSinceAway',
+        SettingId.newSinceAway,
         SwitchListTile(
           secondary: const Icon(AppIcons.newSinceAway),
           title: const Text('New since you were away'),
@@ -716,7 +717,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'summaryLine',
+        SettingId.summaryLine,
         SwitchListTile(
           secondary: const Icon(AppIcons.summaryLine),
           title: const Text('Summary line'),
@@ -741,7 +742,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         wrap: _onPage ? _findOnPage : _findHere,
       ),
       _find(
-        'autoRead',
+        SettingId.autoRead,
         SwitchListTile(
           secondary: const Icon(AppIcons.bill),
           title: const Text('Read receipts and bookings automatically'),
@@ -759,7 +760,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           },
         ),
       ),
-      _find('codeCleanup', _codeCleanupTile()),
+      _find(SettingId.codeCleanup, _codeCleanupTile()),
     ];
   }
 
@@ -795,7 +796,7 @@ final class _SettingsPageState extends State<SettingsPage> {
 
   List<Widget> _writingSettings() => [
     _find(
-      'writing',
+      SettingId.writing,
       const ListTile(
         leading: Icon(AppIcons.sendLater),
         title: Text('Send later, reminders and read receipts'),
@@ -803,7 +804,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
     ),
     _find(
-      'writingHints',
+      SettingId.writingHints,
       SwitchListTile(
         secondary: const Icon(AppIcons.tip),
         title: const Text('Writing hints'),
@@ -822,7 +823,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
     ),
     _find(
-      'signOffs',
+      SettingId.signOffs,
       ListTile(
         leading: const Icon(AppIcons.signOff),
         title: const Text('Sign-offs'),
@@ -842,7 +843,7 @@ final class _SettingsPageState extends State<SettingsPage> {
   List<Widget> _accountSettings() {
     final accounts = widget.services.store.accounts.all();
     Widget tile(int i, Account account) => _find(
-      i == 0 ? 'accounts' : 'account-${account.id}',
+      i == 0 ? SettingId.accounts : SettingId.account(account.id),
       ListTile(
         leading: const Icon(AppIcons.account),
         title: Text(account.email),
@@ -907,7 +908,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         for (final (i, account) in accounts.indexed) tile(i, account),
       if (widget.onAddAccount case final add?)
         _find(
-          'addAccount',
+          SettingId.addAccount,
           ListTile(
             leading: const Icon(AppIcons.addAccount),
             title: const Text('Add account'),
@@ -919,7 +920,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
       _find(
-        'keepMail',
+        SettingId.keepMail,
         ListTile(
           leading: const Icon(AppIcons.keepMail),
           title: const Text('Keep mail from'),
@@ -941,7 +942,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     final enabled = _lock.enabled;
     return [
       _find(
-        'appLock',
+        SettingId.appLock,
         SwitchListTile(
           secondary: const Icon(AppIcons.lock),
           title: const Text('App lock'),
@@ -958,7 +959,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
       if (enabled) ...[
         _find(
-          'lockAfter',
+          SettingId.lockAfter,
           ListTile(
             contentPadding: const EdgeInsets.only(left: 72, right: 16),
             title: const Text('Lock'),
@@ -978,7 +979,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
         if (_biometricsAvailable)
           _find(
-            'biometrics',
+            SettingId.biometrics,
             SwitchListTile(
               contentPadding: const EdgeInsets.only(left: 72, right: 16),
               title: Text('Unlock with ${_lock.biometrics.name}'),
@@ -987,7 +988,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         _find(
-          'changePin',
+          SettingId.changePin,
           ListTile(
             contentPadding: const EdgeInsets.only(left: 72, right: 16),
             title: const Text('Change PIN'),
@@ -996,7 +997,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ],
       _find(
-        'images',
+        SettingId.images,
         ListTile(
           leading: const Icon(AppIcons.image),
           title: const Text('Images'),
@@ -1010,7 +1011,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'blockedSenders',
+        SettingId.blockedSenders,
         ListTile(
           leading: const Icon(AppIcons.block),
           title: const Text('Blocked senders'),
@@ -1027,10 +1028,10 @@ final class _SettingsPageState extends State<SettingsPage> {
   }
 
   List<Widget> _deviceSettings() => [
-    _find('deviceSync', DeviceSyncTile(services: widget.services)),
+    _find(SettingId.deviceSync, DeviceSyncTile(services: widget.services)),
     if (_android)
       _find(
-        'pairing',
+        SettingId.pairing,
         ListTile(
           leading: const Icon(AppIcons.scanCode),
           title: const Text('Send accounts to a computer'),
@@ -1047,7 +1048,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       )
     else if (widget.isAndroid != null || ReceiveAccountsPage.supported)
       _find(
-        'pairing',
+        SettingId.pairing,
         ListTile(
           leading: const Icon(AppIcons.pairing),
           title: const Text('Add accounts from your phone'),
@@ -1076,7 +1077,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     final ai = widget.services.ai;
     return [
       _find(
-        'aiAssistant',
+        SettingId.aiAssistant,
         ListTile(
           leading: const Icon(AppIcons.assistant),
           title: const Text('AI assistant'),
@@ -1087,9 +1088,9 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
       for (final feature in AiFeatures.all)
         if (aiFeatureTiles[feature.id] case final tile?)
-          _find('ai-${feature.id}', tile(ai)),
+          _find(SettingId.aiFeature(feature.id), tile(ai)),
       _find(
-        'aiLimit',
+        SettingId.aiLimit,
         ValueListenableBuilder(
           valueListenable: ai.changes,
           builder: (context, _, _) => AiMonthlyLimitTile(ai: ai),
@@ -1102,7 +1103,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     final store = widget.services.store;
     return [
       _find(
-        'theme',
+        SettingId.theme,
         ListTile(
           leading: const Icon(AppIcons.theme),
           title: const Text('Theme'),
@@ -1136,7 +1137,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     return [
       if (widget.controller != null)
         _find(
-          'discover',
+          SettingId.discover,
           ListTile(
             leading: const Icon(AppIcons.allFeatures),
             title: const Text('All features'),
@@ -1147,7 +1148,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       if (widget.controller case final c? when !_android)
         _find(
-          'commandBar',
+          SettingId.commandBar,
           ListTile(
             leading: const Icon(AppIcons.commandBar),
             title: const Text('Command bar'),
@@ -1156,11 +1157,11 @@ final class _SettingsPageState extends State<SettingsPage> {
               'and actions',
             ),
             trailing: const Icon(AppIcons.chevron),
-            onTap: () => Features.byId('commandBar')!.open(context, c),
+            onTap: () => Features.byId(FeatureId.commandBar)!.open(context, c),
           ),
         ),
       _find(
-        'whatsNew',
+        SettingId.whatsNew,
         ListTile(
           leading: const Icon(AppIcons.whatsNew),
           title: const Text('What\'s new'),
@@ -1170,7 +1171,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'tips',
+        SettingId.tips,
         SwitchListTile(
           secondary: const Icon(AppIcons.tip),
           title: const Text('Show tips'),
@@ -1180,7 +1181,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'privacy',
+        SettingId.privacy,
         ListTile(
           leading: const Icon(AppIcons.privacy),
           title: const Text('Privacy'),
@@ -1198,7 +1199,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'privacyPolicy',
+        SettingId.privacyPolicy,
         _WebPageTile(
           icon: AppIcons.privacyPolicy,
           title: 'Privacy policy',
@@ -1206,7 +1207,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'terms',
+        SettingId.terms,
         _WebPageTile(
           icon: AppIcons.document,
           title: 'Terms of service',
@@ -1214,7 +1215,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       _find(
-        'licences',
+        SettingId.licences,
         ListTile(
           leading: const Icon(AppIcons.info),
           title: const Text('Licences'),
@@ -1326,7 +1327,7 @@ final class _SectionPage extends StatefulWidget {
   final SettingsSection section;
 
   /// The setting to scroll to.
-  final String? reveal;
+  final SettingId? reveal;
 
   @override
   State<_SectionPage> createState() => _SectionPageState();
@@ -1515,7 +1516,7 @@ final class _SettingsSearch extends StatefulWidget {
   final bool canDiscover;
 
   /// Returned to open "All features".
-  static const discover = '@discover';
+  static const discover = SettingId.seeAllFeatures;
 
   @override
   State<_SettingsSearch> createState() => _SettingsSearchState();
@@ -1636,7 +1637,7 @@ final class AdvancedSettingsPage extends StatefulWidget {
   final AppServices services;
 
   /// The setting found by the Settings search, marked.
-  final String? highlight;
+  final SettingId? highlight;
 
   @override
   State<AdvancedSettingsPage> createState() => _AdvancedSettingsPageState();
@@ -1731,7 +1732,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
           ),
           const _Group('Checks by outside services'),
           SettingHighlight(
-            on: widget.highlight == 'safeBrowsing',
+            on: widget.highlight == SettingId.safeBrowsing,
             child: SwitchListTile(
               secondary: const Icon(AppIcons.safeBrowsing),
               title: const Text('Check links with Google Safe Browsing'),
@@ -1746,7 +1747,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
             ),
           ),
           SettingHighlight(
-            on: widget.highlight == 'virusTotal',
+            on: widget.highlight == SettingId.virusTotal,
             child: SwitchListTile(
               secondary: const Icon(AppIcons.virusTotal),
               title: const Text('Ask VirusTotal about flagged files and links'),
@@ -1762,7 +1763,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
           ),
           const _Group('Mail server'),
           SettingHighlight(
-            on: widget.highlight == 'serverRules',
+            on: widget.highlight == SettingId.serverRules,
             child: SwitchListTile(
               secondary: const Icon(AppIcons.server),
               title: const Text('Rules on the mail server'),
@@ -1789,7 +1790,7 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
               ),
           const _Group('Subscriptions, deliveries, trips and accounts'),
           SettingHighlight(
-            on: widget.highlight == 'learning',
+            on: widget.highlight == SettingId.learning,
             child: SwitchListTile(
               secondary: const Icon(AppIcons.learning),
               title: const Text('Learn from my corrections'),

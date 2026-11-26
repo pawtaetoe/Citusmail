@@ -170,8 +170,26 @@ final class MessageSummaries {
   void ask(StoredMessage message, SummaryScope scope) =>
       requests.value = SummaryRequest(message.id, scope);
 
-  static const _indexKey = 'ai.summaries';
+  /// The keys of the kept summaries, oldest first, as a JSON array.
+  static const indexSetting = JsonSetting<List<String>>(
+    'ai.summaries',
+    fallback: [],
+    fromJson: _indexFromJson,
+    toJson: _indexToJson,
+  );
+
+  static List<String> _indexFromJson(Object? json) => [
+    for (final k in json! as List<Object?>)
+      if (k is String) k,
+  ];
+
+  static Object? _indexToJson(List<String> index) => index;
+
   static const _prefix = 'ai.summary.';
+
+  /// One kept summary, as [SavedSummary.toJson], under a key from
+  /// [_key] (and listed in [indexSetting]).
+  static StringSetting _summaryAt(String key) => StringSetting(key);
 
   /// How many summaries are kept; the oldest go first.
   static const keep = 300;
@@ -193,40 +211,30 @@ final class MessageSummaries {
   /// The kept summary of [message] (or its conversation), if any.
   SavedSummary? saved(StoredMessage message, SummaryScope scope) =>
       SavedSummary.fromJson(
-        _store.settings.read(_key(scope, _emails(message, scope))),
+        _summaryAt(_key(scope, _emails(message, scope)))
+            .readOrNull(_store.settings),
       );
 
-  List<String> _index() {
-    try {
-      return [
-        for (final k in jsonDecode(
-          _store.settings.read(_indexKey) ?? '[]',
-        ) as List<Object?>)
-          if (k is String) k,
-      ];
-    } on Object {
-      return [];
-    }
-  }
+  List<String> _index() => [...indexSetting.read(_store.settings)];
 
   void _keep(String key, SavedSummary summary) {
-    _store.settings.write(key, summary.toJson());
+    _summaryAt(key).write(_store.settings, summary.toJson());
     final index = _index()
       ..remove(key)
       ..add(key);
     while (index.length > keep) {
-      _store.settings.delete(index.removeAt(0));
+      _summaryAt(index.removeAt(0)).clear(_store.settings);
     }
-    _store.settings.write(_indexKey, jsonEncode(index));
+    indexSetting.write(_store.settings, index);
   }
 
   /// Removes every kept summary ("Forget saved summaries", or turning
   /// summaries off).
   void forgetAll() {
     for (final key in _index()) {
-      _store.settings.delete(key);
+      _summaryAt(key).clear(_store.settings);
     }
-    _store.settings.delete(_indexKey);
+    indexSetting.clear(_store.settings);
   }
 
   /// How many summaries are kept.

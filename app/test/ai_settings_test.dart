@@ -358,7 +358,7 @@ void main() {
 
   test('settings search finds it by the words people use', () {
     List<String> ids(String query) => [
-      for (final e in SettingsCatalog.search(query, android: false)) e.id,
+      for (final e in SettingsCatalog.search(query, android: false)) e.id.id,
     ];
     for (final words in [
       'ai',
@@ -375,9 +375,9 @@ void main() {
     expect(ids('summarise'), contains('ai-summaries'));
     expect(ids('spending limit'), contains('aiLimit'));
     for (final e in SettingsCatalog.entries.where(
-      (e) => e.id.startsWith('ai'),
+      (e) => e.id.id.startsWith('ai'),
     )) {
-      expect(e.section, 'ai', reason: e.id);
+      expect(e.section, 'ai', reason: e.id.id);
     }
   });
 

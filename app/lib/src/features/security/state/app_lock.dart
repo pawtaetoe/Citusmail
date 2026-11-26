@@ -148,21 +148,29 @@ final class AppLock with WidgetsBindingObserver {
   /// The keychain entry with the PIN's hash.
   static const pinKey = 'app-lock-pin';
 
-  static const _enabledKey = 'lock.enabled';
-  static const _timeoutKey = 'lock.timeout';
-  static const _biometricsKey = 'lock.biometrics';
-  static const _failuresKey = 'lock.failures';
+  static const enabledSetting = BoolSetting('lock.enabled');
+  static const timeoutSetting = EnumSetting(
+    'lock.timeout',
+    LockTimeout.values,
+    fallback: LockTimeout.oneMinute,
+  );
+  static const biometricsSetting = BoolSetting('lock.biometrics');
+
+  /// Wrong PINs in a row.
+  static const failuresSetting = IntSetting('lock.failures');
 
   /// When the wait ends, as a wall-clock time (for showing a countdown,
   /// and the only measure where there is no uptime clock).
-  static const _untilKey = 'lock.until';
+  static const untilSetting = DateTimeSetting('lock.until');
 
-  /// When the wait ends and when it was set, in device uptime.
-  static const _untilElapsedKey = 'lock.untilElapsed';
-  static const _elapsedAtKey = 'lock.elapsedAt';
+  /// When the wait ends and when it was set, in device uptime
+  /// (milliseconds).
+  static const untilElapsedSetting = IntSetting('lock.untilElapsed');
+  static const elapsedAtSetting = IntSetting('lock.elapsedAt');
 
-  /// The length of the current wait, to start it over after a restart.
-  static const _waitKey = 'lock.wait';
+  /// The length of the current wait (milliseconds), to start it over
+  /// after a restart.
+  static const waitSetting = IntSetting('lock.wait');
 
   /// Shortest and longest PIN.
   static const minLength = 4;
@@ -215,26 +223,22 @@ final class AppLock with WidgetsBindingObserver {
   /// Whether the lock is on, readable without an [AppLock] (the
   /// background isolate uses it to hide notification content).
   static bool isEnabledIn(MailStore store) =>
-      store.settings.read(_enabledKey) == 'on';
+      enabledSetting.read(store.settings);
 
   bool get enabled => isEnabledIn(_store);
 
-  LockTimeout get timeout => LockTimeout.values.firstWhere(
-    (t) => t.name == _store.settings.read(_timeoutKey),
-    orElse: () => LockTimeout.oneMinute,
-  );
+  LockTimeout get timeout => timeoutSetting.read(_store.settings);
   set timeout(LockTimeout value) =>
-      _store.settings.write(_timeoutKey, value.name);
+      timeoutSetting.write(_store.settings, value);
 
-  bool get useBiometrics => _store.settings.read(_biometricsKey) == 'on';
-  set useBiometrics(bool on) =>
-      _store.settings.write(_biometricsKey, on ? 'on' : 'off');
+  bool get useBiometrics => biometricsSetting.read(_store.settings);
+  set useBiometrics(bool on) => biometricsSetting.write(_store.settings, on);
 
   /// Starts watching the app's lifecycle; locks at once if the lock is on.
   Future<void> start() async {
     if (enabled && PinHash.decode(await _secrets.read(pinKey)) == null) {
       // The keychain lost the PIN: without it nobody could unlock.
-      _store.settings.write(_enabledKey, 'off');
+      enabledSetting.write(_store.settings, false);
     }
     locked.value = enabled;
     isOn.value = enabled;
@@ -298,7 +302,7 @@ final class AppLock with WidgetsBindingObserver {
     if (!isValidPin(pin)) throw ArgumentError.value('***', 'pin', 'not a PIN');
     final hash = await PinHasher.hash(pin, rounds: pinRounds);
     await _secrets.write(pinKey, hash.encode());
-    _store.settings.write(_enabledKey, 'on');
+    enabledSetting.write(_store.settings, true);
     isOn.value = true;
     _resetFailures();
     await _applyPrivacy();
@@ -308,7 +312,7 @@ final class AppLock with WidgetsBindingObserver {
   Future<UnlockResult> disable(String pin) async {
     final result = await _check(pin);
     if (result is Unlocked) {
-      _store.settings.write(_enabledKey, 'off');
+      enabledSetting.write(_store.settings, false);
       isOn.value = false;
       await _secrets.delete(pinKey);
       locked.value = false;
@@ -343,12 +347,9 @@ final class AppLock with WidgetsBindingObserver {
   /// lock screen counts down. The gate itself asks [currentWait], which
   /// prefers the device's uptime and corrects this value from it.
   Duration get waitRemaining {
-    final until = int.tryParse(_store.settings.read(_untilKey) ?? '');
+    final until = untilSetting.read(_store.settings);
     if (until == null) return Duration.zero;
-    final left = DateTime.fromMillisecondsSinceEpoch(
-      until,
-      isUtc: true,
-    ).difference(_now().toUtc());
+    final left = until.difference(_now().toUtc());
     return left.isNegative ? Duration.zero : left;
   }
 
@@ -358,19 +359,15 @@ final class AppLock with WidgetsBindingObserver {
   Future<Duration> currentWait() async {
     final byClock = waitRemaining;
     final elapsed = await _elapsed();
-    final untilElapsed = int.tryParse(
-      _store.settings.read(_untilElapsedKey) ?? '',
-    );
-    final elapsedAt = int.tryParse(_store.settings.read(_elapsedAtKey) ?? '');
+    final untilElapsed = untilElapsedSetting.readOrNull(_store.settings);
+    final elapsedAt = elapsedAtSetting.readOrNull(_store.settings);
     if (elapsed == null || untilElapsed == null || elapsedAt == null) {
       return byClock;
     }
     if (elapsed < elapsedAt) {
       // The device restarted since the wait was set: its uptime started
       // over, and the wait starts over too, so a restart never shortens it.
-      final wait = Duration(
-        milliseconds: int.tryParse(_store.settings.read(_waitKey) ?? '') ?? 0,
-      );
+      final wait = Duration(milliseconds: waitSetting.read(_store.settings));
       _startWait(wait, elapsed);
       return wait;
     }
@@ -379,10 +376,7 @@ final class AppLock with WidgetsBindingObserver {
     if (left != byClock) {
       // The date was changed: keep the countdown shown in step with the
       // real wait.
-      _store.settings.write(
-        _untilKey,
-        '${_now().toUtc().add(left).millisecondsSinceEpoch}',
-      );
+      untilSetting.write(_store.settings, _now().toUtc().add(left));
     }
     return left;
   }
@@ -395,9 +389,8 @@ final class AppLock with WidgetsBindingObserver {
       _resetFailures();
       return const Unlocked();
     }
-    final failures =
-        (int.tryParse(_store.settings.read(_failuresKey) ?? '') ?? 0) + 1;
-    _store.settings.write(_failuresKey, '$failures');
+    final failures = failuresSetting.read(_store.settings) + 1;
+    failuresSetting.write(_store.settings, failures);
     final delay = delayAfter(failures);
     if (delay > Duration.zero) _startWait(delay, await _elapsed());
     return WrongPin(delay);
@@ -406,20 +399,15 @@ final class AppLock with WidgetsBindingObserver {
   /// Starts a wait of [delay] from now, in uptime too when [elapsed] (the
   /// device's uptime now) is known.
   void _startWait(Duration delay, int? elapsed) {
-    _store.settings.write(
-      _untilKey,
-      '${_now().toUtc().add(delay).millisecondsSinceEpoch}',
-    );
-    _store.settings.write(_waitKey, '${delay.inMilliseconds}');
+    final settings = _store.settings;
+    untilSetting.write(settings, _now().toUtc().add(delay));
+    waitSetting.write(settings, delay.inMilliseconds);
     if (elapsed == null) {
-      _store.settings.delete(_untilElapsedKey);
-      _store.settings.delete(_elapsedAtKey);
+      untilElapsedSetting.clear(settings);
+      elapsedAtSetting.clear(settings);
     } else {
-      _store.settings.write(
-        _untilElapsedKey,
-        '${elapsed + delay.inMilliseconds}',
-      );
-      _store.settings.write(_elapsedAtKey, '$elapsed');
+      untilElapsedSetting.write(settings, elapsed + delay.inMilliseconds);
+      elapsedAtSetting.write(settings, elapsed);
     }
   }
 
@@ -435,10 +423,14 @@ final class AppLock with WidgetsBindingObserver {
   };
 
   void _resetFailures() {
-    _store.settings.delete(_failuresKey);
-    _store.settings.delete(_untilKey);
-    _store.settings.delete(_untilElapsedKey);
-    _store.settings.delete(_elapsedAtKey);
-    _store.settings.delete(_waitKey);
+    for (final setting in <Setting<Object?>>[
+      failuresSetting,
+      untilSetting,
+      untilElapsedSetting,
+      elapsedAtSetting,
+      waitSetting,
+    ]) {
+      setting.clear(_store.settings);
+    }
   }
 }

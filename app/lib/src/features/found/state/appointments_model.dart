@@ -35,12 +35,7 @@ Future<AppointmentsFound> findAppointments(
   DateTime now, {
   Set<int> skip = const {},
 }) async {
-  final hidden = {
-    ...?store.settings
-        .read(AppointmentsModel.hiddenKey)
-        ?.split(',')
-        .where((s) => s.isNotEmpty),
-  };
+  final hidden = {...AppointmentsModel.hiddenSetting.read(store.settings)};
   final candidates = store.messages.withSubjectWords(
     AppointmentFinder.subjectWords,
     since: now.subtract(AppointmentsModel.lookBack),
@@ -176,7 +171,7 @@ final class AppointmentsModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const hiddenKey = 'appointments.hidden';
+  static const hiddenSetting = StringListSetting('appointments.hidden');
 
   /// How far back booking mail is looked at (some are booked months
   /// ahead; the past ones of the last year are listed).
@@ -332,7 +327,7 @@ final class AppointmentsModel extends ChangeNotifier {
       _all.where((a) => a.key == key).firstOrNull;
 
   void _write(Set<String> keys) {
-    _store.settings.write(hiddenKey, keys.join(','));
+    hiddenSetting.write(_store.settings, keys.toList());
     unawaited(load());
   }
 

@@ -54,7 +54,8 @@ final class MessageListModel extends ChangeNotifier {
   static const collapsedPreview = 4;
   static const flatPage = 60;
 
-  static const _collapsedKey = 'ui.collapsedSections';
+  /// The inbox sections folded away, by name.
+  static const collapsedSetting = StringListSetting('ui.collapsedSections');
 
   MailLocation _location = const InboxLocation();
   Set<SmartSection> _collapsed = const {};
@@ -265,10 +266,9 @@ final class MessageListModel extends ChangeNotifier {
       for (final c in _collapsed)
         if (!sections.any((s) => s.section == c)) c,
     };
-    _store.settings.write(
-      _collapsedKey,
-      _collapsed.map((s) => s.name).join(','),
-    );
+    collapsedSetting.write(_store.settings, [
+      for (final s in _collapsed) s.name,
+    ]);
     _loadSection(state, state.count);
     notifyListeners();
   }
@@ -370,14 +370,11 @@ final class MessageListModel extends ChangeNotifier {
       accountId == null ? null : [accountId];
 
   Set<SmartSection> _readCollapsed() {
-    final stored = _store.settings.read(_collapsedKey);
+    final stored = collapsedSetting.readOrNull(_store.settings);
     if (stored == null) {
       // First run: the inbox opens on what needs attention.
       return const {SmartSection.notifications, SmartSection.newsletters};
     }
-    return {
-      for (final name in stored.split(','))
-        ?SmartSection.values.asNameMap()[name],
-    };
+    return {for (final name in stored) ?SmartSection.values.asNameMap()[name]};
   }
 }

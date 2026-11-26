@@ -16,9 +16,24 @@ import 'support/test_app.dart';
 /// Settings, grouped by what people want to do, with a search that knows
 /// their words for things.
 void main() {
+  test('setting ids: every catalog entry has one, and they read back', () {
+    expect({
+      for (final e in SettingsCatalog.entries) e.id,
+    }, SettingId.all.toSet());
+    expect(SettingId.all.toSet(), hasLength(SettingId.all.length));
+    for (final id in SettingId.all) {
+      expect(SettingId.parse(id.id), id);
+    }
+    expect(SettingId.parse('ai-sorting'), SettingId.aiSorting);
+    expect(SettingId.parse('aiSorting'), isNull);
+    expect(SettingId.parse('@discover'), isNull);
+    expect(SettingId.aiFeature('sorting'), SettingId.aiSorting);
+    expect(SettingId.account(7).id, 'account-7');
+  });
+
   group('the search', () {
     List<String> ids(String query, {bool android = false}) => [
-      for (final e in SettingsCatalog.search(query, android: android)) e.id,
+      for (final e in SettingsCatalog.search(query, android: android)) e.id.id,
     ];
 
     test('finds settings by other names', () {
@@ -66,7 +81,7 @@ void main() {
     test('every setting is in a group that exists', () {
       final groups = {for (final s in SettingsCatalog.sections) s.id};
       for (final e in SettingsCatalog.entries) {
-        expect(groups, contains(e.section), reason: e.id);
+        expect(groups, contains(e.section), reason: e.id.id);
       }
     });
   });
@@ -211,7 +226,7 @@ void main() {
           home: SettingsPage(
             services: app.services,
             isAndroid: false,
-            show: 'codeCleanup',
+            show: SettingId.codeCleanup,
           ),
         ),
       );
@@ -230,7 +245,7 @@ void main() {
           services: app.services,
           isAndroid: true,
           batteryLimited: () async => false,
-          show: 'codeTile',
+          show: SettingId.codeTile,
         ),
       ),
     );

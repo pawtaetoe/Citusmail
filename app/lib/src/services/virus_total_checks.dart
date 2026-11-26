@@ -18,7 +18,8 @@ final class VirusTotalChecks {
   final SecretStore _secrets;
   final WebClient _web;
 
-  static const settingKey = 'app.virusTotal';
+  /// On: attachments are looked up on VirusTotal (off by default).
+  static const setting = BoolSetting('app.virusTotal');
   static const keychainKey = 'virustotal-key';
 
   /// SHA-256 of an empty file: looked up once to check a new key (it
@@ -26,7 +27,7 @@ final class VirusTotalChecks {
   static const _probe =
       'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
-  bool get enabled => _store.settings.read(settingKey) == 'on';
+  bool get enabled => setting.read(_store.settings);
 
   /// Checks [key] with one lookup and turns the checks on. Returns a
   /// problem to show, or null.
@@ -47,13 +48,13 @@ final class VirusTotalChecks {
       };
     }
     await _secrets.write(keychainKey, trimmed);
-    _store.settings.write(settingKey, 'on');
+    setting.write(_store.settings, true);
     return null;
   }
 
   /// Turns the checks off and forgets the key.
   Future<void> disable() async {
-    _store.settings.write(settingKey, 'off');
+    setting.write(_store.settings, false);
     await _secrets.delete(keychainKey);
   }
 

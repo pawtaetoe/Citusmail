@@ -11,6 +11,11 @@ import 'secret_store.dart';
 /// The assistant's settings in the app's encrypted settings. None of
 /// them sync between devices: each device agrees to sending mail to a
 /// provider itself.
+///
+/// The one place the app passes raw keys to the settings: mail_ai knows
+/// nothing of mail_store, so it brings its own key-value [AiStore] and
+/// types its settings itself (`AiFeatures`, `AiProviderSettings`, `AiUsageLedger`), with keys built
+/// from feature and provider ids. This only passes them through.
 final class _SettingsStore implements AiStore {
   const _SettingsStore(this._store);
 

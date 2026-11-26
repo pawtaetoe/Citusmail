@@ -38,8 +38,11 @@ final class LinkSafety {
   final String builtInKey;
   final DateTime Function() _now;
 
-  static const settingKey = 'app.safeBrowsing';
-  static const statusKey = 'app.safeBrowsing.status';
+  /// On: links are checked against Google's lists (off by default).
+  static const setting = BoolSetting('app.safeBrowsing');
+
+  /// The last update's outcome, as shown.
+  static const statusSetting = StringSetting('app.safeBrowsing.status');
 
   /// The user's own API key, in the keychain.
   static const keychainKey = 'safe-browsing-key';
@@ -48,13 +51,13 @@ final class LinkSafety {
   Future<void>? _updating;
   Timer? _timer;
 
-  bool get enabled => _store.settings.read(settingKey) == 'on';
+  bool get enabled => setting.read(_store.settings);
 
   /// Whether this build can check without the user's own key.
   bool get hasBuiltInKey => builtInKey.isNotEmpty;
 
   /// The last update's outcome, for Settings ("Lists updated...").
-  String? get status => _store.settings.read(statusKey);
+  String? get status => statusSetting.readOrNull(_store.settings);
 
   /// Turns the checks on (with [ownKey] when the build has none) and
   /// downloads the lists. Returns a problem to show, or null.
@@ -67,10 +70,10 @@ final class LinkSafety {
       await _secrets.write(keychainKey, key);
     }
     _client = null;
-    _store.settings.write(settingKey, 'on');
+    setting.write(_store.settings, true);
     final problem = await updateIfDue(force: true);
     if (problem != null) {
-      _store.settings.write(settingKey, 'off');
+      setting.write(_store.settings, false);
       return problem;
     }
     start();
@@ -80,8 +83,8 @@ final class LinkSafety {
   /// Turns the checks off and deletes the lists (the key stays, for
   /// turning them on again).
   Future<void> disable() async {
-    _store.settings.write(settingKey, 'off');
-    _store.settings.delete(statusKey);
+    setting.write(_store.settings, false);
+    statusSetting.clear(_store.settings);
     _timer?.cancel();
     _client = null;
     if (listFile case final file? when file.existsSync()) file.deleteSync();
@@ -117,16 +120,16 @@ final class LinkSafety {
       try {
         await client.update();
         await listFile?.writeAsBytes(client.database.encode(), flush: true);
-        _store.settings.write(
-          statusKey,
+        statusSetting.write(
+          _store.settings,
           'Lists updated ${_now().toUtc().toIso8601String()}',
         );
       } on WebException catch (e) {
         problem = 'Couldn\'t update Google\'s lists: ${e.message}';
-        _store.settings.write(statusKey, problem!);
+        statusSetting.write(_store.settings, problem!);
       } on FormatException {
         problem = 'Google\'s answer couldn\'t be read.';
-        _store.settings.write(statusKey, problem!);
+        statusSetting.write(_store.settings, problem!);
       }
     }();
     _updating = run;

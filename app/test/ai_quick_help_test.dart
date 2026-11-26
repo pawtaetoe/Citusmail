@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
 import 'package:citusmail/src/features/ai/ui/ai_feature_tiles.dart';
+import 'package:citusmail/src/features/discover/state/feature_id.dart';
 import 'package:citusmail/src/features/discover/ui/features.dart';
 import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
 import 'package:citusmail/src/features/settings/ui/settings_catalog.dart';
@@ -172,7 +173,7 @@ void main() {
 
   test('each has a switch, a search entry and a line in All features', () {
     List<String> ids(String query) => [
-      for (final e in SettingsCatalog.search(query, android: false)) e.id,
+      for (final e in SettingsCatalog.search(query, android: false)) e.id.id,
     ];
     expect(ids('translate'), contains('ai-translate'));
     expect(ids('foreign language'), contains('ai-translate'));
@@ -181,8 +182,8 @@ void main() {
     for (final f in [AiFeatures.translate, AiFeatures.quickReplies]) {
       expect(aiFeatureTiles, contains(f.id));
     }
-    expect(Features.byId('aiTranslate'), isNotNull);
-    expect(Features.byId('aiQuickReplies'), isNotNull);
+    expect(Features.byId(FeatureId.aiTranslate), isNotNull);
+    expect(Features.byId(FeatureId.aiQuickReplies), isNotNull);
   });
 
   test('off by default', () {

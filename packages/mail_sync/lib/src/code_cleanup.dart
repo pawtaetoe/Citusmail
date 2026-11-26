@@ -60,75 +60,104 @@ final class CodeCleanupSettings {
 
   final MailStore _store;
 
-  static const ageKey = 'codes.cleanup.age';
-  static const actionKey = 'codes.cleanup.action';
-  static const consentKey = 'codes.cleanup.consent';
-  static const lastRunKey = 'codes.cleanup.lastRun';
-  static const undoneKey = 'codes.cleanup.undone';
+  // Age, action and consent sync between devices as one preference: their
+  // keys come from SyncedPreferences, which lists what syncs.
 
   /// After a day, unless the user chose otherwise.
-  CodeCleanupAge get age {
-    final value = _store.settings.read(ageKey);
-    return CodeCleanupAge.values.firstWhere(
-      (a) => a.storageName == value,
-      orElse: () => CodeCleanupAge.day,
-    );
-  }
-
-  set age(CodeCleanupAge age) => _store.settings.write(ageKey, age.storageName);
+  static const ageSetting = EnumSetting(
+    SyncedPreferences.codeCleanupAge,
+    CodeCleanupAge.values,
+    fallback: CodeCleanupAge.day,
+    storedAs: _ageName,
+  );
 
   /// Archive, unless the user chose Trash.
-  CodeCleanupAction get action =>
-      _store.settings.read(actionKey) == CodeCleanupAction.trash.storageName
-      ? CodeCleanupAction.trash
-      : CodeCleanupAction.archive;
+  static const actionSetting = EnumSetting(
+    SyncedPreferences.codeCleanupAction,
+    CodeCleanupAction.values,
+    fallback: CodeCleanupAction.archive,
+    storedAs: _actionName,
+  );
+
+  static const consentSetting = CodeCleanupConsentSetting(
+    SyncedPreferences.codeCleanupConsent,
+  );
+
+  /// When clean-up last ran here (the hourly turn).
+  static const lastRunSetting = DateTimeSetting('codes.cleanup.lastRun');
+
+  /// Messages the user brought back with Undo, one per line.
+  static const undoneSetting = StringListSetting(
+    'codes.cleanup.undone',
+    separator: '\n',
+  );
+
+  static String _ageName(CodeCleanupAge age) => age.storageName;
+  static String _actionName(CodeCleanupAction action) => action.storageName;
+
+  CodeCleanupAge get age => ageSetting.read(_store.settings);
+
+  set age(CodeCleanupAge age) => ageSetting.write(_store.settings, age);
+
+  CodeCleanupAction get action => actionSetting.read(_store.settings);
 
   set action(CodeCleanupAction action) =>
-      _store.settings.write(actionKey, action.storageName);
+      actionSetting.write(_store.settings, action);
 
-  CodeCleanupConsent get consent {
-    final value = _store.settings.read(consentKey);
-    if (value == 'yes') return const ConsentGiven();
-    if (value != null && value.startsWith('no:')) {
-      final at = int.tryParse(value.substring(3));
-      if (at != null) {
-        return ConsentDeclined(
-          DateTime.fromMillisecondsSinceEpoch(at, isUtc: true),
-        );
-      }
-    }
-    return const ConsentUnasked();
-  }
+  CodeCleanupConsent get consent => consentSetting.read(_store.settings);
 
   bool get agreed => consent is ConsentGiven;
 
   /// The user said yes; the next run is not held back by the hourly limit.
   void agree() => _store.transaction(() {
-    _store.settings.write(consentKey, 'yes');
-    _store.settings.delete(lastRunKey);
+    consentSetting.write(_store.settings, const ConsentGiven());
+    lastRunSetting.clear(_store.settings);
   });
 
   /// "Not now".
   void decline(DateTime now) =>
-      _store.settings.write(consentKey, 'no:${now.millisecondsSinceEpoch}');
+      consentSetting.write(_store.settings, ConsentDeclined(now));
 
   /// Messages the user brought back with Undo: never cleaned up again.
-  Set<String> get undone {
-    final value = _store.settings.read(undoneKey);
-    if (value == null || value.isEmpty) return {};
-    return value.split('\n').toSet();
-  }
+  Set<String> get undone => undoneSetting.read(_store.settings).toSet();
 
   void remember(Iterable<String> keys) {
     final all = [
-      ...?_store.settings.read(undoneKey)?.split('\n'),
+      ...undoneSetting.read(_store.settings),
       ...keys,
     ].where((k) => k.isNotEmpty).toSet().toList();
     final kept = all.length > CodeCleaner.maxRemembered
         ? all.sublist(all.length - CodeCleaner.maxRemembered)
         : all;
-    _store.settings.write(undoneKey, kept.join('\n'));
+    undoneSetting.write(_store.settings, kept);
   }
+}
+
+/// [CodeCleanupConsent] as stored: `yes`, or `no:` and when (milliseconds
+/// since 1970). Anything else, or nothing, is [ConsentUnasked].
+final class CodeCleanupConsentSetting extends Setting<CodeCleanupConsent> {
+  const CodeCleanupConsentSetting(super.key)
+    : super(fallback: const ConsentUnasked());
+
+  @override
+  CodeCleanupConsent? tryDecode(String stored) {
+    if (stored == 'yes') return const ConsentGiven();
+    if (stored.startsWith('no:')) {
+      if (int.tryParse(stored.substring(3)) case final at?) {
+        return ConsentDeclined(
+          DateTime.fromMillisecondsSinceEpoch(at, isUtc: true),
+        );
+      }
+    }
+    return null;
+  }
+
+  @override
+  String encode(CodeCleanupConsent value) => switch (value) {
+    ConsentGiven() => 'yes',
+    ConsentDeclined(:final at) => 'no:${at.millisecondsSinceEpoch}',
+    ConsentUnasked() => '', // reads as unasked
+  };
 }
 
 /// One clean-up: what moved, and how to undo it ([CodeCleaner.undo]).
@@ -286,20 +315,13 @@ final class CodeCleaner {
   /// Takes the hourly turn, so the app and the background job don't both
   /// run.
   bool _claim(DateTime now) => _store.transaction(() {
-    final last = int.tryParse(
-      _store.settings.read(CodeCleanupSettings.lastRunKey) ?? '',
-    );
-    if (last != null) {
-      final since = now.difference(
-        DateTime.fromMillisecondsSinceEpoch(last, isUtc: true),
-      );
+    const lastRun = CodeCleanupSettings.lastRunSetting;
+    if (lastRun.read(_store.settings) case final last?) {
+      final since = now.difference(last);
       // A clock set back by more than an hour doesn't stop it for good.
       if (since < interval && since > -interval) return false;
     }
-    _store.settings.write(
-      CodeCleanupSettings.lastRunKey,
-      '${now.millisecondsSinceEpoch}',
-    );
+    lastRun.write(_store.settings, now);
     return true;
   });
 }

@@ -60,9 +60,8 @@ final class NewSinceAway {
 
   final MailStore _store;
 
-  /// When the app went away, in milliseconds since the epoch (UTC). Gone
-  /// while the app is in use.
-  static const awayKey = 'inbox.awaySince';
+  /// When the app went away. Gone while the app is in use.
+  static const awaySetting = DateTimeSetting('inbox.awaySince');
 
   /// Shorter absences (a look at another app) don't count.
   static const awayFor = Duration(minutes: 1);
@@ -79,9 +78,8 @@ final class NewSinceAway {
   /// The app went to the background or is closing: remembers when, unless
   /// it already went earlier (and was never back since).
   void wentAway([DateTime? at]) {
-    if (_store.settings.read(awayKey) != null) return;
-    final when = (at ?? clock()).toUtc();
-    _store.settings.write(awayKey, '${when.millisecondsSinceEpoch}');
+    if (awaySetting.isSetIn(_store.settings)) return;
+    awaySetting.write(_store.settings, (at ?? clock()).toUtc());
   }
 
   /// The app is in front again (or started): after more than [awayFor],
@@ -89,10 +87,9 @@ final class NewSinceAway {
   /// whether the section changed. On the very first run nothing was
   /// stored, so there is no section.
   bool cameBack([DateTime? at]) {
-    final stored = int.tryParse(_store.settings.read(awayKey) ?? '');
-    _store.settings.delete(awayKey);
-    if (stored == null) return false;
-    final since = DateTime.fromMillisecondsSinceEpoch(stored, isUtc: true);
+    final since = awaySetting.read(_store.settings);
+    awaySetting.clear(_store.settings);
+    if (since == null) return false;
     final now = (at ?? clock()).toUtc();
     if (now.difference(since) <= awayFor) return false;
     window = AwayWindow(since, now);

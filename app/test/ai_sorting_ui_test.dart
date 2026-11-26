@@ -8,6 +8,7 @@
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
 import 'package:citusmail/src/features/ai/ui/ai_feature_tiles.dart';
 import 'package:citusmail/src/features/ai/ui/ai_sort_notice.dart';
+import 'package:citusmail/src/features/discover/state/feature_id.dart';
 import 'package:citusmail/src/features/discover/ui/features.dart';
 import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
 import 'package:citusmail/src/features/settings/ui/settings_catalog.dart';
@@ -127,7 +128,7 @@ void main() {
         SettingsCatalog.search('sorting', android: false).map((e) => e.id),
         contains('ai-sorting'),
       );
-      expect(Features.byId('aiSorting'), isNotNull);
+      expect(Features.byId(FeatureId.aiSorting), isNotNull);
     });
   });
 

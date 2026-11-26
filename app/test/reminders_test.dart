@@ -249,7 +249,10 @@ void main() {
       final dentist = found.all.firstWhere(
         (a) => a.title == 'Bright Smile Dental',
       );
-      app.store.settings.write(AppointmentsModel.hiddenKey, dentist.key);
+      app.store.settings.write(
+        AppointmentsModel.hiddenSetting.key,
+        dentist.key,
+      );
       expect(await check(DateTime(2026, 11, 7, 9)), isEmpty);
     });
 

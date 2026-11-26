@@ -7,6 +7,7 @@ import 'package:citusmail/src/features/compose/ui/compose_page.dart';
 import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
 import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
 import 'package:citusmail/src/features/inbox/ui/sidebar.dart';
+import 'package:citusmail/src/features/settings/state/setting_id.dart';
 import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,7 +120,7 @@ void main() {
           services: app.services,
           controller: controller,
           isAndroid: false,
-          show: 'accounts',
+          show: SettingId.accounts,
         ),
       ),
     );

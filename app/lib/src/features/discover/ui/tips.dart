@@ -10,6 +10,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../organise/ui/snooze_sheet.dart';
+import '../state/feature_id.dart';
 import 'features.dart';
 
 /// A short tip, shown once, at the moment its feature could help.
@@ -41,20 +42,23 @@ final class Tips {
 
   final MailStore _store;
 
-  static const offKey = 'tips.off';
-  static const seenKey = 'tips.seen';
+  /// On: tips turned off (synced between devices, so declared there).
+  static const offSetting = SyncedPreferences.tipsOff;
+
+  /// The tips shown, by id.
+  static const seenSetting = StringListSetting('tips.seen');
+
+  /// The tip put away in its session, by id.
+  static const dismissedSetting = StringSetting('tips.seen.dismissed');
 
   /// The tip shown in this run of the app, per store (a fresh store, as
   /// in tests, is a fresh run).
   static final _session = Expando<(String, Object?)>('tip this session');
 
-  bool get enabled => _store.settings.read(offKey) != 'on';
-  set enabled(bool on) => _store.settings.write(offKey, on ? 'off' : 'on');
+  bool get enabled => !offSetting.read(_store.settings);
+  set enabled(bool on) => offSetting.write(_store.settings, !on);
 
-  Set<String> get seen => {
-    for (final id in (_store.settings.read(seenKey) ?? '').split(','))
-      if (id.isNotEmpty) id,
-  };
+  Set<String> get seen => seenSetting.read(_store.settings).toSet();
 
   /// Whether [tip] may show now, at [where] (the email it is about); if
   /// so it counts as shown. It shows again only at the same place.
@@ -63,7 +67,7 @@ final class Tips {
     if (shown != null) return enabled && shown == (tip.id, where);
     if (!enabled || seen.contains(tip.id)) return false;
     _session[_store] = (tip.id, where);
-    _store.settings.write(seenKey, {...seen, tip.id}.join(','));
+    seenSetting.write(_store.settings, [...seen, tip.id]);
     return true;
   }
 
@@ -76,9 +80,10 @@ final class Tips {
   }
 
   /// Whether the tip shown in this session was put away.
-  bool dismissed(String id) => _store.settings.read('$seenKey.dismissed') == id;
+  bool dismissed(String id) =>
+      dismissedSetting.readOrNull(_store.settings) == id;
 
-  void dismiss(String id) => _store.settings.write('$seenKey.dismissed', id);
+  void dismiss(String id) => dismissedSetting.write(_store.settings, id);
 
   static final unsubscribe = Tip(
     id: 'unsubscribe',
@@ -113,7 +118,7 @@ final class Tips {
         'Bookings like this one are put together into trips, with times '
         'and confirmation numbers.',
     action: 'Open Trips',
-    onAction: (context, c) => Features.byId('trips')?.open(context, c),
+    onAction: (context, c) => Features.byId(FeatureId.trips)?.open(context, c),
   );
 
   static final screener = Tip(
@@ -124,7 +129,8 @@ final class Tips {
         'With the Screener on, people writing to you for the first time '
         'wait for your OK before their mail reaches your inbox.',
     action: 'Set up Screener',
-    onAction: (context, c) => Features.byId('screener')?.open(context, c),
+    onAction: (context, c) =>
+        Features.byId(FeatureId.screener)?.open(context, c),
   );
 
   /// The tip for reading [message], if one could help. [firstTimeSender]

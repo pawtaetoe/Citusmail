@@ -371,9 +371,9 @@ void main() {
       });
 
       test('a damaged setting reads as empty', () {
-        store.settings.write(AiSortLog.key, '{not json');
+        store.settings.write(AiSortLog.setting.key, '{not json');
         expect(AiSortLog(store).entries, isEmpty);
-        store.settings.write(AiSortLog.key, '[{"id":"x"}, 7]');
+        store.settings.write(AiSortLog.setting.key, '[{"id":"x"}, 7]');
         expect(AiSortLog(store).entries, isEmpty);
       });
     });
@@ -512,10 +512,10 @@ void main() {
           choices.forSender('s${SenderSortChoices.keep + 1}@shop.example'),
           MessageCategory.newsletters,
         );
-        store.settings.write(SenderSortChoices.key, '[1, 2');
+        store.settings.write(SenderSortChoices.setting.key, '[1, 2');
         expect(choices.all, isEmpty);
         choices.clear();
-        expect(store.settings.read(SenderSortChoices.key), isNull);
+        expect(store.settings.read(SenderSortChoices.setting.key), isNull);
       });
     });
   });

@@ -2,11 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:convert';
-
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
+import 'setting.dart';
 import 'settings_repository.dart';
 
 /// A read receipt someone's mail app sent for the user's message.
@@ -143,32 +142,37 @@ final class ReceiptRepository {
     while (links.length > maxLinks) {
       links.remove(links.keys.first);
     }
-    _settings.write(_linksKey(accountId), jsonEncode(links));
+    _linksFor(accountId).write(_settings, links);
   }
 
   /// The stored id of [recipient]'s receipt for [messageId], if known.
   int? reportFor(int accountId, String messageId, String recipient) =>
       _links(accountId)[_linkKey(messageId, recipient.toLowerCase())];
 
-  static String _linksKey(int accountId) => 'receipts.reports.$accountId';
+  /// One account's links, as a JSON object: [_linkKey] to report id.
+  static JsonSetting<Map<String, int>> _linksFor(int accountId) => JsonSetting(
+    'receipts.reports.$accountId',
+    fallback: const {},
+    fromJson: _linksFromJson,
+    toJson: _linksToJson,
+  );
+
+  static Map<String, int>? _linksFromJson(Object? json) =>
+      json is Map<String, Object?>
+      ? {
+          for (final MapEntry(:key, :value) in json.entries)
+            if (value is int) key: value,
+        }
+      : null;
+
+  static Object? _linksToJson(Map<String, int> links) => links;
 
   static String _linkKey(String messageId, String recipient) =>
       '$messageId ${recipient.toLowerCase()}';
 
-  Map<String, int> _links(int accountId) {
-    final text = _settings.read(_linksKey(accountId));
-    if (text == null) return {};
-    try {
-      final decoded = jsonDecode(text);
-      if (decoded is! Map<String, Object?>) return {};
-      return {
-        for (final MapEntry(:key, :value) in decoded.entries)
-          if (value is int) key: value,
-      };
-    } on FormatException {
-      return {};
-    }
-  }
+  Map<String, int> _links(int accountId) => {
+    ..._linksFor(accountId).read(_settings),
+  };
 
   static ReadReceipt _fromRow(Row row) => ReadReceipt(
     recipient: row['recipient'] as String,

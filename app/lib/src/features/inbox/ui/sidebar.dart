@@ -322,7 +322,7 @@ final class Sidebar extends StatelessWidget {
                               key: ValueKey('account-${account.id}'),
                               account: account,
                               memory: several
-                                  ? _OpenSet(store, _OpenSet.accountsKey)
+                                  ? _OpenSet(store, _OpenSet.accounts)
                                   : null,
                               unread: counts.perAccountUnread[account.id] ?? 0,
                               event: controller.lastEvent(account.id),
@@ -374,7 +374,7 @@ final class Sidebar extends StatelessWidget {
                           // Pages about your mail, apart from the places to
                           // read it.
                           _FeaturePanel(
-                            memory: _OpenSet(store, _OpenSet.groupsKey),
+                            memory: _OpenSet(store, _OpenSet.groups),
                             groups: [
                               for (final group in _featureGroups())
                                 if (!asTab || group.id != _foundGroup) group,
@@ -735,27 +735,25 @@ final class _Entry extends StatelessWidget {
 /// Which folding parts of the sidebar are open, remembered in the
 /// settings store as a list of ids. Everything starts folded.
 final class _OpenSet {
-  const _OpenSet(this.store, this.key);
+  const _OpenSet(this.store, this.setting);
 
   /// Account ids.
-  static const accountsKey = 'ui.openAccounts';
+  static const accounts = StringListSetting('ui.openAccounts');
 
   /// Feature group ids ("found", "tools").
-  static const groupsKey = 'ui.openSidebarGroups';
+  static const groups = StringListSetting('ui.openSidebarGroups');
 
   final MailStore store;
-  final String key;
+  final StringListSetting setting;
 
-  Set<String> _read() => {
-    ...?store.settings.read(key)?.split(',').where((s) => s.isNotEmpty),
-  };
+  Set<String> _read() => setting.read(store.settings).toSet();
 
   bool contains(String id) => _read().contains(id);
 
   void set(String id, {required bool open}) {
     final ids = _read();
     open ? ids.add(id) : ids.remove(id);
-    store.settings.write(key, ids.join(','));
+    setting.write(store.settings, ids.toList());
   }
 }
 

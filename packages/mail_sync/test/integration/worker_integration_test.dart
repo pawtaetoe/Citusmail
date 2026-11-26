@@ -138,7 +138,7 @@ void main() {
       );
       // The seeded mail is from today: any "keep" period covers it.
       device.store.settings.write(
-        KeepMail.key,
+        KeepMail.setting.key,
         KeepMail.threeMonths.storageName,
       );
       Future<int> backfilled() async {

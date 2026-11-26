@@ -213,7 +213,7 @@ void main() {
     await tester.pump();
     expect(app.services.settings.notifyNotificationsSection, isFalse);
     expect(
-      app.store.settings.read(NewMailTracker.notificationsKey),
+      app.store.settings.read(NewMailTracker.notificationsSection.key),
       'off',
       reason: 'the new-mail tracker reads the same key',
     );

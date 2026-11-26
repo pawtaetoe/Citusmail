@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import 'dart:convert';
-
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -32,7 +30,9 @@ final class ArchivedMail {
   /// Most noted messages kept waiting.
   static const maxWaiting = 500;
 
-  static String _key(int accountId) => 'sync.archived.$accountId';
+  /// The Message-IDs waiting to be looked up, per account.
+  static JsonListSetting _waitingFor(int accountId) =>
+      JsonListSetting('sync.archived.$accountId');
 
   /// Notes what [results] removed from the account's ordinary folders
   /// (not All Mail, Starred, Important, Trash or Junk), when it has an
@@ -61,7 +61,7 @@ final class ArchivedMail {
     final allMail = _allMail(account);
     final waiting = _waiting(account);
     if (allMail == null || waiting.isEmpty) {
-      if (waiting.isNotEmpty) _store.settings.delete(_key(account.id));
+      if (waiting.isNotEmpty) _waitingFor(account.id).clear(_store.settings);
       return 0;
     }
     final ordinary = [
@@ -85,7 +85,7 @@ final class ArchivedMail {
     final known = allMail.syncState.uidValidity;
     if (known != null && known != selected.uidValidity) {
       // The folder was reset: opening it syncs it afresh anyway.
-      _store.settings.delete(_key(account.id));
+      _waitingFor(account.id).clear(_store.settings);
       return 0;
     }
     final uids = <int>{};
@@ -108,26 +108,17 @@ final class ArchivedMail {
     return folder != null && folder.selectable ? folder : null;
   }
 
-  List<String> _waiting(Account account) {
-    final text = _store.settings.read(_key(account.id));
-    if (text == null) return const [];
-    try {
-      return [
-        for (final id in jsonDecode(text) as List<Object?>) id! as String,
-      ];
-    } on Object {
-      return const [];
-    }
-  }
+  List<String> _waiting(Account account) =>
+      _waitingFor(account.id).read(_store.settings);
 
   void _write(Account account, List<String> ids) {
     if (ids.isEmpty) {
-      _store.settings.delete(_key(account.id));
+      _waitingFor(account.id).clear(_store.settings);
       return;
     }
     final kept = ids.length > maxWaiting
         ? ids.sublist(ids.length - maxWaiting)
         : ids;
-    _store.settings.write(_key(account.id), jsonEncode(kept));
+    _waitingFor(account.id).write(_store.settings, kept);
   }
 }

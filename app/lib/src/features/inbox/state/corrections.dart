@@ -21,25 +21,32 @@ final class Corrections {
 
   final MailStore _store;
 
-  static const _modelKey = 'learning.model';
+  /// What was learned, as [MailTypeClassifier.toText].
+  static const modelSetting = StringSetting('learning.model');
 
   /// Items the user listed again after learning hid them ("kind/key").
-  static const _keptKey = 'learning.kept';
+  static const keptSetting = StringListSetting(
+    'learning.kept',
+    separator: '\n',
+  );
 
   /// Items opened, which counted once each ("kind/key", the newest last).
-  static const _openedKey = 'learning.opened';
+  static const openedSetting = StringListSetting(
+    'learning.opened',
+    separator: '\n',
+  );
   static const _openedMax = 300;
 
   bool get on => AppSettings(_store).learnFromCorrections;
 
   MailTypeClassifier _load() =>
-      MailTypeClassifier.fromText(_store.settings.read(_modelKey));
+      MailTypeClassifier.fromText(modelSetting.readOrNull(_store.settings));
 
   void _save(MailTypeClassifier classifier) {
     if (classifier.isEmpty) {
-      _store.settings.delete(_modelKey);
+      modelSetting.clear(_store.settings);
     } else {
-      _store.settings.write(_modelKey, classifier.toText());
+      modelSetting.write(_store.settings, classifier.toText());
     }
   }
 
@@ -61,7 +68,7 @@ final class Corrections {
   /// The user listed again an item learning had hid ([key], made of
   /// [emails]): it is never left out again, and counts for [kind].
   void kept(MailKind kind, String key, Iterable<MailSample> emails) {
-    _write(_keptKey, {..._read(_keptKey), '${kind.code}/$key'});
+    _write(keptSetting, {..._read(keptSetting), '${kind.code}/$key'});
     if (!on) return;
     final classifier = _load();
     for (final email in emails) {
@@ -77,7 +84,7 @@ final class Corrections {
     if (!on) return;
     final classifier = _load();
     if (!classifier.hasCorrections(kind)) return;
-    final opened = _readList(_openedKey);
+    final opened = _readList(openedSetting);
     final id = '${kind.code}/$key';
     if (opened.contains(id)) return;
     for (final email in emails.take(6)) {
@@ -85,28 +92,28 @@ final class Corrections {
     }
     _save(classifier);
     final list = [...opened, id];
-    _store.settings.write(
-      _openedKey,
+    openedSetting.write(
+      _store.settings,
       list
           .skip(list.length > _openedMax ? list.length - _openedMax : 0)
-          .join('\n'),
+          .toList(),
     );
   }
 
   /// "Forget what it learned": everything learned is gone, and every
   /// page shows what the rules find again.
   void forget() {
-    _store.settings.delete(_modelKey);
-    _store.settings.delete(_keptKey);
-    _store.settings.delete(_openedKey);
+    modelSetting.clear(_store.settings);
+    keptSetting.clear(_store.settings);
+    openedSetting.clear(_store.settings);
     SenderSortChoices(_store).clear();
   }
 
   /// Whether anything was learned.
   bool get learnedAnything =>
-      _store.settings.read(_modelKey) != null ||
-      _store.settings.read(_keptKey) != null ||
-      _store.settings.read(SenderSortChoices.key) != null;
+      modelSetting.isSetIn(_store.settings) ||
+      keptSetting.isSetIn(_store.settings) ||
+      SenderSortChoices.setting.isSetIn(_store.settings);
 
   /// The keys of [items] (each key and its emails) to leave out as not a
   /// [kind]: most of their emails look like ones the user rejected.
@@ -117,11 +124,11 @@ final class Corrections {
     Map<String, List<MailSample>> items,
   ) async {
     if (!on || items.isEmpty) return const {};
-    final text = _store.settings.read(_modelKey);
+    final text = modelSetting.readOrNull(_store.settings);
     if (!MailTypeClassifier.fromText(text).hasCorrections(kind)) {
       return const {};
     }
-    final kept = _read(_keptKey);
+    final kept = _read(keptSetting);
     final open = {
       for (final MapEntry(:key, :value) in items.entries)
         if (!kept.contains('${kind.code}/$key')) key: value,
@@ -130,14 +137,13 @@ final class Corrections {
     return compute(_vetoed, (text, kind, open));
   }
 
-  Set<String> _read(String key) => {..._readList(key)};
+  Set<String> _read(StringListSetting setting) => {..._readList(setting)};
 
-  List<String> _readList(String key) => [
-    ...?_store.settings.read(key)?.split('\n').where((s) => s.isNotEmpty),
-  ];
+  List<String> _readList(StringListSetting setting) =>
+      setting.read(_store.settings);
 
-  void _write(String key, Set<String> values) =>
-      _store.settings.write(key, values.join('\n'));
+  void _write(StringListSetting setting, Set<String> values) =>
+      setting.write(_store.settings, values.toList());
 }
 
 Set<String> _vetoed((String?, MailKind, Map<String, List<MailSample>>) args) {

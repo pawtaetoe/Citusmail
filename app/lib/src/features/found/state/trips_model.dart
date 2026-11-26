@@ -34,12 +34,7 @@ Future<TripsFound> findTrips(
   DateTime now, {
   Set<int> skip = const {},
 }) async {
-  final hidden = {
-    ...?store.settings
-        .read(TripsModel.hiddenKey)
-        ?.split(',')
-        .where((s) => s.isNotEmpty),
-  };
+  final hidden = {...TripsModel.hiddenSetting.read(store.settings)};
   final candidates = store.messages.withSubjectWords(
     TripFinder.subjectWords,
     since: now.subtract(TripsModel.lookBack),
@@ -131,7 +126,7 @@ final class TripsModel extends ChangeNotifier {
 
   MailStore get _store => _services.store;
 
-  static const hiddenKey = 'trips.hidden';
+  static const hiddenSetting = StringListSetting('trips.hidden');
 
   /// How far back booking mail is looked at (bookings are made months
   /// ahead).
@@ -276,7 +271,7 @@ final class TripsModel extends ChangeNotifier {
   ) => bookingSamples(booking, message);
 
   void _write(Set<String> keys) {
-    _store.settings.write(hiddenKey, keys.join(','));
+    hiddenSetting.write(_store.settings, keys.toList());
     unawaited(load());
   }
 

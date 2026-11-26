@@ -31,20 +31,24 @@ final class NewMailTracker {
     SmartSection.general,
   ];
 
-  /// Settings key: 'off' leaves the Notifications section out (on by
-  /// default).
-  static const notificationsKey = 'notify.notificationsSection';
+  /// Off leaves the Notifications section out (on by default).
+  static const notificationsSection = BoolSetting(
+    'notify.notificationsSection',
+    fallback: true,
+  );
 
   List<SmartSection> get _announced => [
     ..._sections,
-    if (_store.settings.read(notificationsKey) != 'off')
-      SmartSection.notifications,
+    if (notificationsSection.read(_store.settings)) SmartSection.notifications,
   ];
 
   /// At most this many are returned (the rest are counted in [NewMail]).
   static const maxMessages = 20;
 
-  static String _key(int accountId) => 'notify.mark.$accountId';
+  /// Where the inbox was when new mail was last claimed, per account:
+  /// `UIDVALIDITY:UID`.
+  static StringSetting _mark(int accountId) =>
+      StringSetting('notify.mark.$accountId');
 
   NewMail claim(int accountId) => _store.transaction(() {
     final inbox = _store.mailboxes.inbox(accountId);
@@ -52,7 +56,7 @@ final class NewMailTracker {
     if (inbox == null || validity == null) return NewMail.none;
     final highest = _store.messages.highestUid(inbox.id) ?? 0;
     final mark = _readMark(accountId);
-    _store.settings.write(_key(accountId), '$validity:$highest');
+    _mark(accountId).write(_store.settings, '$validity:$highest');
     if (mark == null || mark.validity != validity || highest <= mark.uid) {
       return NewMail.none;
     }
@@ -78,7 +82,7 @@ final class NewMailTracker {
   });
 
   ({int validity, int uid})? _readMark(int accountId) {
-    final value = _store.settings.read(_key(accountId));
+    final value = _mark(accountId).readOrNull(_store.settings);
     final parts = value?.split(':');
     if (parts == null || parts.length != 2) return null;
     final validity = int.tryParse(parts[0]);

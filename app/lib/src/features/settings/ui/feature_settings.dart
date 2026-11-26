@@ -12,15 +12,16 @@ import '../../../core/theme/app_icons.dart';
 import '../../../services/app_services.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../organise/ui/screener_page.dart';
+import '../state/setting_id.dart';
 import 'settings_page.dart';
 
 // A feature's options, where the feature is: the same switches as in
 // Settings, so nobody has to go there to find them.
 
 /// Wraps a setting's tile (Settings marks the one searched for).
-typedef SettingWrap = Widget Function(String id, Widget tile);
+typedef SettingWrap = Widget Function(SettingId id, Widget tile);
 
-Widget _plain(String id, Widget tile) => tile;
+Widget _plain(SettingId id, Widget tile) => tile;
 
 /// Turning Instant mail on or off, as Android allows it.
 abstract final class InstantMail {
@@ -85,7 +86,7 @@ final class _ScreenerSettingsState extends State<ScreenerSettings> {
       mainAxisSize: MainAxisSize.min,
       children: [
         wrap(
-          'screener',
+          SettingId.screener,
           SwitchListTile(
             secondary: const Icon(AppIcons.screener),
             title: const Text('Screen first-time senders'),
@@ -106,7 +107,7 @@ final class _ScreenerSettingsState extends State<ScreenerSettings> {
         ),
         if (screener.enabled)
           wrap(
-            'screenOutPlace',
+            SettingId.screenOutPlace,
             ListTile(
               contentPadding: const EdgeInsets.only(left: 72, right: 16),
               title: const Text('Screened-out mail goes to'),
@@ -137,7 +138,7 @@ final class _ScreenerSettingsState extends State<ScreenerSettings> {
             ),
           ),
         wrap(
-          'screenedSenders',
+          SettingId.screenedSenders,
           ListTile(
             leading: const Icon(AppIcons.screenedSenders),
             title: const Text('Screened senders'),
@@ -290,7 +291,7 @@ final class _CheckingMailSheetState extends State<CheckingMailSheet> {
                 SettingsPage.open(
                   context,
                   controller: widget.controller,
-                  show: 'notifications',
+                  show: SettingId.notifications,
                 );
               },
               child: const Text('All notification settings'),

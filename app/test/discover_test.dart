@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/discover/state/feature_id.dart';
 import 'package:citusmail/src/features/discover/ui/discover_page.dart';
 import 'package:citusmail/src/features/discover/ui/features.dart';
 import 'package:citusmail/src/features/found/ui/deliveries_page.dart';
@@ -37,17 +38,27 @@ void main() {
     ),
   );
 
+  test('every feature id has its feature; stored names read back', () {
+    expect([for (final f in Features.all) f.id], FeatureId.values);
+    for (final id in FeatureId.values) {
+      expect(FeatureId.parse(id.name), id);
+    }
+    expect(FeatureId.parse('commandBar'), FeatureId.commandBar);
+    expect(FeatureId.parse('ai-sorting'), isNull);
+    expect(FeatureId.parse(''), isNull);
+  });
+
   test('ids are unique; Android-only ones are left out elsewhere', () {
-    final ids = [for (final f in Features.all) f.id];
+    final ids = [for (final f in Features.all) f.id.name];
     expect(ids.toSet(), hasLength(ids.length));
     expect([
-      for (final f in Features.available(android: false)) f.id,
+      for (final f in Features.available(android: false)) f.id.name,
     ], isNot(contains('instantMail')));
     expect([
-      for (final f in Features.available(android: true)) f.id,
+      for (final f in Features.available(android: true)) f.id.name,
     ], containsAll(['instantMail', 'codeTile']));
     expect([
-      for (final f in Features.available(android: false)) f.id,
+      for (final f in Features.available(android: false)) f.id.name,
     ], isNot(contains('codeTile')));
   });
 
@@ -67,7 +78,7 @@ void main() {
     }
     for (final f in Features.available(android: false)) {
       expect(
-        find.byKey(ValueKey('feature-${f.id}')),
+        find.byKey(ValueKey('feature-${f.id.name}')),
         findsOneWidget,
         reason: f.title,
       );

@@ -250,7 +250,7 @@ final class ReadFailures {
 
   final MailStore _store;
 
-  static const key = 'autoRead.failed';
+  static const setting = StringListSetting('autoRead.failed');
 
   /// Failed this often: no longer tried.
   static const giveUpAfter = 3;
@@ -261,7 +261,7 @@ final class ReadFailures {
 
   Map<int, int> _read() {
     final counts = <int, int>{};
-    for (final entry in (_store.settings.read(key) ?? '').split(',')) {
+    for (final entry in setting.read(_store.settings)) {
       final [id, times] = switch (entry.split(':')) {
         [final a, final b] => [int.tryParse(a), int.tryParse(b)],
         _ => [null, null],
@@ -288,9 +288,8 @@ final class ReadFailures {
     final kept = entries.skip(
       entries.length > keep ? entries.length - keep : 0,
     );
-    _store.settings.write(
-      key,
-      [for (final MapEntry(:key, :value) in kept) '$key:$value'].join(','),
-    );
+    setting.write(_store.settings, [
+      for (final MapEntry(:key, :value) in kept) '$key:$value',
+    ]);
   }
 }

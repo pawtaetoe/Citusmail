@@ -206,11 +206,17 @@ void main() {
 
   test('code clean-up: the agreement travels only with its rule', () {
     final phoneCleanup = CodeCleanupSettings(phone.store);
-    expect(SyncedPreferences.codeCleanupAge, CodeCleanupSettings.ageKey);
-    expect(SyncedPreferences.codeCleanupAction, CodeCleanupSettings.actionKey);
+    expect(
+      SyncedPreferences.codeCleanupAge,
+      CodeCleanupSettings.ageSetting.key,
+    );
+    expect(
+      SyncedPreferences.codeCleanupAction,
+      CodeCleanupSettings.actionSetting.key,
+    );
     expect(
       SyncedPreferences.codeCleanupConsent,
-      CodeCleanupSettings.consentKey,
+      CodeCleanupSettings.consentSetting.key,
     );
 
     phoneCleanup.action = CodeCleanupAction.trash;
@@ -229,7 +235,7 @@ void main() {
     // A rule changed later where the user never agreed: the others ask
     // again rather than move mail on an agreement to another rule.
     tablet.store.settings.write(
-      CodeCleanupSettings.ageKey,
+      CodeCleanupSettings.ageSetting.key,
       CodeCleanupAge.week.storageName,
       at: DateTime.now().add(const Duration(minutes: 1)),
     );
@@ -241,7 +247,7 @@ void main() {
   });
 
   test('the Keep list merges additions and removals per sender', () {
-    const kept = SyncedPreferences.keptSenders;
+    final kept = SyncedPreferences.keptSenders.key;
     phone.store.settings.write(
       kept,
       'mum@family.example,news@shop.example',

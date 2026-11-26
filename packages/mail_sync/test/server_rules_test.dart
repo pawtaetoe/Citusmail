@@ -294,7 +294,7 @@ void main() {
     });
 
     test('on: stored and activated once; again only after a change', () async {
-      store.settings.write(ServerRules.settingKey, 'on');
+      store.settings.write(ServerRules.setting.key, 'on');
       store.blocks.block(BlockKind.address, 'pest@x.example');
       final first = await rules().run(account);
       expect(first!.state, ServerRulesState.active);
@@ -323,7 +323,7 @@ void main() {
     });
 
     test('another active script is left alone', () async {
-      store.settings.write(ServerRules.settingKey, 'on');
+      store.settings.write(ServerRules.setting.key, 'on');
       store.blocks.block(BlockKind.address, 'pest@x.example');
       server
         ..scripts['roundcube'] = 'keep;'
@@ -336,7 +336,7 @@ void main() {
     });
 
     test('turned off, or nothing left: the script is removed', () async {
-      store.settings.write(ServerRules.settingKey, 'on');
+      store.settings.write(ServerRules.setting.key, 'on');
       final block = store.blocks.block(BlockKind.address, 'pest@x.example');
       await rules().run(account);
       expect(server.active, ServerRules.scriptName);
@@ -352,14 +352,14 @@ void main() {
       store.blocks.block(BlockKind.address, 'pest@x.example');
       await rules().run(account);
       expect(server.active, ServerRules.scriptName);
-      store.settings.write(ServerRules.settingKey, 'off');
+      store.settings.write(ServerRules.setting.key, 'off');
       expect(await rules().run(account), isNull);
       expect(server.scripts, isEmpty);
       expect(rules().status(account.id), isNull);
     });
 
     test('a server without ManageSieve is asked again after a day', () async {
-      store.settings.write(ServerRules.settingKey, 'on');
+      store.settings.write(ServerRules.setting.key, 'on');
       store.blocks.block(BlockKind.address, 'pest@x.example');
       var attempts = 0;
       final unsupported = ServerRules(store, (account) async {

@@ -95,7 +95,7 @@ void main() {
       );
       expect(model.hiddenOnes.single.title, 'Hair by Mia');
       expect(
-        app.store.settings.read(AppointmentsModel.hiddenKey),
+        app.store.settings.read(AppointmentsModel.hiddenSetting.key),
         contains(salon.key),
       );
       model.unhide(salon.key);

@@ -87,13 +87,40 @@ final class AppDataSync {
   /// Most snapshot messages read in one exchange.
   static const maxMessages = 50;
 
-  static const _accountSetting = 'sync.account';
-  static const _publishedSetting = 'sync.published';
-  static const _statusSetting = 'sync.status';
+  /// The account chosen to carry the data (its id).
+  static const accountSetting = IntSetting('sync.account');
+
+  /// What this device last stored in the folder, summed up.
+  static const publishedSetting = StringSetting('sync.published');
+
+  /// How the last exchange went.
+  static const statusSetting = JsonSetting<AppDataSyncStatus?>(
+    'sync.status',
+    fallback: null,
+    fromJson: _statusFromJson,
+    toJson: _statusToJson,
+  );
 
   /// What the last exchange left: the folder's counters and this
   /// device's data, summed up.
-  static const _exchangedSetting = 'sync.exchanged';
+  static const exchangedSetting = StringSetting('sync.exchanged');
+
+  static AppDataSyncStatus _statusFromJson(Object? json) {
+    final map = json! as Map<String, Object?>;
+    return AppDataSyncStatus(
+      at: DateTime.fromMillisecondsSinceEpoch(map['at']! as int, isUtc: true),
+      devices: map['devices'] as int? ?? 0,
+      unreadable: map['unreadable'] as int? ?? 0,
+      problem: map['problem'] as String?,
+    );
+  }
+
+  static Object? _statusToJson(AppDataSyncStatus? status) => {
+    'at': status!.at.millisecondsSinceEpoch,
+    'devices': status.devices,
+    'unreadable': status.unreadable,
+    'problem': ?status.problem,
+  };
 
   /// The account whose mailbox carries the data: the one chosen, else the
   /// first account.
@@ -102,42 +129,26 @@ final class AppDataSync {
   /// [account], for code without an [AppDataSync] (the settings screen).
   static Account? accountIn(MailStore store) {
     final all = store.accounts.all();
-    final chosen = int.tryParse(store.settings.read(_accountSetting) ?? '');
+    final chosen = accountSetting.readOrNull(store.settings);
     return all.where((a) => a.id == chosen).firstOrNull ?? all.firstOrNull;
   }
 
   static void chooseAccount(MailStore store, Account account) =>
-      store.settings.write(_accountSetting, '${account.id}');
+      accountSetting.write(store.settings, account.id);
 
   /// How the last exchange went, or null if none happened yet.
-  static AppDataSyncStatus? statusIn(MailStore store) {
-    final text = store.settings.read(_statusSetting);
-    if (text == null) return null;
-    try {
-      final json = jsonDecode(text) as Map<String, Object?>;
-      return AppDataSyncStatus(
-        at: DateTime.fromMillisecondsSinceEpoch(
-          json['at']! as int,
-          isUtc: true,
-        ),
-        devices: json['devices'] as int? ?? 0,
-        unreadable: json['unreadable'] as int? ?? 0,
-        problem: json['problem'] as String?,
-      );
-    } on Object {
-      return null;
-    }
-  }
+  static AppDataSyncStatus? statusIn(MailStore store) =>
+      statusSetting.read(store.settings);
 
   /// Records a failed exchange (the sync of mail itself went on).
-  void recordProblem(String problem) => _store.settings.write(
-    _statusSetting,
-    jsonEncode({
-      'at': _now().toUtc().millisecondsSinceEpoch,
-      'devices': statusIn(_store)?.devices ?? 0,
-      'unreadable': 0,
-      'problem': problem,
-    }),
+  void recordProblem(String problem) => statusSetting.write(
+    _store.settings,
+    AppDataSyncStatus(
+      at: _now().toUtc(),
+      devices: statusIn(_store)?.devices ?? 0,
+      unreadable: 0,
+      problem: problem,
+    ),
   );
 
   /// Exchanges data over [imap], a logged-in connection of [syncAccount].
@@ -154,7 +165,7 @@ final class AppDataSync {
     // Nothing changed here or on the server since the last exchange?
     if (_existingFolder(syncAccount) case final existing?) {
       final state = await _state(imap, existing, syncAccount, keys.syncId);
-      if (_store.settings.read(_exchangedSetting) == state) {
+      if (exchangedSetting.readOrNull(_store.settings) == state) {
         final last = statusIn(_store);
         final devices = last?.devices ?? 1;
         final unreadable = last?.unreadable ?? 0;
@@ -229,7 +240,7 @@ final class AppDataSync {
     final fingerprint = '${keys.syncId}:${_fingerprint(records)}';
     var published = false;
     if (ours.isEmpty ||
-        _store.settings.read(_publishedSetting) != fingerprint) {
+        publishedSetting.readOrNull(_store.settings) != fingerprint) {
       final snapshot = SyncSnapshot(
         device: me,
         createdAt: now,
@@ -241,7 +252,7 @@ final class AppDataSync {
         flags: const {r'\Seen'},
       );
       await _remove(imap, ours);
-      _store.settings.write(_publishedSetting, fingerprint);
+      publishedSetting.write(_store.settings, fingerprint);
       published = true;
     }
     // This device's messages from an earlier code are of no use now. (The
@@ -258,8 +269,8 @@ final class AppDataSync {
     ]);
 
     _writeStatus(devices: remote.length + 1, unreadable: unreadable);
-    _store.settings.write(
-      _exchangedSetting,
+    exchangedSetting.write(
+      _store.settings,
       await _state(imap, folder, syncAccount, keys.syncId),
     );
     return AppDataSyncReport(
@@ -284,20 +295,20 @@ final class AppDataSync {
       );
       await _remove(imap, mine.matches.toList());
     }
-    _store.settings.delete(_publishedSetting);
-    _store.settings.delete(_statusSetting);
-    _store.settings.delete(_exchangedSetting);
+    publishedSetting.clear(_store.settings);
+    statusSetting.clear(_store.settings);
+    exchangedSetting.clear(_store.settings);
     _store.appDataSync.reset();
   }
 
   void _writeStatus({required int devices, required int unreadable}) =>
-      _store.settings.write(
-        _statusSetting,
-        jsonEncode({
-          'at': _now().toUtc().millisecondsSinceEpoch,
-          'devices': devices,
-          'unreadable': unreadable,
-        }),
+      statusSetting.write(
+        _store.settings,
+        AppDataSyncStatus(
+          at: _now().toUtc(),
+          devices: devices,
+          unreadable: unreadable,
+        ),
       );
 
   /// The folder's counters (STATUS) and a digest of this device's data:

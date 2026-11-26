@@ -6,6 +6,10 @@ import 'dart:math' as math;
 
 import 'package:mail_store/mail_store.dart';
 
+import 'command_id.dart';
+
+export 'command_id.dart';
+
 /// How well a typed text matches a command's name: forgiving, so people
 /// find things the way they think of them. Words can come in any order,
 /// match from their start, ignore case and accents, and survive a small
@@ -164,18 +168,22 @@ final class CommandHistory {
 
   final MailStore _store;
 
-  static const key = 'commandBar.recent';
+  static const setting = StringListSetting('commandBar.recent');
   static const size = 8;
 
-  List<String> get ids => [
-    for (final id in (_store.settings.read(key) ?? '').split(','))
-      if (id.isNotEmpty) id,
+  /// The commands, newest first; ids this version doesn't know (from
+  /// another version) are left out.
+  List<CommandId> get ids => [
+    for (final id in setting.read(_store.settings)) ?CommandId.parse(id),
   ];
 
-  /// [id] was just used: it moves to the front.
-  void used(String id) {
+  /// [command] was just used: it moves to the front. Ids this version
+  /// doesn't know are kept as they are.
+  void used(CommandId command) {
+    final id = command.id;
     if (id.isEmpty || id.contains(',')) return;
-    final list = [id, ...ids.where((i) => i != id)];
-    _store.settings.write(key, list.take(size).join(','));
+    final stored = setting.read(_store.settings);
+    final list = [id, ...stored.where((i) => i != id)];
+    setting.write(_store.settings, list.take(size).toList());
   }
 }

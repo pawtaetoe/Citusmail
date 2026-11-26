@@ -80,7 +80,7 @@ void main() {
 
   test('the Keep list notes each sender, and removals', () {
     store().settings.write(
-      SyncedPreferences.keptSenders,
+      SyncedPreferences.keptSenders.key,
       'mum@family.example,news@shop.example',
       at: monday,
     );
@@ -89,7 +89,7 @@ void main() {
       'news@shop.example',
     ]);
     store().settings.write(
-      SyncedPreferences.keptSenders,
+      SyncedPreferences.keptSenders.key,
       'mum@family.example',
       at: monday.add(const Duration(minutes: 5)),
     );
@@ -132,6 +132,65 @@ void main() {
     expect(store().settings.read('tips.off'), 'off');
     // Never newer than the change it came from.
     expect(prefs().changedAt('tips.off'), wednesday);
+  });
+
+  test('the synced keys, pinned: renaming one stops it syncing', () {
+    expect(SyncedPreferences.all.toList(), [
+      'screener.since',
+      'inbox.newSinceAway',
+      'inbox.summaryLine',
+      'autoRead.on',
+      'learning.on',
+      'reminders.on',
+      'reminders.monthly',
+      'followUps.notify',
+      'codes.cleanup',
+      'cleanup.kept',
+      'writing.hints',
+      'tips.off',
+    ]);
+    for (final key in [
+      'codes.cleanup.age',
+      'codes.cleanup.action',
+      'codes.cleanup.consent',
+    ]) {
+      expect(SyncedPreferences.preferenceOf(key), 'codes.cleanup');
+    }
+    expect(SyncedPreferences.preferenceOf('codes.cleanup'), isNull);
+    expect(SyncedPreferences.preferenceOf('codes.cleanup.lastRun'), isNull);
+  });
+
+  test('the typed synced settings keep their old defaults', () {
+    final s = store().settings;
+    const onByDefault = [
+      SyncedPreferences.newSinceAway,
+      SyncedPreferences.summaryLine,
+      SyncedPreferences.autoRead,
+      SyncedPreferences.learnFromCorrections,
+      SyncedPreferences.reminders,
+      SyncedPreferences.followUpNotifications,
+      SyncedPreferences.writingHints,
+    ];
+    for (final setting in onByDefault) {
+      expect(setting.read(s), isTrue, reason: setting.key);
+      s.write(setting.key, 'off'); // as the old code wrote it
+      expect(setting.read(s), isFalse, reason: setting.key);
+      s.write(setting.key, 'on');
+      expect(setting.read(s), isTrue, reason: setting.key);
+    }
+    for (final setting in [
+      SyncedPreferences.monthlyRenewals,
+      SyncedPreferences.tipsOff,
+    ]) {
+      expect(setting.read(s), isFalse, reason: setting.key);
+      s.write(setting.key, 'on');
+      expect(setting.read(s), isTrue, reason: setting.key);
+    }
+    s.write('cleanup.kept', 'a@example.com,b@example.com');
+    expect(SyncedPreferences.keptSenders.read(s), [
+      'a@example.com',
+      'b@example.com',
+    ]);
   });
 
   test('a preference this device does not sync is never applied', () {

@@ -152,13 +152,13 @@ void main() {
 
     test('leaving survives the app being closed', () {
       away().wentAway(_left);
-      expect(store().settings.read(NewSinceAway.awayKey), isNotNull);
+      expect(store().settings.read(NewSinceAway.awaySetting.key), isNotNull);
       // A fresh start reads what was kept, and forgets it.
       NewSinceAway.clock = () => _back;
       final a = away();
       expect(a.cameBack(), isTrue);
       expect(a.window!.since, _left);
-      expect(store().settings.read(NewSinceAway.awayKey), isNull);
+      expect(store().settings.read(NewSinceAway.awaySetting.key), isNull);
     });
 
     test('a long day back: later mail is not paged through', () {
