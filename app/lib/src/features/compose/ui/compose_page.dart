@@ -8,6 +8,7 @@ import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_store/mail_store.dart' show SignOff;
 
+import '../../../core/state/validation.dart';
 import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
@@ -16,6 +17,7 @@ import '../../ai/ui/ai_confirm_dialog.dart';
 import '../../inbox/ui/mail_shell.dart';
 import '../../organise/ui/follow_up_sheet.dart';
 import '../state/compose_controller.dart';
+import '../state/compose_fields.dart';
 import '../state/writing_hints.dart';
 import 'recipient_field.dart';
 import 'send_later_sheet.dart';
@@ -26,9 +28,18 @@ import 'writing_sheet.dart';
 /// The compose window. Closing it keeps the draft (in the Drafts folder);
 /// it returns a [ComposeResult] to whoever opened it.
 final class ComposePage extends StatefulWidget {
-  const ComposePage({super.key, required this.controller});
+  const ComposePage({
+    super.key,
+    required this.controller,
+    this.pickFiles = _openFiles,
+  });
 
   final ComposeController controller;
+
+  /// Asks the user for files to attach (tests replace it).
+  final Future<List<XFile>> Function() pickFiles;
+
+  static Future<List<XFile>> _openFiles() => openFiles();
 
   /// From this window width the fields are a bounded column in the
   /// middle; narrower windows use the full width.
@@ -200,21 +211,39 @@ final class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _attach() async {
-    final files = await openFiles();
-    if (files.isEmpty) return;
+    final files = await widget.pickFiles();
+    if (files.isEmpty || !mounted) return;
     final added = <DraftAttachment>[];
+    final refused = <String>[];
+    var total = _c.draft.attachmentBytes;
     for (final file in files) {
-      final bytes = await file.readAsBytes();
-      added.add(
-        DraftAttachment(
-          fileName: file.name,
-          mimeType: _mimeType(file.name),
-          bytes: bytes,
-        ),
-      );
+      // The size first: a file too large to send is never read.
+      switch (ComposeFields.attachment(
+        file.name,
+        await file.length(),
+        alreadyAttached: total,
+      )) {
+        case Invalid(:final reason):
+          refused.add(reason);
+        case Valid(value: final name):
+          final bytes = await file.readAsBytes();
+          total += bytes.length;
+          added.add(
+            DraftAttachment(
+              fileName: name,
+              mimeType: _mimeType(name),
+              bytes: bytes,
+            ),
+          );
+      }
     }
-    _c.addAttachments(added);
+    if (!mounted) return;
+    setState(() => _attachProblem = refused.isEmpty ? null : refused.join(' '));
+    if (added.isNotEmpty) _c.addAttachments(added);
   }
+
+  /// Files that couldn't be attached, and why.
+  String? _attachProblem;
 
   /// The type from the file name; unknown types are sent as plain data.
   static String _mimeType(String name) {
@@ -465,7 +494,7 @@ final class _ComposePageState extends State<ComposePage> {
                     ),
                   ),
                   const Divider(),
-                  if (_c.problems.isNotEmpty)
+                  if (_c.problems.isNotEmpty || _attachProblem != null)
                     Container(
                       color: theme.colorScheme.errorContainer,
                       padding: const EdgeInsets.symmetric(
@@ -473,7 +502,10 @@ final class _ComposePageState extends State<ComposePage> {
                         vertical: 10,
                       ),
                       child: Text(
-                        _c.problems.map(_problem).join(' '),
+                        [
+                          ..._c.problems.map(_problem),
+                          ?_attachProblem,
+                        ].join(' '),
                         style: TextStyle(
                           color: theme.colorScheme.onErrorContainer,
                         ),

@@ -15,7 +15,9 @@ import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../../../background/background_mail.dart';
+import '../../../core/state/validation.dart';
 import '../../../services/app_services.dart';
+import '../../compose/state/compose_fields.dart';
 import '../../compose/state/send_later_times.dart';
 import '../../organise/state/follow_up_times.dart';
 import '../../reader/state/invitation_answers.dart';
@@ -1574,16 +1576,14 @@ final class MailController {
     final accountId =
         selected?.accountId ?? _store.accounts.all().firstOrNull?.id;
     if (accountId == null) return;
-    final parsed = const AddressParser().parse(
-      Uri.decodeComponent(mailto.path),
-    );
-    onCompose?.call(
-      Draft(
-        accountId: accountId,
-        to: parsed.mailboxes,
-        subject: mailto.queryParameters['subject'] ?? '',
-      ),
-    );
+    switch (MailtoLink.parse(mailto)) {
+      case Valid(value: final link):
+        onCompose?.call(
+          Draft(accountId: accountId, to: link.to, subject: link.subject),
+        );
+      case Invalid(:final reason):
+        onNotice?.call(reason);
+    }
   }
 
   void reply(ReaderReady r) =>

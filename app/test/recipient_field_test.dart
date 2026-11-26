@@ -121,5 +121,43 @@ void main() {
       expect(commit('j@x.example a@y.example'), isNull);
       expect(commit('John Doe'), isNull);
     });
+
+    test('IDN domains are kept; addresses mail can\'t go to say why', () {
+      expect(commit('Jürgen <j@münchen.de>'), ['Jürgen <j@münchen.de>']);
+      final list = RecipientList(const [])..pending = 'jürgen@example.com';
+      expect(list.commit(), isFalse);
+      expect(list.problem, contains('before the @'));
+      expect(list.invalid, 'jürgen@example.com');
+      // One of several: which one is named.
+      list.pending = 'a@x.example, jürgen@example.com';
+      expect(list.commit(), isFalse);
+      expect(list.problem, startsWith('jürgen@example.com: '));
+      expect(list.addresses, isEmpty, reason: 'nothing added from the list');
+      list.pending = 'a@x.example';
+      expect(list.problem, isNull, reason: 'typing clears it');
+    });
+
+    test('a pasted list is bounded', () {
+      final many = [for (var i = 0; i <= 500; i++) 'p$i@x.example'].join(', ');
+      final list = RecipientList(const [])..pending = many;
+      expect(list.commit(), isFalse);
+      expect(list.problem, 'At most 500 addresses in one field.');
+      list.pending = 'a@x.example, ' * 10000;
+      expect(list.commit(), isFalse);
+      expect(list.problem, 'That is more text than a list of addresses.');
+      expect(list.addresses, isEmpty);
+    });
+  });
+
+  testWidgets('the reason shows under the field', (tester) async {
+    final list = await show(tester);
+    await tester.enterText(find.byType(TextField).first, 'jürgen@example.com,');
+    await tester.pump();
+    expect(list.addresses, isEmpty);
+    expect(find.textContaining('before the @'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).first, 'nope,');
+    await tester.pump();
+    expect(find.text('Not an email address'), findsOneWidget);
+    await tester.pump(RecipientField.pause);
   });
 }

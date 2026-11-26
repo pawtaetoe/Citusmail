@@ -142,7 +142,9 @@ final class _RecipientFieldState extends State<RecipientField> {
                               isDense: true,
                               errorText: widget.list.invalid == null
                                   ? null
-                                  : 'Not an email address',
+                                  : widget.list.problem ??
+                                        'Not an email address',
+                              errorMaxLines: 3,
                             ),
                           ),
                       optionsViewBuilder: (context, onSelected, options) =>

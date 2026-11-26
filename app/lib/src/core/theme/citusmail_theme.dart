@@ -124,10 +124,12 @@ abstract final class CitusmailTheme {
   static InputDecoration bareField({
     String? hintText,
     String? errorText,
+    int? errorMaxLines,
     bool isDense = false,
   }) => InputDecoration(
     hintText: hintText,
     errorText: errorText,
+    errorMaxLines: errorMaxLines,
     isDense: isDense,
     filled: false,
     contentPadding: EdgeInsets.symmetric(vertical: isDense ? 8 : 12),
