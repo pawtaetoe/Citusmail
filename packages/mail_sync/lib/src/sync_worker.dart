@@ -155,6 +155,13 @@ final class SyncWorker {
   /// carries on next time.
   Future<int> resortIfNeeded() async => await _request(const _Resort()) as int;
 
+  /// Counts the search words of mail stored by a version without them
+  /// (see [SearchWordsRepository.addPending]), here in the worker so the
+  /// screen never waits for it; returns how many messages were counted.
+  /// An interrupted run carries on next time.
+  Future<int> countSearchWords() async =>
+      await _request(const _CountSearchWords()) as int;
+
   /// Loads older mail of a folder; returns how many messages were added.
   Future<int> fetchOlder(int mailboxId, {int count = 100}) async =>
       await _request(_FetchOlder(mailboxId, count)) as int;
@@ -375,6 +382,16 @@ Future<void> _workerMain(_Boot boot) async {
           pause: const Duration(milliseconds: 5),
           stopped: () => closing,
         );
+      case _CountSearchWords():
+        // Batches of 500 with a short gap, as for re-sorting.
+        var counted = 0;
+        while (!closing) {
+          final added = store.searchWords.addPending(limit: 500);
+          if (added == 0) break;
+          counted += added;
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        return counted;
       case _AccountsChanged():
         for (final account in store.accounts.all()) {
           await engine.accountChanged(account.id);
@@ -601,6 +618,10 @@ final class _LoadBody extends _Command {
 
 final class _Resort extends _Command {
   const _Resort();
+}
+
+final class _CountSearchWords extends _Command {
+  const _CountSearchWords();
 }
 
 final class _LookUpFiles extends _Command {
