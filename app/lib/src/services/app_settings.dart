@@ -38,6 +38,7 @@ final class AppSettings {
   static const _autoRead = 'autoRead.on';
   static const _newSinceAway = 'inbox.newSinceAway';
   static const _summaryLine = 'inbox.summaryLine';
+  static const _writingHints = 'writing.hints';
 
   /// New-mail notifications (on by default).
   bool get notifications => _store.settings.read(_notifications) != 'off';
@@ -88,6 +89,12 @@ final class AppSettings {
   bool get summaryLine => _store.settings.read(_summaryLine) != 'off';
   set summaryLine(bool on) =>
       _store.settings.write(_summaryLine, on ? 'on' : 'off');
+
+  /// Writing hints under the recipients in the compose window (on by
+  /// default): their local time, how quickly they reply, a likely typo.
+  bool get writingHints => _store.settings.read(_writingHints) != 'off';
+  set writingHints(bool on) =>
+      _store.settings.write(_writingHints, on ? 'on' : 'off');
 
   /// Monthly (and weekly) renewals are reminded of too (off by default:
   /// they come every month).

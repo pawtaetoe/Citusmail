@@ -22,7 +22,7 @@ void main() {
   tearDown(() => app.dispose());
 
   void desktop(WidgetTester tester) {
-    tester.view.physicalSize = const Size(1400, 3600);
+    tester.view.physicalSize = const Size(1400, 4000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
   }

@@ -262,6 +262,7 @@ final class WhatSyncs extends StatelessWidget {
     'The Screener on or off, New since you were away, the summary line',
     'Reading receipts and bookings ahead, and learning from corrections',
     'Bill and trial reminders, monthly renewals and follow-up reminders',
+    'Writing hints on or off',
     'Clean-up of old codes, and Clean up\'s Keep list',
     'Tips switched off',
   ];
