@@ -459,4 +459,77 @@ const List<Migration> schemaMigrations = [
     INSERT OR IGNORE INTO message_references (message_id, ref)
       SELECT message_id, ref FROM split WHERE length(ref) > 0''',
   ]),
+
+  // Forgiving search: the words of subjects and sender names, with how
+  // many messages have each, so a typo can be corrected to a word that is
+  // in the user's mail. An index of each word's trigrams finds the words
+  // close to a typed one. The SQL function `search_words_of` (added by
+  // MailDatabase) gives a message's words.
+  //
+  // New mail is listed in `search_words_new` and counted with the rest of
+  // its batch (SearchWordsRepository.addNew), which is cheaper than one
+  // message at a time. Mail stored before this version is counted in the
+  // background, in batches: messages with an id up to
+  // `search_words_pending.below` are not counted yet.
+  Migration(17, [
+    '''
+    CREATE TABLE search_words (
+      id INTEGER PRIMARY KEY,
+      word TEXT NOT NULL UNIQUE,
+      count INTEGER NOT NULL
+    ) STRICT''',
+    // rowid = search_words.id; the word as `^^word$$`, so its first and
+    // last letters make trigrams of their own.
+    "CREATE VIRTUAL TABLE search_word_trigrams USING fts5 (word, tokenize = 'trigram', content = '', contentless_delete = 1, detail = 'none')",
+    '''
+    CREATE TABLE search_words_new (
+      message_id INTEGER PRIMARY KEY
+    ) STRICT''',
+    '''
+    CREATE TABLE search_words_pending (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      below INTEGER NOT NULL
+    ) STRICT''',
+    'INSERT INTO search_words_pending (id, below) SELECT 1, coalesce(max(id), 0) FROM messages',
+    r"""
+    CREATE TRIGGER search_words_added AFTER INSERT ON search_words BEGIN
+      INSERT INTO search_word_trigrams (rowid, word) VALUES (new.id, '^^' || new.word || '$$');
+    END""",
+    // A word no message has any more is forgotten.
+    '''
+    CREATE TRIGGER search_words_unused AFTER UPDATE OF count ON search_words
+    WHEN new.count <= 0 BEGIN
+      DELETE FROM search_word_trigrams WHERE rowid = old.id;
+      DELETE FROM search_words WHERE id = old.id;
+    END''',
+    '''
+    CREATE TRIGGER messages_words_insert AFTER INSERT ON messages
+    WHEN new.id > (SELECT below FROM search_words_pending) BEGIN
+      INSERT OR IGNORE INTO search_words_new (message_id) VALUES (new.id);
+    END''',
+    '''
+    CREATE TRIGGER messages_words_delete AFTER DELETE ON messages
+    WHEN old.id > (SELECT below FROM search_words_pending) BEGIN
+      UPDATE search_words SET count = count - 1
+        WHERE NOT EXISTS (SELECT 1 FROM search_words_new WHERE message_id = old.id)
+        AND word IN (SELECT value FROM json_each(search_words_of(old.subject, old.from_name, old.from_address)));
+      DELETE FROM search_words_new WHERE message_id = old.id;
+    END''',
+    '''
+    CREATE TRIGGER messages_words_update AFTER UPDATE OF subject, from_name, from_address ON messages
+    WHEN old.id > (SELECT below FROM search_words_pending)
+      AND (old.subject IS NOT new.subject OR old.from_name IS NOT new.from_name
+        OR old.from_address IS NOT new.from_address)
+      AND NOT EXISTS (SELECT 1 FROM search_words_new WHERE message_id = old.id) BEGIN
+      UPDATE search_words SET count = count - 1 WHERE word IN
+        (SELECT value FROM json_each(search_words_of(old.subject, old.from_name, old.from_address)))
+        AND word NOT IN
+        (SELECT value FROM json_each(search_words_of(new.subject, new.from_name, new.from_address)));
+      INSERT INTO search_words (word, count)
+        SELECT value, 1 FROM json_each(search_words_of(new.subject, new.from_name, new.from_address))
+        WHERE value NOT IN
+          (SELECT value FROM json_each(search_words_of(old.subject, old.from_name, old.from_address)))
+        ON CONFLICT (word) DO UPDATE SET count = count + 1;
+    END''',
+  ]),
 ];

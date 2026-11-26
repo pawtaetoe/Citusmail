@@ -100,6 +100,10 @@ final class MessageListModel extends ChangeNotifier {
   /// Every other view: one list.
   List<StoredMessage> messages = const [];
 
+  /// Search: what was searched for instead, when some of [messages] were
+  /// found with typos corrected ("receive" for "recieve").
+  String? searchCorrection;
+
   /// Snoozed: when each message comes back, by Message-ID.
   Map<String, DateTime> snoozedUntil = const {};
   bool reachedEnd = false;
@@ -171,8 +175,13 @@ final class MessageListModel extends ChangeNotifier {
       snoozedUntil = {
         for (final s in snoozed) s.snooze.messageId: s.snooze.until,
       };
+      searchCorrection = null;
       messages = switch (location) {
-        SearchLocation(:final text) => _store.messages.search(text, limit: 200),
+        SearchLocation(:final text, exact: true) => _store.messages.search(
+          text,
+          limit: 200,
+        ),
+        SearchLocation(:final text) => _searchForgiving(text),
         OutboxLocation() || FollowUpsLocation() => const [],
         SnoozedLocation() => [for (final s in snoozed) s.message],
         _ => _store.messages.list(_query(location, limit: wanted)),
@@ -184,6 +193,12 @@ final class MessageListModel extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  List<StoredMessage> _searchForgiving(String text) {
+    final found = _store.messages.searchForgiving(text, limit: 200);
+    searchCorrection = found.correctedText;
+    return found.messages;
   }
 
   SectionState _loadSection(SectionState state, SectionCount count) {

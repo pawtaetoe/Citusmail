@@ -74,18 +74,20 @@ final class PinsLocation extends MailLocation {
   int get hashCode => (PinsLocation).hashCode;
 }
 
-/// Search results across everything stored.
+/// Search results across everything stored. Typos are corrected when
+/// what was typed finds little, unless [exact] ("Search for … instead").
 final class SearchLocation extends MailLocation {
-  const SearchLocation(this.text);
+  const SearchLocation(this.text, {this.exact = false});
 
   final String text;
+  final bool exact;
 
   @override
   bool operator ==(Object other) =>
-      other is SearchLocation && other.text == text;
+      other is SearchLocation && other.text == text && other.exact == exact;
 
   @override
-  int get hashCode => Object.hash(SearchLocation, text);
+  int get hashCode => Object.hash(SearchLocation, text, exact);
 }
 
 /// Messages waiting to be sent, or that failed.

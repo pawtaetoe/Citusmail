@@ -301,6 +301,16 @@ final class MailController {
     goTo(trimmed.isEmpty ? const InboxLocation() : SearchLocation(trimmed));
   }
 
+  /// Searches for exactly what was typed, without correcting typos.
+  void searchExactly(String text) {
+    final trimmed = text.trim();
+    goTo(
+      trimmed.isEmpty
+          ? const InboxLocation()
+          : SearchLocation(trimmed, exact: true),
+    );
+  }
+
   // --------------------------------------------------------------- lists
 
   /// Shows more of a flat list: stored messages first, then older mail
