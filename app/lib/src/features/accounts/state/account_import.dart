@@ -8,8 +8,10 @@ import 'package:mail_protocol/mail_protocol.dart' show ConnectionSecurity;
 import 'package:mail_setup/mail_setup.dart';
 import 'package:mail_web/mail_web.dart';
 
+import '../../../core/state/validation.dart';
 import '../../../services/app_services.dart';
 import '../../../services/secret_store.dart';
+import 'account_fields.dart';
 import 'setup_controller.dart';
 
 /// Renews an access token with a refresh token.
@@ -129,13 +131,28 @@ final class AccountImport {
         detail: 'Unknown settings.',
       );
     }
+    // Checked as if typed here: the phone's message is not trusted.
+    final email = AccountFields.email(a.email).valueOrNull;
+    final imapHost = AccountFields.host(a.imap.host).valueOrNull;
+    final smtpHost = AccountFields.host(a.smtp.host).valueOrNull;
+    final imapPort = AccountFields.port('${a.imap.port}').valueOrNull;
+    final smtpPort = AccountFields.port('${a.smtp.port}').valueOrNull;
+    final username = AccountFields.username(a.username).valueOrNull;
     final DiscoveredSettings settings;
     try {
+      if (email == null ||
+          imapHost == null ||
+          smtpHost == null ||
+          imapPort == null ||
+          smtpPort == null ||
+          username == null) {
+        throw ArgumentError('unusable settings');
+      }
       settings = DiscoveredSettings(
-        email: a.email,
-        imap: ServerCandidate(a.imap.host, a.imap.port, imapSecurity),
-        smtp: ServerCandidate(a.smtp.host, a.smtp.port, smtpSecurity),
-        username: a.username,
+        email: email,
+        imap: ServerCandidate(imapHost, imapPort, imapSecurity),
+        smtp: ServerCandidate(smtpHost, smtpPort, smtpSecurity),
+        username: username,
         source: DiscoverySource.manual,
       );
     } on ArgumentError {
@@ -145,7 +162,11 @@ final class AccountImport {
         detail: 'Unknown settings.',
       );
     }
-    final name = a.displayName;
+    // A name that can't be used is left out; the account still comes.
+    final name = switch (AccountFields.displayName(a.displayName ?? '')) {
+      Valid(:final value) when value.isNotEmpty => value,
+      _ => null,
+    };
     try {
       switch (a.signIn) {
         case PasswordSignIn(:final password):
@@ -174,7 +195,7 @@ final class AccountImport {
               stored.refreshToken != null &&
               (stored.registration != null ||
                   (client != null && _clients[provider] == client));
-          if (!usable) return _signInHere(known, a);
+          if (!usable) return _signInHere(known, settings.email, name);
           var current = stored;
           final issuer = known.forTokens(stored);
           if (stored.needsRefresh()) {
@@ -184,13 +205,13 @@ final class AccountImport {
                 stored.refreshToken!,
               )).issuedTo(stored.registration);
             } on OAuthException {
-              return _signInHere(known, a);
+              return _signInHere(known, settings.email, name);
             }
           }
           final result = await _verifyOAuth(settings, current.accessToken);
           if (!result.succeeded) {
             if (result.problem == VerificationProblem.credentials) {
-              return _signInHere(known, a);
+              return _signInHere(known, settings.email, name);
             }
             return TransferResult(
               a.email,
@@ -215,8 +236,12 @@ final class AccountImport {
     }
   }
 
-  TransferResult _signInHere(OAuthProvider provider, TransferredAccount a) {
-    signInNeeded.add(SignInNeeded(provider, a.email, a.displayName));
-    return TransferResult(a.email, TransferOutcome.signInOnComputer);
+  TransferResult _signInHere(
+    OAuthProvider provider,
+    String email,
+    String? displayName,
+  ) {
+    signInNeeded.add(SignInNeeded(provider, email, displayName));
+    return TransferResult(email, TransferOutcome.signInOnComputer);
   }
 }
