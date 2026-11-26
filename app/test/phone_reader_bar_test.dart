@@ -33,10 +33,15 @@ void main() {
     );
     await tester.pump();
     await tester.tap(find.text('Hello there'));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
+    // The message is read in another isolate: wait until it is open (on a
+    // busy machine that takes longer than a fixed pause).
+    for (var i = 0; i < 50; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      if (find.byKey(const ValueKey('reply')).evaluate().isNotEmpty) break;
+    }
   }
 
   testWidgets('one bar: Back, Reply, actions, More', (tester) async {
