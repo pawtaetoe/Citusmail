@@ -24,6 +24,7 @@ import '../setup/reconnect.dart';
 import 'app_icons.dart';
 import 'keyboard_shortcuts.dart';
 import 'message_list_pane.dart';
+import 'motion.dart';
 import 'reader_pane.dart';
 import 'reconnect_dialog.dart';
 import 'sidebar.dart';
@@ -125,20 +126,24 @@ final class _MailShellState extends State<MailShell> {
   /// A short notice at the bottom; with [undo], an Undo button.
   void _notice(String text, {VoidCallback? undo}) {
     if (!mounted) return;
+    final width = MediaQuery.sizeOf(context).width > 600 ? 420.0 : null;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(text),
-          behavior: SnackBarBehavior.floating,
-          width: MediaQuery.sizeOf(context).width > 600 ? 420 : null,
-          duration: Duration(seconds: undo == null ? 3 : 5),
-          // With Undo too it goes away after [duration].
-          persist: false,
-          action: undo == null
-              ? null
-              : SnackBarAction(label: 'Undo', onPressed: undo),
-        ),
+        undo == null
+            ? SnackBar(
+                content: Text(text),
+                behavior: SnackBarBehavior.floating,
+                width: width,
+                duration: const Duration(seconds: 3),
+              )
+            : undoSnackBar(
+                content: Text(text),
+                onUndo: undo,
+                behavior: SnackBarBehavior.floating,
+                width: width,
+                duration: const Duration(seconds: 5),
+              ),
       );
   }
 
@@ -324,14 +329,17 @@ final class _MailShellState extends State<MailShell> {
                     _controller.closeMessage();
                   }
                 },
-                child: open
-                    ? ReaderPane(
-                        controller: _controller,
-                        showBack: true,
-                        toolbarAtBottom: true,
-                        replyBar: false,
-                      )
-                    : list,
+                // The row grows into the message, and back.
+                child: OpenTransition(
+                  message: _controller.selected?.id,
+                  list: list,
+                  reader: ReaderPane(
+                    controller: _controller,
+                    showBack: true,
+                    toolbarAtBottom: true,
+                    replyBar: false,
+                  ),
+                ),
               );
             },
           );

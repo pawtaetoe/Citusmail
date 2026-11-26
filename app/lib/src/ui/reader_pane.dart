@@ -32,6 +32,7 @@ import 'image_senders_page.dart';
 import 'invitation_card.dart';
 import 'link_opener.dart';
 import 'mail_text.dart';
+import 'motion.dart';
 import 'move_dialog.dart';
 import 'read_receipt_line.dart';
 import 'rich_document_view.dart';
@@ -82,118 +83,122 @@ final class ReaderPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
     valueListenable: controller.reader,
-    builder: (context, reader, _) {
-      final message = reader.message;
-      if (message == null) return const _NothingOpen();
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!toolbarAtBottom) ...[
-            // Again when an AI feature is turned on or off (Summarise).
-            ListenableBuilder(
-              listenable: controller.services.ai.changes,
-              builder: (context, _) => _Toolbar(
-                controller: controller,
-                reader: reader,
-                message: message,
-                showBack: showBack,
-              ),
+    // Another message: its content eases in.
+    builder: (context, reader, _) =>
+        ReaderFadeIn(id: reader.message?.id, child: _content(context, reader)),
+  );
+
+  Widget _content(BuildContext context, ReaderState reader) {
+    final message = reader.message;
+    if (message == null) return const _NothingOpen();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!toolbarAtBottom) ...[
+          // Again when an AI feature is turned on or off (Summarise).
+          ListenableBuilder(
+            listenable: controller.services.ai.changes,
+            builder: (context, _) => _Toolbar(
+              controller: controller,
+              reader: reader,
+              message: message,
+              showBack: showBack,
             ),
-            const Divider(),
-          ],
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final side = readingMargin(constraints.maxWidth);
-                final padding = EdgeInsets.symmetric(horizontal: side);
-                final view = reader is ReaderReady ? reader.view : null;
-                final trust = reader is ReaderReady ? reader.trust : null;
-                void onLink(Uri link) => LinkOpener.open(
-                  context,
-                  link,
-                  onMailto: controller.composeTo,
-                  trust: trust,
-                  safety: controller.services.linkSafety.check,
-                  virusTotal: controller.services.virusTotal.enabled
-                      ? controller.services.virusTotal.link
-                      : null,
-                );
-                return SelectionArea(
-                  child: CustomScrollView(
-                    key: ValueKey(message.id),
-                    slivers: [
-                      SliverPadding(
-                        padding: padding.copyWith(top: 20),
-                        sliver: SliverToBoxAdapter(
-                          child: _Header(
-                            message: message,
-                            reader: reader,
-                            controller: controller,
-                          ),
+          ),
+          const Divider(),
+        ],
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final side = readingMargin(constraints.maxWidth);
+              final padding = EdgeInsets.symmetric(horizontal: side);
+              final view = reader is ReaderReady ? reader.view : null;
+              final trust = reader is ReaderReady ? reader.trust : null;
+              void onLink(Uri link) => LinkOpener.open(
+                context,
+                link,
+                onMailto: controller.composeTo,
+                trust: trust,
+                safety: controller.services.linkSafety.check,
+                virusTotal: controller.services.virusTotal.enabled
+                    ? controller.services.virusTotal.link
+                    : null,
+              );
+              return SelectionArea(
+                child: CustomScrollView(
+                  key: ValueKey(message.id),
+                  slivers: [
+                    SliverPadding(
+                      padding: padding.copyWith(top: 20),
+                      sliver: SliverToBoxAdapter(
+                        child: _Header(
+                          message: message,
+                          reader: reader,
+                          controller: controller,
                         ),
                       ),
-                      if (view != null)
-                        // Or its translation, as plain text.
-                        TranslatedBody(
-                          controller: controller,
-                          reader: reader,
+                    ),
+                    if (view != null)
+                      // Or its translation, as plain text.
+                      TranslatedBody(
+                        controller: controller,
+                        reader: reader,
+                        padding: padding,
+                        original: SliverPadding(
                           padding: padding,
-                          original: SliverPadding(
-                            padding: padding,
-                            sliver: SliverList.builder(
-                              itemCount: view.body.blocks.length,
-                              itemBuilder: (_, i) => BlockView(
-                                block: view.body.blocks[i],
-                                onLink: onLink,
-                                images:
-                                    reader is ReaderReady &&
-                                        reader.imagesShown &&
-                                        reader.imagesAllowed
-                                    ? controller.services.images.load
-                                    : null,
-                              ),
+                          sliver: SliverList.builder(
+                            itemCount: view.body.blocks.length,
+                            itemBuilder: (_, i) => BlockView(
+                              block: view.body.blocks[i],
+                              onLink: onLink,
+                              images:
+                                  reader is ReaderReady &&
+                                      reader.imagesShown &&
+                                      reader.imagesAllowed
+                                  ? controller.services.images.load
+                                  : null,
                             ),
                           ),
                         ),
-                      SliverPadding(
-                        padding: padding.copyWith(bottom: 40),
-                        sliver: SliverToBoxAdapter(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (view != null &&
-                                  view.attachments.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                _Attachments(
-                                  attachments: view.attachments,
-                                  trust: trust ?? TrustReport.empty,
-                                  virusTotal:
-                                      controller.services.virusTotal.enabled
-                                      ? controller.services.virusTotal.file
-                                      : null,
-                                ),
-                              ],
-                              if (reader is ReaderReady)
-                                QuickReplySection(
-                                  controller: controller,
-                                  reader: reader,
-                                ),
+                      ),
+                    SliverPadding(
+                      padding: padding.copyWith(bottom: 40),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (view != null &&
+                                view.attachments.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              _Attachments(
+                                attachments: view.attachments,
+                                trust: trust ?? TrustReport.empty,
+                                virusTotal:
+                                    controller.services.virusTotal.enabled
+                                    ? controller.services.virusTotal.file
+                                    : null,
+                              ),
                             ],
-                          ),
+                            if (reader is ReaderReady)
+                              QuickReplySection(
+                                controller: controller,
+                                reader: reader,
+                              ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-          if (reader is ReaderReady && replyBar)
-            _ReplyBar(controller: controller, reader: reader),
-        ],
-      );
-    },
-  );
+        ),
+        if (reader is ReaderReady && replyBar)
+          _ReplyBar(controller: controller, reader: reader),
+      ],
+    );
+  }
 }
 
 /// The open message's actions at the bottom of a phone screen, in one
