@@ -72,7 +72,7 @@ abstract final class SettingsCatalog {
     SettingsSection(
       id: 'writing',
       title: 'Writing',
-      description: 'Sign-offs, send later, read receipts and reminders',
+      description: 'Sign-offs, send later, writing hints and reminders',
       icon: AppIcons.compose,
     ),
     SettingsSection(
@@ -179,12 +179,43 @@ abstract final class SettingsCatalog {
       words: ['battery', 'background', 'fetch', 'interval', 'how often'],
       androidOnly: true,
     ),
+    SettingEntry(
+      'codeTile',
+      'notifications',
+      'Add “Latest code” to Quick Settings',
+      words: [
+        'latest code',
+        'quick settings',
+        'tile',
+        'verification code',
+        'one-time code',
+        'otp',
+        'copy code',
+        '2fa',
+      ],
+      androidOnly: true,
+    ),
     // Inbox & sorting.
     SettingEntry(
       'newSinceAway',
       'inbox',
       'New since you were away',
       words: ['away', 'catch up', 'while you were gone', 'back'],
+    ),
+    SettingEntry(
+      'summaryLine',
+      'inbox',
+      'Summary line',
+      words: [
+        'summary',
+        'today',
+        'glance',
+        'overview',
+        'new mail',
+        'code',
+        'parcel',
+        'appointment',
+      ],
     ),
     SettingEntry(
       'screener',
@@ -250,6 +281,20 @@ abstract final class SettingsCatalog {
       'writing',
       'Writing tools',
       words: ['compose', 'send later', 'schedule', 'read receipt', 'remind me'],
+    ),
+    SettingEntry(
+      'writingHints',
+      'writing',
+      'Writing hints',
+      words: [
+        'time zone',
+        'local time',
+        'night',
+        'reply time',
+        'typo',
+        'did you mean',
+        'wrong address',
+      ],
     ),
     // Accounts.
     SettingEntry(
@@ -493,6 +538,13 @@ abstract final class SettingsCatalog {
       'about',
       'All features',
       words: ['discover', 'what can it do', 'help', 'features'],
+    ),
+    SettingEntry(
+      'commandBar',
+      'about',
+      'Command bar (Ctrl+K)',
+      words: ['command', 'palette', 'keyboard', 'shortcuts', 'go to', 'find'],
+      desktopOnly: true,
     ),
     SettingEntry(
       'whatsNew',

@@ -85,7 +85,7 @@ void main() {
   ) async {
     await show(tester);
     await tester.tap(find.text('Newsletters')); // collapsed at first
-    await tester.pump();
+    await tester.pumpAndSettle(); // unfolded
     await tester.tap(find.text('Weekly deals'));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 300)),

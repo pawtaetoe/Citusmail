@@ -35,7 +35,8 @@ Features that understand your mail, such as sorting, finding verification
 codes, phishing checks, the list of your paid subscriptions (found in
 receipts and renewal emails), your deliveries (found in order and
 shipping emails), your trips and appointments (found in booking
-emails), run entirely on the device. The optional AI assistant is the
+emails) and the writing hints while you write, run entirely on the
+device. The optional AI assistant is the
 one exception you can choose: see below.
 
 ## Services the app connects to
@@ -99,7 +100,7 @@ summaries are kept only on your device, encrypted.
 
 Off until you turn it on. Then your blocked senders, Screener decisions,
 snoozed emails, unsubscribes, folder rules, image choices, sign-offs and
-mail-handling preferences (the Screener on or off, "New since you were away", reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off) are kept the same on your devices. They travel
+mail-handling preferences (the Screener on or off, "New since you were away", the summary line, reading receipts and bookings automatically, learning from your corrections, bill and trial reminders and monthly renewals, follow-up reminders, writing hints, clean-up of old codes and your agreement to it, Clean up's Keep list, and whether tips are off) are kept the same on your devices. They travel
 through a folder in **your own mail account**, never through a server of
 ours, and are end-to-end encrypted with a code only your devices hold.
 Other settings stay on each device: notifications, instant mail and
@@ -122,7 +123,7 @@ instead that only that computer can open, while its code is showing.
 | Permission | Why |
 | --- | --- |
 | Internet, network state | To connect to your mail provider |
-| Notifications | To tell you about new mail (sender, subject and, unless you turn previews off, the first lines; on the lock screen only that there is new mail) |
+| Notifications | To tell you about new mail (sender, subject and, unless you turn previews off, the first lines and any verification code; on the lock screen only that there is new mail) |
 | Foreground service, start at boot | To keep a live connection to your mail server ("Instant mail", on unless you turn it off), or check for new mail in the background |
 | Run in the background without battery limits | Asked once, with Android's own dialog, so Instant mail keeps its connection while the phone sleeps |
 | Fingerprint or face unlock | Only if you turn on the app lock; checked by Android, the app only learns "yes" or "no" |
@@ -135,8 +136,10 @@ advertising ID.
 
 Connections to mail servers are encrypted (TLS). Mail and settings on the
 device are stored in an encrypted database whose key is kept in the
-device's secure keychain. Passwords and sign-in tokens are kept only in
-that keychain. Images and trackers in emails are blocked unless you load
+device's secure keychain. While the "Latest code" tile is in Android's
+Quick Settings, the newest verification code, its sender and time are also
+kept, encrypted with a key in the Android Keystore, and dropped at the
+next check for mail once the code is 10 minutes old. Passwords and sign-in tokens are kept only in that keychain. Images and trackers in emails are blocked unless you load
 them, and the app checks messages for signs of phishing on the device.
 
 ## Keeping and deleting your data

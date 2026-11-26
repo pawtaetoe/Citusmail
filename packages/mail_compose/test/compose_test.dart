@@ -131,6 +131,25 @@ void main() {
       expect(draft.quote, contains('> First line\n>\n> Second line'));
     });
 
+    test('a reply to a message without References still names its parent', () {
+      final (_, view) = received();
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 9,
+          receivedAt: DateTime.utc(2026, 10, 20, 9, 1),
+          messageId: 'second@x.example',
+          inReplyTo: 'first@x.example',
+          subject: 'Re: Plans',
+          from: a('bob@x.example', 'Bob'),
+        ),
+      ]);
+      final message = store.messages.byUid(inbox.id, 9)!;
+      final draft = ReplyBuilder(store).reply(message, view);
+      // RFC 5322 3.6.4: the parent's In-Reply-To stands in for its
+      // missing References.
+      expect(draft.references, ['first@x.example', 'second@x.example']);
+    });
+
     test('reply all includes everyone except the user, once each', () {
       final (message, view) = received();
       final draft = ReplyBuilder(store).replyAll(message, view);
@@ -139,6 +158,25 @@ void main() {
         'carol@x.example',
       ]);
       expect(draft.cc.map((x) => x.address), ['dave@x.example']);
+    });
+
+    test('a message from another of the user\'s own accounts is answered '
+        'to that account', () {
+      // Bob's address is also an account in the app; replying from Alice
+      // still goes to him (only the replying account counts as "me").
+      addAccount('bob@x.example', name: 'Bob');
+      addAccount('bob-replies@x.example', name: 'Bob');
+      final (message, view) = received();
+      expect(
+        ReplyBuilder(store).reply(message, view).to.map((x) => x.address),
+        ['bob-replies@x.example'],
+      );
+      final all = ReplyBuilder(store).replyAll(message, view);
+      expect(all.to.map((x) => x.address), [
+        'bob-replies@x.example',
+        'carol@x.example',
+      ]);
+      expect(all.cc.map((x) => x.address), ['dave@x.example']);
     });
 
     test('forward carries attachments and no threading', () {
@@ -159,6 +197,49 @@ void main() {
       expect(draft.quote, contains('First line'));
       expect(draft.attachments.single.fileName, 'plan.txt');
       expect(utf8.decode(draft.attachments.single.bytes), 'the plan');
+    });
+
+    test('forward keeps a photo shown in the text, not a logo', () {
+      final photo = Uint8List.fromList(List.filled(150 * 1024, 7));
+      final logo = Uint8List.fromList(List.filled(3000, 9));
+      final built = MessageBuilder().build(
+        OutgoingMessage(
+          from: a('bob@x.example', 'Bob'),
+          to: [a('alice@citusmail.test')],
+          subject: 'The leak',
+          htmlBody:
+              '<p>Look at this:</p><img src="cid:shot@x.example">'
+              '<p>Bob</p><img src="cid:logo@x.example">',
+          attachments: [
+            OutgoingAttachment(
+              filename: 'image001.png',
+              mimeType: 'image/png',
+              bytes: photo,
+              contentId: 'shot@x.example',
+            ),
+            OutgoingAttachment(
+              filename: 'logo.png',
+              mimeType: 'image/png',
+              bytes: logo,
+              contentId: 'logo@x.example',
+            ),
+          ],
+        ),
+      );
+      store.messages.upsertSummaries(inbox.id, [
+        MessageSummary(
+          uid: 8,
+          receivedAt: DateTime.utc(2026, 10, 20, 9, 1),
+          subject: 'The leak',
+          from: a('bob@x.example', 'Bob'),
+        ),
+      ]);
+      final message = store.messages.byUid(inbox.id, 8)!;
+      final view = MessageView.parse(built.bytes);
+      final draft = ReplyBuilder(store).forward(message, view);
+      expect(draft.quote, contains('Look at this:'));
+      expect(draft.attachments.map((f) => f.fileName), ['image001.png']);
+      expect(draft.attachments.single.bytes, photo);
     });
   });
 

@@ -2,8 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
+
 import 'package:background_clipboard/background_clipboard.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:mail_store/mail_store.dart';
 
@@ -13,6 +16,8 @@ import 'avatar.dart';
 import 'badge.dart';
 import 'citusmail_theme.dart';
 import 'mail_text.dart';
+import 'motion.dart';
+import 'peek.dart';
 import 'snooze_sheet.dart';
 
 /// One message in a list: the sender's initials, sender, time, subject and
@@ -22,7 +27,10 @@ import 'snooze_sheet.dart';
 /// - Click opens; Ctrl/Cmd-click or the checkbox selects; Shift-click
 ///   selects a range.
 /// - On hover (desktop): archive, delete, snooze, pin and read buttons.
-/// - On touch: swipe right to archive, left to delete; long-press selects.
+/// - On touch: swipe right to archive, left to delete; a tap on the
+///   avatar selects.
+/// - Press and hold, or Space on the row in focus: a peek ([Peek]); the
+///   email stays unread.
 /// - Right-click or the menu key: the same actions in a menu.
 final class MessageTile extends StatefulWidget {
   const MessageTile({
@@ -72,8 +80,35 @@ final class MessageTile extends StatefulWidget {
 final class _MessageTileState extends State<MessageTile> {
   bool _hovered = false;
 
+  /// Just read: the unread dot fades out instead of going at once.
+  bool _dotFading = false;
+
+  /// A finger is on the row (so a swipe is the user's, not the row
+  /// sliding back).
+  bool _swiping = false;
+
+  @override
+  void didUpdateWidget(MessageTile old) {
+    super.didUpdateWidget(old);
+    final seen = widget.message.flags.seen;
+    if (seen != old.message.flags.seen) _dotFading = seen;
+  }
+
   StoredMessage get _m => widget.message;
   MailController get _c => widget.controller;
+
+  static const _peekAction = CustomSemanticsAction(label: 'Peek');
+
+  /// A look without opening it, beside the row on wider screens.
+  void _peek() {
+    final box = context.findRenderObject() as RenderBox?;
+    final anchor = box == null || !box.hasSize
+        ? null
+        : box.localToGlobal(Offset.zero) & box.size;
+    unawaited(Peek.show(context, _c, _m, anchor: anchor));
+  }
+
+  void _select() => _toggleSelected();
 
   bool get _touch => switch (Theme.of(context).platform) {
     TargetPlatform.android || TargetPlatform.iOS => true,
@@ -87,10 +122,19 @@ final class _MessageTileState extends State<MessageTile> {
     } else if (widget.selecting ||
         keys.isControlPressed ||
         keys.isMetaPressed) {
-      _c.toggleSelected(_m);
+      _toggleSelected();
     } else {
+      // Phones: the row grows into the message.
+      OpenTransition.growFrom(context, _m.id);
       _c.open(_m);
     }
+  }
+
+  /// Selects or unselects it, with a click under the finger on touch
+  /// (not after a long press, which has the system's own buzz).
+  void _toggleSelected({bool click = true}) {
+    if (click && _touch) unawaited(HapticFeedback.selectionClick());
+    _c.toggleSelected(_m);
   }
 
   @override
@@ -110,8 +154,20 @@ final class _MessageTileState extends State<MessageTile> {
         ? theme.hoverColor
         : Colors.transparent;
 
+    final dot = Center(
+      child: Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          color: listColors.unreadDot,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+
     final row = Semantics(
       selected: widget.open || widget.checked,
+      customSemanticsActions: {_peekAction: _peek},
       label: [
         if (unread) 'Unread',
         if (_m.flags.flagged) 'Pinned',
@@ -131,80 +187,119 @@ final class _MessageTileState extends State<MessageTile> {
         onExit: (_) => setState(() => _hovered = false),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-          child: Material(
-            color: background,
-            borderRadius: BorderRadius.circular(CitusmailTheme.radius),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: _tap,
-              onLongPress: () => _c.toggleSelected(_m),
-              onSecondaryTapUp: (d) => _menu(d.globalPosition),
-              child: Stack(
-                // Rows share one height (the list builds them fast that
-                // way); a row with less to show sits in the middle of its
-                // slot, so short rows don't leave a gap above the next
-                // section.
-                alignment: AlignmentDirectional.centerStart,
-                children: [
-                  // The open row: a bar at its left, as in the sidebar,
-                  // so it is marked by more than its tint.
-                  if (widget.open)
-                    Positioned(
-                      key: const ValueKey('open-row-bar'),
-                      left: 0,
-                      top: 9,
-                      bottom: 9,
-                      child: Container(
-                        width: 3,
-                        decoration: BoxDecoration(
-                          color: listColors.indicator,
-                          borderRadius: BorderRadius.circular(
-                            CitusmailTheme.radiusMark,
+          // Space peeks; Enter opens, as a tap does.
+          child: Shortcuts(
+            shortcuts: const {
+              SingleActivator(LogicalKeyboardKey.space): _PeekIntent(),
+            },
+            child: Actions(
+              actions: {
+                _PeekIntent: CallbackAction<_PeekIntent>(
+                  onInvoke: (_) {
+                    _peek();
+                    return null;
+                  },
+                ),
+              },
+              child: Material(
+                color: background,
+                borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: _tap,
+                  onLongPress: _peek,
+                  onSecondaryTapUp: (d) => _menu(d.globalPosition),
+                  child: Stack(
+                    // Rows share one height (the list builds them fast that
+                    // way); a row with less to show sits in the middle of its
+                    // slot, so short rows don't leave a gap above the next
+                    // section.
+                    alignment: AlignmentDirectional.centerStart,
+                    children: [
+                      // The open row: a bar at its left, as in the sidebar,
+                      // so it is marked by more than its tint.
+                      if (widget.open)
+                        Positioned(
+                          key: const ValueKey('open-row-bar'),
+                          left: 0,
+                          top: 9,
+                          bottom: 9,
+                          child: Container(
+                            width: 3,
+                            decoration: BoxDecoration(
+                              color: listColors.indicator,
+                              borderRadius: BorderRadius.circular(
+                                CitusmailTheme.radiusMark,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Unread: a dot beside the avatar, and bold text.
-                        SizedBox(
-                          width: 16,
-                          height: 36,
-                          child: unread
-                              ? Center(
-                                  child: Container(
-                                    width: 7,
-                                    height: 7,
-                                    decoration: BoxDecoration(
-                                      color: listColors.unreadDot,
-                                      shape: BoxShape.circle,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Unread: a dot beside the avatar, and bold text.
+                            SizedBox(
+                              width: 10,
+                              height: 36,
+                              child: unread
+                                  ? dot
+                                  : _dotFading && !CitusMotion.reduced(context)
+                                  ? FadeAway(child: dot)
+                                  : null,
+                            ),
+                            // A 48 square to tap (the avatar is 36, at the
+                            // top of it), so selecting is easy to hit.
+                            if (showCheckbox)
+                              SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox.square(
+                                    dimension: 36,
+                                    child: Checkbox(
+                                      value: widget.checked,
+                                      onChanged: (_) => _toggleSelected(),
+                                      semanticLabel: 'Select',
                                     ),
                                   ),
-                                )
-                              : null,
-                        ),
-                        SizedBox.square(
-                          dimension: 36,
-                          child: showCheckbox
-                              ? Checkbox(
-                                  value: widget.checked,
-                                  onChanged: (_) => _c.toggleSelected(_m),
-                                  semanticLabel: 'Select',
-                                )
-                              : Avatar(
-                                  name: MailText.sender(_m),
-                                  address: _m.from?.address ?? '',
                                 ),
+                              )
+                            else
+                              // A tap on the avatar selects (touch).
+                              Semantics(
+                                button: true,
+                                label: 'Select ${MailText.sender(_m)}',
+                                excludeSemantics: true,
+                                onTap: _select,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _select,
+                                  child: SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: Align(
+                                      alignment: Alignment.topCenter,
+                                      child: Avatar(
+                                        name: MailText.sender(_m),
+                                        address: _m.from?.address ?? '',
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _text(context, unread, showActions),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(child: _text(context, unread, showActions)),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -229,9 +324,16 @@ final class _MessageTileState extends State<MessageTile> {
         icon: AppIcons.delete,
         label: 'Delete',
       ),
+      // A tap under the finger where letting go would act, and again
+      // where it no longer would (not as the row slides back by itself).
+      onUpdate: (details) {
+        if (_swiping && details.reached != details.previousReached) {
+          unawaited(HapticFeedback.lightImpact());
+        }
+      },
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.endToStart) {
-          if (_c.isInTrash(_m)) return false; // forever needs the reader
+          if (_c.deletesForever(_m)) return false; // forever needs the reader
           _c.delete([_m]);
           return true;
         }
@@ -242,7 +344,12 @@ final class _MessageTileState extends State<MessageTile> {
         _c.toggleRead([_m]);
         return false;
       },
-      child: row,
+      child: Listener(
+        onPointerDown: (_) => _swiping = true,
+        onPointerUp: (_) => _swiping = false,
+        onPointerCancel: (_) => _swiping = false,
+        child: row,
+      ),
     );
   }
 
@@ -361,6 +468,7 @@ final class _MessageTileState extends State<MessageTile> {
       ),
       items: [
         PopupMenuItem(value: () => _c.open(_m), child: const Text('Open')),
+        PopupMenuItem(value: _peek, child: const Text('Peek')),
         PopupMenuItem(
           value: () => _c.togglePin([_m]),
           child: Text(_m.flags.flagged ? 'Unpin' : 'Pin'),
@@ -388,18 +496,37 @@ final class _MessageTileState extends State<MessageTile> {
             value: () => SnoozeSheet.show(context, _c, [_m]),
             child: const Text('Snooze…'),
           ),
-        if (!_c.isInTrash(_m))
+        if (!_c.deletesForever(_m))
           PopupMenuItem(
             value: () => _c.delete([_m]),
             child: const Text('Move to Trash'),
           ),
-        PopupMenuItem(
-          value: () => _c.toggleSelected(_m),
-          child: const Text('Select'),
-        ),
+        PopupMenuItem(value: _toggleSelected, child: const Text('Select')),
       ],
     );
     action?.call();
+  }
+}
+
+/// Space on a row: a peek.
+final class _PeekIntent extends Intent {
+  const _PeekIntent();
+}
+
+/// Copies a verification code, and says so.
+abstract final class CopyCode {
+  static Future<void> copy(BuildContext context, String code) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    // Marked sensitive, as from a notification: Android 13+ then keeps it
+    // out of its clipboard preview.
+    await BackgroundClipboard.copy(
+      code,
+      label: 'Verification code',
+      sensitive: true,
+    );
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('Copied $code')));
   }
 }
 
@@ -425,19 +552,7 @@ final class _CodeLine extends StatelessWidget {
           child: InkWell(
             key: ValueKey('copy-code-$code'),
             borderRadius: BorderRadius.circular(CitusmailTheme.radiusMark),
-            onTap: () async {
-              final messenger = ScaffoldMessenger.maybeOf(context);
-              // Marked sensitive, as from a notification: Android 13+
-              // then keeps it out of its clipboard preview.
-              await BackgroundClipboard.copy(
-                code,
-                label: 'Verification code',
-                sensitive: true,
-              );
-              messenger
-                ?..hideCurrentSnackBar()
-                ..showSnackBar(SnackBar(content: Text('Copied $code')));
-            },
+            onTap: () => CopyCode.copy(context, code),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -493,7 +608,7 @@ final class _QuickActions extends StatelessWidget {
             AppIcons.archive,
             () => controller.archive([message]),
           ),
-        if (!controller.isInTrash(message))
+        if (!controller.deletesForever(message))
           button(
             'Move to Trash (#)',
             AppIcons.delete,

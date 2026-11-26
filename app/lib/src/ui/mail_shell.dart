@@ -24,6 +24,8 @@ import '../setup/reconnect.dart';
 import 'app_icons.dart';
 import 'keyboard_shortcuts.dart';
 import 'message_list_pane.dart';
+import 'motion.dart';
+import 'phone_home.dart';
 import 'reader_pane.dart';
 import 'reconnect_dialog.dart';
 import 'sidebar.dart';
@@ -32,7 +34,9 @@ import 'sidebar.dart';
 ///
 /// - wide (desktop): sidebar, message list and reader side by side;
 /// - medium (tablet, narrow window): list and reader, sidebar in a drawer;
-/// - narrow (phone): the list, or the open message, one at a time.
+/// - narrow (phone): one pane at a time, with a navigation bar for the
+///   Inbox, Pins, what is found in your mail and the folders
+///   ([PhoneHome]).
 ///
 /// Each pane listens only to the state it shows, so opening a message does
 /// not rebuild the sidebar, and a sync does not rebuild the reader.
@@ -128,45 +132,19 @@ final class _MailShellState extends State<MailShell> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(text),
-          behavior: SnackBarBehavior.floating,
-          width: MediaQuery.sizeOf(context).width > 600 ? 420 : null,
-          duration: Duration(seconds: undo == null ? 3 : 5),
-          // With Undo too it goes away after [duration].
-          persist: false,
-          action: undo == null
-              ? null
-              : SnackBarAction(label: 'Undo', onPressed: undo),
-        ),
+        undo == null
+            ? SnackBar(
+                content: Text(text),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              )
+            : undoSnackBar(
+                content: Text(text),
+                onUndo: undo,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 5),
+              ),
       );
-  }
-
-  /// The bottom bar on phones: the open message's actions, or the list's
-  /// controls. Lifted above the keyboard while searching.
-  Widget _bottomControls(BuildContext context, Widget menu) {
-    final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: Material(
-        color: colors.surfaceContainer,
-        child: SafeArea(
-          top: false,
-          left: false,
-          child: ListenableBuilder(
-            listenable: _controller.reader,
-            builder: (context, _) => _controller.selected != null
-                ? ReaderControls(controller: _controller)
-                : MessageListControls(
-                    controller: _controller,
-                    onCompose: _controller.compose,
-                    searchFocus: _searchFocus,
-                    leading: menu,
-                  ),
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _startBackground() async {
@@ -257,11 +235,12 @@ final class _MailShellState extends State<MailShell> {
     controller: _controller,
     searchFocus: _searchFocus,
     focusNode: _shellFocus,
+    onAddAccount: widget.onAddAccount,
     child: LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final wide = width >= MailShell.wideWidth;
-        Widget sidebar({bool inDrawer = false}) => Sidebar(
+        Widget sidebar({bool inDrawer = false, bool asTab = false}) => Sidebar(
           controller: _controller,
           onAddAccount: widget.onAddAccount,
           onRemoveAccount: _removeAccount,
@@ -270,9 +249,17 @@ final class _MailShellState extends State<MailShell> {
               ? () => _scaffold.currentState?.closeDrawer()
               : null,
           // Wide: a labelled button where the eye starts; else the list's.
-          onCompose: inDrawer ? null : _controller.compose,
+          onCompose: inDrawer || asTab ? null : _controller.compose,
+          asTab: asTab,
         );
-        final phone = width < MailShell.mediumWidth;
+        // Phones: tabs at the bottom, within reach of one thumb.
+        if (width < MailShell.mediumWidth) {
+          return PhoneHome(
+            controller: _controller,
+            searchFocus: _searchFocus,
+            folders: sidebar(asTab: true),
+          );
+        }
         final menu = IconButton(
           tooltip: 'Folders',
           icon: const Icon(AppIcons.menu),
@@ -283,7 +270,6 @@ final class _MailShellState extends State<MailShell> {
           onCompose: wide ? null : _controller.compose,
           searchFocus: _searchFocus,
           leading: wide ? null : menu,
-          controlsAtBottom: phone,
         );
 
         final Widget body;
@@ -296,7 +282,7 @@ final class _MailShellState extends State<MailShell> {
               Expanded(child: ReaderPane(controller: _controller)),
             ],
           );
-        } else if (width >= MailShell.mediumWidth) {
+        } else {
           body = Row(
             children: [
               SizedBox(width: (width * 0.42).clamp(320, 420), child: list),
@@ -304,47 +290,13 @@ final class _MailShellState extends State<MailShell> {
               Expanded(child: ReaderPane(controller: _controller)),
             ],
           );
-        } else {
-          // Phones: one pane at a time; Back closes the message.
-          body = ListenableBuilder(
-            listenable: Listenable.merge([
-              _controller.reader,
-              _controller.selection,
-            ]),
-            builder: (context, _) {
-              final open = _controller.selected != null;
-              final selecting = _controller.selecting;
-              return PopScope(
-                canPop: !open && !selecting,
-                onPopInvokedWithResult: (didPop, _) {
-                  if (didPop) return;
-                  if (selecting) {
-                    _controller.clearSelection();
-                  } else {
-                    _controller.closeMessage();
-                  }
-                },
-                child: open
-                    ? ReaderPane(
-                        controller: _controller,
-                        showBack: true,
-                        toolbarAtBottom: true,
-                        replyBar: false,
-                      )
-                    : list,
-              );
-            },
-          );
         }
         return Scaffold(
           key: _scaffold,
           drawer: wide
               ? null
               : Drawer(width: 290, child: sidebar(inDrawer: true)),
-          body: SafeArea(left: false, bottom: !phone, child: body),
-          // Phones: menu, search, New message and the message actions at the
-          // bottom, within reach of one thumb. Notices (Undo) float above.
-          bottomNavigationBar: phone ? _bottomControls(context, menu) : null,
+          body: SafeArea(left: false, child: body),
         );
       },
     ),

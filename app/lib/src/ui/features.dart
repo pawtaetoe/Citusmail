@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ import 'app_icons.dart';
 import 'appointments_page.dart';
 import 'attachments_page.dart';
 import 'block_dialog.dart';
+import 'command_bar.dart';
 import 'deliveries_page.dart';
 import 'image_senders_page.dart';
 import 'privacy_report_page.dart';
@@ -51,6 +53,7 @@ final class Feature {
     required this.sentence,
     required this.open,
     this.androidOnly = false,
+    this.desktopOnly = false,
   });
 
   /// Stable: "What's new" and the tips name features by it.
@@ -66,17 +69,25 @@ final class Feature {
   final void Function(BuildContext context, MailController controller) open;
 
   final bool androidOnly;
+  final bool desktopOnly;
 }
 
 /// Every feature, in the order "All features" lists them.
 abstract final class Features {
   static Feature? byId(String id) => all.where((f) => f.id == id).firstOrNull;
 
+  /// The feature [id], if this kind of device has it.
+  static Feature? availableById(String id, {bool? android}) =>
+      available(android: android).where((f) => f.id == id).firstOrNull;
+
   /// The features on this kind of device.
-  static List<Feature> available({bool? android}) => [
-    for (final f in all)
-      if (!f.androidOnly || (android ?? Platform.isAndroid)) f,
-  ];
+  static List<Feature> available({bool? android}) {
+    final onAndroid = android ?? Platform.isAndroid;
+    return [
+      for (final f in all)
+        if ((!f.androidOnly || onAndroid) && !(f.desktopOnly && onAndroid)) f,
+    ];
+  }
 
   static void _push(BuildContext context, WidgetBuilder page) =>
       Navigator.of(context).push(MaterialPageRoute<void>(builder: page));
@@ -114,7 +125,9 @@ abstract final class Features {
       group: FeatureGroup.found,
       icon: AppIcons.deliveries,
       title: 'Deliveries',
-      sentence: 'Parcels on their way, from your shipping emails.',
+      sentence:
+          'Parcels on their way, and what can still be returned, from '
+          'your shipping emails.',
       open: (context, c) =>
           _push(context, (_) => DeliveriesPage(controller: c)),
     ),
@@ -173,6 +186,21 @@ abstract final class Features {
           _push(context, (_) => AttachmentsPage(controller: c)),
     ),
     Feature(
+      id: 'commandBar',
+      group: FeatureGroup.tools,
+      icon: AppIcons.commandBar,
+      title: 'Command bar (Ctrl+K)',
+      sentence:
+          'One box to find emails, folders, settings and actions, '
+          'all from the keyboard.',
+      open: (context, c) {
+        final navigator = Navigator.of(context)
+          ..popUntil((route) => route.isFirst);
+        unawaited(CommandBar.show(navigator.context, c, explain: true));
+      },
+      desktopOnly: true,
+    ),
+    Feature(
       id: 'aiAssistant',
       group: FeatureGroup.tools,
       icon: AppIcons.assistant,
@@ -219,6 +247,26 @@ abstract final class Features {
       title: 'New since you were away',
       sentence: 'Mail that came while you were away, together at the top.',
       open: (context, c) => _setting(context, c, 'newSinceAway'),
+    ),
+    Feature(
+      id: 'summaryLine',
+      group: FeatureGroup.inbox,
+      icon: AppIcons.summaryLine,
+      title: 'Summary line',
+      sentence:
+          'One line at the top of your inbox: what is new, the latest code, '
+          'and what is on today.',
+      open: (context, c) => _setting(context, c, 'summaryLine'),
+    ),
+    Feature(
+      id: 'peek',
+      group: FeatureGroup.inbox,
+      icon: AppIcons.peek,
+      title: 'Peek',
+      sentence:
+          'Look at an email without opening it: press and hold it, or '
+          'press Space. It stays unread.',
+      open: (context, c) => _goTo(context, c, const InboxLocation()),
     ),
     Feature(
       id: 'snooze',
@@ -286,6 +334,16 @@ abstract final class Features {
       title: 'Send later',
       sentence: 'Write now, and pick when the email goes out.',
       open: (context, c) => c.compose(),
+    ),
+    Feature(
+      id: 'writingHints',
+      group: FeatureGroup.writing,
+      icon: AppIcons.tip,
+      title: 'Writing hints',
+      sentence:
+          'While you write: when it is night for them, how quickly they '
+          'usually reply, or "Did you mean" for a mistyped address.',
+      open: (context, c) => _setting(context, c, 'writingHints'),
     ),
     Feature(
       id: 'followUps',
@@ -391,6 +449,17 @@ abstract final class Features {
       title: 'Instant mail',
       sentence: 'New mail at once, also while your phone sleeps.',
       open: (context, c) => _setting(context, c, 'instantMail'),
+      androidOnly: true,
+    ),
+    Feature(
+      id: 'codeTile',
+      group: FeatureGroup.devices,
+      icon: AppIcons.codes,
+      title: 'Latest code in Quick Settings',
+      sentence:
+          'Copy a new verification code from Quick Settings, or from its '
+          'notification, without opening the app.',
+      open: (context, c) => _setting(context, c, 'codeTile'),
       androidOnly: true,
     ),
     Feature(

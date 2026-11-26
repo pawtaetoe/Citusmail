@@ -9,3 +9,4 @@
 -keep class com.fluminaris.citusmail.InstantMailService { *; }
 -keep class com.fluminaris.citusmail.BackgroundSyncWorker { *; }
 -keep class com.fluminaris.citusmail.BootReceiver { *; }
+-keep class com.fluminaris.citusmail.LatestCodeTileService { *; }

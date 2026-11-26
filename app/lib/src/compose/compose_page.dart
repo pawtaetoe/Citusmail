@@ -14,10 +14,13 @@ import '../ui/citusmail_theme.dart';
 import '../ui/follow_up_sheet.dart';
 import '../ui/mail_shell.dart';
 import '../ui/mail_text.dart';
+import '../ui/motion.dart';
 import '../ui/send_later_sheet.dart';
 import '../ui/sign_offs_page.dart';
 import 'compose_controller.dart';
 import 'recipient_field.dart';
+import 'writing_hint_line.dart';
+import 'writing_hints.dart';
 import 'writing_sheet.dart';
 
 /// The compose window. Closing it keeps the draft (in the Drafts folder);
@@ -71,10 +74,16 @@ final class _ComposePageState extends State<ComposePage> {
     if (result != null) Navigator.of(context).pop(result);
   }
 
-  /// "Send later": choose a time, then it waits in the Outbox.
-  Future<void> _sendLater() async {
+  /// "Send later": choose a time, then it waits in the Outbox. From the
+  /// late-hour hint, 8:00 in the morning their time comes first.
+  Future<void> _sendLater([LocalTimeHint? hint]) async {
     if (!_c.readyToSend()) return;
-    final at = await SendLaterSheet.pick(context);
+    final at = await SendLaterSheet.pick(
+      context,
+      suggested: hint == null
+          ? null
+          : WritingHintLine.suggestion(context, hint),
+    );
     if (at == null || !mounted) return;
     final result = _c.send(at: at);
     if (result != null) Navigator.of(context).pop(result);
@@ -257,7 +266,11 @@ final class _ComposePageState extends State<ComposePage> {
         child: SafeArea(
           child: ListenableBuilder(
             // The AI's switch too: "Write with AI" shows only while on.
-            listenable: Listenable.merge([_c, _c.services.ai.changes]),
+            listenable: Listenable.merge([
+              _c,
+              _c.services.ai.changes,
+              _c.hints,
+            ]),
             builder: (context, _) {
               final draft = _c.draft;
               final accounts = _c.accounts;
@@ -359,8 +372,14 @@ final class _ComposePageState extends State<ComposePage> {
                         onSend: _send,
                         onSendLater: _sendLater,
                         // The narrowest phones: the paper plane alone
-                        // (wider ones too with "Write with AI").
-                        iconOnly: width < (writing ? 430 : 380),
+                        // (wider ones too with "Write with AI", or with
+                        // larger text).
+                        iconOnly:
+                            width <
+                            (writing ? 430 : 380) *
+                                MediaQuery.textScalerOf(context)
+                                    .scale(1)
+                                    .clamp(1, 2),
                       ),
                     ],
                   ),
@@ -426,6 +445,13 @@ final class _ComposePageState extends State<ComposePage> {
                       suggest: _c.suggest,
                     ),
                   ],
+                  if (_c.hints.current case final hint?)
+                    WritingHintLine(
+                      hint: hint,
+                      onClose: _c.hints.close,
+                      onSendLater: _sendLater,
+                      onUseAddress: _c.useSuggestedAddress,
+                    ),
                   const Divider(indent: 16),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -768,55 +794,58 @@ final class _SendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const radius = Radius.circular(CitusmailTheme.radius);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (iconOnly)
-          Tooltip(
-            message: 'Send',
-            child: FilledButton(
+    // One control: both halves give a little under the finger.
+    return PressScale(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (iconOnly)
+            Tooltip(
+              message: 'Send',
+              child: FilledButton(
+                onPressed: onSend,
+                onLongPress: onSendLater,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(52, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.horizontal(left: radius),
+                  ),
+                ),
+                child: const Icon(AppIcons.send, size: 18),
+              ),
+            )
+          else
+            FilledButton.icon(
               onPressed: onSend,
               onLongPress: onSendLater,
               style: FilledButton.styleFrom(
-                minimumSize: const Size(52, 44),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.horizontal(left: radius),
                 ),
               ),
-              child: const Icon(AppIcons.send, size: 18),
+              icon: const Icon(AppIcons.send, size: 18),
+              label: const Text('Send'),
             ),
-          )
-        else
-          FilledButton.icon(
-            onPressed: onSend,
-            onLongPress: onSendLater,
-            style: FilledButton.styleFrom(
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.horizontal(left: radius),
+          const SizedBox(width: 2),
+          Tooltip(
+            message: 'Send later',
+            child: FilledButton(
+              key: const ValueKey('send-later'),
+              onPressed: onSendLater,
+              style: FilledButton.styleFrom(
+                // As tall as Send (the theme's 44), narrower.
+                minimumSize: const Size(44, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.horizontal(right: radius),
+                ),
               ),
+              child: const Icon(AppIcons.sendLater, size: 20),
             ),
-            icon: const Icon(AppIcons.send, size: 18),
-            label: const Text('Send'),
           ),
-        const SizedBox(width: 2),
-        Tooltip(
-          message: 'Send later',
-          child: FilledButton(
-            key: const ValueKey('send-later'),
-            onPressed: onSendLater,
-            style: FilledButton.styleFrom(
-              // As tall as Send (the theme's 44), narrower.
-              minimumSize: const Size(44, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.horizontal(right: radius),
-              ),
-            ),
-            child: const Icon(AppIcons.sendLater, size: 20),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

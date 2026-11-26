@@ -200,7 +200,7 @@ void main() {
         const MailAddress(localPart: 'bob', domain: 'x.example>\r\nBcc: y@z'),
         const MailAddress(localPart: 'bob', domain: 'not a domain'),
         const MailAddress(localPart: '.bob', domain: 'x.example'),
-        const MailAddress(localPart: 'bob', domain: 'café.example'),
+        const MailAddress(localPart: 'bob', domain: '-x.example'),
       ]) {
         expect(
           () => build(OutgoingMessage(from: alice, to: [bad], textBody: 'x')),
@@ -208,6 +208,34 @@ void main() {
           reason: bad.toString(),
         );
       }
+    });
+
+    test('international domain names are written in their ASCII form', () {
+      const munich = MailAddress(
+        displayName: 'Jörg',
+        localPart: 'joerg',
+        domain: 'München.de',
+      );
+      final built = build(
+        OutgoingMessage(
+          from: alice,
+          to: [
+            munich,
+            const MailAddress(localPart: 'info', domain: 'bücher.例え.jp'),
+          ],
+          textBody: 'x',
+        ),
+      );
+      final message = const MimeParser().parse(built.bytes);
+      expect(message.to.map((a) => a.address), [
+        'joerg@xn--mnchen-3ya.de',
+        'info@xn--bcher-kva.xn--r8jz45g.jp',
+      ]);
+      expect(
+        const HeaderEncoder().validateAddress(munich),
+        'joerg@xn--mnchen-3ya.de',
+        reason: 'what SMTP sends to',
+      );
     });
 
     test('Bcc recipients get the message but are not in the headers', () {

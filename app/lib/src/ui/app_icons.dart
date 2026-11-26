@@ -14,6 +14,14 @@ abstract final class AppIcons {
   // Places.
   static const inbox = Icons.inbox_outlined;
   static const pins = Icons.push_pin_outlined;
+
+  /// The phone's tabs: Inbox and Pins as above, what is found in your
+  /// mail, and the folders. Filled for the tab that is shown.
+  static const inboxOn = Icons.inbox;
+  static const found = Icons.category_outlined;
+  static const foundOn = Icons.category;
+  static const folders = Icons.folder_copy_outlined;
+  static const foldersOn = Icons.folder_copy;
   static const outbox = Icons.outbox_outlined;
   static const snoozed = Icons.snooze_outlined;
   static const waiting = Icons.hourglass_empty;
@@ -43,6 +51,7 @@ abstract final class AppIcons {
   static const notifications = Icons.notifications_outlined;
   static const newsletters = Icons.rss_feed;
   static const newSinceAway = Icons.waving_hand_outlined;
+  static const summaryLine = Icons.short_text;
 
   // What can be done with a message.
   static const archive = Icons.archive_outlined;
@@ -57,6 +66,9 @@ abstract final class AppIcons {
   static const reminder = Icons.alarm_outlined;
   static const pinOff = Icons.push_pin_outlined;
   static const pinOn = Icons.push_pin;
+  static const peek = Icons.visibility_outlined;
+  static const openMessage = Icons.open_in_full;
+  static const select = Icons.check_box_outlined;
   static const markRead = Icons.mark_email_read_outlined;
   static const markUnread = Icons.mark_email_unread_outlined;
   static const markAllRead = Icons.done_all;
@@ -214,6 +226,8 @@ abstract final class AppIcons {
   // Around the app.
   static const search = Icons.search;
   static const searchOff = Icons.search_off;
+  static const commandBar = Icons.keyboard_command_key;
+  static const keyboard = Icons.keyboard_outlined;
   static const settings = Icons.settings_outlined;
   static const help = Icons.help_outline;
   static const lock = Icons.lock_outline;

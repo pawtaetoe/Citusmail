@@ -15,6 +15,7 @@ import 'repository/message_repository.dart';
 import 'repository/outbox_repository.dart';
 import 'repository/receipt_repository.dart';
 import 'repository/screener_repository.dart';
+import 'repository/search_words_repository.dart';
 import 'repository/settings_repository.dart';
 import 'repository/sign_off_repository.dart';
 import 'repository/snooze_repository.dart';
@@ -38,7 +39,8 @@ final class MailStore {
       receipts = ReceiptRepository(database),
       screener = ScreenerRepository(database),
       snoozes = SnoozeRepository(database),
-      signOffs = SignOffRepository(database);
+      signOffs = SignOffRepository(database),
+      searchWords = SearchWordsRepository(database);
 
   /// Opens (or creates) the store at [path], encrypted with [key].
   /// See [MailDatabase.open] for the errors it can raise.
@@ -61,6 +63,9 @@ final class MailStore {
   final ScreenerRepository screener;
   final SnoozeRepository snoozes;
   final SignOffRepository signOffs;
+
+  /// The words search corrects typos against.
+  final SearchWordsRepository searchWords;
 
   /// Runs [action] atomically across repositories.
   T transaction<T>(T Function() action) => database.transaction(action);

@@ -27,11 +27,13 @@ final class ReplyBuilder {
       _reply(message, view, all: false);
 
   /// Reply to the sender and everyone else on the message, except the
-  /// user's own addresses.
+  /// address the reply is sent from.
   Draft replyAll(StoredMessage message, MessageView view) =>
       _reply(message, view, all: true);
 
-  /// Forward with the original's attachments.
+  /// Forward with the original's attachments, and the pictures its text
+  /// showed (a pasted screenshot), but not logos: the forward is plain
+  /// text, so they would be lost.
   Draft forward(StoredMessage message, MessageView view) {
     final header = StringBuffer('---------- Forwarded message ----------\n');
     if (message.from case final from?) {
@@ -46,7 +48,11 @@ final class ReplyBuilder {
       subject: _prefixed('Fwd: ', message.subject),
       quote: '$header\n${_text(view)}',
       attachments: [
-        for (final a in view.attachments)
+        for (final a in [
+          ...view.attachments,
+          for (final image in view.shownImages)
+            if (!FilePart.fromView(image).isLayoutImage) image,
+        ])
           DraftAttachment(
             fileName: a.fileName,
             mimeType: a.mimeType,
@@ -77,13 +83,17 @@ final class ReplyBuilder {
   }
 
   Draft _reply(StoredMessage message, MessageView view, {required bool all}) {
-    final own = {
-      for (final account in _store.accounts.all()) account.email.toLowerCase(),
-    };
-    bool isOwn(MailAddress a) => own.contains(a.address.toLowerCase());
+    // Only the address this reply is sent from counts as the user's: mail
+    // from another of the user's own accounts is answered like anyone's.
+    final own = _store.accounts.byId(message.accountId)?.email.toLowerCase();
+    bool isOwn(MailAddress a) => a.address.toLowerCase() == own;
 
     final replyTo = _store.messages.addresses(message.id, 'reply_to');
-    final target = replyTo.isNotEmpty ? replyTo : [?message.from];
+    final sender = switch (message.from) {
+      final from? => [from],
+      null => _store.messages.addresses(message.id, 'from'),
+    };
+    final target = replyTo.isNotEmpty ? replyTo : sender;
     final seen = <String>{};
     List<MailAddress> unique(Iterable<MailAddress> list) => [
       for (final a in list)
@@ -100,8 +110,13 @@ final class ReplyBuilder {
     if (to.isEmpty) to = unique(_store.messages.addresses(message.id, 'to'));
 
     final messageId = message.messageId;
+    // Without References, the parent's In-Reply-To names the message
+    // before it (RFC 5322 3.6.4).
     final references = [
-      ...message.references,
+      if (message.references.isEmpty)
+        ?message.inReplyTo
+      else
+        ...message.references,
       if (messageId != null && !message.references.contains(messageId))
         messageId,
     ];

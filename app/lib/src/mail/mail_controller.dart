@@ -17,6 +17,7 @@ import 'package:mail_view/mail_view.dart';
 import '../background/background_mail.dart';
 import '../services/app_services.dart';
 import 'follow_up_times.dart';
+import 'inbox_summary.dart';
 import 'invitation_answers.dart';
 import 'mail_location.dart';
 import 'message_list_model.dart';
@@ -238,6 +239,10 @@ final class MailController {
   /// Whether the Verification section asks to tidy up old codes.
   final codesOffer = ValueNotifier<bool>(false);
 
+  /// The summary line at the top of the inbox (made when first shown).
+  InboxSummary get summary => _summary ??= InboxSummary(services, list);
+  InboxSummary? _summary;
+
   late final StreamSubscription<SyncEvent> _events;
   final Map<int, SyncEvent> _lastEvent = {};
   Timer? _refreshSoon;
@@ -294,6 +299,16 @@ final class MailController {
   void search(String text) {
     final trimmed = text.trim();
     goTo(trimmed.isEmpty ? const InboxLocation() : SearchLocation(trimmed));
+  }
+
+  /// Searches for exactly what was typed, without correcting typos.
+  void searchExactly(String text) {
+    final trimmed = text.trim();
+    goTo(
+      trimmed.isEmpty
+          ? const InboxLocation()
+          : SearchLocation(trimmed, exact: true),
+    );
   }
 
   // --------------------------------------------------------------- lists
@@ -800,6 +815,12 @@ final class MailController {
   bool isInTrash(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
 
+  /// Whether deleting [m] removes it for good: it is in Trash, or its
+  /// account has no Trash folder (the server then deletes it at once).
+  bool deletesForever(StoredMessage m) =>
+      isInTrash(m) ||
+      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.trash) == null;
+
   bool isInJunk(StoredMessage m) =>
       _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.junk;
 
@@ -850,11 +871,11 @@ final class MailController {
     () => services.actions.move(messages, target),
   ], 'Moved to ${_folderName(target)}');
 
-  /// Moves to Trash (or deletes for good when already in Trash; the caller
-  /// confirms that).
+  /// Moves to Trash (or deletes for good when already in Trash, or the
+  /// account has none; the caller confirms that).
   void delete(List<StoredMessage> messages) => _remove(
     [() => services.actions.delete(messages)],
-    messages.every(isInTrash)
+    messages.every(deletesForever)
         ? 'Deleted'
         : (messages.length == 1
               ? 'Moved to Trash'
@@ -1210,6 +1231,18 @@ final class MailController {
       debugPrint('follow-ups: ${e.runtimeType}');
     }
     _scheduleWake();
+  }
+
+  // ------------------------------------------------------------ accounts
+
+  /// Changes when the accounts' order changes, so the sidebar follows.
+  final accountsChanged = ValueNotifier<int>(0);
+
+  /// Puts the accounts in the order of [ids]: the sidebar, the From
+  /// choice and new messages (from the top account) follow it.
+  void reorderAccounts(List<int> ids) {
+    _store.accounts.reorder(ids);
+    accountsChanged.value++;
   }
 
   // --------------------------------------------------------- invitations
@@ -1862,12 +1895,14 @@ final class MailController {
     _wakeTimer?.cancel();
     unawaited(_events.cancel());
     services.resorted.removeListener(refresh);
+    _summary?.dispose();
     list.dispose();
     location.dispose();
     counts.dispose();
     reader.dispose();
     selection.dispose();
     invitationsChanged.dispose();
+    accountsChanged.dispose();
     status.dispose();
     codesOffer.dispose();
   }

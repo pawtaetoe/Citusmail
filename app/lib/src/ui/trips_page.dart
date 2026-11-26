@@ -13,6 +13,7 @@ import 'badge.dart';
 import 'booking_detail_page.dart';
 import 'booking_text.dart';
 import 'feature_settings.dart';
+import 'motion.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'skeleton_rows.dart';
@@ -81,15 +82,11 @@ final class _TripsPageState extends State<TripsPage> with ReadsAhead {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            SnackBar(
+            undoSnackBar(
               content: Text(
                 '${BookingText.title(b)} won\'t be listed as a booking',
               ),
-              persist: false,
-              action: SnackBarAction(
-                label: 'Undo',
-                onPressed: () => _model.unhide(b.key),
-              ),
+              onUndo: () => _model.unhide(b.key),
             ),
           );
     }

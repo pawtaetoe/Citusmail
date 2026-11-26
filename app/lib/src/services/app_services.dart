@@ -178,6 +178,26 @@ final class AppServices {
     }
   }
 
+  /// Counts the search words of mail stored by a version without them,
+  /// for correcting typos in search ([SearchWordsRepository.addPending]).
+  /// Like [resortWhenIdle]: in the sync worker, after the first frame and
+  /// [idle] more. Returns how many messages were counted.
+  Future<int> countSearchWordsWhenIdle({
+    Duration idle = const Duration(seconds: 2),
+  }) async {
+    try {
+      if (!store.searchWords.hasPending) return 0;
+      await SchedulerBinding.instance.endOfFrame;
+      await Future<void>.delayed(idle);
+      if (_disposing != null) return 0;
+      return await worker.countSearchWords();
+    } on Object catch (e) {
+      // Tried again at the next start; search still finds exact matches.
+      debugPrint('search words: ${e.runtimeType}');
+      return 0;
+    }
+  }
+
   /// Saves a verified account: settings in the encrypted store, password in
   /// the keychain. If the keychain write fails, the account is removed
   /// again so no account exists without its password.
@@ -263,7 +283,11 @@ final class AppServices {
 
   /// Removes an account, everything stored for it, and its password.
   Future<void> removeAccount(Account account) async {
-    store.accounts.remove(account.id);
+    store.transaction(() {
+      store.accounts.remove(account.id);
+      // Kept in the settings, not with the account's mail.
+      FollowUpReminders(store).forgetAccount(account.id);
+    });
     await secrets.delete(account.keychainKey);
     await worker.accountsChanged();
   }
@@ -404,8 +428,12 @@ abstract final class AppStartup {
       final services = AppServices(store, keychain, worker, databasePath: path);
       await services.lock.start();
       // Mail stored by an older version (or with older rules) is sorted
-      // again once the mail screen is up.
-      unawaited(services.resortWhenIdle());
+      // again once the mail screen is up, then its search words counted.
+      unawaited(
+        services.resortWhenIdle().then(
+          (_) => services.countSearchWordsWhenIdle(),
+        ),
+      );
       return StartupReady(services);
     } on SecretStoreUnavailableException catch (e) {
       return StartupKeychainUnavailable(e.message);

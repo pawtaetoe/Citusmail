@@ -11,6 +11,8 @@ import '../database/mail_database.dart';
 import '../model/mailbox.dart';
 import '../model/message.dart';
 import 'search_query.dart';
+import 'search_words.dart';
+import 'search_words_repository.dart';
 import 'section_sql.dart';
 
 /// Which messages to list. Results are newest first; page with [before].
@@ -91,9 +93,10 @@ final class SectionCount {
 
 /// Messages, their addresses, selected headers, bodies and search index.
 final class MessageRepository {
-  MessageRepository(this._db);
+  MessageRepository(this._db) : _words = SearchWordsRepository(_db);
 
   final MailDatabase _db;
+  final SearchWordsRepository _words;
 
   static const _columns =
       'm.id, m.mailbox_id, b.account_id, m.uid, m.message_id_header, m.in_reply_to, '
@@ -183,6 +186,7 @@ final class MessageRepository {
           _indexSummary(id, s);
           ids.add(id);
         }
+        _words.addNew();
         SectionSql.refreshIds(_db, ids);
         _refreshRelated(mailboxId, summaries);
       });
@@ -427,37 +431,83 @@ final class MessageRepository {
           as int;
 
   /// Searches subject, participants and downloaded bodies. Typed text is
-  /// always literal (see [SearchQuery]).
+  /// always literal (see [SearchQuery]). Newest first.
   List<StoredMessage> search(String text, {int limit = 100}) {
     final query = SearchQuery.parse(text);
     if (query == null) return const [];
+    return _search(query, limit.clamp(1, 500));
+  }
+
+  /// Like [search], and forgiving of typos: when what was typed finds
+  /// fewer than [SearchResults.enough] messages, each term that is not a
+  /// word of the user's mail (and finds little by itself) is corrected to
+  /// the closest word that is ([SearchWordsRepository.correct]), and what
+  /// that finds follows the exact matches.
+  SearchResults searchForgiving(String text, {int limit = 100}) {
+    final query = SearchQuery.parse(text);
+    if (query == null) return SearchResults(const []);
     final capped = limit.clamp(1, 500);
+    final exact = _search(query, capped);
+    if (exact.length >= SearchResults.enough) return SearchResults(exact);
+    final corrections = <int, List<String>>{};
+    for (final (i, term) in query.terms.indexed) {
+      if (!SearchWords.isCorrectable(term) || _findsEnough(term)) continue;
+      if (_words.correct(term) case final c?) corrections[i] = c.words;
+    }
+    if (corrections.isEmpty) return SearchResults(exact);
+    final seen = {for (final m in exact) m.id};
+    final more = [
+      for (final m in _search(
+        query.withCorrections(corrections),
+        capped + exact.length,
+      ))
+        if (!seen.contains(m.id)) m,
+    ];
+    if (more.isEmpty) return SearchResults(exact);
+    return SearchResults(
+      [...exact, ...more].take(capped).toList(growable: false),
+      exactCount: exact.length,
+      correctedText: query.correctedText(corrections),
+    );
+  }
+
+  /// Whether [term] alone finds [SearchResults.enough] messages: then it
+  /// is no typo, even if it is not a word of subjects or senders.
+  bool _findsEnough(String term) =>
+      (_db
+              .select(
+                'SELECT count(*) FROM (SELECT 1 FROM message_search '
+                'WHERE message_search MATCH ? LIMIT ?)',
+                [SearchQuery.ftsWord(term), SearchResults.enough],
+              )
+              .first
+              .columnAt(0)
+          as int) >=
+      SearchResults.enough;
+
+  List<StoredMessage> _search(SearchQuery query, int limit) {
     if (query.usesIndex) {
       return _db
           .select(
             'SELECT $_columns $_from JOIN message_search s ON s.rowid = m.id '
             'WHERE message_search MATCH ? AND $_notACopy '
             'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
-            [query.toFtsMatch(), capped],
+            [query.toFtsMatch(), limit],
           )
           .map(_fromRow)
           .toList(growable: false);
     }
     // Short terms: substring match on subject and sender (no index).
-    final patterns = query.toLikePatterns();
-    final conditions = patterns
-        .map(
-          (_) => r"(m.subject LIKE ? ESCAPE '\' OR m.from_name LIKE ? ESCAPE '\' OR m.from_address LIKE ? ESCAPE '\')",
-        )
-        .join(' AND ');
+    final (conditions, args) = query.toLikeCondition(const [
+      'm.subject',
+      'm.from_name',
+      'm.from_address',
+    ]);
     return _db
         .select(
           'SELECT $_columns $_from WHERE $conditions AND $_notACopy '
           'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
-          [
-            for (final p in patterns) ...[p, p, p],
-            capped,
-          ],
+          [...args, limit],
         )
         .map(_fromRow)
         .toList(growable: false);
@@ -1136,6 +1186,7 @@ final class MessageRepository {
         [id, row['subject'], row['participants'], row['body']],
       );
     }
+    _words.addNew();
     SectionSql.refreshIds(_db, newIds.values.toList());
     return newIds;
   });
@@ -1661,4 +1712,26 @@ final class MessageSnapshot {
   final int bodiesLeftOut;
 
   bool get isEmpty => messages.isEmpty;
+}
+
+/// What a search found ([MessageRepository.searchForgiving]).
+final class SearchResults {
+  SearchResults(this.messages, {int? exactCount, this.correctedText})
+    : exactCount = exactCount ?? messages.length;
+
+  /// Fewer exact matches than this, and typos are corrected.
+  static const enough = 5;
+
+  /// The exact matches first, newest first, then those found with the
+  /// corrections, newest first.
+  final List<StoredMessage> messages;
+
+  /// How many of [messages], from the start, match what was typed.
+  final int exactCount;
+
+  /// What was searched for with the corrections ("receive invoice" for
+  /// "recieve invoice"), when some of [messages] were found that way.
+  final String? correctedText;
+
+  bool get corrected => correctedText != null;
 }

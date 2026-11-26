@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:sqlite3/sqlite3.dart';
 
+import '../repository/search_words.dart';
 import 'database_key.dart';
 import 'file_permissions.dart';
 import 'schema.dart';
@@ -187,6 +188,21 @@ final class MailDatabase {
       ..execute('PRAGMA journal_mode = WAL') // the WAL file is encrypted too
       ..execute('PRAGMA synchronous = NORMAL')
       ..execute('PRAGMA busy_timeout = 5000');
+    _addFunctions(db);
+  }
+
+  /// SQL functions the schema's triggers use to keep the search words
+  /// current (see [SearchWords]). Every connection needs them: a message
+  /// can't be written without. They only read their arguments.
+  static void _addFunctions(Database db) {
+    db.createFunction(
+      functionName: 'search_words_of',
+      argumentCount: const AllowedArgumentCount(3),
+      deterministic: true,
+      directOnly: false,
+      function: (args) =>
+          SearchWords.ofAsJson([for (final a in args) a is String ? a : null]),
+    );
   }
 
   static void _migrate(Database db, List<Migration> migrations) {

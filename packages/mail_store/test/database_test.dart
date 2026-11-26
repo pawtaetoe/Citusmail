@@ -408,6 +408,60 @@ void main() {
       );
     });
 
+    test('version 16 mail gets its search words, in batches that resume', () {
+      openAt(16)
+        ..execute(
+          'INSERT INTO messages (id, mailbox_id, uid, received_at, subject, from_name, from_address) VALUES '
+          "(1, 1, 1, 0, 'Invoice for March', 'Ana', 'ana@shop.example'), "
+          "(2, 1, 2, 0, 'Invoice for April', NULL, 'billing@shop.example'), "
+          "(3, 1, 3, 0, 'Receipt', NULL, NULL), "
+          "(4, 1, 4, 0, 'Parcel delivered', 'Post', NULL)",
+        )
+        ..close();
+      temp.store = MailStore.open(temp.path, temp.key);
+      var words = temp.store.searchWords;
+      expect(words.hasPending, isTrue);
+      expect(words.all(), isEmpty, reason: 'counted later, not while opening');
+
+      // New mail is counted with its batch.
+      final db = temp.store.database
+        ..execute(
+          'INSERT INTO messages (mailbox_id, uid, received_at, subject) '
+          "VALUES (1, 5, 0, 'Invoice for May')",
+        );
+      expect(words.count('invoice'), 0);
+      words.addNew();
+      expect(words.count('invoice'), 1);
+
+      expect(words.addPending(limit: 2), 2, reason: 'newest first');
+      expect(words.count('parcel'), 1);
+      expect(words.count('receipt'), 1);
+      expect(words.count('invoice'), 1);
+
+      // Mail counted, and mail not counted yet, can go meanwhile.
+      db.execute('DELETE FROM messages WHERE id IN (1, 4)');
+      expect(words.count('parcel'), 0);
+
+      // Closing the app in between: it carries on.
+      temp.reopen();
+      words = temp.store.searchWords;
+      expect(words.hasPending, isTrue);
+      while (words.addPending(limit: 2) > 0) {}
+      expect(words.hasPending, isFalse);
+      expect(words.addPending(), 0);
+      expect(words.all(), {
+        'april': 1,
+        'billing': 1,
+        'example': 1,
+        'for': 2,
+        'invoice': 2,
+        'may': 1,
+        'receipt': 1,
+        'shop': 1,
+      });
+      expect(words.correct('invocie')?.words, ['invoice']);
+    });
+
     test('a failing migration rolls back completely', () {
       temp.store.close();
       final broken = [
@@ -458,6 +512,27 @@ void main() {
       });
       expect(temp.store.accounts.all().map((a) => a.email), [
         'outer@x.example',
+      ]);
+    });
+
+    test('accounts keep the order the user gives them', () {
+      final a = temp.addAccount('a@x.example');
+      final b = temp.addAccount('b@x.example');
+      final c = temp.addAccount('c@x.example');
+      List<String> order() => [
+        for (final x in temp.store.accounts.all()) x.email,
+      ];
+      expect(order(), ['a@x.example', 'b@x.example', 'c@x.example']);
+      temp.store.accounts.reorder([c.id, a.id]);
+      expect(order(), ['c@x.example', 'a@x.example', 'b@x.example']);
+      // An unknown id is ignored; a new account goes last.
+      temp.store.accounts.reorder([b.id, 999]);
+      temp.addAccount('d@x.example');
+      expect(order(), [
+        'b@x.example',
+        'c@x.example',
+        'a@x.example',
+        'd@x.example',
       ]);
     });
 

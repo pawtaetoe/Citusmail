@@ -336,13 +336,14 @@ jobs:
           cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
       - name: The Play bundle has Instant mail and the mail check
         run: packaging/android/check-play-bundle.sh build/packages/*.aab
-      - name: The GitHub APKs keep Instant mail
+      - name: The GitHub APKs keep Instant mail and the code tile
         run: |
           aapt2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)"
           for apk in build/packages/*.apk; do
             "$aapt2" dump xmltree --file AndroidManifest.xml "$apk" > "$RUNNER_TEMP/manifest.txt"
             grep -F com.fluminaris.citusmail.InstantMailService "$RUNNER_TEMP/manifest.txt"
             grep -F android.permission.FOREGROUND_SERVICE_SPECIAL_USE "$RUNNER_TEMP/manifest.txt"
+            grep -F com.fluminaris.citusmail.LatestCodeTileService "$RUNNER_TEMP/manifest.txt"
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -439,13 +440,14 @@ jobs:
           cp app/build/app/outputs/bundle/playRelease/app-play-release.aab "build/packages/citusmail-$version.aab"
       - name: The Play bundle has Instant mail and the mail check
         run: packaging/android/check-play-bundle.sh build/packages/*.aab
-      - name: The GitHub APKs keep Instant mail
+      - name: The GitHub APKs keep Instant mail and the code tile
         run: |
           aapt2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)"
           for apk in build/packages/*.apk; do
             "$aapt2" dump xmltree --file AndroidManifest.xml "$apk" > "$RUNNER_TEMP/manifest.txt"
             grep -F com.fluminaris.citusmail.InstantMailService "$RUNNER_TEMP/manifest.txt"
             grep -F android.permission.FOREGROUND_SERVICE_SPECIAL_USE "$RUNNER_TEMP/manifest.txt"
+            grep -F com.fluminaris.citusmail.LatestCodeTileService "$RUNNER_TEMP/manifest.txt"
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

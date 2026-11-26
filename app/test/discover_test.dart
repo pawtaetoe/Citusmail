@@ -22,7 +22,7 @@ void main() {
   tearDown(() => app.dispose());
 
   void desktop(WidgetTester tester) {
-    tester.view.physicalSize = const Size(1400, 3000);
+    tester.view.physicalSize = const Size(1400, 4000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
   }
@@ -45,7 +45,10 @@ void main() {
     ], isNot(contains('instantMail')));
     expect([
       for (final f in Features.available(android: true)) f.id,
-    ], contains('instantMail'));
+    ], containsAll(['instantMail', 'codeTile']));
+    expect([
+      for (final f in Features.available(android: false)) f.id,
+    ], isNot(contains('codeTile')));
   });
 
   testWidgets('from the sidebar: every feature, grouped, each opens', (

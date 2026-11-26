@@ -16,7 +16,9 @@ import 'dart:ui' as ui;
 import 'package:citusmail/src/compose/compose_controller.dart';
 import 'package:citusmail/src/compose/compose_page.dart';
 import 'package:citusmail/src/mail/ai_tidy_model.dart';
+import 'package:citusmail/src/mail/commands.dart';
 import 'package:citusmail/src/mail/corrections.dart';
+import 'package:citusmail/src/mail/inbox_summary.dart';
 import 'package:citusmail/src/mail/mail_controller.dart';
 import 'package:citusmail/src/mail/new_since_away.dart';
 import 'package:citusmail/src/mail/send_later_times.dart';
@@ -29,6 +31,7 @@ import 'package:citusmail/src/ui/ai_settings_page.dart';
 import 'package:citusmail/src/ui/appointments_page.dart';
 import 'package:citusmail/src/ui/attachments_page.dart';
 import 'package:citusmail/src/ui/citusmail_theme.dart';
+import 'package:citusmail/src/ui/command_bar.dart';
 import 'package:citusmail/src/ui/deliveries_page.dart';
 import 'package:citusmail/src/ui/device_sync_page.dart';
 import 'package:citusmail/src/ui/discover_page.dart';
@@ -36,6 +39,7 @@ import 'package:citusmail/src/ui/mail_shell.dart';
 import 'package:citusmail/src/ui/privacy_report_page.dart';
 import 'package:citusmail/src/ui/sender_cleanup_page.dart';
 import 'package:citusmail/src/ui/settings_page.dart';
+import 'package:citusmail/src/ui/sidebar.dart';
 import 'package:citusmail/src/ui/sign_offs_page.dart';
 import 'package:citusmail/src/ui/subscriptions_page.dart';
 import 'package:citusmail/src/ui/trips_page.dart';
@@ -62,6 +66,7 @@ import '../test/support/privacy_mail.dart';
 import '../test/support/return_mail.dart';
 import '../test/support/sample_files.dart';
 import '../test/support/test_app.dart';
+import '../test/support/today_mail.dart';
 import '../test/support/trip_mail.dart';
 
 /// Fonts the app ships or the platform gives, so text renders as text.
@@ -190,6 +195,97 @@ void main() {
       await shoot(tester, 'phone_inbox$suffix');
       await tester.tap(find.text('Hello there'));
       await shoot(tester, 'phone_reader$suffix');
+    });
+
+    // The phone's tabs: the inbox with search on top and the navigation
+    // bar, what is found in your mail, and the folders.
+    testWidgets('phone tabs$suffix', (tester) async {
+      await show(tester, shell(), size: const Size(390, 844), dark: dark);
+      await shoot(tester, 'phone_tabs_inbox$suffix');
+      await tester.tap(find.text('Found'));
+      await shoot(tester, 'phone_tabs_found$suffix');
+      await tester.tap(find.text('Folders'));
+      await shoot(tester, 'phone_tabs_folders$suffix');
+      // Selecting: the actions take the bar's place.
+      await tester.tap(find.text('Inbox').last);
+      await settle(tester);
+      // Selecting on touch: tap the avatar (press and hold peeks).
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Semantics && w.properties.label == 'Select Stranger Danger',
+        ),
+      );
+      await tester.pump();
+      await shoot(tester, 'phone_tabs_selecting$suffix');
+    });
+    // The summary line over the inbox (a code, a parcel, the dentist),
+    // and a peek at an email that stays unread.
+    for (final (name, size) in [
+      ('phone', const Size(390, 844)),
+      ('desktop', const Size(1440, 900)),
+    ]) {
+      testWidgets('summary line and peek $name$suffix', (tester) async {
+        final now = DateTime.now();
+        final morning = DateTime(now.year, now.month, now.day, 9);
+        InboxSummary.clock = () => morning;
+        addTearDown(() => InboxSummary.clock = DateTime.now);
+        seedToday(app.store, now: morning);
+        await show(tester, shell(), size: size, dark: dark);
+        // Today's findings are read a moment after the line shows.
+        await tester.pump(InboxSummary.delay);
+        await shoot(tester, '${name}_summary_line$suffix');
+        if (name == 'phone') {
+          // Below the summary line on a phone: scroll to it first.
+          await tester.scrollUntilVisible(
+            find.text('Hello there'),
+            200,
+            scrollable: find
+                .descendant(
+                  of: find.byType(CustomScrollView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          );
+          await tester.longPress(find.text('Hello there'));
+        } else {
+          Focus.of(tester.element(find.text('Hello there'))).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        }
+        await tester.pump(const Duration(milliseconds: 400));
+        await shoot(tester, '${name}_peek$suffix');
+      });
+    }
+    testWidgets('desktop command bar$suffix', (tester) async {
+      // A few commands used before, with an email open.
+      final projects = app.store.mailboxes
+          .forAccount(app.store.accounts.all().single.id)
+          .firstWhere((m) => m.name == 'Projects');
+      final history = CommandHistory(app.store);
+      for (final id in [
+        'new.message',
+        'setting.theme',
+        'go.folder.${projects.id}',
+        'go.pins',
+      ]) {
+        history.used(id);
+      }
+      await show(tester, shell(), size: const Size(1440, 900), dark: dark);
+      await tester.tap(find.text('Hello there'));
+      await settle(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await shoot(tester, 'desktop_command_bar$suffix');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(CommandBarDialog),
+          matching: find.byType(TextField),
+        ),
+        'pin',
+      );
+      await shoot(tester, 'desktop_command_bar_search$suffix');
     });
   }
 
@@ -1256,7 +1352,7 @@ void main() {
     await tester.tap(find.byTooltip('Folders'));
     await settle(tester);
     await tester.tap(
-      find.descendant(of: find.byType(Drawer), matching: find.text('Snoozed')),
+      find.descendant(of: find.byType(Sidebar), matching: find.text('Snoozed')),
     );
     await shoot(tester, 'phone_snoozed');
   });
@@ -1407,7 +1503,7 @@ void main() {
     await tester.tap(find.byTooltip('Folders'));
     await settle(tester);
     await tester.tap(
-      find.descendant(of: find.byType(Drawer), matching: find.text('Outbox')),
+      find.descendant(of: find.byType(Sidebar), matching: find.text('Outbox')),
     );
     await shoot(tester, 'phone_send_later_outbox');
   });
@@ -1471,7 +1567,7 @@ void main() {
     await tester.tap(find.byTooltip('Folders'));
     await settle(tester);
     await tester.tap(
-      find.descendant(of: find.byType(Drawer), matching: find.text('Sent')),
+      find.descendant(of: find.byType(Sidebar), matching: find.text('Sent')),
     );
     await settle(tester);
     await tester.tap(find.text('Trip to Lisbon'));
@@ -1502,7 +1598,7 @@ void main() {
     await settle(tester);
     await tester.tap(
       find.descendant(
-        of: find.byType(Drawer),
+        of: find.byType(Sidebar),
         matching: find.text('Waiting for a reply'),
       ),
     );
@@ -1521,7 +1617,7 @@ void main() {
     await settle(tester);
     await tester.tap(
       find.descendant(
-        of: find.byType(Drawer),
+        of: find.byType(Sidebar),
         matching: find.text('Waiting for a reply'),
       ),
     );
@@ -1671,6 +1767,125 @@ void main() {
       });
     }
   });
+
+  // Writing hints under the recipients: the late hour where they are
+  // (and Send later at 8:00 their time), how quickly they reply, and
+  // "Did you mean" for a near miss of a known address.
+  for (final (size, name) in [
+    (const Size(1440, 900), 'desktop'),
+    (const Size(390, 844), 'phone'),
+  ]) {
+    testWidgets('writing hints $name', (tester) async {
+      _seedWritingHints(app.store);
+      final alice = app.store.accounts.all().single;
+      addTearDown(() => SendLaterTimes.clock = DateTime.now);
+      // The desktop notes, as on a computer.
+      if (name == 'desktop') {
+        debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      }
+
+      Future<void> write(List<MailAddress> to, String file) async {
+        final controller = ComposeController(
+          app.services,
+          Draft(
+            accountId: alice.id,
+            to: to,
+            subject: 'Draft for the launch',
+            body:
+                'Hi Maya,\n\nHere is the draft for the launch page. '
+                'Could you look at the pricing part?\n\nAlex',
+          ),
+        );
+        addTearDown(controller.dispose);
+        await show(tester, ComposePage(controller: controller), size: size);
+        await shoot(tester, '${name}_writing_hint_$file');
+      }
+
+      // 7:40 UTC: 11:40 PM for Maya, in California.
+      SendLaterTimes.clock = () => DateTime.utc(2026, 11, 5, 7, 40);
+      await write(const [_hintMaya], 'time');
+      await tester.tap(find.byKey(const ValueKey('writing-hint-action')));
+      await shoot(tester, '${name}_writing_hint_send_later');
+      await tester.tapAt(const Offset(4, 4));
+      await settle(tester);
+
+      // 18:00 UTC: 10:00 AM for her.
+      SendLaterTimes.clock = () => DateTime.utc(2026, 11, 5, 18);
+      await write(const [_hintMaya], 'reply');
+      await write(const [
+        MailAddress(
+          displayName: 'Maya',
+          localPart: 'maya.lin',
+          domain: 'northwind.exmaple',
+        ),
+      ], 'typo');
+      // Let the drafts' save timers run out.
+      await tester.pump(const Duration(seconds: 3));
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
+}
+
+const _hintMaya = MailAddress(
+  displayName: 'Maya Lin',
+  localPart: 'maya.lin',
+  domain: 'northwind.example',
+);
+
+/// Maya's mail, dated in California (UTC-8), and her answers to Alex's
+/// emails after one, two and four hours.
+void _seedWritingHints(MailStore store) {
+  final account = store.accounts.all().single;
+  final inbox = store.mailboxes.inbox(account.id)!;
+  final sent = store.mailboxes.bySpecialUse(account.id, SpecialUse.sent)!;
+  const alice = MailAddress(localPart: 'alice', domain: 'citusmail.test');
+  for (var i = 0; i < 6; i++) {
+    final at = DateTime.utc(2026, 10, 5 + i, 18);
+    store.messages.upsertSummaries(inbox.id, [
+      MessageSummary(
+        uid: 700 + i,
+        receivedAt: at,
+        sentAt: at,
+        messageId: 'maya-$i@northwind.example',
+        subject: 'Launch notes $i',
+        from: _hintMaya,
+        to: const [alice],
+        flags: MessageFlags.fromImap([r'\Seen']),
+        headers: {
+          'date': [MailDate.format(at, offset: const Duration(hours: -8))],
+        },
+      ),
+    ]);
+  }
+  for (final (i, hours) in [1, 2, 4].indexed) {
+    final asked = DateTime.utc(2026, 10, 20 + i, 17);
+    store.messages.upsertSummaries(sent.id, [
+      MessageSummary(
+        uid: 700 + i,
+        receivedAt: asked,
+        sentAt: asked,
+        messageId: 'alex-$i@citusmail.test',
+        subject: 'Pricing $i',
+        from: alice,
+        to: const [_hintMaya],
+        flags: MessageFlags.fromImap([r'\Seen']),
+      ),
+    ]);
+    final answered = asked.add(Duration(hours: hours));
+    store.messages.upsertSummaries(inbox.id, [
+      MessageSummary(
+        uid: 720 + i,
+        receivedAt: answered,
+        sentAt: answered,
+        messageId: 'maya-re-$i@northwind.example',
+        inReplyTo: 'alex-$i@citusmail.test',
+        subject: 'Re: Pricing $i',
+        from: _hintMaya,
+        to: const [alice],
+        flags: MessageFlags.fromImap([r'\Seen']),
+      ),
+    ]);
+  }
 }
 
 /// Notifications about billing code: GitHub's marked "Not a

@@ -18,14 +18,18 @@ import 'ask_mail_panel.dart';
 import 'attachments_page.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
+import 'delete_confirm.dart';
 import 'empty_state.dart';
 import 'folder_dialogs.dart';
 import 'follow_ups_list.dart';
+import 'inbox_summary_line.dart';
 import 'mail_text.dart';
 import 'message_tile.dart';
+import 'motion.dart';
 import 'move_dialog.dart';
 import 'new_since_away_section.dart';
 import 'screener_page.dart';
+import 'search_correction_line.dart';
 import 'send_later_sheet.dart';
 import 'skeleton_rows.dart';
 import 'snooze_sheet.dart';
@@ -41,14 +45,25 @@ final class MessageListPane extends StatelessWidget {
     required this.searchFocus,
     this.leading,
     this.controlsAtBottom = false,
+    this.tabRoot,
+    this.endSpace = 0,
   });
 
   final MailController controller;
 
-  /// Phones: the search bar and the selection actions are in
-  /// [MessageListControls] at the bottom of the screen, within reach of the
-  /// thumb; only the view's title stays on top.
+  /// Phones: the search bar ([MessageSearchBar]) and the selection actions
+  /// ([MessageSelectionControls]) are the phone layout's own; only the
+  /// view's title stays here.
   final bool controlsAtBottom;
+
+  /// Phones: the place this list is a tab for (Inbox, Pins), titled
+  /// without a way back; other places have one, back to it. Elsewhere
+  /// (null) only the inboxes have no way back.
+  final MailLocation? tabRoot;
+
+  /// Room after the last row, so a button floating over the list (the
+  /// phone's New message) never covers it.
+  final double endSpace;
 
   /// Null when the sidebar has the "New message" button.
   final VoidCallback? onCompose;
@@ -66,7 +81,10 @@ final class MessageListPane extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (controlsAtBottom)
-          SizedBox(height: 48, child: _ViewHeader(controller: controller))
+          SizedBox(
+            height: 48,
+            child: _ViewHeader(controller: controller, tabRoot: tabRoot),
+          )
         else ...[
           _TopBar(
             controller: controller,
@@ -92,46 +110,55 @@ final class MessageListPane extends StatelessWidget {
         WhatsNewCard(controller: controller),
         // Searching with the "Ask your mail" assistant on: its answer.
         AskMailPanel(controller: controller),
-        Expanded(child: _Messages(controller: controller)),
+        SearchCorrectionLine(controller: controller),
+        Expanded(
+          child: _Messages(controller: controller, endSpace: endSpace),
+        ),
       ],
     ),
   );
 }
 
-/// The list's controls at the bottom of a phone screen: menu, search and
-/// New message, or the actions for selected messages.
-final class MessageListControls extends StatelessWidget {
-  const MessageListControls({
+/// Phones: the search field alone, at the top of the inbox (New message
+/// is a button of its own there).
+final class MessageSearchBar extends StatelessWidget {
+  const MessageSearchBar({
     super.key,
     required this.controller,
-    required this.onCompose,
     required this.searchFocus,
-    required this.leading,
   });
 
   final MailController controller;
-  final VoidCallback onCompose;
   final FocusNode searchFocus;
-  final Widget leading;
+
+  @override
+  Widget build(BuildContext context) => _TopBar(
+    controller: controller,
+    onCompose: null,
+    searchFocus: searchFocus,
+    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+    height: 48,
+  );
+}
+
+/// Phones: the actions for the selected messages, at the bottom of the
+/// screen; those that don't fit are under "More".
+final class MessageSelectionControls extends StatelessWidget {
+  const MessageSelectionControls({super.key, required this.controller});
+
+  final MailController controller;
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
     valueListenable: controller.selection,
-    builder: (context, selected, _) => selected.isEmpty
-        ? _TopBar(
-            controller: controller,
-            onCompose: onCompose,
-            searchFocus: searchFocus,
-            leading: leading,
-            padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-          )
-        : SizedBox(
-            height: 60,
-            child: _SelectionBar(
-              controller: controller,
-              count: selected.length,
-            ),
-          ),
+    builder: (context, selected, _) => SizedBox(
+      height: 60,
+      child: _SelectionBar(
+        controller: controller,
+        count: selected.length,
+        fit: true,
+      ),
+    ),
   );
 }
 
@@ -144,6 +171,7 @@ final class _TopBar extends StatefulWidget {
     required this.searchFocus,
     this.leading,
     this.padding = const EdgeInsets.fromLTRB(12, 12, 12, 4),
+    this.height = 44,
   });
 
   final MailController controller;
@@ -151,6 +179,9 @@ final class _TopBar extends StatefulWidget {
   final FocusNode searchFocus;
   final Widget? leading;
   final EdgeInsets padding;
+
+  /// The search field's (phones: a full tap target).
+  final double height;
 
   @override
   State<_TopBar> createState() => _TopBarState();
@@ -197,7 +228,7 @@ final class _TopBarState extends State<_TopBar> {
                   location is SearchLocation || widget.searchFocus.hasFocus;
               final theme = Theme.of(context);
               return SizedBox(
-                height: 44,
+                height: widget.height,
                 child: TextField(
                   controller: _search,
                   focusNode: widget.searchFocus,
@@ -241,18 +272,20 @@ final class _TopBarState extends State<_TopBar> {
         ),
         if (widget.onCompose case final compose?) ...[
           const SizedBox(width: 8),
-          IconButton.filled(
-            tooltip: 'New message (C)',
-            style: IconButton.styleFrom(
-              backgroundColor: CitusPalette.citrus,
-              foregroundColor: CitusPalette.onCitrus,
-              fixedSize: const Size(44, 44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+          PressScale(
+            child: IconButton.filled(
+              tooltip: 'New message (C)',
+              style: IconButton.styleFrom(
+                backgroundColor: CitusPalette.citrus,
+                foregroundColor: CitusPalette.onCitrus,
+                fixedSize: const Size(44, 44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+                ),
               ),
+              onPressed: compose,
+              icon: const Icon(AppIcons.compose),
             ),
-            onPressed: compose,
-            icon: const Icon(AppIcons.compose),
           ),
         ],
       ],
@@ -289,9 +322,12 @@ final class _FilesButton extends StatelessWidget {
 /// The view's title (with a way back, outside the inbox), and the sync
 /// status line.
 final class _ViewHeader extends StatelessWidget {
-  const _ViewHeader({required this.controller});
+  const _ViewHeader({required this.controller, this.tabRoot});
 
   final MailController controller;
+
+  /// See [MessageListPane.tabRoot].
+  final MailLocation? tabRoot;
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
@@ -314,10 +350,14 @@ final class _ViewHeader extends StatelessWidget {
     final heading = theme.textTheme.titleMedium?.copyWith(
       fontWeight: FontWeight.w600,
     );
-    if (location is InboxLocation) {
+    final root = tabRoot;
+    if (root == null ? location is InboxLocation : location == root) {
       return Padding(
         padding: const EdgeInsets.only(left: 4),
-        child: Text('Inbox', style: heading),
+        child: Text(
+          location is PinsLocation ? 'Pins' : 'Inbox',
+          style: heading,
+        ),
       );
     }
     final title = switch (location) {
@@ -333,7 +373,7 @@ final class _ViewHeader extends StatelessWidget {
       SnoozedLocation() => 'Snoozed',
       FollowUpsLocation() => 'Waiting for a reply',
       SearchLocation(:final text) => 'Results for "$text"',
-      InboxLocation() => '',
+      InboxLocation() => 'Inbox',
     };
     final folder = location is FolderLocation
         ? store.mailboxes.byId(location.mailboxId)
@@ -341,9 +381,10 @@ final class _ViewHeader extends StatelessWidget {
     return Row(
       children: [
         IconButton(
-          tooltip: 'Back to Inbox',
+          // Phones: back to the tab it was opened from.
+          tooltip: root == null ? 'Back to Inbox' : 'Back',
           icon: const Icon(AppIcons.back),
-          onPressed: () => controller.goTo(const InboxLocation()),
+          onPressed: () => controller.goTo(root ?? const InboxLocation()),
         ),
         Flexible(
           child: Text(
@@ -458,6 +499,7 @@ final class _SelectionBar extends StatelessWidget {
     required this.controller,
     required this.count,
     this.withTidy = false,
+    this.fit = false,
   });
 
   final MailController controller;
@@ -467,6 +509,9 @@ final class _SelectionBar extends StatelessWidget {
   /// header's place; on phones the header above keeps it).
   final bool withTidy;
 
+  /// Phones: as many actions as fit, the rest under "More".
+  final bool fit;
+
   @override
   Widget build(BuildContext context) {
     final targets = controller.targets;
@@ -475,7 +520,63 @@ final class _SelectionBar extends StatelessWidget {
     final snoozed = controller.location.value is SnoozedLocation;
     final canSnooze = targets.isNotEmpty && targets.every(controller.canSnooze);
     final oneAccount = targets.map((m) => m.accountId).toSet().length == 1;
-    return Container(
+    // In Trash, or an account without one: deleting is for good, so ask.
+    final forever = targets.any(controller.deletesForever);
+    final selectAll = _Action(
+      'Select all shown',
+      AppIcons.selectAll,
+      controller.selectAllVisible,
+    );
+    // On phones, the everyday actions come first.
+    final actions = [
+      if (!fit) selectAll,
+      _Action(
+        'Archive (E)',
+        AppIcons.archive,
+        () => controller.archive(targets),
+      ),
+      _Action(
+        forever ? 'Delete forever' : 'Move to Trash (#)',
+        forever ? AppIcons.deleteForever : AppIcons.delete,
+        () async {
+          if (forever &&
+              !await confirmDeleteForever(context, count: targets.length)) {
+            return;
+          }
+          controller.delete(targets);
+        },
+      ),
+      if (snoozed)
+        _Action(
+          'Unsnooze',
+          AppIcons.unsnooze,
+          () => controller.unsnooze(targets),
+        ),
+      if (canSnooze)
+        _Action(
+          snoozed ? 'Change snooze time (B)' : 'Snooze (B)',
+          AppIcons.snooze,
+          () => SnoozeSheet.show(context, controller, targets),
+        ),
+      _Action(
+        allRead ? 'Mark as unread (U)' : 'Mark as read (U)',
+        allRead ? AppIcons.markUnread : AppIcons.markRead,
+        () => controller.toggleRead(targets),
+      ),
+      _Action(
+        allPinned ? 'Unpin (S)' : 'Pin (S)',
+        allPinned ? AppIcons.pinOn : AppIcons.pinOff,
+        () => controller.togglePin(targets),
+      ),
+      if (oneAccount)
+        _Action(
+          'Move to folder (V)',
+          AppIcons.move,
+          () => MoveDialog.show(context, controller, targets),
+        ),
+      if (fit) selectAll,
+    ];
+    Widget bar(List<Widget> buttons) => Container(
       color: ListColors.of(context).checked,
       padding: const EdgeInsets.fromLTRB(4, 0, 8, 0),
       child: Row(
@@ -488,65 +589,76 @@ final class _SelectionBar extends StatelessWidget {
           Expanded(
             child: Text(
               '$count selected',
+              maxLines: fit ? 1 : null,
+              overflow: fit ? TextOverflow.ellipsis : null,
               style: Theme.of(context).textTheme.titleSmall,
             ),
           ),
-          IconButton(
-            tooltip: 'Select all shown',
-            icon: const Icon(AppIcons.selectAll),
-            onPressed: controller.selectAllVisible,
-          ),
-          IconButton(
-            tooltip: 'Archive (E)',
-            icon: const Icon(AppIcons.archive),
-            onPressed: () => controller.archive(targets),
-          ),
-          IconButton(
-            tooltip: 'Move to Trash (#)',
-            icon: const Icon(AppIcons.delete),
-            onPressed: () => controller.delete(targets),
-          ),
-          if (snoozed)
-            IconButton(
-              tooltip: 'Unsnooze',
-              icon: const Icon(AppIcons.unsnooze),
-              onPressed: () => controller.unsnooze(targets),
-            ),
-          if (canSnooze)
-            IconButton(
-              tooltip: snoozed ? 'Change snooze time (B)' : 'Snooze (B)',
-              icon: const Icon(AppIcons.snooze),
-              onPressed: () => SnoozeSheet.show(context, controller, targets),
-            ),
-          IconButton(
-            tooltip: allRead ? 'Mark as unread (U)' : 'Mark as read (U)',
-            icon: Icon(allRead ? AppIcons.markUnread : AppIcons.markRead),
-            onPressed: () => controller.toggleRead(targets),
-          ),
-          IconButton(
-            tooltip: allPinned ? 'Unpin (S)' : 'Pin (S)',
-            icon: Icon(allPinned ? AppIcons.pinOn : AppIcons.pinOff),
-            onPressed: () => controller.togglePin(targets),
-          ),
-          if (oneAccount)
-            IconButton(
-              tooltip: 'Move to folder (V)',
-              icon: const Icon(AppIcons.move),
-              onPressed: () => MoveDialog.show(context, controller, targets),
-            ),
-          if (withTidy) AiTidyButton(controller: controller),
+          ...buttons,
         ],
       ),
     );
+    if (!fit) {
+      return bar([
+        for (final action in actions) action.button(),
+        if (withTidy) AiTidyButton(controller: controller),
+      ]);
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Cancel and the count (wider with larger text) first, then a
+        // button for each action that fits, one of them More if not all
+        // do.
+        const button = 48.0;
+        final count = MediaQuery.textScalerOf(context).scale(96);
+        final room = ((constraints.maxWidth - 12 - button - count) / button)
+            .floor();
+        final shown = room >= actions.length
+            ? actions
+            : actions.take((room - 1).clamp(0, actions.length)).toList();
+        final more = actions.skip(shown.length).toList();
+        return bar([
+          for (final action in shown) action.button(),
+          if (more.isNotEmpty)
+            PopupMenuButton<void>(
+              tooltip: 'More',
+              icon: const Icon(AppIcons.more),
+              itemBuilder: (_) => [
+                for (final action in more)
+                  PopupMenuItem(
+                    onTap: action.onPressed,
+                    child: ListTile(
+                      leading: Icon(action.icon),
+                      title: Text(action.label),
+                    ),
+                  ),
+              ],
+            ),
+        ]);
+      },
+    );
   }
+}
+
+/// One of the selection bar's actions: a button, or a line under More.
+final class _Action {
+  const _Action(this.label, this.icon, this.onPressed);
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  Widget button() =>
+      IconButton(tooltip: label, icon: Icon(icon), onPressed: onPressed);
 }
 
 // ------------------------------------------------------------- messages
 
 final class _Messages extends StatefulWidget {
-  const _Messages({required this.controller});
+  const _Messages({required this.controller, this.endSpace = 0});
 
   final MailController controller;
+  final double endSpace;
 
   @override
   State<_Messages> createState() => _MessagesState();
@@ -579,6 +691,9 @@ final class _MessagesState extends State<_Messages> {
     _scroll.dispose();
     super.dispose();
   }
+
+  /// Keeps the summary line's state while the list around it changes.
+  final _summaryKey = GlobalKey(debugLabel: 'summary line');
 
   /// Mail has been checked at least once while this list was shown; till
   /// then an empty list may just be mail on its way.
@@ -633,12 +748,21 @@ final class _MessagesState extends State<_Messages> {
             list.followUps.isEmpty &&
             list.newSinceAway.isEmpty) {
           if (firstCheck) return arriving;
-          return EmptyState(
-            icon: AppIcons.inbox,
-            text: 'Your inbox is empty.',
-            hint: 'Nothing new has arrived.',
-            action: 'Check for new mail',
-            onAction: _c.syncNow,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // A parcel or an appointment today, even with no mail.
+              InboxSummaryLine(key: _summaryKey, controller: _c),
+              Expanded(
+                child: EmptyState(
+                  icon: AppIcons.inbox,
+                  text: 'Your inbox is empty.',
+                  hint: 'Nothing new has arrived.',
+                  action: 'Check for new mail',
+                  onAction: _c.syncNow,
+                ),
+              ),
+            ],
           );
         }
         return Scrollbar(
@@ -646,6 +770,10 @@ final class _MessagesState extends State<_Messages> {
           child: CustomScrollView(
             controller: _scroll,
             slivers: [
+              // One quiet line: new mail, a code, what is on today.
+              SliverToBoxAdapter(
+                child: InboxSummaryLine(key: _summaryKey, controller: _c),
+              ),
               // What arrived while the user was away, at the very top.
               if (!list.newSinceAway.isEmpty)
                 SliverMainAxisGroup(
@@ -695,35 +823,51 @@ final class _MessagesState extends State<_Messages> {
                   slivers: [
                     SliverPersistentHeader(
                       pinned: true,
-                      delegate: _SectionHeader(section, _c),
+                      delegate: _SectionHeader(
+                        section,
+                        _c,
+                        MediaQuery.textScalerOf(context),
+                      ),
                     ),
                     if (section.section == SmartSection.codes) ?codesOffer,
-                    if (section.expanded) ...[
-                      SliverPrototypeExtentList.builder(
-                        prototypeItem: prototype,
-                        itemCount: section.messages.length,
-                        itemBuilder: (_, i) => _tile(section.messages[i]),
-                      ),
-                      if (section.hasMore)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(58, 0, 16, 8),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton(
-                                onPressed: () =>
-                                    list.showMoreInSection(section.section),
-                                child: Text(
-                                  'Show more (${section.count.total - section.messages.length} more)',
+                    // Folds smoothly; only the part on screen moves.
+                    FoldingSliver(
+                      key: ValueKey('fold-${section.section.name}'),
+                      open: section.expanded,
+                      builder: (_) => SliverMainAxisGroup(
+                        slivers: [
+                          SliverPrototypeExtentList.builder(
+                            prototypeItem: prototype,
+                            itemCount: section.messages.length,
+                            itemBuilder: (_, i) => _tile(section.messages[i]),
+                          ),
+                          if (section.hasMore)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  58,
+                                  0,
+                                  16,
+                                  8,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton(
+                                    onPressed: () =>
+                                        list.showMoreInSection(section.section),
+                                    child: Text(
+                                      'Show more (${section.count.total - section.messages.length} more)',
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverToBoxAdapter(child: SizedBox(height: 24 + widget.endSpace)),
             ],
           ),
         );
@@ -799,6 +943,8 @@ final class _MessagesState extends State<_Messages> {
                 ),
               ),
             ),
+            if (widget.endSpace > 0)
+              SliverToBoxAdapter(child: SizedBox(height: widget.endSpace)),
           ],
         ),
       );
@@ -830,17 +976,22 @@ final class _MessagesState extends State<_Messages> {
 /// An accordion header that stays at the top while its section scrolls:
 /// name, unread count, the senders of a collapsed section, "mark all read".
 final class _SectionHeader extends SliverPersistentHeaderDelegate {
-  _SectionHeader(this.state, this.controller);
+  _SectionHeader(this.state, this.controller, this.textScaler);
 
   final SectionState state;
   final MailController controller;
 
+  /// Larger text makes the header taller, so its two lines still fit.
+  final TextScaler textScaler;
+
   static const height = 52.0;
 
+  double get _height => height + textScaler.scale(36) - 36;
+
   @override
-  double get minExtent => height;
+  double get minExtent => _height;
   @override
-  double get maxExtent => height;
+  double get maxExtent => _height;
 
   @override
   bool shouldRebuild(_SectionHeader old) => true;
@@ -889,7 +1040,8 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
             ),
             child: Padding(
               // The icon sits over the avatars, the name over the senders.
-              padding: const EdgeInsets.fromLTRB(22, 6, 6, 4),
+              // 2 above and below: "mark all read" gets its full 48.
+              padding: const EdgeInsets.fromLTRB(22, 2, 6, 2),
               child: Row(
                 children: [
                   SizedBox(
@@ -918,11 +1070,14 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
                             ),
                             if (count.unread > 0) ...[
                               const SizedBox(width: 10),
-                              Text(
-                                '${count.unread} new',
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: colors.primary,
-                                  fontWeight: FontWeight.w600,
+                              CountSwitcher(
+                                count: count.unread,
+                                builder: (context, unread) => Text(
+                                  '$unread new',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: colors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],
@@ -952,7 +1107,8 @@ final class _SectionHeader extends SliverPersistentHeaderDelegate {
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: AnimatedRotation(
                       turns: state.expanded ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 150),
+                      duration: CitusMotion.of(context, CitusMotion.fold),
+                      curve: CitusMotion.standard,
                       child: Icon(
                         AppIcons.expand,
                         color: colors.onSurfaceVariant,

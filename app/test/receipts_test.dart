@@ -15,6 +15,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 void main() {
@@ -42,12 +43,7 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
-  }
+  Future<void> settle(WidgetTester tester) => settleMail(tester);
 
   /// "Final report", sent by alice asking for a receipt (fixture).
   void seedSentReport() {
@@ -295,7 +291,7 @@ void main() {
     receiptArrives();
     await show(tester);
     await tester.tap(find.text('Notifications'));
-    await tester.pump();
+    await tester.pumpAndSettle(); // unfolded
     expect(find.text('Your parcel'), findsOneWidget);
     expect(find.text('Read: Final report'), findsNothing);
     expect(find.textContaining('Bob Example'), findsNothing);

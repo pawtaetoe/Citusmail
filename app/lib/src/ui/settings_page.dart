@@ -19,6 +19,7 @@ import '../security/app_lock.dart';
 import '../security/pin_dialogs.dart';
 import '../services/ai_assistant.dart';
 import '../services/app_services.dart';
+import '../services/latest_code.dart';
 import '../services/link_safety.dart';
 import '../services/virus_total_checks.dart';
 import 'ai_feature_tiles.dart';
@@ -28,9 +29,11 @@ import 'appearance.dart';
 import 'block_dialog.dart';
 import 'citusmail_theme.dart';
 import 'code_cleanup_banner.dart';
+import 'command_bar.dart';
 import 'device_sync_page.dart';
 import 'discover_page.dart';
 import 'feature_settings.dart';
+import 'features.dart';
 import 'image_senders_page.dart';
 import 'link_opener.dart';
 import 'page_scaffold.dart';
@@ -71,6 +74,7 @@ final class SettingsPage extends StatefulWidget {
     this.onAddAccount,
     this.show,
     this.batteryLimited = BackgroundMail.batteryLimited,
+    this.requestCodeTile = LatestCode.requestTile,
   });
 
   final AppServices services;
@@ -95,8 +99,24 @@ final class SettingsPage extends StatefulWidget {
   /// Whether Android holds background checks back to save battery.
   final Future<bool> Function() batteryLimited;
 
+  /// Asks Android to add the "Latest code" tile to Quick Settings.
+  final Future<TileRequest> Function() requestCodeTile;
+
   /// From this width the groups and the settings are side by side.
   static const twoPaneWidth = 720.0;
+
+  /// What the "Latest code" tile does, and what it keeps.
+  static const codeTileExplanation =
+      'A tap on the tile copies the newest verification code from the last '
+      '10 minutes. The tile shows who sent it, never the code, and asks you '
+      'to unlock your phone first. The code is kept on this phone, '
+      'encrypted, only while the tile is added, and not while the app '
+      'lock is on.';
+
+  /// How to add the tile where Android can't be asked (before Android 13).
+  static const codeTileHowTo =
+      'Swipe down from the top of the screen twice, tap the pencil to edit '
+      'your tiles, and drag “Latest code” up among them.';
 
   /// Opens Settings, showing the setting [show] if given.
   static Future<void> open(
@@ -540,7 +560,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             'The first lines of each email, in the notification',
             more:
                 'When off, notifications show only the sender and the '
-                'subject.',
+                'subject, without codes; Copy code still works.',
           ),
           value: settings.notifications && settings.notificationPreviews,
           onChanged: settings.notifications
@@ -622,7 +642,54 @@ final class _SettingsPageState extends State<SettingsPage> {
             batteryLimited: widget.batteryLimited,
           ),
         ),
+      if (_android)
+        _find(
+          'codeTile',
+          ListTile(
+            leading: const Icon(AppIcons.codes),
+            title: const Text('Add “Latest code” to Quick Settings'),
+            subtitle: const SettingExplained(
+              about: 'Latest code',
+              'Copy a new code from Quick Settings, without opening the app',
+              more: SettingsPage.codeTileExplanation,
+            ),
+            trailing: TextButton(
+              onPressed: _addCodeTile,
+              child: const Text('Add'),
+            ),
+          ),
+        ),
     ];
+  }
+
+  /// Asks Android to add the tile; where it can't be asked, says how.
+  Future<void> _addCodeTile() async {
+    final answer = await widget.requestCodeTile();
+    if (!mounted) return;
+    final done = switch (answer) {
+      TileRequest.added => 'Added to Quick Settings',
+      TileRequest.alreadyAdded => '“Latest code” is already in Quick Settings',
+      TileRequest.notAdded => null,
+      TileRequest.unsupported => null,
+    };
+    if (done != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(done)));
+      return;
+    }
+    if (answer != TileRequest.unsupported) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add “Latest code”'),
+        content: const Text(SettingsPage.codeTileHowTo),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Widget> _inboxSettings() {
@@ -644,6 +711,26 @@ final class _SettingsPageState extends State<SettingsPage> {
           value: settings.newSinceAway,
           onChanged: (on) {
             setState(() => settings.newSinceAway = on);
+            widget.controller?.refresh();
+          },
+        ),
+      ),
+      _find(
+        'summaryLine',
+        SwitchListTile(
+          secondary: const Icon(AppIcons.summaryLine),
+          title: const Text('Summary line'),
+          subtitle: const SettingExplained(
+            about: 'Summary line',
+            'One line at the top of your inbox: new mail, a code, today',
+            more:
+                'Says how many emails are new, which code just came, and '
+                'what is on today: parcels arriving, an appointment or a '
+                'trip, a bill due. Made on this device from your mail.',
+          ),
+          value: settings.summaryLine,
+          onChanged: (on) {
+            setState(() => settings.summaryLine = on);
             widget.controller?.refresh();
           },
         ),
@@ -716,6 +803,25 @@ final class _SettingsPageState extends State<SettingsPage> {
       ),
     ),
     _find(
+      'writingHints',
+      SwitchListTile(
+        secondary: const Icon(AppIcons.tip),
+        title: const Text('Writing hints'),
+        subtitle: const SettingExplained(
+          about: 'Writing hints',
+          'Their local time, how fast they reply, a likely typo',
+          more:
+              'A quiet line under the recipients: when it is night for '
+              'them, how quickly they usually answer you, or a near miss '
+              'of an address you know. Worked out on this device from '
+              'your own mail; nothing is sent anywhere.',
+        ),
+        value: widget.services.settings.writingHints,
+        onChanged: (on) =>
+            setState(() => widget.services.settings.writingHints = on),
+      ),
+    ),
+    _find(
       'signOffs',
       ListTile(
         leading: const Icon(AppIcons.signOff),
@@ -733,46 +839,103 @@ final class _SettingsPageState extends State<SettingsPage> {
     ),
   ];
 
-  List<Widget> _accountSettings() => [
-    for (final (i, account) in widget.services.store.accounts.all().indexed)
-      _find(
-        i == 0 ? 'accounts' : 'account-${account.id}',
-        ListTile(
-          leading: const Icon(AppIcons.account),
-          title: Text(account.email),
-          subtitle: const Text('Folders, password, remove: ⋮ in the sidebar'),
-        ),
-      ),
-    if (widget.onAddAccount case final add?)
-      _find(
-        'addAccount',
-        ListTile(
-          leading: const Icon(AppIcons.addAccount),
-          title: const Text('Add account'),
-          trailing: const Icon(AppIcons.chevron),
-          onTap: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
-            add();
-          },
-        ),
-      ),
-    _find(
-      'keepMail',
+  List<Widget> _accountSettings() {
+    final accounts = widget.services.store.accounts.all();
+    Widget tile(int i, Account account) => _find(
+      i == 0 ? 'accounts' : 'account-${account.id}',
       ListTile(
-        leading: const Icon(AppIcons.keepMail),
-        title: const Text('Keep mail from'),
-        subtitle: SettingExplained(
-          about: 'Keep mail from',
-          '${_keepLabel(KeepMail.read(widget.services.store))}.',
-          more:
-              'Older mail still loads when you scroll down. Search and '
-              'Subscriptions see what is on this device.',
+        leading: const Icon(AppIcons.account),
+        title: Text(account.email),
+        subtitle: Text(
+          i == 0 && accounts.length > 1
+              ? 'Top account: new messages are sent from it'
+              : 'Folders, password, remove: ⋮ in the sidebar',
         ),
-        trailing: const Icon(AppIcons.chevron),
-        onTap: _chooseKeepMail,
+        trailing: accounts.length > 1
+            ? ReorderableDragStartListener(
+                index: i,
+                child: Tooltip(
+                  message: 'Drag to reorder ${account.email}',
+                  child: const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Icon(AppIcons.dragHandle),
+                  ),
+                ),
+              )
+            : null,
       ),
-    ),
-  ];
+    );
+    return [
+      if (accounts.length > 1)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Text(
+            'Drag to change the order. The sidebar and the From choice '
+            'follow it, and new messages are sent from the top account.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      if (accounts.length > 1)
+        ReorderableListView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          onReorderItem: (from, to) {
+            final ids = [for (final a in accounts) a.id];
+            // [to] already counts without the moved one.
+            ids.insert(to, ids.removeAt(from));
+            final controller = widget.controller;
+            if (controller != null) {
+              controller.reorderAccounts(ids);
+            } else {
+              widget.services.store.accounts.reorder(ids);
+            }
+            setState(() {});
+          },
+          children: [
+            for (final (i, account) in accounts.indexed)
+              KeyedSubtree(
+                key: ValueKey('account-order-${account.id}'),
+                child: tile(i, account),
+              ),
+          ],
+        )
+      else
+        for (final (i, account) in accounts.indexed) tile(i, account),
+      if (widget.onAddAccount case final add?)
+        _find(
+          'addAccount',
+          ListTile(
+            leading: const Icon(AppIcons.addAccount),
+            title: const Text('Add account'),
+            trailing: const Icon(AppIcons.chevron),
+            onTap: () {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              add();
+            },
+          ),
+        ),
+      _find(
+        'keepMail',
+        ListTile(
+          leading: const Icon(AppIcons.keepMail),
+          title: const Text('Keep mail from'),
+          subtitle: SettingExplained(
+            about: 'Keep mail from',
+            '${_keepLabel(KeepMail.read(widget.services.store))}.',
+            more:
+                'Older mail still loads when you scroll down. Search and '
+                'Subscriptions see what is on this device.',
+          ),
+          trailing: const Icon(AppIcons.chevron),
+          onTap: _chooseKeepMail,
+        ),
+      ),
+    ];
+  }
 
   List<Widget> _privacySettings() {
     final enabled = _lock.enabled;
@@ -980,6 +1143,20 @@ final class _SettingsPageState extends State<SettingsPage> {
             subtitle: const Text('Everything $appName can do, in one place'),
             trailing: const Icon(AppIcons.chevron),
             onTap: _openDiscover,
+          ),
+        ),
+      if (widget.controller case final c? when !_android)
+        _find(
+          'commandBar',
+          ListTile(
+            leading: const Icon(AppIcons.commandBar),
+            title: const Text('Command bar'),
+            subtitle: Text(
+              'Press ${CommandBar.keys} to find emails, folders, settings '
+              'and actions',
+            ),
+            trailing: const Icon(AppIcons.chevron),
+            onTap: () => Features.byId('commandBar')!.open(context, c),
           ),
         ),
       _find(

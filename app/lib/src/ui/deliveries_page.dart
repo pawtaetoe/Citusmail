@@ -14,6 +14,7 @@ import 'avatar.dart';
 import 'badge.dart';
 import 'delivery_detail_page.dart';
 import 'feature_settings.dart';
+import 'motion.dart';
 import 'page_scaffold.dart';
 import 'read_ahead.dart';
 import 'returns_section.dart';
@@ -94,13 +95,7 @@ final class _DeliveriesPageState extends State<DeliveriesPage> with ReadsAhead {
     }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(text),
-          persist: false,
-          action: SnackBarAction(label: 'Undo', onPressed: undo),
-        ),
-      );
+      ..showSnackBar(undoSnackBar(content: Text(text), onUndo: undo));
   }
 
   @override

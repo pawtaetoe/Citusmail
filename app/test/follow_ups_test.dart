@@ -583,5 +583,12 @@ void main() {
       expect(notice.body, 'Unlock Citusmail to see it.');
       expect(notice.payload, isNull);
     });
+
+    test('removing the account ends its follow-ups', () async {
+      back();
+      await app.services.removeAccount(store().accounts.all().single);
+      expect(followUps().all(), isEmpty);
+      expect(MailNotifier.followUpNotices(store(), now: _now), isEmpty);
+    });
   });
 }

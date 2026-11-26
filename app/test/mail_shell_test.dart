@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'support/settle.dart';
 import 'support/test_app.dart';
 
 void main() {
@@ -50,12 +51,12 @@ void main() {
   }
 
   /// Lets real isolates (worker, message parsing) finish.
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pump(const Duration(milliseconds: 200));
-  }
+  Future<void> settle(WidgetTester tester) => settleMail(tester);
+
+  /// The avatar of a row from [sender]: a tap selects.
+  Finder selectFrom(String sender) => find.byWidgetPredicate(
+    (w) => w is Semantics && w.properties.label == 'Select $sender',
+  );
 
   double top(WidgetTester tester, String text) =>
       tester.getTopLeft(find.text(text).first).dy;
@@ -151,9 +152,11 @@ void main() {
     );
     await tester.tap(find.text('Newsletters'));
     await tester.pump();
+    await tester.pumpAndSettle(); // unfolded
     expect(find.text('Weekly deals'), findsOneWidget);
     await tester.tap(find.text('Newsletters'));
     await tester.pump();
+    await tester.pumpAndSettle(); // folded
     expect(find.text('Weekly deals'), findsNothing);
     expect(
       store.settings.read('ui.collapsedSections'),
@@ -195,9 +198,10 @@ void main() {
   testWidgets('sidebar: mail places, accounts, then the feature groups', (
     tester,
   ) async {
+    // Tablets have the sidebar in a drawer (phones: see phone_tabs_test).
     for (final (size, drawer) in [
       (const Size(1400, 900), false),
-      (const Size(400, 860), true),
+      (const Size(800, 860), true),
     ]) {
       await show(tester, size);
       if (drawer) {
@@ -425,6 +429,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   });
 
+  testWidgets('without a Trash folder, delete asks first: it is for good', (
+    tester,
+  ) async {
+    // The test account's server names no Trash folder: deleting there
+    // removes mail for good.
+    final accountId = store.accounts.all().single.id;
+    expect(store.mailboxes.bySpecialUse(accountId, SpecialUse.trash), isNull);
+    await show(tester, const Size(1400, 900));
+    await tester.tap(find.text('Lunch?'));
+    await settle(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+    await tester.pump();
+    expect(find.text('Moved to Trash'), findsNothing);
+    expect(
+      store.messages
+          .list(const MessageQuery.inbox())
+          .where((m) => m.subject == 'Lunch?'),
+      hasLength(1),
+    );
+    expect(find.byTooltip('Move to Trash (#)'), findsNothing);
+    await tester.tap(find.byTooltip('Delete forever'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Delete forever?'), findsOneWidget);
+  });
+
   testWidgets('shortcuts never fire while typing', (tester) async {
     await show(tester, const Size(1400, 900));
     await tester.tap(find.byType(TextField).first);
@@ -436,8 +465,8 @@ void main() {
 
   testWidgets('select several messages and act on all of them', (tester) async {
     await show(tester, const Size(1400, 900));
-    // Touch: long-press selects (tests run as Android).
-    await tester.longPress(find.text('Lunch?'));
+    // Touch: a tap on the avatar selects (tests run as Android).
+    await tester.tap(selectFrom('Carol'));
     await tester.pump();
     expect(find.text('1 selected'), findsOneWidget);
     await tester.tap(
@@ -472,55 +501,20 @@ void main() {
     expect(find.text('Pinned'), findsOneWidget);
   });
 
-  testWidgets('phone: controls at the bottom, within reach of the thumb', (
-    tester,
-  ) async {
-    await show(tester, const Size(400, 800));
-    // List: menu, search and New message under the messages.
-    final search = tester.getTopLeft(find.byType(TextField)).dy;
-    expect(search, greaterThan(top(tester, 'Hello there')));
-    expect(search, greaterThan(600));
-    expect(tester.getTopLeft(find.byTooltip('Folders')).dy, greaterThan(600));
-    expect(
-      tester.getTopLeft(find.byTooltip('New message (C)')).dy,
-      greaterThan(600),
-    );
-    // Open message: its actions under it too.
-    await tester.tap(find.text('Hello there'));
-    await settle(tester);
-    expect(
-      tester.getTopLeft(find.byTooltip('Back (Esc)')).dy,
-      greaterThan(600),
-    );
-    expect(
-      tester.getTopLeft(find.byTooltip('Move to Trash (#)')).dy,
-      greaterThan(600),
-    );
-    // Selecting: the actions replace the search bar at the bottom.
-    await tester.tap(find.byTooltip('Back (Esc)'));
-    await tester.pump();
-    await tester.longPress(find.text('Hello there'));
-    await tester.pump();
-    expect(find.text('1 selected'), findsOneWidget);
-    expect(tester.getTopLeft(find.text('1 selected')).dy, greaterThan(600));
-    expect(find.byType(TextField), findsNothing);
-  });
-
   testWidgets('narrow: one pane at a time, back returns to the list', (
     tester,
   ) async {
     await show(tester, const Size(400, 800));
-    expect(find.text('Pins'), findsNothing, reason: 'sidebar is in the drawer');
+    expect(find.byType(Sidebar), findsNothing, reason: 'Folders is a tab');
     await tester.tap(find.text('Hello there'));
     await settle(tester);
+    await tester.pumpAndSettle(); // grown into the message
     expect(find.byTooltip('Back (Esc)'), findsOneWidget);
     expect(find.text('Lunch?'), findsNothing);
     await tester.tap(find.byTooltip('Back (Esc)'));
     await tester.pump();
     expect(find.text('Lunch?'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Folders'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Pins'));
     await tester.pumpAndSettle();
     expect(find.text('Keep this'), findsOneWidget);
@@ -758,6 +752,7 @@ void main() {
   testWidgets('Tools: Clean up and the Privacy report open from the sidebar', (
     tester,
   ) async {
+    // Phones: on the Folders tab.
     for (final (size, drawer) in [
       (const Size(1400, 900), false),
       (const Size(400, 860), true),

@@ -16,7 +16,26 @@ void main() {
   late StoredMailbox inbox;
   setUp(() async {
     app = await TestApp.create();
-    inbox = app.store.mailboxes.inbox(app.store.accounts.all().single.id)!;
+    final accountId = app.store.accounts.all().single.id;
+    // A Trash folder, so deleting moves mail there (else it is for good).
+    final boxes = app.store.mailboxes.replaceAll(accountId, [
+      for (final b in app.store.mailboxes.forAccount(accountId))
+        ImapMailboxInfo(
+          encodedName: b.encodedName,
+          delimiter: b.delimiter,
+          attributes: {if (b.specialUse case final use?) '\\${use.name}'},
+        ),
+      ImapMailboxInfo(
+        encodedName: 'Trash',
+        delimiter: '/',
+        attributes: const {r'\Trash'},
+      ),
+    ]);
+    app.store.mailboxes.saveSyncState(
+      boxes.firstWhere((b) => b.specialUse == SpecialUse.trash).id,
+      const MailboxSyncState(uidValidity: 1, uidNext: 100),
+    );
+    inbox = app.store.mailboxes.inbox(accountId)!;
   });
   tearDown(() => app.dispose());
 
