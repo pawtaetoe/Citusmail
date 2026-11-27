@@ -2104,6 +2104,7 @@ final class _SafeBrowsingDialogState extends State<SafeBrowsingDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Check links with Google Safe Browsing?'),
+    scrollable: true,
     content: SizedBox(
       width: 420,
       child: Column(
@@ -2128,9 +2129,13 @@ final class _SafeBrowsingDialogState extends State<SafeBrowsingDialog> {
               enabled: !_busy,
               autocorrect: false,
               enableSuggestions: false,
-              decoration: const InputDecoration(
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
                 labelText: 'API key',
-                border: OutlineInputBorder(),
+                errorText: _key.text.trim().isEmpty
+                    ? null
+                    : LinkSafety.keyRule(_key.text).reason,
+                border: const OutlineInputBorder(),
               ),
             ),
           ],
@@ -2156,7 +2161,12 @@ final class _SafeBrowsingDialogState extends State<SafeBrowsingDialog> {
         child: const Text('Cancel'),
       ),
       FilledButton(
-        onPressed: _busy ? null : _turnOn,
+        onPressed:
+            _busy ||
+                (!widget.safety.hasBuiltInKey &&
+                    !LinkSafety.keyRule(_key.text).isValid)
+            ? null
+            : _turnOn,
         child: const Text('Turn on'),
       ),
     ],
@@ -2204,6 +2214,7 @@ final class _VirusTotalDialogState extends State<VirusTotalDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Ask VirusTotal?'),
+    scrollable: true,
     content: SizedBox(
       width: 420,
       child: Column(
@@ -2231,9 +2242,14 @@ final class _VirusTotalDialogState extends State<VirusTotalDialog> {
             enabled: !_busy,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: const InputDecoration(
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
               labelText: 'API key',
-              border: OutlineInputBorder(),
+              errorText: _key.text.trim().isEmpty
+                  ? null
+                  : VirusTotalChecks.keyRule(_key.text).reason,
+              errorMaxLines: 2,
+              border: const OutlineInputBorder(),
             ),
           ),
           if (_busy) ...[
@@ -2256,7 +2272,9 @@ final class _VirusTotalDialogState extends State<VirusTotalDialog> {
         child: const Text('Cancel'),
       ),
       FilledButton(
-        onPressed: _busy ? null : _turnOn,
+        onPressed: _busy || !VirusTotalChecks.keyRule(_key.text).isValid
+            ? null
+            : _turnOn,
         child: const Text('Turn on'),
       ),
     ],

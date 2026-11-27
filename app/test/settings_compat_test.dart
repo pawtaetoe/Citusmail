@@ -366,7 +366,7 @@ void main() {
     expect(AiSorter.perSyncSetting.read(settings()), AiSorter.defaultPerSync);
     settings().write('ai.sorting.perSync', '50');
     expect(AiSorter.perSyncSetting.read(settings()), 50);
-    for (final bad in ['0', '-4', 'many']) {
+    for (final bad in ['0', '-4', 'many', '201', '1000000']) {
       settings().write('ai.sorting.perSync', bad);
       expect(AiSorter.perSyncSetting.read(settings()), AiSorter.defaultPerSync);
     }

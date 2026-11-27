@@ -879,7 +879,10 @@ void main() {
       );
       for (final bad in ['nope', 'a@b', 'a@exa mple.com', 'a@café.example']) {
         expect(() => discovery.discover(bad), throwsArgumentError, reason: bad);
+        expect(AccountDiscovery.supportsAddress(bad), isFalse, reason: bad);
       }
+      expect(AccountDiscovery.supportsAddress(' me@example.com '), isTrue);
+      expect(AccountDiscovery.supportsAddress('me@mail.example.co.uk'), isTrue);
     });
   });
 

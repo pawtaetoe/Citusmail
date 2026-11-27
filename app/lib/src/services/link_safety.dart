@@ -9,6 +9,7 @@ import 'package:mail_lookup/mail_lookup.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_web/mail_web.dart';
 
+import '../core/state/validation.dart';
 import 'secret_store.dart';
 
 /// Optional link checks with Google Safe Browsing (off by default). When
@@ -61,13 +62,20 @@ final class LinkSafety {
 
   /// Turns the checks on (with [ownKey] when the build has none) and
   /// downloads the lists. Returns a problem to show, or null.
+  /// What a Google API key looks like.
+  static const keyRule = MatchingText(
+    '[A-Za-z0-9_-]{20,100}',
+    'That doesn\'t look like a Google API key.',
+  );
+
   Future<String?> enable({String? ownKey}) async {
-    final key = ownKey?.trim() ?? '';
     if (!hasBuiltInKey) {
-      if (!RegExp(r'^[A-Za-z0-9_-]{20,100}$').hasMatch(key)) {
-        return 'That doesn\'t look like a Google API key.';
+      switch (keyRule(ownKey ?? '')) {
+        case Valid(value: final key):
+          await _secrets.write(keychainKey, key);
+        case Invalid(:final reason):
+          return reason;
       }
-      await _secrets.write(keychainKey, key);
     }
     _client = null;
     setting.write(_store.settings, true);

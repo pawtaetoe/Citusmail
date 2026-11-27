@@ -242,14 +242,25 @@ void main() {
 
         final field = find.widgetWithText(TextField, 'Application (client) ID');
         await tester.enterText(field, 'not-a-guid');
+        await tester.pump();
         await tester.ensureVisible(find.text('Continue with Microsoft'));
         await tester.tap(find.text('Continue with Microsoft'));
         await tester.pumpAndSettle();
         expect(find.textContaining('looks like 00000000-'), findsOneWidget);
+        // Continue stays off until it is one.
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'Continue with Microsoft'),
+              )
+              .onPressed,
+          isNull,
+        );
         expect(signedIn, isEmpty);
 
         const id = '0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0';
         await tester.enterText(field, id);
+        await tester.pump();
         await tester.ensureVisible(find.text('Continue with Microsoft'));
         await tester.tap(find.text('Continue with Microsoft'));
         for (var i = 0; i < 5; i++) {
@@ -383,6 +394,7 @@ void main() {
     }
 
     Future<void> tapText(WidgetTester tester, String text) async {
+      await tester.pump();
       await tester.ensureVisible(find.text(text));
       await tester.tap(find.text(text));
       for (var i = 0; i < 5; i++) {

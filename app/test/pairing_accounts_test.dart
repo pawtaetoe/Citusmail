@@ -206,6 +206,55 @@ void main() {
     expect(computer.store.accounts.all(), hasLength(1));
   });
 
+  test('what the phone sends is checked like typed settings', () async {
+    TransferredAccount account({
+      String email = 'eve@posteo.example',
+      String host = 'posteo.example',
+      int port = 993,
+      String? name,
+    }) => TransferredAccount(
+      email: email,
+      displayName: name,
+      username: email,
+      imap: TransferredServer(host, port, 'tls'),
+      smtp: const TransferredServer('posteo.example', 587, 'starttls'),
+      signIn: const PasswordSignIn('pw'),
+    );
+    final checked = <DiscoveredSettings>[];
+    final import = AccountImport(
+      computer.services,
+      verify: (settings, password) async {
+        checked.add(settings);
+        return const VerificationResult.success();
+      },
+    );
+    final results = await import.receive(
+      AccountTransfer(
+        accounts: [
+          account(host: 'posteo.example\r\nA1 LOGIN x y'),
+          account(host: 'not a host'),
+          account(port: 0),
+          account(email: 'eve@posteo.example\nBcc: x@evil.example'),
+          account(email: 'nobody'),
+          account(email: 'ok@posteo.example', name: 'Eve\r\nBcc: x'),
+        ],
+      ),
+    );
+    expect(
+      [for (final r in results) r.detail],
+      [...List.filled(5, 'Unknown settings.'), null],
+    );
+    // Nothing was tried with the bad ones.
+    expect(checked.map((s) => s.email), ['ok@posteo.example']);
+    final added = computer.store.accounts.all().last;
+    expect(added.email, 'ok@posteo.example');
+    expect(
+      added.displayName,
+      isNull,
+      reason: 'a name on two lines is left out',
+    );
+  });
+
   test('own client registrations and the sync code come along', () async {
     await OwnOAuthClients(phone.services.secrets).save(
       'google',

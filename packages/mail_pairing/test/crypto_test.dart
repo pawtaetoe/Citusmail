@@ -319,5 +319,103 @@ void main() {
         throwsA(isA<PairingFormatException>()),
       );
     });
+
+    group('nothing in a transfer is trusted', () {
+      Map<String, Object?> server({
+        Object? host = 'imap.x.example',
+        Object? port = 993,
+      }) => {'host': host, 'port': port, 'security': 'tls'};
+      Map<String, Object?> account({
+        Object? email = 'x@y.example',
+        Object? name,
+        Map<String, Object?>? imap,
+        Object? password = 'pw',
+      }) => {
+        'email': email,
+        'name': ?name,
+        'username': 'x',
+        'imap': imap ?? server(),
+        'smtp': server(),
+        'password': password,
+      };
+      void refused(Object? json, String why) => expect(
+        () => AccountTransfer.fromJson(json),
+        throwsA(isA<PairingFormatException>()),
+        reason: why,
+      );
+
+      test('a good account still reads', () {
+        final back = AccountTransfer.fromJson({
+          'accounts': [account(name: 'Xavier')],
+        });
+        expect(back.accounts.single.imap.port, 993);
+        expect(back.accounts.single.displayName, 'Xavier');
+      });
+
+      test('ports outside 1 to 65535 are refused', () {
+        for (final port in [0, -1, 65536, 1 << 40]) {
+          refused({
+            'accounts': [account(imap: server(port: port))],
+          }, 'port $port');
+        }
+      });
+
+      test('host names that are empty, too long or not one word', () {
+        for (final host in ['', 'a' * 254, 'imap.x.example\r\nEVIL', 'a b']) {
+          refused({
+            'accounts': [account(imap: server(host: host))],
+          }, 'host ${host.length}');
+        }
+      });
+
+      test('texts longer than they can be, or with line breaks', () {
+        refused({
+          'accounts': [account(email: '${'x' * 400}@y.example')],
+        }, 'long email');
+        refused({
+          'accounts': [account(name: 'n' * 201)],
+        }, 'long name');
+        refused({
+          'accounts': [account(email: 'x@y.example\nBcc: z@z.example')],
+        }, 'line break in the address');
+        refused({
+          'accounts': [account(password: 'p' * 5000)],
+        }, 'long password');
+        refused({
+          'accounts': [account(password: 42)],
+        }, 'password of the wrong type');
+      });
+
+      test('the counts in a transfer are checked, not believed', () {
+        refused({
+          'accounts': [
+            for (var i = 0; i <= AccountTransfer.maxAccounts; i++) account(),
+          ],
+        }, 'too many accounts');
+        refused({
+          'accounts': [account()],
+          'clients': {for (var i = 0; i < 9; i++) 'p$i': '{}'},
+        }, 'too many clients');
+        refused({
+          'accounts': [account()],
+          'sync': {'code': 'C' * 300},
+        }, 'long sync code');
+        refused({
+          'accounts': [account()],
+          'sync': 'code',
+        }, 'sync of the wrong type');
+      });
+
+      test('a result with a huge detail is refused', () {
+        expect(
+          () => TransferResult.fromJson({
+            'email': 'x@y.example',
+            'outcome': 'failed',
+            'detail': 'd' * 3000,
+          }),
+          throwsA(isA<PairingFormatException>()),
+        );
+      });
+    });
   });
 }

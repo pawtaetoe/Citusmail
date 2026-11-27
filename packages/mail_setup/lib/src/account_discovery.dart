@@ -113,6 +113,11 @@ final class AccountDiscovery {
     r'^[^@\s]+@([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$',
   );
 
+  /// Whether [discover] can look up [email]: one "@" with no spaces before
+  /// it, and a domain of ASCII letters, digits and hyphens with at least
+  /// one dot. [discover] throws [ArgumentError] for anything else.
+  static bool supportsAddress(String email) => _email.hasMatch(email.trim());
+
   Future<DiscoveryResult> discover(
     String email, {
     Future<bool> Function(String domain)? askMozillaConsent,

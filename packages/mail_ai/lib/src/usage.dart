@@ -222,10 +222,24 @@ final class AiUsageLedger {
   }
 
   /// The most to spend in a month, in US dollars (null: no limit).
-  double? get monthlyCap => double.tryParse(_store.read(_capKey) ?? '');
-  set monthlyCap(double? dollars) => dollars == null || dollars < 0
-      ? _store.delete(_capKey)
-      : _store.write(_capKey, dollars.toString());
+  /// Text that isn't a finite amount (a "NaN" from an older version)
+  /// reads as no limit, which is what it did.
+  double? get monthlyCap =>
+      switch (double.tryParse(_store.read(_capKey) ?? '')) {
+        final cap? when cap.isFinite && cap >= 0 => cap,
+        _ => null,
+      };
+
+  /// Throws [ArgumentError] for an amount that isn't finite: NaN would
+  /// never be reached, so it would silently be no limit at all.
+  set monthlyCap(double? dollars) {
+    if (dollars != null && !dollars.isFinite) {
+      throw ArgumentError.value(dollars, 'dollars', 'not an amount');
+    }
+    dollars == null || dollars < 0
+        ? _store.delete(_capKey)
+        : _store.write(_capKey, dollars.toString());
+  }
 
   /// Whether this month's spending reached [monthlyCap].
   bool capReached(AiPriceTable prices) {
