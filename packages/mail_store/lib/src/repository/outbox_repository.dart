@@ -80,6 +80,28 @@ final class OutboxRepository {
     return true;
   });
 
+  /// Sets when the pending entries [ids] may be replayed (null: at once),
+  /// e.g. held while an action done in steps adds to them, and released
+  /// when it is done.
+  void reschedule(Iterable<int> ids, DateTime? notBefore) {
+    final list = ids.toList(growable: false);
+    if (list.isEmpty) return;
+    if (notBefore != null && notBefore.isBefore(DateTime(2000))) {
+      throw ArgumentError.value(notBefore, 'notBefore');
+    }
+    final at = notBefore?.toUtc().millisecondsSinceEpoch ?? 0;
+    _db.transaction(() {
+      for (var i = 0; i < list.length; i += 500) {
+        final chunk = list.sublist(i, (i + 500).clamp(0, list.length));
+        _db.execute(
+          "UPDATE outbox SET not_before = ? WHERE state = 'pending' "
+          'AND id IN (${List.filled(chunk.length, '?').join(', ')})',
+          [at, ...chunk],
+        );
+      }
+    });
+  }
+
   /// Removes an entry that has given up (the user chose to discard it).
   bool discardFailed(int id) {
     _db.execute("DELETE FROM outbox WHERE id = ? AND state = 'failed'", [id]);
