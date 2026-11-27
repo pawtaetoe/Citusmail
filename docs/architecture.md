@@ -297,3 +297,61 @@ The edges:
   code (`SyncCode.parse`).
 - **Stored settings**: every `Setting<T>` decoder reads a value it can't
   use as its default, never throws.
+
+## The mail model
+
+The "Found in your mail" pages find things with hand-written rules
+(`packages/mail_sort`: `trips.dart`, `subscriptions.dart` and the rest).
+Next to them is a small model of what an email is, `MailModel`
+(`mail_sort/lib/src/mail_model.dart`). It runs on the device in pure
+Dart, with no native runtime, and sends nothing anywhere. It reads about
+5,000 emails a second when they are whole and many more when they are
+previews. For now the finders do not use it: it is there to be measured,
+and later each finder can switch over where it beats the rules
+(`test/mail_model_eval_test.dart` prints the comparison).
+
+- **Features** (`mail_model_features.dart`, versioned by
+  `MailModelFeatures.version`): word unigrams and bigrams of the subject
+  and of the first 2,000 characters of the text; the sender's domain,
+  address words and name; and structural cues (counts of dates, times,
+  amounts, known airport codes and codes alone in a table cell, station
+  names, reference-like codes and labelled ones, flight and train
+  numbers, table cells and "label: value" lines, and cue words in
+  English, German and French). They are read in one pass without regular
+  expressions and hashed (FNV-1a) into 16,384 buckets.
+- **Model**: a softmax regression over twelve `MailClass`es: the
+  `MailKind`s, bookings split by type (flight, train or bus, stay,
+  event, restaurant, car), marketing, and none. `MailModel.classify`
+  gives each class's chance, `kindOf` each kind's, and `isA` applies
+  the threshold the evaluation chose (`MailModel.thresholds`).
+  `CandidateRanker` (`candidate_ranking.dart`) is the hook for picking
+  the best of several values a finder found ("which date is the travel
+  date"); `KeywordRanker` is a simple baseline.
+- **Training data: synthetic only.** `packages/mail_sort/tool/mail_model/`
+  generates made-up emails in the layouts and languages of many kinds of
+  senders (airlines including award bookings and table layouts, UK and
+  European rail, hotels, events, restaurants, car hire, bills and
+  receipts, deliveries, appointments, account mail) and hard negatives
+  (promotions, newsletters, visas, statements, season-ticket renewals,
+  mail from people). Nobody's real mail is used or committed. The
+  evaluation uses mail the trainer never sees: `test-data/mail`, the
+  classifier evaluation's sample and `test/mail_model_heldout.dart`.
+- **Retraining**: in `packages/mail_sort`, run
+  `dart run tool/train_mail_model.dart`. It is deterministic (its own
+  random numbers and `exp`, a fixed seed) and writes
+  `lib/src/generated/mail_model_weights.g.dart`: int8 weights with a
+  scale per class, about 220 KB of source. A test fails when that file
+  is out of date with the trainer and its data; retrain after changing
+  the features, the generator or the trainer, and bump the features'
+  version when they change.
+- **Corrections** (`mail_learning.dart`): `MailLearning` is what the app
+  stores in the `learning.model` setting. It holds the
+  `MailTypeClassifier` that leaves out items like rejected ones, exactly
+  as before, and per-user weight changes for the model: "Not a booking"
+  takes a step of the email's feature vector off the booking weights,
+  and Undo or "List again" puts it back. The text starts with the
+  classifier's own (`v1;…`), so older versions still read it; the
+  model's parts follow (`xv:` the features' version, `x…:` the changes,
+  `l…:` corrections stored before the model, kept as they were). A text
+  stored by an older version is read in full: its corrections still
+  veto, and shift the model through the classifier's score.

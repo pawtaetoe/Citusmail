@@ -792,3 +792,18 @@ void main() {
     expect(_score(taught[_b]!, _b).fp, 0);
   });
 }
+
+/// The labelled sample, for the mail model's evaluation
+/// (mail_model_eval_test.dart), which never trains on it.
+List<
+  ({
+    MailKind? kind,
+    MailSample sample,
+    DateTime at,
+    List<ReservationInfo> reservations,
+  })
+>
+get evaluationSample => [
+  for (final m in _sample)
+    (kind: m.kind, sample: m.sample, at: m.at, reservations: m.reservations),
+];
