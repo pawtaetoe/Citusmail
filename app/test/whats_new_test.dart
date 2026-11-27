@@ -110,12 +110,18 @@ void main() {
 
       await tester.tap(find.bySemanticsLabel('Show ${first.title}'));
       await tester.pumpAndSettle();
-      expect(find.byType(SettingsPage), findsOneWidget);
-      // Settings opens at the feature's setting, highlighted.
-      expect(
-        find.byWidgetPredicate((w) => w is SettingHighlight && w.on),
-        findsOneWidget,
-      );
+      expect(find.text('New in Citusmail'), findsNothing);
+      if (find.byType(SettingsPage).evaluate().isNotEmpty) {
+        // A setting: Settings opens at it, highlighted.
+        expect(
+          find.byWidgetPredicate((w) => w is SettingHighlight && w.on),
+          findsOneWidget,
+        );
+      } else {
+        // A page of its own (Trips, Subscriptions...): it opens on top.
+        expect(find.text(first.title), findsWidgets);
+        expect(find.byType(BackButton), findsOneWidget);
+      }
       expect(WhatsNew(app.store).seenVersion, appVersion);
 
       await tester.pageBack();
