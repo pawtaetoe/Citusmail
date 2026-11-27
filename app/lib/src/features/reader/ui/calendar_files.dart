@@ -93,7 +93,7 @@ abstract final class CalendarFiles {
   }
 
   /// Saves the .ics file to Downloads (never overwriting one).
-  static Future<File> save(CalendarInvite invite) =>
+  static Future<SavedFile> save(CalendarInvite invite) =>
       AttachmentSaver.saveBytes(fileName(invite), utf8.encode(invite.text));
 
   /// "Q4 roadmap review.ics", safe for any file system.

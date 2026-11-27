@@ -57,6 +57,40 @@ void main() {
   });
 
   group('SyncFailure', () {
+    test('a login refused for now is not a wrong password', () {
+      SyncFailureKind kind(String text, [String? code]) => SyncFailure.from(
+        ImapAuthenticationException(
+          'login refused by the server: $text',
+          code: code == null ? null : ImapResponseCode(code, const []),
+        ),
+      ).kind;
+      // Busy, too many connections, in use elsewhere: try again later.
+      expect(
+        kind('Temporary System Problem', 'UNAVAILABLE'),
+        SyncFailureKind.server,
+      );
+      expect(kind('Too many connections', 'LIMIT'), SyncFailureKind.server);
+      expect(kind('Mailbox in use', 'INUSE'), SyncFailureKind.server);
+      expect(
+        kind('[ALERT] Too many simultaneous connections. (Failure)'),
+        SyncFailureKind.server,
+      );
+      expect(
+        kind('Temporary System Problem. Try again later'),
+        SyncFailureKind.server,
+      );
+      // A wrong password stays one, whatever else the text says.
+      expect(
+        kind('Invalid credentials (Failure)', 'AUTHENTICATIONFAILED'),
+        SyncFailureKind.authentication,
+      );
+      expect(
+        kind('Try again later: invalid credentials', 'AUTHENTICATIONFAILED'),
+        SyncFailureKind.authentication,
+      );
+      expect(kind('Invalid credentials'), SyncFailureKind.authentication);
+    });
+
     test('classifies errors into what the app should do', () {
       expect(
         SyncFailure.from(ImapAuthenticationException('no')).kind,

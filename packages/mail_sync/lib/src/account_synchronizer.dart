@@ -48,6 +48,11 @@ final class SyncFailure {
 
   static SyncFailure from(Object error) => switch (error) {
     SyncWorkerException(:final failure) => failure,
+    // Refused for now (busy, too many connections): not the password.
+    ImapAuthenticationException(temporary: true, :final message) => SyncFailure(
+      SyncFailureKind.server,
+      message,
+    ),
     ImapAuthenticationException() ||
     SmtpAuthenticationException() => SyncFailure(
       SyncFailureKind.authentication,
