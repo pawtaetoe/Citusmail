@@ -58,7 +58,7 @@ void main() {
   StoredMailbox named(String name) => store.mailboxes
       .forAccount(account.id)
       .firstWhere((m) => m.encodedName == name);
-  List<String> subjects(Iterable<int> ids) => [
+  List<String> subjects(Iterable<MessageId> ids) => [
     for (final id in ids) store.messages.byId(id)!.subject!,
   ];
 

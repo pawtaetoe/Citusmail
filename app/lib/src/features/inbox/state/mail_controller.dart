@@ -335,7 +335,7 @@ final class MailController {
 
   /// Searches all of [accountId]'s mail on its server, for the search on
   /// screen.
-  Future<void> searchOnServer(int accountId) =>
+  Future<void> searchOnServer(AccountId accountId) =>
       locationController.searchOnServer(accountId);
 
   // --------------------------------------------------------------- lists

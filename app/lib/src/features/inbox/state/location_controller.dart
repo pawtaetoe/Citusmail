@@ -70,7 +70,7 @@ final class LocationController {
   /// screen; what it finds joins the results (stored, so it opens and pins
   /// like any other). Offline, the results from the device stay, and the
   /// list says so.
-  Future<void> searchOnServer(int accountId) async {
+  Future<void> searchOnServer(AccountId accountId) async {
     final at = location.value;
     if (at is! SearchLocation) return;
     if (_list.serverSearches[accountId]?.status ==

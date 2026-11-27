@@ -166,9 +166,11 @@ final class SyncWorker {
   /// Searches all of an account's mail on its server (see
   /// [SyncEngine.searchServer]); returns the ids of the stored messages
   /// found, newest first. Throws [SyncWorkerException] (offline, refused).
-  Future<List<int>> searchServer(int accountId, String text) async =>
-      (await _request(_SearchServer(accountId, text)) as List<Object?>)
-          .cast<int>();
+  Future<List<MessageId>> searchServer(
+    AccountId accountId,
+    String text,
+  ) async => (await _request(_SearchServer(accountId, text)) as List<Object?>)
+      .cast<MessageId>();
 
   /// Loads older mail of a folder; returns how many messages were added.
   Future<int> fetchOlder(MailboxId mailboxId, {int count = 100}) async =>
@@ -650,7 +652,7 @@ final class _FetchOlder extends _Command {
 final class _SearchServer extends _Command {
   const _SearchServer(this.accountId, this.text);
 
-  final int accountId;
+  final AccountId accountId;
   final String text;
 }
 

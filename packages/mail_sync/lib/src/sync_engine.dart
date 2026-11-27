@@ -333,7 +333,7 @@ final class SyncEngine {
   /// stored messages found, newest first, at most
   /// [ServerSearch.maxResults]. Throws a [MailException] when the server
   /// cannot be reached.
-  Future<List<int>> searchServer(int accountId, String text) async {
+  Future<List<MessageId>> searchServer(AccountId accountId, String text) async {
     final account = _store.accounts.byId(accountId);
     if (account == null) return const [];
     return _onDemand.run(

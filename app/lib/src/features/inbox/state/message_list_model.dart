@@ -139,17 +139,17 @@ final class MessageListModel extends ChangeNotifier {
   int localResults = 0;
 
   /// Search: the searches on the servers for this search, by account id.
-  Map<int, ServerSearchState> serverSearches = const {};
+  Map<AccountId, ServerSearchState> serverSearches = const {};
 
   /// Search: the stored messages the servers found, newest first.
-  List<int> _serverFound = const [];
+  List<MessageId> _serverFound = const [];
 
   /// Search: whether to offer searching the servers (the device found
   /// little).
   bool get offersServerSearch =>
       _location is SearchLocation && localResults < fewResults;
 
-  void serverSearchStarted(int accountId) {
+  void serverSearchStarted(AccountId accountId) {
     serverSearches = {
       ...serverSearches,
       accountId: const ServerSearchState(ServerSearchStatus.searching),
@@ -159,7 +159,7 @@ final class MessageListModel extends ChangeNotifier {
 
   /// The server of [accountId] found [ids] (stored by now), newest first:
   /// they join the results.
-  void serverSearchFinished(int accountId, List<int> ids) {
+  void serverSearchFinished(AccountId accountId, List<MessageId> ids) {
     final shown = {for (final m in messages) m.id};
     _serverFound = [
       ..._serverFound,
@@ -177,7 +177,7 @@ final class MessageListModel extends ChangeNotifier {
 
   /// The search on [accountId]'s server did not happen: [offline], or the
   /// server could not search. The results from the device stay.
-  void serverSearchFailed(int accountId, {required bool offline}) {
+  void serverSearchFailed(AccountId accountId, {required bool offline}) {
     serverSearches = {
       ...serverSearches,
       accountId: ServerSearchState(

@@ -79,8 +79,8 @@ final class ArchivedBackfill {
   /// UIDs per command when every stored message is named.
   static const _chunk = 500;
 
-  static JsonSetting<_FillState?> _setting(int accountId) => JsonSetting(
-    'sync.archivedFill.$accountId',
+  static JsonSetting<_FillState?> _setting(AccountId accountId) => JsonSetting(
+    'sync.archivedFill.${accountId.value}',
     fallback: null,
     fromJson: _FillState.fromJson,
     toJson: _FillState.toJson,

@@ -31,7 +31,7 @@ final class ServerSearch {
 
   /// Searches [account] for [text] over [imap]. Returns the stored
   /// messages it found (those already on the device too), newest first.
-  Future<List<int>> search(
+  Future<List<MessageId>> search(
     ImapClient imap,
     Account account,
     String text,
@@ -125,7 +125,7 @@ final class ServerSearch {
       }
       await _mailboxSync.fetchUids(imap, folder, uids..sort());
     }
-    final ids = <int>{};
+    final ids = <MessageId>{};
     for (final f in chosen) {
       final id = f.messageId ?? _store.messages.byUid(f.folder!.id, f.uid!)?.id;
       if (id != null) ids.add(id);
@@ -152,7 +152,7 @@ final class _Found {
   _Found.onServer(StoredMailbox this.folder, int this.uid, this.date)
     : messageId = null;
 
-  final int? messageId;
+  final MessageId? messageId;
   final StoredMailbox? folder;
   final int? uid;
   final DateTime date;
