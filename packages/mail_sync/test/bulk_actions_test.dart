@@ -290,6 +290,51 @@ void main() {
     expect(count(inbox), 7000);
   });
 
+  test('several removals in steps are one action: held until the last '
+      'step, then one undo window for all', () async {
+    seed();
+    final mail = everything();
+    final actions = MailActions(
+      store,
+      undoWindow: const Duration(seconds: 5),
+      stepSize: 400,
+    );
+    final progress = <(int, int)>[];
+    final receipts = await actions.removeInSteps([
+      (
+        messages: [
+          for (final m in mail)
+            if (m.mailboxId == inbox.id) m,
+        ],
+        target: archive,
+      ),
+      (
+        messages: [
+          for (final m in mail)
+            if (m.mailboxId == archive.id) m,
+        ],
+        target: null,
+      ),
+    ], progress: (done, total) => progress.add((done, total)));
+    expect(receipts, hasLength(2));
+    expect(progress.first, (400, 8000));
+    expect(progress.last, (8000, 8000));
+    final queued = store.outbox.all(inbox.accountId);
+    expect(queued.map((e) => e.action.runtimeType), [MoveAction, DeleteAction]);
+    expect(
+      {for (final e in queued) e.notBefore.millisecondsSinceEpoch},
+      {receipts.first.undoUntil.toUtc().millisecondsSinceEpoch},
+    );
+    expect(count(inbox), 0);
+    expect(count(archive), 0, reason: 'the moved mail arrives with a sync');
+
+    for (final r in receipts.reversed) {
+      expect(await actions.undoInSteps(r), isTrue);
+    }
+    expect(count(inbox), 7000);
+    expect(count(archive), 1000);
+  });
+
   test('too late to undo once the change may be on its way', () async {
     seed();
     final actions = MailActions(store, stepSize: 1000); // no undo window

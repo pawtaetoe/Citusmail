@@ -54,6 +54,10 @@ final class FlagReceipt extends ActionReceipt {
 /// How far an action done in steps has got: [done] of [total] messages.
 typedef StepProgress = void Function(int done, int total);
 
+/// [messages] to move to [target], or to delete when it is null (see
+/// [MailActions.removeInSteps]).
+typedef Removal = ({List<StoredMessage> messages, StoredMailbox? target});
+
 /// What the app does when the user acts on mail. Each action changes the
 /// local store at once (so the UI updates immediately, even offline) and
 /// queues the same change for the server, in one transaction. Each returns
@@ -223,36 +227,60 @@ final class MailActions {
     List<StoredMessage> messages,
     StoredMailbox target, {
     StepProgress? progress,
-  }) => _removeInSteps(_Removal.move(this, target), messages, progress);
+  }) async => (await removeInSteps([
+    (messages: messages, target: target),
+  ], progress: progress)).single;
 
   /// [delete] in steps, for thousands of messages (see [moveInSteps]).
   Future<RemovalReceipt> deleteInSteps(
     List<StoredMessage> messages, {
     StepProgress? progress,
-  }) => _removeInSteps(_Removal.delete(this), messages, progress);
+  }) async => (await removeInSteps([
+    (messages: messages, target: null),
+  ], progress: progress)).single;
 
-  Future<RemovalReceipt> _removeInSteps(
-    _Removal removal,
-    List<StoredMessage> messages,
+  /// Several moves and deletes in steps as one action (archiving mail of
+  /// several accounts, each to its own Archive): every queued change is
+  /// held until the last step of the last one, and the undo window
+  /// starts then for all. One receipt per removal, in order; [progress]
+  /// counts the messages of all of them.
+  Future<List<RemovalReceipt>> removeInSteps(
+    List<Removal> removals, {
     StepProgress? progress,
-  ) async {
+  }) async {
+    final total = removals.fold(0, (sum, r) => sum + r.messages.length);
+    final started = <_Removal>[];
     late final DateTime end;
     try {
-      await _inSteps(
-        messages,
-        (step) => removal.step(
-          step,
-          notBefore: DateTime.now().add(undoWindow + holdDuringSteps),
-        ),
-        progress,
-      );
+      var before = 0;
+      for (final r in removals) {
+        final removal = switch (r.target) {
+          final target? => _Removal.move(this, target),
+          null => _Removal.delete(this),
+        };
+        started.add(removal);
+        await _inSteps(
+          r.messages,
+          (step) {
+            final hold = DateTime.now().add(undoWindow + holdDuringSteps);
+            removal.step(step, notBefore: hold);
+            for (final earlier in started) {
+              if (earlier != removal) earlier.queue.hold(hold);
+            }
+          },
+          progress == null ? null : (done, _) => progress(before + done, total),
+        );
+        before += r.messages.length;
+      }
     } finally {
-      // Done (or stopped by an error): what was removed here goes to the
+      // Done (or stopped by an error): what was removed goes to the
       // server after the undo window.
       end = DateTime.now();
-      removal.queue.release(_undoUntil(end));
+      for (final removal in started) {
+        removal.queue.release(_undoUntil(end));
+      }
     }
-    return removal.receipt(end);
+    return [for (final removal in started) removal.receipt(end)];
   }
 
   DateTime? _undoUntil(DateTime now) =>
