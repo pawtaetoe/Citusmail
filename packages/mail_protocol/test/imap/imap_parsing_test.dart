@@ -376,6 +376,14 @@ void main() {
       for (final bad in ['', '0', 'a', '1::2', '1,,2', '-1']) {
         expect(SequenceSet.tryParse(bad), isNull, reason: bad);
       }
+      expect(
+        SequenceSet.of([3, 7]).union(SequenceSet.range(100)).toString(),
+        '3,7,100:*',
+      );
+      expect(
+        SequenceSet.of([8, 9]).union(SequenceSet.range(5)).toString(),
+        '5:*',
+      );
     });
 
     test('huge server ranges are never expanded by accident', () {

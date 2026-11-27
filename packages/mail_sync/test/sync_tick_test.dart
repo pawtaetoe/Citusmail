@@ -235,6 +235,44 @@ void main() {
       expect(read(), isTrue);
     });
 
+    test('an old message found below the synced range is compared on its '
+        'own, not by reading the whole folder', () async {
+      await setUpWith();
+      final folder = server.folders['INBOX']!;
+      for (var i = 1; i <= 10; i++) {
+        folder.add(subject: 'Mail $i');
+      }
+      const settings = SyncSettings(initialWindow: 3, backfillBatch: 0);
+      final sync = synchronizer(settings: settings);
+      await sync.sync(account);
+      await sync.sync(account);
+      // Found by a search on the server, say.
+      final imap = await server.connector().imap(account);
+      await imap.select('INBOX', readOnly: true);
+      await MailboxSynchronizer(
+        store,
+        const SummaryMapper(HeaderRuleClassifier()),
+        settings: settings,
+      ).fetchUids(imap, inbox(), [2]);
+      await imap.logout();
+      expect(subjects(), ['Mail 10', 'Mail 9', 'Mail 8', 'Mail 2']);
+
+      folder.setFlags(2, {r'\Seen'});
+      final mark = server.commands.length;
+      await sync.sync(account);
+      expect(server.since(mark, 'UID FETCH'), ['UID FETCH 2,8:* (UID FLAGS)']);
+      expect(
+        store.messages.byUid(inbox().id, 2)!.flags.seen,
+        isTrue,
+        reason: 'kept in step',
+      );
+
+      // Removed on the server: removed here.
+      folder.remove(2);
+      await sync.sync(account);
+      expect(subjects(), ['Mail 10', 'Mail 9', 'Mail 8']);
+    });
+
     test(
       'with CONDSTORE, flags are asked for when the mod-sequence moved',
       () async {
