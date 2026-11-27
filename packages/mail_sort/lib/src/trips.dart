@@ -439,6 +439,13 @@ abstract final class TripText {
     r'\b(?:operated|marketed) by\b[^\n]{0,30}$|\bcodeshare\b[^\n]{0,20}$',
   );
 
+  /// An aircraft's maker or a label for it: "Airbus A380" is not Aegean
+  /// Airlines (A3) flight 80.
+  static final _aircraft = _re(
+    r'\b(?:airbus|boeing|embraer|bombardier|aircraft(?: type)?|equipment)'
+    r'[\s:]*$',
+  );
+
   /// Two letters that are more often words or units than airlines.
   static const _notAirlines = {
     'AM',
@@ -496,16 +503,19 @@ abstract final class TripText {
         m.start - 40 < 0 ? 0 : m.start - 40,
         m.start,
       );
-      if (_operatedBy.hasMatch(before)) continue;
+      if (_operatedBy.hasMatch(before) || _aircraft.hasMatch(before)) continue;
       final labelled = _flightLabel.hasMatch(before);
       final code = m[1]!;
       if (!labelled) {
         if (_notAirlines.contains(code) || TravelPlaces.airline(code) == null) {
           continue;
         }
+        // A flight number in a cell of its own: the table's "Flight"
+        // heading may be further away.
+        final reach = _aloneOnLine(sample, m.start, m.end) ? 200 : 80;
         final near = sample.substring(
-          m.start - 80 < 0 ? 0 : m.start - 80,
-          m.end + 80 > sample.length ? sample.length : m.end + 80,
+          m.start - reach < 0 ? 0 : m.start - reach,
+          m.end + reach > sample.length ? sample.length : m.end + reach,
         );
         if (!_flightWord.hasMatch(near)) continue;
       }
@@ -597,6 +607,15 @@ abstract final class TripText {
       );
     }
     return flights;
+  }
+
+  /// Whether [start]–[end] is all of its line in [text], but for spaces.
+  static bool _aloneOnLine(String text, int start, int end) {
+    final lineStart = text.lastIndexOf('\n', start) + 1;
+    var lineEnd = text.indexOf('\n', end);
+    if (lineEnd < 0) lineEnd = text.length;
+    return text.substring(lineStart, start).trim().isEmpty &&
+        text.substring(end, lineEnd).trim().isEmpty;
   }
 
   /// "SIN → NRT", "Singapore (SIN) to Tokyo Narita (NRT)".

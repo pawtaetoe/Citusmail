@@ -420,6 +420,133 @@ Registered Office: 8th Floor, The Point, 37 North Wharf Road, London, W2 1AF
 Contact us | Terms and conditions | Privacy policy
 ''';
 
+/// A Singapore Airlines redemption confirmation as its HTML reads as text,
+/// every personal detail made up: "SQ308" without a space, an "Airbus
+/// A380-800" under it, each airport code followed by its time and then a
+/// date line without a year ("13 Jul (Mon)"), and the flight again as "SQ
+/// 308 SIN - LHR".
+const _sqRedemptionReal = '''
+This is an automatically generated message. Please do not reply to this address.
+Your redemption booking is confirmed
+Booking Reference\u00a0KQ7T4P
+Singapore Airlines
+spacing
+Dear\u00a0MR\u00a0Sam Lee,
+You're all set for your trip! This email has all the details of your redemption booking on singaporeair.com, and your e-ticket and receipt are attached. Remember to print these, or be sure you have easy access to them when you travel.
+spacing
+spacing
+spacing 20
+spacing
+Manage booking
+spacing 20
+Select / Change seats and meals, update passenger details, and more. As 2FA is enabled, a One-Time Password (OTP) will be required for verification when accessing passenger details, change booking, or cancel it.
+spacing
+spacing 20
+spacing
+View KrisFlyer account
+spacing 20
+Find out how many KrisFlyer miles you have and view the details of your account activities.
+spacing
+Itinerary
+Flight
+Departs
+Arrives
+1. Singapore to London - Total travel time:\u00a0 13hrs 45mins
+Status: Confirmed
+SQ308
+Airbus A380-800
+Singapore Airlines
+SIN 09:00
+13 Jul (Mon)
+Singapore, Changi , Terminal 3
+LHR 15:45
+13 Jul (Mon)
+London, Heathrow , Terminal 2
+Flying time:\u00a013hrs 45mins
+Cabin class: Premium Economy (P)
+spacing
+Passenger
+> Visa requirements
+Flights
+Seats
+Baggage
+1.
+MR SAM LEE
+Membership no: 8812345670
+SQ 308 SIN - LHR
+No seats selected
+Free:\u00a035\u00a0kg
+spacing
+Hertz
+Travel advisories
+Always check the latest advisories for your destinations before you fly. As entry restrictions and other requirements may change at short notice, you may wish to subscribe to email updates .
+plus
+spacing
+Travel Guard
+Added selected coverage for epidemic and pandemic diseases, including Covid-19. Terms and conditions apply.
+Checked
+spacing
+MIX MILES AND CASH
+Pss
+Enjoy extra legroom with a Extra Legroom Seat.If you're a KrisFlyer member, you can now pay for Extra Legroom Seats with your miles.
+Checked
+spacing
+Baggages
+Checking in more bags? You can buy additional baggage allowance, even before arriving at the airport.
+Checked
+spacing
+icon-hotel.com
+Choose from over 1.2 million stays worldwide, and earn 3 KrisFlyer miles for every USD 1 spent.
+plus
+spacing
+Rental cars
+Off on a road trip? Or just getting from A to B? A wide range of vehicles is available with our partner.
+plus
+spacing
+Hertz
+Pre-order exclusive products at duty-free prices on KrisShop Online, and collect them on board when you fly with us.
+plus
+spacing
+KrisFlyer miles redeemed
+74,500 miles
+Paid with debit/credit card
+SGD 65.20
+Card details
+SAM LEE
+Visa Card
+XXXX-XXXX-XXXX-0000
+Cost breakdown
+Miles
+Total miles
+74,500
+SGD
+Airport/Government taxes
+65.20
+Total cost
+65.20
+To view the full cost breakdown, download your E-ticket (in PDF format, attached to this email).
+spacing
+spacing
+Additional information
+Valid travel documents
+Each passenger must hold a valid passport (and visa(s), if required) to be allowed entry into each destination on the flight itinerary. Singapore Airlines cannot be held responsible if a passenger is denied entry and/or deported by any local authority.
+Privacy Policy
+The information you give us is protected by our privacy policy. However, in some circumstances, government regulations may require us to provide information or permit access to our passenger/customer data.
+Overbooking of flights for tickets sold in the USA
+Airline flights may be overbooked, and there is a slight chance that a seat will not be available on a flight for which a person has a confirmed reservation. If the flight is overbooked, no one will be denied a seat until airline personnel first ask for volunteers willing to give up their reservation in exchange for compensation of the airline's choosing. If there are not enough volunteers, the airline will deny boarding to other persons in accordance with its particular boarding priority. With few exceptions, including failure to comply with the carrier's check-in deadline (which are available upon request from the air carrier), persons denied boarding involuntarily are entitled to compensation. The complete rules for the payment of compensation and each airline's boarding priorities are available at all airport ticket counters and boarding locations. Some airlines do not apply these consumer protections to travel from some foreign countries, although other consumer protections may be available. Check with your airline or your ticket agent.
+spacing
+Changes to your redemption booking
+If you make a change to your redemption booking (such as change of itinerary, travel date, and/or passenger name) through KrisFlyer Membership Services, or a Singapore Airlines reservations or ticket office, the online redemption booking discount will no longer be applicable.
+spacing
+Ticket collection
+You don't need a printed ticket to fly. However, if you are travelling to and from Colombo, Fukuoka, Manila or the USA, you must present a printed copy of this booking confirmation or your e-ticket receipt to the check-in counter staff at the airport.
+spacing
+Get the SingaporeAir app to check in and receive the latest flight updates
+
+
+© 2026 Singapore Airlines. All Rights Reserved. Singapore Co. reg. No. 1972000078R | Privacy Policy
+''';
+
 void main() {
   group('from markup', () {
     test('a Singapore Airlines-style return flight and a hotel: one trip', () {
@@ -1366,6 +1493,52 @@ Coach 05, Seat 12F, 2nd class
       expect(home.to?.code, 'SIN');
       expect(home.start?.wall, DateTime.utc(2026, 7, 26, 11, 35));
       expect(home.end?.wall, DateTime.utc(2026, 7, 27, 7, 55));
+    });
+
+    test('a Singapore Airlines redemption as sent: "SQ308", times first', () {
+      final found = trips([
+        mail(
+          'Your redemption booking confirmation KQ7T4P',
+          sender: 'singaporeair.com',
+          text: _sqRedemptionReal,
+          daysAgo: 238,
+        ),
+      ]);
+      final trip = found.single;
+      expect(trip.destinations, ['London']);
+      final b = trip.bookings.single;
+      final info = b.info as FlightReservationInfo;
+      expect(info.flightNumber, 'SQ 308');
+      expect(info.provider, 'Singapore Airlines');
+      expect(info.reservationNumber, 'KQ7T4P');
+      expect(info.from?.code, 'SIN');
+      expect(info.to?.code, 'LHR');
+      // No year: the next 13 July after it was sent, in March.
+      expect(info.start?.wall, DateTime.utc(2026, 7, 13, 9));
+      expect(info.end?.wall, DateTime.utc(2026, 7, 13, 15, 45));
+      expect(b.key, 'f:sq308:2026-07-13');
+    });
+
+    test('an aircraft is not a flight: "Airbus A380" is not A3 80', () {
+      // Aegean Airlines is A3. Without "-800" after it, and with the
+      // table's "Flight" heading close above, A380 reads like its flight
+      // 80, by the same route and date.
+      final a380 = _sqRedemptionReal
+          .replaceFirst('A380-800', 'A380')
+          .replaceFirst(RegExp(r'1\. Singapore to London.*\nStatus: .*\n'), '');
+      expect(a380, contains('Flight\nDeparts\nArrives\nSQ308\nAirbus A380\n'));
+      final sent = _now.subtract(const Duration(days: 238));
+      final flights = TripText.flightsIn(a380, sent: sent, reference: 'KQ7T4P');
+      expect(flights.map((f) => f.flightNumber), ['SQ 308']);
+      // Nor without SQ308 above it.
+      expect(
+        TripText.flightsIn(
+          a380.replaceFirst('SQ308\n', ''),
+          sent: sent,
+          reference: 'KQ7T4P',
+        ).map((f) => f.flightNumber),
+        isNot(contains('A3 80')),
+      );
     });
 
     test('codes side by side in a row, or one per line', () {
