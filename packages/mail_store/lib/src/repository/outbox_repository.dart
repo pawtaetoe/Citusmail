@@ -4,10 +4,10 @@
 
 import 'dart:typed_data';
 
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
-import '../ids.dart';
 import '../model/outbox.dart';
 
 /// The queue of actions waiting to reach the server, replayed in order.

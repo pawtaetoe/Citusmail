@@ -4,8 +4,6 @@
 
 import 'package:mail_protocol/mail_protocol.dart';
 
-import '../ids.dart';
-
 /// Where and how to reach one server. Validated on construction.
 final class ServerSettings {
   ServerSettings({

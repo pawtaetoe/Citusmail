@@ -7,7 +7,6 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
 import '../database/store_exception.dart';
-import '../ids.dart';
 import '../model/account.dart';
 
 /// Accounts. Removing an account removes all of its folders, messages and

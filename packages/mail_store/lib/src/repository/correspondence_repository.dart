@@ -7,7 +7,6 @@ import 'dart:typed_data';
 import 'package:mail_protocol/mail_protocol.dart';
 
 import '../database/mail_database.dart';
-import '../ids.dart';
 
 /// What the stored mail says about writing to one address: when that
 /// person's mail was dated, how quickly they answered, whether the user

@@ -4,7 +4,7 @@
 
 import 'dart:typed_data';
 
-import '../ids.dart';
+import 'package:mail_protocol/mail_protocol.dart';
 
 /// A draft as stored. The store does not interpret [content] (the compose
 /// package owns its format); attachments are kept as separate rows.

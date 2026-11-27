@@ -4,8 +4,6 @@
 
 import 'package:mail_protocol/mail_protocol.dart';
 
-import '../ids.dart';
-
 /// What the sync engine remembers about a folder between syncs.
 final class MailboxSyncState {
   const MailboxSyncState({

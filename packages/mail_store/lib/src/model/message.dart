@@ -4,8 +4,6 @@
 
 import 'package:mail_protocol/mail_protocol.dart';
 
-import '../ids.dart';
-
 /// What automatic sorting decided a message is. Sorting is always automatic;
 /// users group mail their own way with custom folders.
 enum MessageCategory {

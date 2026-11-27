@@ -5,7 +5,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import '../ids.dart';
+import 'package:mail_protocol/mail_protocol.dart';
 
 /// An action done locally that the server must also get. Every action is
 /// idempotent: replaying it after a crash or after another device's changes

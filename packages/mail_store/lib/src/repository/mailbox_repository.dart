@@ -6,7 +6,6 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
-import '../ids.dart';
 import '../model/mailbox.dart';
 import 'section_sql.dart';
 

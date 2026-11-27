@@ -2,8 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_protocol/mail_protocol.dart';
+
 import '../database/mail_database.dart';
-import '../ids.dart';
 
 /// The Smart Inbox section of a message, kept in `messages.section` so
 /// lists and counts read an index instead of working it out for every
