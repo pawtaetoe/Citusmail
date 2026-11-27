@@ -9,7 +9,6 @@ import 'package:mail_compose/mail_compose.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
-import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_view/mail_view.dart';
 
@@ -18,9 +17,13 @@ import '../../../services/app_services.dart';
 import '../../accounts/state/own_addresses.dart';
 import '../../compose/state/compose_starter.dart';
 import '../../compose/state/send_later_times.dart';
+import '../../organise/state/blocking_controller.dart';
 import '../../organise/state/folder_controller.dart';
 import '../../organise/state/follow_up_controller.dart';
+import '../../organise/state/old_codes_controller.dart';
+import '../../organise/state/screener_controller.dart';
 import '../../organise/state/snooze_controller.dart';
+import '../../organise/state/unsubscribe_controller.dart';
 import '../../organise/state/wake_timer.dart';
 import '../../reader/state/invitation_answers.dart';
 import '../../reader/state/reader_controller.dart';
@@ -35,30 +38,11 @@ import 'message_list_model.dart';
 import 'selection_controller.dart';
 import 'sync_status.dart';
 
+export '../../organise/state/blocking_controller.dart' show BlockChoice;
 export '../../reader/state/reader_state.dart'
     show ReaderEmpty, ReaderFailed, ReaderLoading, ReaderReady, ReaderState;
 export 'mail_counts.dart' show MailCounts;
 export 'sync_status.dart' show SyncIdle, SyncProblem, SyncRunning, SyncStatus;
-
-/// How a sender can be blocked.
-final class BlockChoice {
-  const BlockChoice({
-    required this.address,
-    required this.domain,
-    required this.fromAddress,
-    required this.fromDomain,
-  });
-
-  final String address;
-
-  /// The sender's domain, or null when blocking it would make no sense (a
-  /// free mail service, or the user's own domain).
-  final String? domain;
-
-  /// Messages in the inboxes from the address, and from the domain.
-  final int fromAddress;
-  final int fromDomain;
-}
 
 /// The mail screen's state, in separate pieces so each part of the screen
 /// rebuilds only when its own data changes:
@@ -72,7 +56,6 @@ final class BlockChoice {
 final class MailController {
   MailController(this.services)
     : list = MessageListModel(services.store),
-      codeCleaner = CodeCleaner(services.store, services.actions),
       followUps = FollowUpReminders(services.store),
       syncStatus = SyncStatusController(services.store, services.worker) {
     countsController = CountsController(_store, list, followUps);
@@ -143,6 +126,34 @@ final class MailController {
       refresh: refresh,
       notify: _notify,
     );
+    oldCodesController = OldCodesController(
+      CodeCleaner(_store, services.actions),
+      services.worker,
+      readerController,
+      selectionController,
+      refresh: refresh,
+      notify: _notify,
+    );
+    unsubscribeController = UnsubscribeController(
+      services,
+      readerController,
+      messageActions,
+      notify: _notify,
+    );
+    blockingController = BlockingController(
+      _store,
+      services.actions,
+      messageActions,
+      readerController,
+      notify: _notify,
+    );
+    screenerController = ScreenerController(
+      _store,
+      services.actions,
+      messageActions,
+      refresh: refresh,
+      notify: _notify,
+    );
     syncStatus.onEvent = _onSyncEvent;
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
@@ -195,6 +206,18 @@ final class MailController {
   /// Leaving the app and coming back ("New since you were away").
   late final AwayController awayController;
 
+  /// Tidying up old verification codes.
+  late final OldCodesController oldCodesController;
+
+  /// Unsubscribing from mailing lists.
+  late final UnsubscribeController unsubscribeController;
+
+  /// Blocking senders.
+  late final BlockingController blockingController;
+
+  /// The Screener's first-time senders.
+  late final ScreenerController screenerController;
+
   /// Messages picked for a bulk action.
   late final SelectionController selectionController;
   ValueNotifier<Set<int>> get selection => selectionController.selection;
@@ -204,10 +227,10 @@ final class MailController {
   ValueNotifier<SyncStatus> get status => syncStatus.status;
 
   /// Moves old verification codes out of the inbox, once agreed.
-  final CodeCleaner codeCleaner;
+  CodeCleaner get codeCleaner => oldCodesController.codeCleaner;
 
   /// Whether the Verification section asks to tidy up old codes.
-  final codesOffer = ValueNotifier<bool>(false);
+  ValueNotifier<bool> get codesOffer => oldCodesController.codesOffer;
 
   /// The summary line at the top of the inbox (made when first shown).
   InboxSummary get summary => _summary ??= InboxSummary(services, list);
@@ -283,54 +306,18 @@ final class MailController {
 
   // ---------------------------------------------------------- old codes
 
-  void _refreshCodesOffer() =>
-      codesOffer.value = codeCleaner.shouldAsk(DateTime.now().toUtc());
+  void _refreshCodesOffer() => oldCodesController.refreshOffer();
 
   /// After a sync: moves old codes out of the inbox (at most once an hour,
   /// once the user agreed), and says so with Undo. The open message and
   /// selected ones stay.
-  void tidyCodes([DateTime? now]) {
-    if (_disposed) return;
-    final done = codeCleaner.run(
-      now ?? DateTime.now().toUtc(),
-      except: {?selected?.id, ...selection.value},
-    );
-    if (done == null) {
-      _refreshCodesOffer();
-      return;
-    }
-    for (final receipt in done.receipts) {
-      for (final id in receipt.accountIds) {
-        services.worker.syncAt(id, receipt.undoUntil);
-      }
-    }
-    refresh();
-    onNotice?.call(
-      done.count == 1
-          ? 'Tidied up 1 old code'
-          : 'Tidied up ${done.count} old codes',
-      undo: () {
-        final undone = codeCleaner.undo(done);
-        refresh();
-        if (!undone) {
-          onNotice?.call('Too late to undo: the change reached the server.');
-        }
-      },
-    );
-  }
+  void tidyCodes([DateTime? now]) => oldCodesController.tidy(now);
 
   /// "Turn on" in the Verification section: agrees, and tidies up now.
-  void agreeToTidyCodes() {
-    codeCleaner.settings.agree();
-    codesOffer.value = false;
-    tidyCodes();
-  }
+  void agreeToTidyCodes() => oldCodesController.agree();
 
   /// "Not now": asked again in a month.
-  void declineTidyCodes() {
-    codeCleaner.settings.decline(DateTime.now().toUtc());
-    codesOffer.value = false;
-  }
+  void declineTidyCodes() => oldCodesController.decline();
 
   // -------------------------------------------------------------- reader
 
@@ -360,11 +347,8 @@ final class MailController {
   // --------------------------------------------------------- unsubscribe
 
   /// Inbox mail from the same list as [r] (to offer archiving it).
-  List<StoredMessage> sameList(ReaderReady r) => _store.messages.inboxFromList(
-    r.message.accountId,
-    listId: r.message.listId,
-    fromAddress: r.message.listId == null ? r.message.from?.address : null,
-  );
+  List<StoredMessage> sameList(ReaderReady r) =>
+      unsubscribeController.sameList(r);
 
   /// Unsubscribes with [method]. One-click requests go out now; an email
   /// goes through the outbox (so it also works offline). For a web page
@@ -374,76 +358,7 @@ final class MailController {
     ReaderReady r,
     UnsubscribeMethod method, {
     bool archiveList = false,
-  }) async {
-    final problem = switch (method) {
-      OneClickMethod(:final url) => await _oneClick(url),
-      EmailMethod(:final request) => _unsubscribeEmail(r, request),
-      WebPageMethod() => null,
-    };
-    if (problem != null) return problem;
-    final kind = switch (method) {
-      OneClickMethod() => UnsubscribeKind.oneClick,
-      EmailMethod() => UnsubscribeKind.email,
-      WebPageMethod() => UnsubscribeKind.webPage,
-    };
-    final key = ReaderController.listKey(r.message);
-    if (key != null) {
-      final record = _store.unsubscriptions.record(
-        accountId: r.message.accountId,
-        listKey: key,
-        listName: r.unsubscribe.listName,
-        kind: kind,
-      );
-      if (reader.value case final ReaderReady open
-          when open.message.id == r.message.id) {
-        reader.value = open.copyWith(unsubscribed: record);
-      }
-    }
-    final name = r.unsubscribe.listName;
-    final done = switch (kind) {
-      UnsubscribeKind.webPage => 'Opened the unsubscribe page for $name',
-      UnsubscribeKind.email => 'Unsubscribe email to $name is on its way',
-      UnsubscribeKind.oneClick => 'Unsubscribed from $name',
-    };
-    final earlier = archiveList ? sameList(r) : const <StoredMessage>[];
-    if (earlier.isNotEmpty) {
-      archive(earlier, done: '$done. Archived ${earlier.length}.');
-    } else {
-      onNotice?.call(done);
-    }
-    return null;
-  }
-
-  /// Null on success, or why it failed.
-  Future<String?> _oneClick(Uri url) async =>
-      switch (await services.oneClick.unsubscribe(url)) {
-        OneClickDone() => null,
-        OneClickFailed(:final reason) => reason,
-      };
-
-  /// Queues the email; null on success, or why it can't be sent.
-  String? _unsubscribeEmail(ReaderReady r, MailtoRequest request) {
-    final at = request.address.lastIndexOf('@');
-    try {
-      final pending = services.sender.send(
-        Draft(
-          accountId: r.message.accountId,
-          to: [
-            MailAddress(
-              localPart: request.address.substring(0, at),
-              domain: request.address.substring(at + 1),
-            ),
-          ],
-          subject: request.subject ?? 'unsubscribe',
-          body: request.body ?? 'unsubscribe',
-        ),
-      );
-      services.worker.syncAt(pending.accountId, pending.undoUntil);
-      return null;
-    } on ComposeException {
-      return 'Couldn\'t write the unsubscribe email: its address isn\'t usable.';
-    }
-  }
+  }) => unsubscribeController.unsubscribe(r, method, archiveList: archiveList);
 
   /// Opens the message after (or before) the open one in the list.
   void openNext({bool previous = false}) =>
@@ -482,9 +397,6 @@ final class MailController {
   /// means moving to All Mail (the message leaves the inbox, nothing else).
   StoredMailbox? archiveFor(StoredMessage m) => messageActions.archiveFor(m);
 
-  StoredMailbox? _archiveFolder(int accountId) =>
-      messageActions.archiveFolder(accountId);
-
   bool isInTrash(StoredMessage m) => messageActions.isInTrash(m);
 
   /// Whether deleting [m] removes it for good: it is in Trash, or its
@@ -513,12 +425,6 @@ final class MailController {
   /// "Always move mail from this sender here", then moves this message.
   void moveAlways(StoredMessage message, StoredMailbox target) =>
       messageActions.moveAlways(message, target);
-
-  void _remove(
-    List<RemovalReceipt Function()> changes,
-    String done, {
-    VoidCallback? alsoUndo,
-  }) => messageActions.remove(changes, done, alsoUndo: alsoUndo);
 
   // -------------------------------------------------------------- snooze
 
@@ -699,207 +605,53 @@ final class MailController {
 
   /// The block that applies to [message]'s sender, if any.
   BlockedSender? blockFor(StoredMessage message) =>
-      _store.blocks.matching(message.from?.address);
+      blockingController.blockFor(message);
 
   /// Whether [message]'s sender can be blocked: it has one, and it isn't
   /// one of the user's own addresses. Cheap enough for a toolbar.
-  bool canBlock(StoredMessage message) {
-    final address = message.from?.address.toLowerCase();
-    if (address == null || !address.contains('@')) return false;
-    return !_store.accounts.all().any((a) => a.email.toLowerCase() == address);
-  }
+  bool canBlock(StoredMessage message) => blockingController.canBlock(message);
 
   /// How [message]'s sender can be blocked, with how much mail each
   /// choice would move; null if it can't be blocked.
-  BlockChoice? blockChoice(StoredMessage message) {
-    if (!canBlock(message)) return null;
-    final address = message.from!.address.toLowerCase();
-    final own = _store.accounts.all();
-    final domain = Domains.registrable(
-      address.substring(address.lastIndexOf('@') + 1),
-    );
-    final ownDomains = {
-      for (final a in own)
-        ?Domains.registrable(a.email.substring(a.email.lastIndexOf('@') + 1)),
-    };
-    final usableDomain =
-        domain != null &&
-        !FreeMail.isProvider(domain) &&
-        !ownDomains.contains(domain);
-    return BlockChoice(
-      address: address,
-      domain: usableDomain ? domain : null,
-      fromAddress: _inboxesFrom(BlockKind.address, address).length,
-      fromDomain: usableDomain
-          ? _inboxesFrom(BlockKind.domain, domain).length
-          : 0,
-    );
-  }
-
-  List<StoredMessage> _inboxesFrom(BlockKind kind, String value) => [
-    for (final account in _store.accounts.all())
-      ...switch (kind) {
-        BlockKind.address => _store.messages.inboxFromList(
-          account.id,
-          fromAddress: value,
-        ),
-        BlockKind.domain => _store.messages.inboxFromDomain(account.id, value),
-      },
-  ];
+  BlockChoice? blockChoice(StoredMessage message) =>
+      blockingController.blockChoice(message);
 
   /// Blocks [value]: new mail from it goes to Junk. With [moveExisting],
   /// its mail already in the inboxes goes too. Undo reverses both.
-  void block(BlockKind kind, String value, {bool moveExisting = true}) {
-    final existing = _store.blocks.all().any(
-      (b) => b.kind == kind && b.value == value.toLowerCase(),
-    );
-    final blocked = _store.blocks.block(kind, value);
-    void unblock() {
-      if (!existing) _store.blocks.unblock(blocked.id);
-      _refreshSelected();
-    }
+  void block(BlockKind kind, String value, {bool moveExisting = true}) =>
+      blockingController.block(kind, value, moveExisting: moveExisting);
 
-    final name = kind == BlockKind.domain
-        ? 'everyone at ${blocked.value}'
-        : blocked.value;
-    final byAccount = <int, List<StoredMessage>>{};
-    if (moveExisting) {
-      for (final m in _inboxesFrom(kind, blocked.value)) {
-        byAccount.putIfAbsent(m.accountId, () => []).add(m);
-      }
-    }
-    final moves = [
-      for (final MapEntry(key: accountId, value: messages) in byAccount.entries)
-        if (SenderBlocker.destination(_store, accountId) case final target?)
-          () => services.actions.move(messages, target),
-    ];
-    if (moves.isEmpty) {
-      _refreshSelected();
-      onNotice?.call('Blocked $name', undo: unblock);
-      return;
-    }
-    final count = byAccount.values.fold(0, (sum, l) => sum + l.length);
-    _remove(moves, 'Blocked $name. Moved $count to Junk.', alsoUndo: unblock);
-  }
-
-  void unblock(BlockedSender block) {
-    _store.blocks.unblock(block.id);
-    _refreshSelected();
-    onNotice?.call(
-      'Unblocked ${block.kind == BlockKind.domain ? 'everyone at ' : ''}${block.value}',
-    );
-  }
+  void unblock(BlockedSender block) => blockingController.unblock(block);
 
   // ------------------------------------------------------------ Screener
 
   /// First-time senders waiting in the Screener, in the inbox of
   /// [accountId] (or every inbox).
-  List<WaitingSender> waitingSenders({int? accountId}) => _store.screener
-      .waiting(accountIds: accountId == null ? null : [accountId]);
+  List<WaitingSender> waitingSenders({int? accountId}) =>
+      screenerController.waitingSenders(accountId: accountId);
 
   /// Whether [m] comes from someone the Screener would hold back if it
   /// were on: the only email on the device from them, someone the user
   /// never wrote to, and not one of the user's own addresses. False while
   /// the Screener is on (it decides then).
-  bool isFirstTimeSender(StoredMessage m) {
-    if (_store.screener.enabled) return false;
-    final from = m.from?.address.toLowerCase();
-    if (from == null || from.isEmpty) return false;
-    if (ownAddresses.any((a) => a.toLowerCase() == from)) return false;
-    return _store.messages.sortableFrom(from, limit: 2).length <= 1 &&
-        !_store.messages.hasWrittenTo(from);
-  }
+  bool isFirstTimeSender(StoredMessage m) =>
+      screenerController.isFirstTimeSender(m);
 
   /// The domain "everyone at …" choices offer for [address]: a company's
   /// own domain, never a free mail provider's or the user's own.
-  String? screenerDomain(String address) {
-    final lower = address.toLowerCase();
-    final domain = Domains.registrable(
-      lower.substring(lower.lastIndexOf('@') + 1),
-    );
-    if (domain == null || FreeMail.isProvider(domain)) return null;
-    final own = {
-      for (final a in _store.accounts.all())
-        ?Domains.registrable(a.email.substring(a.email.lastIndexOf('@') + 1)),
-    };
-    return own.contains(domain) ? null : domain;
-  }
+  String? screenerDomain(String address) =>
+      screenerController.screenerDomain(address);
 
   /// Lets [sender] in (or, with [wholeDomain], everyone at their domain):
   /// their mail goes to the Smart Inbox from now on. Offers Undo.
   void letIn(WaitingSender sender, {bool wholeDomain = false}) =>
-      _screen(sender, ScreenerDecision.letIn, wholeDomain: wholeDomain);
+      screenerController.letIn(sender, wholeDomain: wholeDomain);
 
   /// Screens [sender] out (or everyone at their domain): their mail goes
   /// where the user chose (Newsletters, Notifications or Archive), never
   /// deleted. Offers Undo.
   void screenOut(WaitingSender sender, {bool wholeDomain = false}) =>
-      _screen(sender, ScreenerDecision.screenOut, wholeDomain: wholeDomain);
-
-  void _screen(
-    WaitingSender sender,
-    ScreenerDecision decision, {
-    required bool wholeDomain,
-  }) {
-    final screener = _store.screener;
-    final domain = wholeDomain ? screenerDomain(sender.address) : null;
-    final kind = domain == null ? ScreenerKind.address : ScreenerKind.domain;
-    final value = domain ?? sender.address;
-    final previous = screener.find(kind, value);
-    final waiting = waitingSenders();
-    final decided = screener.decide(kind, value, decision);
-    void undo() => screener.restore(decided, previous);
-
-    final who = domain == null
-        ? (sender.name ?? sender.address)
-        : 'Everyone at $domain';
-    if (decision == ScreenerDecision.letIn) {
-      refresh();
-      onNotice?.call(
-        '$who can now reach your inbox',
-        undo: () {
-          undo();
-          refresh();
-        },
-      );
-      return;
-    }
-    final place = screener.outPlace;
-    if (place == ScreenOutPlace.archive) {
-      // Their waiting mail goes now; later mail with each sync.
-      final byAccount = <int, List<StoredMessage>>{};
-      for (final w in waiting) {
-        if (!decided.matches(w.address)) continue;
-        for (final m in w.messages) {
-          final archive = archiveFor(m);
-          if (archive != null && archive.id != m.mailboxId) {
-            byAccount.putIfAbsent(m.accountId, () => []).add(m);
-          }
-        }
-      }
-      final moves = [
-        for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-          () => services.actions.move(group, _archiveFolder(accountId)!),
-      ];
-      if (moves.isNotEmpty) {
-        _remove(moves, '$who screened out. Moved to Archive.', alsoUndo: undo);
-        return;
-      }
-    }
-    refresh();
-    final where = switch (place) {
-      ScreenOutPlace.newsletters => 'Newsletters',
-      ScreenOutPlace.notifications => 'Notifications',
-      ScreenOutPlace.archive => 'Archive',
-    };
-    onNotice?.call(
-      '$who screened out. Their mail goes to $where.',
-      undo: () {
-        undo();
-        refresh();
-      },
-    );
-  }
+      screenerController.screenOut(sender, wholeDomain: wholeDomain);
 
   /// Folders a message can be moved to.
   List<StoredMailbox> moveTargets(StoredMessage m) =>
@@ -1163,6 +915,6 @@ final class MailController {
     selectionController.dispose();
     invitationsChanged.dispose();
     accountsChanged.dispose();
-    codesOffer.dispose();
+    oldCodesController.dispose();
   }
 }

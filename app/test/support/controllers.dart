@@ -10,8 +10,12 @@ import 'package:citusmail/src/features/inbox/state/mail_location.dart';
 import 'package:citusmail/src/features/inbox/state/message_actions.dart';
 import 'package:citusmail/src/features/inbox/state/message_list_model.dart';
 import 'package:citusmail/src/features/inbox/state/selection_controller.dart';
+import 'package:citusmail/src/features/organise/state/blocking_controller.dart';
 import 'package:citusmail/src/features/organise/state/follow_up_controller.dart';
+import 'package:citusmail/src/features/organise/state/old_codes_controller.dart';
+import 'package:citusmail/src/features/organise/state/screener_controller.dart';
 import 'package:citusmail/src/features/organise/state/snooze_controller.dart';
+import 'package:citusmail/src/features/organise/state/unsubscribe_controller.dart';
 import 'package:citusmail/src/features/organise/state/wake_timer.dart';
 import 'package:citusmail/src/features/reader/state/reader_controller.dart';
 import 'package:flutter/foundation.dart';
@@ -126,6 +130,35 @@ final class Controllers {
     notify: notify,
   );
 
+  late final OldCodesController oldCodes = OldCodesController(
+    CodeCleaner(store, app.services.actions),
+    app.services.worker,
+    reader,
+    selection,
+    refresh: refresh,
+    notify: notify,
+  );
+  late final UnsubscribeController unsubscribe = UnsubscribeController(
+    app.services,
+    reader,
+    actions,
+    notify: notify,
+  );
+  late final BlockingController blocking = BlockingController(
+    store,
+    app.services.actions,
+    actions,
+    reader,
+    notify: notify,
+  );
+  late final ScreenerController screener = ScreenerController(
+    store,
+    app.services.actions,
+    actions,
+    refresh: refresh,
+    notify: notify,
+  );
+
   int get accountId => store.accounts.all().single.id;
 
   StoredMailbox box(String name) => store.mailboxes
@@ -148,6 +181,7 @@ final class Controllers {
       .firstWhere((m) => m.subject == subject);
 
   void dispose() {
+    oldCodes.dispose();
     wakeTimer.dispose();
     snoozes.dispose();
     followUpController.dispose();
