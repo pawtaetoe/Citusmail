@@ -124,7 +124,7 @@ Thanks for booking with Avanti West Coast. Your booking is confirmed and
 your eTickets are attached to this email as a PDF. Show them on your
 phone or print them, and have them ready for inspection on board.
 
-Booking reference: 21699058
+Booking reference: 40871235
 
 Outward journey
 Sunday 28 June 2026
@@ -158,7 +158,7 @@ Sehr geehrte Frau Tan,
 vielen Dank für Ihre Buchung bei den ÖBB. Ihr Ticket finden Sie im
 Anhang dieser E-Mail als PDF.
 
-Ticketnummer: 0919 1410 7516 0291
+Ticketnummer: 1234 5678 9012 3456
 Buchungscode: 8F3KQ2
 
 Hinfahrt
@@ -183,7 +183,7 @@ Dear Ms Tan,
 Thank you for your booking with ÖBB. Your ticket is attached to this
 email as a PDF; please carry it with you together with a photo ID.
 
-Ticket number: 0919 1410 7516 0291
+Ticket number: 1234 5678 9012 3456
 
 Outward journey
 From:
@@ -1197,7 +1197,7 @@ New: Depart 02:15   Arrive 09:50
     test('an Avanti West Coast booking: there and back, one trip', () {
       final found = trips([
         mail(
-          'Your Booking Confirmation: 21699058',
+          'Your Booking Confirmation: 40871235',
           sender: 'avantiwestcoast.co.uk',
           name: 'Avanti West Coast',
           text: _avantiText,
@@ -1209,7 +1209,7 @@ New: Depart 02:15   Arrive 09:50
       final [out, back] = trip.bookings;
       expect(out.kind, ReservationKind.train);
       final info = out.info as TransitReservationInfo;
-      expect(info.reservationNumber, '21699058');
+      expect(info.reservationNumber, '40871235');
       expect(info.provider, 'Avanti West Coast');
       expect(info.from?.name, 'London Euston');
       expect(info.to?.name, 'Manchester Piccadilly');
@@ -1227,7 +1227,7 @@ New: Depart 02:15   Arrive 09:50
     test('an ÖBB ticket in German: European dates, times on the line', () {
       final b = bookings([
         mail(
-          'Ihr ÖBB Ticket – 0919 1410 7516 0291',
+          'Ihr ÖBB Ticket – 1234 5678 9012 3456',
           sender: 'oebb.at',
           name: 'ÖBB',
           text: _oebbGerman,
@@ -1250,14 +1250,14 @@ New: Depart 02:15   Arrive 09:50
     test('an ÖBB ticket in English: the date from the subject', () {
       final found = bookings([
         mail(
-          'ÖBB ticket – 0919 1410 7516 0291 – Aug 2, 2026',
+          'ÖBB ticket – 1234 5678 9012 3456 – Aug 2, 2026',
           sender: 'oebb.at',
           text: _oebbEnglish,
           daysAgo: 162,
         ),
         // The same ticket again, in German: one booking.
         mail(
-          'Ihr ÖBB Ticket – 0919 1410 7516 0291',
+          'Ihr ÖBB Ticket – 1234 5678 9012 3456',
           sender: 'oebb.at',
           name: 'ÖBB',
           text: _oebbGerman,
@@ -1267,7 +1267,7 @@ New: Depart 02:15   Arrive 09:50
       final b = found.single;
       expect(b.records, hasLength(2));
       final first = b.infos.first as TransitReservationInfo;
-      expect(first.reservationNumber, '0919 1410 7516 0291');
+      expect(first.reservationNumber, '1234 5678 9012 3456');
       expect(first.provider, 'ÖBB');
       expect(first.from?.name, 'Wien Hbf');
       expect(first.to?.name, 'Salzburg Hbf');

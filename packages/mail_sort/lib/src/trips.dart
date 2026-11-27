@@ -1079,14 +1079,14 @@ abstract final class TripText {
     r'EST|THA|WB)\s?(\d{2,5})(?![\w-])',
   );
 
-  /// A ticket number, often in groups of four ("0919 1410 7516 0291").
+  /// A ticket number, often in groups of four ("1234 5678 9012 3456").
   static final _ticketNumber = _re(
     r'\bticket(?:nummer|code|nr\.?|\s*(?:number|no\.?|code|nr\.?))?\b'
     r'[^\d\n]{0,25}?(\d{4}(?:[ ]\d{4}){2,4}|\d{10,20})(?!\d)',
   );
 
-  /// A ticket number in [text] ("Ticket number: 0919 1410 7516 0291",
-  /// "ÖBB ticket – 0919 1410 7516 0291"), or null.
+  /// A ticket number in [text] ("Ticket number: 1234 5678 9012 3456",
+  /// "ÖBB ticket – 1234 5678 9012 3456"), or null.
   static String? ticketNumberIn(String text) =>
       _ticketNumber.firstMatch(_cap(text, 20000))?[1];
 
