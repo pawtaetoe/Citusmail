@@ -107,7 +107,7 @@ Map<MailKind, Set<int>> _rules(List<Labelled> mail) {
     for (final (i, m) in indexed)
       if (_has(SubscriptionFinder.subjectWords, m.subject))
         SubscriptionEmail(
-          messageId: i,
+          messageId: MessageId(i),
           company: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -119,7 +119,7 @@ Map<MailKind, Set<int>> _rules(List<Labelled> mail) {
     for (final (i, m) in indexed)
       if (_has(DeliveryFinder.subjectWords, m.subject))
         DeliveryEmail(
-          messageId: i,
+          messageId: MessageId(i),
           shop: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -132,7 +132,7 @@ Map<MailKind, Set<int>> _rules(List<Labelled> mail) {
     for (final (i, m) in indexed)
       if (_has(TripFinder.subjectWords, m.subject))
         TripEmail(
-          messageId: i,
+          messageId: MessageId(i),
           sender: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -146,7 +146,7 @@ Map<MailKind, Set<int>> _rules(List<Labelled> mail) {
     for (final (i, m) in indexed)
       if (_has(AppointmentFinder.subjectWords, m.subject))
         AppointmentEmail(
-          messageId: i,
+          messageId: MessageId(i),
           sender: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -164,7 +164,7 @@ Map<MailKind, Set<int>> _rules(List<Labelled> mail) {
         ...SubscriptionFinder.subjectWords,
       ], m.subject))
         AccountEmail(
-          messageId: i,
+          messageId: MessageId(i),
           company: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -178,25 +178,25 @@ Map<MailKind, Set<int>> _rules(List<Labelled> mail) {
   return {
     MailKind.subscription: {
       for (final s in subscriptions)
-        for (final r in s.records) r.email.messageId,
+        for (final r in s.records) r.email.messageId.value,
     },
     MailKind.delivery: {
       for (final d in deliveries)
-        for (final r in d.records) r.email.messageId,
+        for (final r in d.records) r.email.messageId.value,
     },
     MailKind.booking: {
       for (final b in bookings)
-        for (final r in b.records) r.email.messageId,
+        for (final r in b.records) r.email.messageId.value,
     },
     MailKind.appointment: {
       for (final a in appointments)
-        for (final r in a.records) r.email.messageId,
+        for (final r in a.records) r.email.messageId.value,
     },
     // A receipt shows an account too; here only account mail counts.
     MailKind.account: {
       for (final a in accounts)
         for (final r in a.records)
-          if (r.evidence != AccountEvidence.paid) r.email.messageId,
+          if (r.evidence != AccountEvidence.paid) r.email.messageId.value,
     },
   };
 }
