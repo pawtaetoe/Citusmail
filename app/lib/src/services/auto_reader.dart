@@ -18,7 +18,7 @@ import 'app_settings.dart';
 
 /// Downloads one message's body into the store (BODY.PEEK: it stays
 /// unread), as `SyncWorker.loadBody` and `SyncEngine.loadBody` do.
-typedef BodyLoader = Future<void> Function(int messageId);
+typedef BodyLoader = Future<void> Function(MessageId messageId);
 
 /// "Read receipts and bookings automatically" (on by default): the
 /// receipts, bills, shipping, booking, appointment and account emails
@@ -139,7 +139,7 @@ final class AutoReader extends ChangeNotifier {
     var count = 0;
     try {
       final ids = await wanted(_store, _now(), cap: cap);
-      final unreachable = <int>{};
+      final unreachable = <AccountId>{};
       final failures = ReadFailures(_store);
       for (final id in ids) {
         if (_stopped || !_on) break;
@@ -204,7 +204,7 @@ final class AutoReader extends ChangeNotifier {
   /// What the pages would read, taken from each in turn (so every page
   /// gets some when there are many), at most [cap], leaving out those
   /// given up on.
-  static Future<List<int>> wanted(
+  static Future<List<MessageId>> wanted(
     MailStore store,
     DateTime now, {
     required int cap,
@@ -222,7 +222,7 @@ final class AutoReader extends ChangeNotifier {
       (await findAppointments(store, now, skip: skip)).toRead,
       (await findOnlineAccounts(store, now, skip: skip)).toRead,
     ];
-    final ids = <int>{};
+    final ids = <MessageId>{};
     for (var i = 0; ids.length < cap && lists.any((l) => i < l.length); i++) {
       for (final list in lists) {
         if (i < list.length && ids.length < cap) ids.add(list[i]);
@@ -259,28 +259,28 @@ final class ReadFailures {
   /// again).
   static const keep = 200;
 
-  Map<int, int> _read() {
-    final counts = <int, int>{};
+  Map<MessageId, int> _read() {
+    final counts = <MessageId, int>{};
     for (final entry in setting.read(_store.settings)) {
       final [id, times] = switch (entry.split(':')) {
         [final a, final b] => [int.tryParse(a), int.tryParse(b)],
         _ => [null, null],
       };
-      if (id != null && times != null) counts[id] = times;
+      if (id != null && times != null) counts[MessageId(id)] = times;
     }
     return counts;
   }
 
   /// Messages no longer tried.
-  Set<int> get givenUp => {
+  Set<MessageId> get givenUp => {
     for (final MapEntry(:key, :value) in _read().entries)
       if (value >= giveUpAfter) key,
   };
 
   /// How many times [messageId] failed.
-  int times(int messageId) => _read()[messageId] ?? 0;
+  int times(MessageId messageId) => _read()[messageId] ?? 0;
 
-  void failed(int messageId) {
+  void failed(MessageId messageId) {
     final counts = _read();
     final times = (counts.remove(messageId) ?? 0) + 1;
     counts[messageId] = times;
@@ -289,7 +289,7 @@ final class ReadFailures {
       entries.length > keep ? entries.length - keep : 0,
     );
     setting.write(_store.settings, [
-      for (final MapEntry(:key, :value) in kept) '$key:$value',
+      for (final MapEntry(:key, :value) in kept) '${key.value}:$value',
     ]);
   }
 }

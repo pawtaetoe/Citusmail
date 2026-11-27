@@ -70,7 +70,11 @@ void main() {
     sync.onReconnect = asked.add;
     sync.reconnect(const SyncProblem(SyncFailureKind.authentication, 'x'));
     sync.reconnect(
-      const SyncProblem(SyncFailureKind.authentication, 'x', accountId: 999),
+      const SyncProblem(
+        SyncFailureKind.authentication,
+        'x',
+        accountId: AccountId(999),
+      ),
     );
     expect(asked, isEmpty);
   });

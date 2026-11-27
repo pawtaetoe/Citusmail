@@ -48,11 +48,11 @@ void main() {
   late StoredMailbox inbox;
   late AiSorter sorter;
   final now = DateTime.now().toUtc();
-  final bodies = <int, String>{};
-  final loaded = <int>[];
+  final bodies = <MessageId, String>{};
+  final loaded = <MessageId>[];
   var uid = 700;
 
-  Future<void> download(int id) async {
+  Future<void> download(MessageId id) async {
     loaded.add(id);
     final text = bodies[id];
     if (text == null) throw StateError('no body for $id');

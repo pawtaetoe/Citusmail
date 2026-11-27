@@ -51,7 +51,7 @@ final class ScreenerArchiver {
       'screener',
       inbox,
       InboxPass.digest([
-        target.id,
+        target.id.value,
         for (final s in out)
           [s.id, s.kind.name, s.value, s.since.millisecondsSinceEpoch],
       ]),
@@ -59,7 +59,7 @@ final class ScreenerArchiver {
     );
     // Only the new mail, unless everything is looked at: the query then
     // covers just the time since the oldest of it.
-    Set<int>? only;
+    Set<MessageId>? only;
     if (!pass.everything) {
       final fresh = pass.messages(earliest).toList();
       if (fresh.isEmpty) {

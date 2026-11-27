@@ -50,7 +50,7 @@ final class FolderRuleApplier {
         for (final r in rules)
           [
             r.id,
-            r.mailboxId,
+            r.mailboxId.value,
             r.field.name,
             r.value,
             r.appliesFrom.millisecondsSinceEpoch,
@@ -58,7 +58,7 @@ final class FolderRuleApplier {
       ]),
       everything: everything,
     );
-    final moves = <int, List<StoredMessage>>{};
+    final moves = <MailboxId, List<StoredMessage>>{};
     for (final message in pass.messages(earliest)) {
       final messageId = message.messageId;
       if (messageId == null ||
@@ -154,7 +154,7 @@ final class InboxPass {
     String fingerprint, {
     bool everything = false,
   }) {
-    final setting = StringSetting('scan.$kind.${inbox.id}');
+    final setting = StringSetting('scan.$kind.${inbox.id.value}');
     final prefix = '${inbox.syncState.uidValidity}:$fingerprint:';
     final mark = setting.readOrNull(store.settings);
     final seen = mark != null && mark.startsWith(prefix)

@@ -24,7 +24,7 @@ void main() {
   tearDown(() => app.dispose());
 
   MailStore store() => app.store;
-  int accountId() => store().accounts.all().single.id;
+  AccountId accountId() => store().accounts.all().single.id;
   StoredMailbox inbox() => store().mailboxes.inbox(accountId())!;
   StoredMailbox archive() =>
       store().mailboxes.bySpecialUse(accountId(), SpecialUse.archive)!;

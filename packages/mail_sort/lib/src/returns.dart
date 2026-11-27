@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_extract/mail_extract.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'deliveries.dart';
 import 'due_dates.dart';
@@ -89,7 +90,7 @@ final class ReturnWindow {
   final bool fromDeliveryUnknown;
 
   /// The email that states the policy.
-  final int messageId;
+  final MessageId messageId;
 
   /// The sentence stating it.
   final String quote;
@@ -375,7 +376,7 @@ abstract final class ReturnWindows {
           DeliveryFinder.read(e),
     ]..sort((a, b) => a.email.at.compareTo(b.email.at));
 
-    final deliveryOf = <int, Delivery>{};
+    final deliveryOf = <MessageId, Delivery>{};
     final deliveryOfOrder = <String, Delivery>{};
     String orderKey(String shop, String order) =>
         'o:${shop.toLowerCase()}:$order';
@@ -396,7 +397,7 @@ abstract final class ReturnWindows {
       final delivery =
           deliveryOf[r.email.messageId] ??
           (orderGroup == null ? null : deliveryOfOrder[orderGroup]);
-      final key = delivery?.key ?? orderGroup ?? 'm:${r.email.messageId}';
+      final key = delivery?.key ?? orderGroup ?? 'm:${r.email.messageId.value}';
       if (delivery != null) deliveryFor[key] = delivery;
       groups.putIfAbsent(key, () => []).add(r);
     }

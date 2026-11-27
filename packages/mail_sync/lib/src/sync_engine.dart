@@ -21,6 +21,7 @@ import 'outbox_replayer.dart';
 import 'screener_archiver.dart';
 import 'sender_blocker.dart';
 import 'server_rules.dart';
+import 'server_search.dart';
 import 'summary_mapper.dart';
 import 'sync_connections.dart';
 
@@ -28,7 +29,7 @@ import 'sync_connections.dart';
 sealed class SyncEvent {
   const SyncEvent(this.accountId);
 
-  final int accountId;
+  final AccountId accountId;
 }
 
 final class AccountSyncStarted extends SyncEvent {
@@ -127,8 +128,8 @@ final class SyncEngine {
   // Delivered when they happen, so an event is always seen before the call
   // that caused it returns (the sync worker relies on this order).
   final _events = StreamController<SyncEvent>.broadcast(sync: true);
-  final Map<int, Future<void>> _running = {};
-  final Map<int, Timer> _pendingRequests = {};
+  final Map<AccountId, Future<void>> _running = {};
+  final Map<AccountId, Timer> _pendingRequests = {};
   final List<Timer> _scheduled = [];
   Completer<void>? _stop;
   Completer<void>? _stopWatching;
@@ -142,8 +143,8 @@ final class SyncEngine {
   /// Syncs one account now (after any sync already running for it).
   /// Failures are reported as [AccountSyncFailed] events, not thrown.
   Future<AccountSyncReport?> syncAccount(
-    int accountId, {
-    Set<int>? mailboxIds,
+    AccountId accountId, {
+    Set<MailboxId>? mailboxIds,
   }) {
     final previous = _running[accountId] ?? Future.value();
     final run = previous.then((_) async {
@@ -168,7 +169,7 @@ final class SyncEngine {
 
   /// Asks for a sync soon (e.g. after the user acted on mail). Requests
   /// arriving within [changeDelay] are merged.
-  void requestSync(int accountId, {Set<int>? mailboxIds}) {
+  void requestSync(AccountId accountId, {Set<MailboxId>? mailboxIds}) {
     _pendingRequests[accountId]?.cancel();
     _pendingRequests[accountId] = Timer(changeDelay, () {
       _pendingRequests.remove(accountId);
@@ -274,7 +275,10 @@ final class SyncEngine {
   /// yet. Throws [BodyUnavailableException], or a [MailException] when the
   /// server cannot be reached. [background] downloads (nobody waiting)
   /// use their own connection, so they never hold up one the user opened.
-  Future<Uint8List> loadBody(int messageId, {bool background = false}) async {
+  Future<Uint8List> loadBody(
+    MessageId messageId, {
+    bool background = false,
+  }) async {
     final cached = _store.messages.body(messageId);
     if (cached != null) {
       _loader.findCode(messageId, cached);
@@ -297,8 +301,8 @@ final class SyncEngine {
   /// the server's BODYSTRUCTURE; nothing is downloaded or marked read),
   /// for mail synced before the app kept that. Throws a [MailException]
   /// when a server cannot be reached.
-  Future<void> lookUpFiles(List<int> messageIds) async {
-    final byAccount = <int, List<int>>{};
+  Future<void> lookUpFiles(List<MessageId> messageIds) async {
+    final byAccount = <AccountId, List<MessageId>>{};
     for (final id in messageIds) {
       if (_store.messages.byId(id) case final m?) {
         byAccount.putIfAbsent(m.accountId, () => []).add(id);
@@ -313,7 +317,7 @@ final class SyncEngine {
 
   /// Downloads up to [count] messages older than the oldest stored one in
   /// [mailboxId] ("load older mail"). Returns how many were added.
-  Future<int> fetchOlder(int mailboxId, {int count = 100}) async {
+  Future<int> fetchOlder(MailboxId mailboxId, {int count = 100}) async {
     final mailbox = _store.mailboxes.byId(mailboxId);
     if (mailbox == null) return 0;
     final account = _store.accounts.byId(mailbox.accountId);
@@ -324,9 +328,23 @@ final class SyncEngine {
     );
   }
 
+  /// Searches all of [accountId]'s mail on its server for [text], and
+  /// stores the summaries of what it finds ([ServerSearch]). Returns the
+  /// stored messages found, newest first, at most
+  /// [ServerSearch.maxResults]. Throws a [MailException] when the server
+  /// cannot be reached.
+  Future<List<MessageId>> searchServer(AccountId accountId, String text) async {
+    final account = _store.accounts.byId(accountId);
+    if (account == null) return const [];
+    return _onDemand.run(
+      account,
+      (imap) => ServerSearch(_store, _mailboxSync).search(imap, account, text),
+    );
+  }
+
   /// Syncs [accountId] at [at] (when a delayed send becomes due), so the
   /// message goes out then rather than at the next periodic sync.
-  void syncAt(int accountId, DateTime at) {
+  void syncAt(AccountId accountId, DateTime at) {
     final delay = at.difference(DateTime.now());
     _scheduled.add(
       Timer(delay.isNegative ? Duration.zero : delay, () {
@@ -340,7 +358,7 @@ final class SyncEngine {
   /// subfolder) and returns its id. A folder that already exists counts
   /// as created. Throws [ArgumentError] for an unusable name, or a
   /// [MailException] when the server cannot be reached.
-  Future<int> createFolder(int accountId, String name) async {
+  Future<MailboxId> createFolder(AccountId accountId, String name) async {
     final account = _store.accounts.byId(accountId);
     if (account == null) throw ArgumentError.value(accountId, 'accountId');
     final encoded = FolderNames.newFolder(
@@ -372,13 +390,13 @@ final class SyncEngine {
 
   /// Forgets the on-demand connection of an account (after it was removed
   /// or its settings changed).
-  Future<void> accountChanged(int accountId) async {
+  Future<void> accountChanged(AccountId accountId) async {
     await _onDemand.close(accountId);
     await _background.close(accountId);
     await _syncConnections.close(accountId);
   }
 
-  Account _accountOfMessage(int messageId) {
+  Account _accountOfMessage(MessageId messageId) {
     final message = _store.messages.byId(messageId);
     final account = message == null
         ? null

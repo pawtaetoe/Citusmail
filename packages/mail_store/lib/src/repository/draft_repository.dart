@@ -4,6 +4,7 @@
 
 import 'dart:typed_data';
 
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
@@ -22,7 +23,7 @@ final class DraftRepository {
   /// Returns the draft's id.
   int save({
     int? id,
-    required int accountId,
+    required AccountId accountId,
     required String content,
     required List<StoredDraftAttachment> attachments,
     String? savedMessageId,
@@ -32,13 +33,13 @@ final class DraftRepository {
     if (id == null) {
       _db.execute(
         'INSERT INTO drafts (account_id, content, saved_message_id, updated_at) VALUES (?, ?, ?, ?)',
-        [accountId, content, savedMessageId, now],
+        [accountId.value, content, savedMessageId, now],
       );
       draftId = _db.lastInsertRowId;
     } else {
       _db.execute(
         'UPDATE drafts SET account_id = ?, content = ?, saved_message_id = ?, updated_at = ? WHERE id = ?',
-        [accountId, content, savedMessageId, now, id],
+        [accountId.value, content, savedMessageId, now, id],
       );
       if (_db.updatedRows == 0) throw StateError('draft $id no longer exists');
       draftId = id;
@@ -89,7 +90,7 @@ final class DraftRepository {
 
   static StoredDraft _fromRow(Row row) => StoredDraft(
     id: row['id'] as int,
-    accountId: row['account_id'] as int,
+    accountId: AccountId(row['account_id'] as int),
     content: row['content'] as String,
     savedMessageId: row['saved_message_id'] as String?,
     updatedAt: DateTime.fromMillisecondsSinceEpoch(

@@ -382,9 +382,9 @@ void main() {
 
     settings().write('autoRead.failed', '12:1,13:3');
     final failures = ReadFailures(store);
-    expect(failures.times(12), 1);
+    expect(failures.times(MessageId(12)), 1);
     expect(failures.givenUp, {13});
-    failures.failed(12);
+    failures.failed(MessageId(12));
     expect(settings().read('autoRead.failed'), '13:3,12:2');
   });
 }

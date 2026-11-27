@@ -66,6 +66,31 @@ final class LocationController {
     );
   }
 
+  /// Searches all of [accountId]'s mail on its server for the search on
+  /// screen; what it finds joins the results (stored, so it opens and pins
+  /// like any other). Offline, the results from the device stay, and the
+  /// list says so.
+  Future<void> searchOnServer(AccountId accountId) async {
+    final at = location.value;
+    if (at is! SearchLocation) return;
+    if (_list.serverSearches[accountId]?.status ==
+        ServerSearchStatus.searching) {
+      return;
+    }
+    _list.serverSearchStarted(accountId);
+    try {
+      final found = await _worker.searchServer(accountId, at.text);
+      if (_disposed || location.value != at) return;
+      _list.serverSearchFinished(accountId, found);
+    } on SyncWorkerException catch (e) {
+      if (_disposed || location.value != at) return;
+      _list.serverSearchFailed(
+        accountId,
+        offline: e.failure.kind == SyncFailureKind.network,
+      );
+    }
+  }
+
   /// Shows more of a flat list: stored messages first, then older mail
   /// from the server.
   Future<void> loadMore() async {
@@ -93,7 +118,7 @@ final class LocationController {
     _list.loadMoreStored();
   }
 
-  List<int> _foldersToExtend(MailLocation at) => switch (at) {
+  List<MailboxId> _foldersToExtend(MailLocation at) => switch (at) {
     FolderLocation(:final mailboxId) => [mailboxId],
     InboxLocation(:final accountId) ||
     SectionLocation(:final accountId) => _store.messages.inboxIds(

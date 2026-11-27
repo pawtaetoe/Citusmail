@@ -393,7 +393,7 @@ void main() {
         summary(1, category: MessageCategory.newsletters),
       ]);
 
-      final seen = <int>[];
+      final seen = <MessageId>[];
       StoredMessage? cursor;
       while (true) {
         final page = store.messages.list(
@@ -702,8 +702,8 @@ void main() {
       store.messages.setHeader(photos.id, header, const []);
       expect(store.messages.headers(photos.id), isEmpty);
       // A message that is gone gets nothing.
-      store.messages.setHeader(99999, header, [file('x.pdf')]);
-      expect(store.messages.headers(99999), isEmpty);
+      store.messages.setHeader(MessageId(99999), header, [file('x.pdf')]);
+      expect(store.messages.headers(MessageId(99999)), isEmpty);
     });
 
     test('a downloaded message counts as known', () {
@@ -731,22 +731,30 @@ void main() {
     test('every action type round-trips through storage', () {
       final actions = <OutboxAction>[
         SetFlagsAction(
-          mailboxId: 1,
+          mailboxId: MailboxId(1),
           uidValidity: 9,
           uids: [1, 2],
           add: [r'\Seen'],
           remove: [r'\Flagged'],
         ),
-        MoveAction(mailboxId: 1, uidValidity: 9, uids: [3], targetMailboxId: 2),
-        DeleteAction(mailboxId: 1, uidValidity: 9, uids: [4]),
-        RemoveDraftAction(mailboxId: 5, messageId: 'draft-1@citusmail.test'),
+        MoveAction(
+          mailboxId: MailboxId(1),
+          uidValidity: 9,
+          uids: [3],
+          targetMailboxId: MailboxId(2),
+        ),
+        DeleteAction(mailboxId: MailboxId(1), uidValidity: 9, uids: [4]),
+        RemoveDraftAction(
+          mailboxId: MailboxId(5),
+          messageId: 'draft-1@citusmail.test',
+        ),
       ];
       for (final action in actions) {
         store.outbox.enqueue(account.id, action);
       }
       store.outbox.enqueue(
         account.id,
-        AppendAction(mailboxId: 2, flags: [r'\Draft']),
+        AppendAction(mailboxId: MailboxId(2), flags: [r'\Draft']),
         data: Uint8List.fromList([1, 2]),
       );
       store.outbox.enqueue(
@@ -754,18 +762,18 @@ void main() {
         SendAction(
           from: 'alice@citusmail.test',
           recipients: ['bob@citusmail.test'],
-          sentMailboxId: 3,
+          sentMailboxId: MailboxId(3),
         ),
         data: Uint8List.fromList([3]),
       );
       final due = store.outbox.due(account.id);
       expect(due.map((e) => e.action.encode()), [
         ...actions.map((a) => a.encode()),
-        AppendAction(mailboxId: 2, flags: [r'\Draft']).encode(),
+        AppendAction(mailboxId: MailboxId(2), flags: [r'\Draft']).encode(),
         SendAction(
           from: 'alice@citusmail.test',
           recipients: ['bob@citusmail.test'],
-          sentMailboxId: 3,
+          sentMailboxId: MailboxId(3),
         ).encode(),
       ]);
       expect(due.last.data, [3]);
@@ -774,7 +782,7 @@ void main() {
     test('retry later, give up, retry by hand, complete', () {
       final entry = store.outbox.enqueue(
         account.id,
-        DeleteAction(mailboxId: 1, uidValidity: 9, uids: [1]),
+        DeleteAction(mailboxId: MailboxId(1), uidValidity: 9, uids: [1]),
       );
       final now = DateTime.utc(2026, 10, 21, 12);
       store.outbox.retryLater(
@@ -811,7 +819,7 @@ void main() {
       );
       store.outbox.enqueue(
         account.id,
-        DeleteAction(mailboxId: 1, uidValidity: 9, uids: [1]),
+        DeleteAction(mailboxId: MailboxId(1), uidValidity: 9, uids: [1]),
       );
       final due = store.outbox.due(account.id);
       expect(due.single.action, isA<DeleteAction>());
@@ -826,21 +834,29 @@ void main() {
 
     test('invalid actions are rejected', () {
       expect(
-        () =>
-            SetFlagsAction(mailboxId: 1, uidValidity: 9, uids: [], add: ['x']),
+        () => SetFlagsAction(
+          mailboxId: MailboxId(1),
+          uidValidity: 9,
+          uids: [],
+          add: ['x'],
+        ),
         throwsArgumentError,
       );
       expect(
-        () =>
-            SetFlagsAction(mailboxId: 1, uidValidity: 9, uids: [0], add: ['x']),
+        () => SetFlagsAction(
+          mailboxId: MailboxId(1),
+          uidValidity: 9,
+          uids: [0],
+          add: ['x'],
+        ),
         throwsArgumentError,
       );
       expect(
         () => MoveAction(
-          mailboxId: 1,
+          mailboxId: MailboxId(1),
           uidValidity: 9,
           uids: [1],
-          targetMailboxId: 1,
+          targetMailboxId: MailboxId(1),
         ),
         throwsArgumentError,
       );
@@ -872,7 +888,7 @@ void main() {
       SendAction scheduled({bool noticed = false}) => SendAction(
         from: 'alice@citusmail.test',
         recipients: ['bob@x.example'],
-        sentMailboxId: 3,
+        sentMailboxId: MailboxId(3),
         schedule: SendSchedule(
           at: at,
           draft: '{"v":1,"subject":"Quarterly numbers"}',
@@ -977,7 +993,7 @@ void main() {
       important = boxes.firstWhere((b) => b.specialUse == SpecialUse.important);
     });
 
-    Set<String?> section(SmartSection s, {List<int>? accounts}) => store
+    Set<String?> section(SmartSection s, {List<AccountId>? accounts}) => store
         .messages
         .list(MessageQuery.smart(s, accountIds: accounts, limit: 500))
         .map((m) => m.subject)
@@ -1258,7 +1274,7 @@ void main() {
         copy(31, 'inbox'),
       ]);
 
-      List<(String, int)> pins() => [
+      List<(String, MailboxId)> pins() => [
         for (final m in store.messages.list(
           MessageQuery(flaggedOnly: true, accountIds: [gmail.id]),
         ))
@@ -1419,7 +1435,7 @@ void main() {
       final a = send(notBefore: later);
       final b = store.outbox.enqueue(
         account.id,
-        RemoveDraftAction(mailboxId: 1, messageId: 'd@x'),
+        RemoveDraftAction(mailboxId: MailboxId(1), messageId: 'd@x'),
         notBefore: later,
       );
       final immediate = send();
@@ -1454,7 +1470,7 @@ void main() {
     test('remove-draft actions need a real Message-ID', () {
       for (final bad in ['', 'a b@x', '<a@x>', 'a\r\n@x']) {
         expect(
-          () => RemoveDraftAction(mailboxId: 1, messageId: bad),
+          () => RemoveDraftAction(mailboxId: MailboxId(1), messageId: bad),
           throwsArgumentError,
           reason: bad,
         );
@@ -1934,7 +1950,7 @@ void main() {
         account.id,
         'x@a',
         recipient: 'Bob@B.example',
-        reportId: 7,
+        reportId: MessageId(7),
       );
       expect(store.receipts.reportFor(account.id, 'x@a', 'bob@b.example'), 7);
       expect(
@@ -1946,7 +1962,7 @@ void main() {
           account.id,
           'm$i@a',
           recipient: 'bob@b.example',
-          reportId: i,
+          reportId: MessageId(i),
         );
       }
       expect(
@@ -2049,7 +2065,8 @@ void main() {
         folder('Trash', use: 'Trash'),
         folder('Archive', use: 'Archive'),
       ]);
-      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      MailboxId id(String name) =>
+          boxes.firstWhere((b) => b.encodedName == name).id;
       store.messages.upsertSummaries(id('INBOX'), [
         summary(1, subject: 'Your Netflix RECEIPT'),
         summary(2, subject: 'Lunch?'),
@@ -2095,7 +2112,7 @@ void main() {
           folder('Junk', use: 'Junk'),
           folder('Archive', use: 'Archive'),
         ]);
-        int id(String name) =>
+        MailboxId id(String name) =>
             boxes.firstWhere((b) => b.encodedName == name).id;
         store.messages.upsertSummaries(id('INBOX'), [
           MessageSummary(
@@ -2147,7 +2164,8 @@ void main() {
         folder('Junk', use: 'Junk'),
         folder('Archive', use: 'Archive'),
       ]);
-      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      MailboxId id(String name) =>
+          boxes.firstWhere((b) => b.encodedName == name).id;
       MailAddress shop(String name, [String address = 'news@shop.example']) =>
           MailAddress(
             displayName: name,
@@ -2198,7 +2216,8 @@ void main() {
         ),
       ]);
       final inbox = id('INBOX');
-      int uid(int u, [int? box]) => store.messages.byUid(box ?? inbox, u)!.id;
+      MessageId uid(int u, [MailboxId? box]) =>
+          store.messages.byUid(box ?? inbox, u)!.id;
 
       final stats = store.messages.senderStats(DateTime.utc(2026, 9));
       expect(stats.map((s) => s.from.address), [
@@ -2234,7 +2253,8 @@ void main() {
         folder('Trash', use: 'Trash'),
         folder('Junk', use: 'Junk'),
       ]);
-      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      MailboxId id(String name) =>
+          boxes.firstWhere((b) => b.encodedName == name).id;
       const shop = MailAddress(
         displayName: 'Shop',
         localPart: 'news',
@@ -2304,7 +2324,8 @@ void main() {
       final otherInbox = store.mailboxes.replaceAll(other.id, [
         folder('INBOX'),
       ]).single;
-      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      MailboxId id(String name) =>
+          boxes.firstWhere((b) => b.encodedName == name).id;
       MessageSummary mail(int uid, String messageId, String subject) =>
           MessageSummary(
             uid: uid,
@@ -2356,7 +2377,8 @@ void main() {
         folder('Sent', use: 'Sent'),
         folder('Junk', use: 'Junk'),
       ]);
-      int id(String name) => boxes.firstWhere((b) => b.encodedName == name).id;
+      MailboxId id(String name) =>
+          boxes.firstWhere((b) => b.encodedName == name).id;
       store.messages.upsertSummaries(id('INBOX'), [
         summary(1, subject: 'Weekly deals', at: DateTime.utc(2026, 10, 30)),
         summary(2, subject: 'Not opened yet', at: DateTime.utc(2026, 10, 31)),

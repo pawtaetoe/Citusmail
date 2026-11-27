@@ -89,7 +89,7 @@ void main() {
     add('INBOX', 3, 'other@x', subject: 'Dinner on Friday', day: 2);
     add('Trash', 1, 'd@x', replyTo: 'c@x', references: ['a@x', 'c@x'], day: 4);
 
-    List<int> ids(StoredMessage m) => [
+    List<MessageId> ids(StoredMessage m) => [
       for (final c in store.messages.conversation(m)) c.id,
     ];
     final expected = [first.id, reply.id, answer.id];

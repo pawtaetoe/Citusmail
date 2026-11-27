@@ -17,7 +17,7 @@ final class BackFromSnooze {
 
   /// Accounts with a change queued for the server (marked unread): sync
   /// them soon.
-  final Set<int> accountIds;
+  final Set<AccountId> accountIds;
 
   bool get isEmpty => messages.isEmpty;
 }

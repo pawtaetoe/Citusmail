@@ -19,7 +19,7 @@ Account _account({
   String imapHost = 'imap.gmail.com',
   String? oauthProvider,
 }) => Account(
-  id: 3,
+  id: AccountId(3),
   email: email,
   username: email,
   imap: ServerSettings(
@@ -51,7 +51,7 @@ final class _Fake {
   final secrets = <String, String>{};
   final verified = <String>[];
   final signedInWith = <OAuthProvider>[];
-  final saved = <(int, String)>[];
+  final saved = <(AccountId, String)>[];
 
   late final reconnector = Reconnector(
     verify: (settings, password) async {

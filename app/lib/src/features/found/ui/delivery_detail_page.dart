@@ -36,7 +36,7 @@ final class DeliveryDetailPage extends StatelessWidget {
 
   final Delivery delivery;
   final MailController controller;
-  final StoredMessage? Function(int id) messageById;
+  final StoredMessage? Function(MessageId id) messageById;
 
   /// Its return window, when its mail states one.
   final ReturnWindow? returnWindow;
@@ -44,7 +44,7 @@ final class DeliveryDetailPage extends StatelessWidget {
   /// Today (tests).
   final DateTime Function()? now;
 
-  Future<void> _openEmail(BuildContext context, int messageId) async {
+  Future<void> _openEmail(BuildContext context, MessageId messageId) async {
     final message = messageById(messageId);
     if (message == null) return;
     await EmailPage.open(context, controller, message, title: 'Email');
@@ -161,7 +161,7 @@ final class DeliveryDetailPage extends StatelessWidget {
           children: [
             for (final r in d.records)
               ListTile(
-                key: ValueKey('delivery-email-${r.email.messageId}'),
+                key: ValueKey('delivery-email-${r.email.messageId.value}'),
                 leading: Icon(DeliveryText.icon(r.status)),
                 title: Text(DeliveryText.event(r.status)),
                 subtitle: Text(

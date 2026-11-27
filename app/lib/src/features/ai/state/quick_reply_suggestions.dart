@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:mail_ai/mail_ai.dart';
+import 'package:mail_store/mail_store.dart';
 
 import '../../../services/ai_assistant.dart';
 import 'ai_task.dart';
@@ -15,7 +16,7 @@ import 'ai_task.dart';
 final class ReplySuggestions extends AiTask<List<String>> {
   ReplySuggestions._(this.messageId);
 
-  final int messageId;
+  final MessageId messageId;
 }
 
 /// "Suggest replies" in the reader: asked for only when the user taps
@@ -35,16 +36,16 @@ final class QuickReplySuggestions extends ChangeNotifier {
   /// How many emails' suggestions are kept, the oldest dropped first.
   static const keep = 40;
 
-  final _cache = <int, ReplySuggestions>{};
+  final _cache = <MessageId, ReplySuggestions>{};
 
   /// What was suggested for [messageId], or is being.
-  ReplySuggestions? find(int messageId) => _cache[messageId];
+  ReplySuggestions? find(MessageId messageId) => _cache[messageId];
 
   /// Asks for replies to [mail] (the email [messageId]), once [confirm]
   /// agrees to send it to the provider (`confirmAiSend`, which asks the
   /// user the first time).
   Future<void> suggest(
-    int messageId,
+    MessageId messageId,
     PromptMail mail, {
     required Future<bool> Function(AiFeatureProvider provider) confirm,
   }) async {
@@ -78,7 +79,7 @@ final class QuickReplySuggestions extends ChangeNotifier {
   }
 
   /// Stops asking.
-  void stop(int messageId) {
+  void stop(MessageId messageId) {
     final s = _cache[messageId];
     if (s == null || !s.isRunning) return;
     s.stop();

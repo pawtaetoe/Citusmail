@@ -358,8 +358,8 @@ void main() {
       String? delimiter = '/',
       bool inbox = false,
     }) => StoredMailbox(
-      id: name.hashCode,
-      accountId: 1,
+      id: MailboxId(name.hashCode),
+      accountId: AccountId(1),
       name: name,
       encodedName: name,
       delimiter: delimiter,

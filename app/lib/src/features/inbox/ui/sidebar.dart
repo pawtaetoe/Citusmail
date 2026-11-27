@@ -319,7 +319,7 @@ final class Sidebar extends StatelessWidget {
                           // (remembered), showing its unread count.
                           for (final account in accounts)
                             _AccountBlock(
-                              key: ValueKey('account-${account.id}'),
+                              key: ValueKey('account-${account.id.value}'),
                               account: account,
                               memory: several
                                   ? _OpenSet(store, _OpenSet.accounts)
@@ -1102,7 +1102,7 @@ final class _AccountBlock extends StatelessWidget {
     final name = account.displayName ?? account.email;
     return _Fold(
       memory: memory,
-      id: '${account.id}',
+      id: '${account.id.value}',
       header: (open, toggle) => _FoldHeader(
         title: name,
         what: 'folders of $name',
@@ -1161,7 +1161,7 @@ final class _SyncSummary extends StatelessWidget {
   });
 
   final List<Account> accounts;
-  final SyncEvent? Function(int accountId) eventOf;
+  final SyncEvent? Function(AccountId accountId) eventOf;
 
   /// Notifications and how mail is checked.
   final VoidCallback onTap;

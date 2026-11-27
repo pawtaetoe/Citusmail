@@ -153,7 +153,10 @@ void main() {
       );
       expect(list.first.snooze.until, now.add(const Duration(hours: 4)));
       expect(store.snoozes.nextDue(), now.add(const Duration(hours: 4)));
-      expect(store.snoozes.list(accountIds: [alice.id + 1]), isEmpty);
+      expect(
+        store.snoozes.list(accountIds: [AccountId(alice.id.value + 1)]),
+        isEmpty,
+      );
     });
 
     test('changing the time keeps one snooze', () {

@@ -41,7 +41,7 @@ void main() {
 
   /// [count] booking emails from different hotels, newest first; their
   /// ids.
-  List<int> bookings(int count) {
+  List<MessageId> bookings(int count) {
     final first = uid + 1;
     app.store.messages.upsertSummaries(inbox.id, [
       for (var i = 0; i < count; i++)
@@ -66,8 +66,8 @@ void main() {
   }
 
   /// Stores a small body, as a download from the server would.
-  final loaded = <int>[];
-  Future<void> download(int id) async {
+  final loaded = <MessageId>[];
+  Future<void> download(MessageId id) async {
     loaded.add(id);
     app.store.messages.saveBody(
       id,
@@ -113,7 +113,7 @@ void main() {
   test('a message that fails is skipped, and given up after 3 times', () async {
     final ids = bookings(3);
     final broken = ids[1];
-    Future<void> load(int id) async {
+    Future<void> load(MessageId id) async {
       if (id == broken) throw const BodyUnavailableException(BodyProblem.gone);
       await download(id);
     }
@@ -135,7 +135,7 @@ void main() {
       final ids = bookings(5);
       var calls = 0;
       var offline = true;
-      Future<void> load(int id) async {
+      Future<void> load(MessageId id) async {
         calls++;
         if (offline) {
           throw const SyncWorkerException(
@@ -176,7 +176,7 @@ void main() {
 
     // A sync without new mail: nothing to do.
     AccountSynced synced(int added) => AccountSynced(
-      1,
+      AccountId(1),
       AccountSyncReport(
         replay: const ReplayResult(),
         mailboxes: {
@@ -235,7 +235,7 @@ void main() {
   test('stopping ends a run after the message it is on', () async {
     bookings(5);
     late AutoReader reader;
-    Future<void> load(int id) async {
+    Future<void> load(MessageId id) async {
       await download(id);
       reader.stop();
     }

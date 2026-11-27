@@ -22,7 +22,7 @@ void main() {
   setUp(() async => app = await TestApp.create());
   tearDown(() => app.dispose());
 
-  int accountIdOf() => app.store.accounts.all().single.id;
+  AccountId accountIdOf() => app.store.accounts.all().single.id;
 
   Future<void> show(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -357,7 +357,7 @@ void main() {
     }
 
     /// Where the older copy is removed from.
-    List<int> removedFrom() => [
+    List<MailboxId> removedFrom() => [
       for (final account in [alice, work])
         for (final e in app.store.outbox.all(account.id))
           if (e.action

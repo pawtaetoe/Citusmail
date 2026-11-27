@@ -59,9 +59,9 @@ final class MessageTile extends StatefulWidget {
 
   /// Rows are laid out with this prototype (the same height for all).
   static StoredMessage prototype = StoredMessage(
-    id: -1,
-    mailboxId: -1,
-    accountId: -1,
+    id: const MessageId(-1),
+    mailboxId: const MailboxId(-1),
+    accountId: const AccountId(-1),
     uid: 1,
     receivedAt: DateTime.utc(2026),
     size: 0,
@@ -311,7 +311,7 @@ final class _MessageTileState extends State<MessageTile> {
     final canArchive =
         _c.archiveFor(_m)?.id != null && _c.archiveFor(_m)!.id != _m.mailboxId;
     return Dismissible(
-      key: ValueKey('swipe-${_m.id}'),
+      key: ValueKey('swipe-${_m.id.value}'),
       background: _SwipeBackground(
         alignment: Alignment.centerLeft,
         color: canArchive ? const Color(0xFF2E9E5B) : colors.primary,

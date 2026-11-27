@@ -10,6 +10,7 @@ library;
 
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:test/test.dart';
 
 final _now = DateTime.utc(2026, 11, 4);
@@ -565,7 +566,7 @@ _Picked _run({
   final subscriptions = SubscriptionFinder.find([
     for (final m in _sample)
       SubscriptionEmail(
-        messageId: m.id,
+        messageId: MessageId(m.id),
         company: m.company,
         senderName: m.name,
         subject: m.subject,
@@ -577,7 +578,7 @@ _Picked _run({
     for (final m in _sample)
       if (DeliveryFinder.subjectWords.any(m.subject.toLowerCase().contains))
         DeliveryEmail(
-          messageId: m.id,
+          messageId: MessageId(m.id),
           shop: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -589,7 +590,7 @@ _Picked _run({
   final bookings = TripFinder.bookings([
     for (final m in _sample)
       TripEmail(
-        messageId: m.id,
+        messageId: MessageId(m.id),
         sender: m.company,
         senderName: m.name,
         subject: m.subject,
@@ -603,22 +604,22 @@ _Picked _run({
     _s: {
       for (final s in subscriptions)
         if (!hiddenSubscriptions.contains(s.company))
-          if ([for (final r in s.records) r.email.messageId] case final ids
-              when !vetoed(_s, ids))
+          if ([for (final r in s.records) r.email.messageId.value]
+              case final ids when !vetoed(_s, ids))
             ...ids,
     },
     _d: {
       for (final d in deliveries)
         if (!hiddenDeliveries.contains(d.key))
-          if ([for (final r in d.records) r.email.messageId] case final ids
-              when !vetoed(_d, ids))
+          if ([for (final r in d.records) r.email.messageId.value]
+              case final ids when !vetoed(_d, ids))
             ...ids,
     },
     _b: {
       for (final b in bookings)
         if (!hiddenBookings.contains(b.key))
-          if ([for (final r in b.records) r.email.messageId] case final ids
-              when !vetoed(_b, ids))
+          if ([for (final r in b.records) r.email.messageId.value]
+              case final ids when !vetoed(_b, ids))
             ...ids,
     },
   };
@@ -680,7 +681,7 @@ void main() {
     final subscriptions = SubscriptionFinder.find([
       for (final m in _sample)
         SubscriptionEmail(
-          messageId: m.id,
+          messageId: MessageId(m.id),
           company: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -692,7 +693,7 @@ void main() {
     for (final s in subscriptions) {
       if (!hiddenSubscriptions.contains(s.company)) continue;
       for (final r in s.records) {
-        classifier.reject(_s, _byId[r.email.messageId]!.sample);
+        classifier.reject(_s, _byId[r.email.messageId.value]!.sample);
       }
     }
     final firstFood = _sample.firstWhere((m) => m.name == 'GrabFood');
@@ -700,7 +701,7 @@ void main() {
       for (final m in _sample)
         if (DeliveryFinder.subjectWords.any(m.subject.toLowerCase().contains))
           DeliveryEmail(
-            messageId: m.id,
+            messageId: MessageId(m.id),
             shop: m.company,
             senderName: m.name,
             subject: m.subject,
@@ -709,18 +710,18 @@ void main() {
           ),
     ], now: _now);
     final food = deliveries.where(
-      (d) => d.records.any((r) => r.email.messageId == firstFood.id),
+      (d) => d.records.any((r) => r.email.messageId == MessageId(firstFood.id)),
     );
     for (final d in food) {
       for (final r in d.records) {
-        classifier.reject(_d, _byId[r.email.messageId]!.sample);
+        classifier.reject(_d, _byId[r.email.messageId.value]!.sample);
       }
     }
     final firstHaircut = _sample.firstWhere((m) => m.name == 'Snip Studio');
     final bookings = TripFinder.bookings([
       for (final m in _sample)
         TripEmail(
-          messageId: m.id,
+          messageId: MessageId(m.id),
           sender: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -730,11 +731,12 @@ void main() {
         ),
     ]);
     final haircut = bookings.where(
-      (b) => b.records.any((r) => r.email.messageId == firstHaircut.id),
+      (b) =>
+          b.records.any((r) => r.email.messageId == MessageId(firstHaircut.id)),
     );
     for (final b in haircut) {
       for (final r in b.records) {
-        classifier.reject(_b, _byId[r.email.messageId]!.sample);
+        classifier.reject(_b, _byId[r.email.messageId.value]!.sample);
       }
     }
     final hidden = (
@@ -790,3 +792,18 @@ void main() {
     expect(_score(taught[_b]!, _b).fp, 0);
   });
 }
+
+/// The labelled sample, for the mail model's evaluation
+/// (mail_model_eval_test.dart), which never trains on it.
+List<
+  ({
+    MailKind? kind,
+    MailSample sample,
+    DateTime at,
+    List<ReservationInfo> reservations,
+  })
+>
+get evaluationSample => [
+  for (final m in _sample)
+    (kind: m.kind, sample: m.sample, at: m.at, reservations: m.reservations),
+];

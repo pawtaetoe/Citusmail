@@ -415,7 +415,7 @@ final class _Source extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return InkWell(
-      key: ValueKey('ask-source-${message.id}'),
+      key: ValueKey('ask-source-${message.id.value}'),
       borderRadius: BorderRadius.circular(CitusmailTheme.radiusSmall),
       onTap: () => onOpen(message),
       child: Padding(

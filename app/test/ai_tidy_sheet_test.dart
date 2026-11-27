@@ -28,7 +28,7 @@ void main() {
   tearDown(() => app.dispose());
 
   MailStore store() => app.store;
-  int accountId() => store().accounts.all().single.id;
+  AccountId accountId() => store().accounts.all().single.id;
   StoredMailbox folder(String name) => store().mailboxes
       .forAccount(accountId())
       .firstWhere((b) => b.encodedName == name);

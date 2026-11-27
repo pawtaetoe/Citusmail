@@ -89,8 +89,8 @@ final class _SendAccountsPageState extends State<SendAccountsPage> {
   bool _asFile = false;
   List<TransferResult> _results = const [];
   late final List<Account> _accounts = widget.services.store.accounts.all();
-  late final Set<int> _chosen = {for (final a in _accounts) a.id};
-  final _signInAgain = <int>{};
+  late final Set<AccountId> _chosen = {for (final a in _accounts) a.id};
+  final _signInAgain = <AccountId>{};
   bool _syncOn = false;
   bool _withSync = true;
 

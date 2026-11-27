@@ -44,7 +44,7 @@ final class Draft {
 
   /// Local id once saved on the device.
   final int? id;
-  final int accountId;
+  final AccountId accountId;
   final List<MailAddress> to;
   final List<MailAddress> cc;
   final List<MailAddress> bcc;
@@ -65,7 +65,7 @@ final class Draft {
   final List<String> references;
 
   /// The stored message this replies to, marked answered once sent.
-  final int? answeredMessageId;
+  final MessageId? answeredMessageId;
 
   /// Message-ID of this draft's copy in the server's Drafts folder, removed
   /// when a newer copy is saved or the message is sent.
@@ -149,7 +149,7 @@ final class Draft {
 
   Draft copyWith({
     int? id,
-    int? accountId,
+    AccountId? accountId,
     List<MailAddress>? to,
     List<MailAddress>? cc,
     List<MailAddress>? bcc,
@@ -195,7 +195,7 @@ final class Draft {
     if (quote.isNotEmpty) 'quote': quote,
     'inReplyTo': inReplyTo,
     'references': references,
-    'answeredMessageId': answeredMessageId,
+    'answeredMessageId': answeredMessageId?.value,
     if (requestReceipt) 'receipt': true,
   });
 
@@ -204,7 +204,7 @@ final class Draft {
   static Draft decodeContent(
     String content, {
     required int id,
-    required int accountId,
+    required AccountId accountId,
     required List<DraftAttachment> attachments,
     String? savedMessageId,
   }) {
@@ -237,7 +237,7 @@ final class Draft {
           if (r is String) r,
       ],
       answeredMessageId: json['answeredMessageId'] is int
-          ? json['answeredMessageId']! as int
+          ? MessageId(json['answeredMessageId']! as int)
           : null,
       attachments: attachments,
       savedMessageId: savedMessageId,

@@ -45,7 +45,7 @@ final class MailNotice {
   final String? preview;
 
   /// The message a tap opens.
-  final int? messageId;
+  final MessageId? messageId;
 
   /// A verification code: the notification gets a Copy code button.
   final String? code;
@@ -63,7 +63,8 @@ final class MailNotice {
   String get text => preview == null ? body : '$body\n$preview';
 
   /// What a tap hands back (see [MailNotices.messageIdOf]).
-  String? get payload => messageId == null ? null : 'message:$messageId';
+  String? get payload =>
+      messageId == null ? null : 'message:${messageId!.value}';
 
   /// The Copy code button's action id, when there is a [code].
   String? get copyActionId => code == null || messageId == null
@@ -265,15 +266,16 @@ abstract final class MailNotices {
 
   /// A message's notification id: below the reminders' range
   /// (0x20000000 and up) and the summaries' (0x40000000 and up).
-  static int idFor(int messageId) => messageId & 0x1FFFFFFF;
+  static int idFor(MessageId messageId) => messageId.value & 0x1FFFFFFF;
 
   /// The summary (or "and N more", or locked) notification of an account.
-  static int summaryId(int accountId) => 0x40000000 | (accountId & 0xFFFFFF);
+  static int summaryId(AccountId accountId) =>
+      0x40000000 | (accountId.value & 0xFFFFFF);
 
   /// The message id in a tapped notification's payload.
-  static int? messageIdOf(String? payload) {
+  static MessageId? messageIdOf(String? payload) {
     final match = _messagePayload.firstMatch(payload ?? '');
-    return match == null ? null : int.parse(match[1]!);
+    return match == null ? null : MessageId(int.parse(match[1]!));
   }
 
   /// A payload comes back from the system: only plain digits are read.
@@ -290,13 +292,14 @@ abstract final class MailNotices {
 abstract final class CopyCodeAction {
   static const label = 'Copy code';
 
-  static String actionId(int messageId, String code) => 'copy:$messageId:$code';
+  static String actionId(MessageId messageId, String code) =>
+      'copy:${messageId.value}:$code';
 
   /// The message and code of a Copy code button, or null for anything else.
-  static ({int messageId, String code})? parse(String? id) {
+  static ({MessageId messageId, String code})? parse(String? id) {
     final match = _action.firstMatch(id ?? '');
     if (match == null) return null;
-    return (messageId: int.parse(match[1]!), code: match[2]!);
+    return (messageId: MessageId(int.parse(match[1]!)), code: match[2]!);
   }
 
   /// An action id comes back from the system: plain digits, then a short

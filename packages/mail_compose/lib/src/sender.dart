@@ -21,7 +21,7 @@ final class PendingSend {
     this.scheduledFor,
   });
 
-  final int accountId;
+  final AccountId accountId;
 
   /// The Message-ID it goes out with (without brackets): how replies
   /// name it.
@@ -172,7 +172,7 @@ final class Sender {
   /// Sets \Answered on the replied-to message (locally now, on the server
   /// with the send). Returns the message as it was, for undo.
   StoredMessage? _markAnswered(
-    int? messageId,
+    MessageId? messageId,
     DateTime notBefore,
     List<int> ids,
   ) {

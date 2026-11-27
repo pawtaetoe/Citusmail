@@ -26,7 +26,7 @@ DiscoveredSettings found({
 );
 
 final account = Account(
-  id: 1,
+  id: AccountId(1),
   email: 'me@tommykung.cc',
   username: 'me@tommykung.cc',
   imap: ServerSettings(

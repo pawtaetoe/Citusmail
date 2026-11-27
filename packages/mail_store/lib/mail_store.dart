@@ -6,6 +6,9 @@
 /// offline action queue.
 library;
 
+export 'package:mail_protocol/mail_protocol.dart'
+    show AccountId, MailboxId, MessageId;
+
 export 'src/database/database_key.dart';
 export 'src/database/mail_database.dart';
 export 'src/database/schema.dart';

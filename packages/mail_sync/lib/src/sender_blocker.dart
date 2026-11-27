@@ -25,7 +25,7 @@ final class SenderBlocker {
   final MailActions _actions;
 
   /// Where blocked mail of [accountId] goes, or null if nowhere fits.
-  static StoredMailbox? destination(MailStore store, int accountId) =>
+  static StoredMailbox? destination(MailStore store, AccountId accountId) =>
       store.mailboxes.bySpecialUse(accountId, SpecialUse.junk) ??
       store.mailboxes.bySpecialUse(accountId, SpecialUse.trash);
 
@@ -49,7 +49,7 @@ final class SenderBlocker {
       'blocks',
       inbox,
       InboxPass.digest([
-        target.id,
+        target.id.value,
         for (final b in blocks)
           [b.id, b.kind.name, b.value, b.since.millisecondsSinceEpoch],
       ]),

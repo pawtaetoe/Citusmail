@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:test/test.dart';
 
 var _id = 0;
@@ -18,7 +19,7 @@ AccountEmail mail(
   bool newsletter = false,
   bool code = false,
 }) => AccountEmail(
-  messageId: _id++,
+  messageId: MessageId(_id++),
   company: company,
   senderName: name,
   subject: subject,
@@ -441,7 +442,7 @@ void main() {
     test('a Bcc uses the account the mail arrived in', () {
       final found = find([
         AccountEmail(
-          messageId: 1,
+          messageId: MessageId(1),
           company: 'example.com',
           subject: 'Verify your email',
           text: '',

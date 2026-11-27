@@ -114,7 +114,7 @@ final class MessageActions {
   StoredMailbox? archiveFor(StoredMessage m) => archiveFolder(m.accountId);
 
   /// The Archive folder of [accountId], if it has one.
-  StoredMailbox? archiveFolder(int accountId) =>
+  StoredMailbox? archiveFolder(AccountId accountId) =>
       MailActions.archiveFolder(_store, accountId);
 
   bool isInTrash(StoredMessage m) =>
@@ -132,7 +132,7 @@ final class MessageActions {
   /// "Not spam": back to each account's inbox. Moving mail out of Spam is
   /// how Gmail and other providers learn it isn't spam.
   void notSpam(List<StoredMessage> messages) {
-    final byAccount = <int, List<StoredMessage>>{};
+    final byAccount = <AccountId, List<StoredMessage>>{};
     for (final m in messages) {
       if (isInJunk(m)) byAccount.putIfAbsent(m.accountId, () => []).add(m);
     }
@@ -154,7 +154,7 @@ final class MessageActions {
   /// Archives into each account's Archive folder (skipping messages already
   /// there or in accounts without one).
   void archive(List<StoredMessage> messages, {String? done}) {
-    final byAccount = <int, List<StoredMessage>>{};
+    final byAccount = <AccountId, List<StoredMessage>>{};
     var alreadyArchived = 0;
     for (final m in messages) {
       final archive = archiveFor(m);
@@ -226,7 +226,7 @@ final class MessageActions {
     final receipts = [for (final change in changes) change()];
     final removedIds = {
       for (final r in receipts)
-        for (final row in r.snapshot.messages) row['id']! as int,
+        for (final row in r.snapshot.messages) MessageId(row['id']! as int),
     };
     for (final receipt in receipts) {
       for (final id in receipt.accountIds) {
@@ -254,7 +254,7 @@ final class MessageActions {
   void leaveList(
     StoredMessage? open,
     List<StoredMessage> visible,
-    Set<int> removedIds,
+    Set<MessageId> removedIds,
   ) {
     StoredMessage? next;
     if (open != null && removedIds.contains(open.id)) {

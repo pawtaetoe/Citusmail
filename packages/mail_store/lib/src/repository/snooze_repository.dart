@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
@@ -179,7 +180,7 @@ final class SnoozeRepository {
 
   /// The snoozed mail in the inboxes of [accountIds] (or every account),
   /// soonest back first; a message in several inboxes once.
-  List<SnoozedMessage> list({List<int>? accountIds}) {
+  List<SnoozedMessage> list({List<AccountId>? accountIds}) {
     final inboxes = MessageRepository(_db).inboxIds(accountIds: accountIds);
     if (inboxes.isEmpty) return const [];
     final messages = MessageRepository(_db).list(
@@ -201,7 +202,7 @@ final class SnoozeRepository {
 
   /// How many messages are snoozed in the inboxes of [accountIds] (or
   /// every account). Reads the section index.
-  int count({List<int>? accountIds}) {
+  int count({List<AccountId>? accountIds}) {
     final inboxes = MessageRepository(_db).inboxIds(accountIds: accountIds);
     if (inboxes.isEmpty) return 0;
     return _db
@@ -209,7 +210,7 @@ final class SnoozeRepository {
               'SELECT count(DISTINCT message_id_header) FROM messages '
               'WHERE mailbox_id IN (${List.filled(inboxes.length, '?').join(', ')}) '
               "AND section = 'snoozed'",
-              inboxes,
+              [for (final id in inboxes) id.value],
             )
             .first
             .columnAt(0)
@@ -283,7 +284,7 @@ final class SnoozeRepository {
         'ORDER BY id',
         [snooze.messageId],
       ))
-        ?messages.byId(row['id'] as int),
+        ?messages.byId(MessageId(row['id'] as int)),
     ];
   }
 
@@ -322,7 +323,7 @@ final class SnoozeRepository {
         'FROM messages WHERE mailbox_id = ? AND received_at > ? '
         "AND (in_reply_to IS NOT NULL OR coalesce(thread_references, '') != '') "
         'ORDER BY received_at DESC, id DESC',
-        [inbox, earliest],
+        [inbox.value, earliest],
       )) {
         final own = row['message_id_header'] as String?;
         final names = [

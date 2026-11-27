@@ -47,10 +47,10 @@ final class NewMailTracker {
 
   /// Where the inbox was when new mail was last claimed, per account:
   /// `UIDVALIDITY:UID`.
-  static StringSetting _mark(int accountId) =>
-      StringSetting('notify.mark.$accountId');
+  static StringSetting _mark(AccountId accountId) =>
+      StringSetting('notify.mark.${accountId.value}');
 
-  NewMail claim(int accountId) => _store.transaction(() {
+  NewMail claim(AccountId accountId) => _store.transaction(() {
     final inbox = _store.mailboxes.inbox(accountId);
     final validity = inbox?.syncState.uidValidity;
     if (inbox == null || validity == null) return NewMail.none;
@@ -81,7 +81,7 @@ final class NewMailTracker {
     );
   });
 
-  ({int validity, int uid})? _readMark(int accountId) {
+  ({int validity, int uid})? _readMark(AccountId accountId) {
     final value = _mark(accountId).readOrNull(_store.settings);
     final parts = value?.split(':');
     if (parts == null || parts.length != 2) return null;
@@ -96,9 +96,9 @@ final class NewMailTracker {
 final class NewMail {
   const NewMail(this.accountId, this.messages, {required this.total});
 
-  static const none = NewMail(0, [], total: 0);
+  static const none = NewMail(AccountId(0), [], total: 0);
 
-  final int accountId;
+  final AccountId accountId;
   final List<StoredMessage> messages;
 
   /// All new messages, including any beyond [messages].

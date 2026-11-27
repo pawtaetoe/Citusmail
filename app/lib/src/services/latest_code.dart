@@ -22,7 +22,7 @@ final class FreshCode {
     required this.at,
   });
 
-  final int messageId;
+  final MessageId messageId;
   final String sender;
   final String code;
 
@@ -122,7 +122,7 @@ final class LatestCode {
     if (slot == null) return;
     try {
       final fresh = find(_store, now: now);
-      final key = fresh == null ? '' : '${fresh.messageId}:${fresh.code}';
+      final key = fresh == null ? '' : '${fresh.messageId.value}:${fresh.code}';
       if (key == _sent) return;
       if (fresh == null) {
         await slot.clear();

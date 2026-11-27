@@ -21,7 +21,7 @@ typedef Finds<T> = ({
   List<T> all,
   Set<String> hidden,
   Set<String> learned,
-  List<int> toRead,
+  List<MessageId> toRead,
 });
 
 /// A found page's data: the finder's own findings ([found]) and the
@@ -61,7 +61,7 @@ final class FoundPage<T, F> {
   final List<T> all;
   final Set<String> hidden;
   final Set<String> learned;
-  final List<int> toRead;
+  final List<MessageId> toRead;
 
   /// Those neither [hidden] nor [learned], in the finder's order.
   final List<T> listed;
@@ -124,7 +124,7 @@ abstract base class FoundModel<T, F> extends PageModel<FoundPage<T, F>> {
 
   /// Reads the page's findings at [now], [skip] left out of what to read.
   @protected
-  Future<F> find(DateTime now, Set<int> skip);
+  Future<F> find(DateTime now, Set<MessageId> skip);
 
   /// The parts of [found] every found page has.
   @protected
@@ -137,7 +137,7 @@ abstract base class FoundModel<T, F> extends PageModel<FoundPage<T, F>> {
   }
 
   /// Emails given up on: not offered while they are read automatically.
-  Set<int> get _skip =>
+  Set<MessageId> get _skip =>
       services.settings.autoRead ? ReadFailures(store).givenUp : const {};
 
   late final _corrections = Corrections(store);
@@ -161,7 +161,7 @@ abstract base class FoundModel<T, F> extends PageModel<FoundPage<T, F>> {
   List<T> get hiddenOnes => data?.hiddenOnes ?? const [];
 
   /// Emails not on the device yet whose whole text may say more.
-  List<int> get toRead => data?.toRead ?? const [];
+  List<MessageId> get toRead => data?.toRead ?? const [];
 
   /// While reading emails: how many are done, of how many.
   ({int done, int total})? reading;
@@ -228,5 +228,5 @@ abstract base class FoundModel<T, F> extends PageModel<FoundPage<T, F>> {
     unawaited(load());
   }
 
-  StoredMessage? message(int id) => store.messages.byId(id);
+  StoredMessage? message(MessageId id) => store.messages.byId(id);
 }

@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_store/mail_store.dart';
+
 import 'appointments.dart' show AppointmentFinder;
 import 'due_dates.dart';
 import 'returns.dart' show ReturnWindows;
@@ -52,7 +54,7 @@ final class Reminder {
   final DateTime date;
 
   /// The email to open: the bill, the trial email, the last receipt.
-  final int messageId;
+  final MessageId messageId;
 
   /// What is due, what the trial becomes, what the renewal charges.
   final Money? amount;

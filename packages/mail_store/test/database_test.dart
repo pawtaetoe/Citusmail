@@ -215,7 +215,7 @@ void main() {
         [2, 'notifications', 'rule'],
       ]);
       expect(
-        temp.store.messages.byUid(1, 1)!.category,
+        temp.store.messages.byUid(MailboxId(1), 1)!.category,
         MessageCategory.newsletters,
       );
     });
@@ -362,7 +362,10 @@ void main() {
         hasLength(5),
       );
       temp.store.snoozes.snooze('c@x', DateTime.utc(2030));
-      expect(temp.store.messages.byId(3)!.section, SmartSection.snoozed);
+      expect(
+        temp.store.messages.byId(MessageId(3))!.section,
+        SmartSection.snoozed,
+      );
       expect(
         temp.store.messages.list(const MessageQuery.inbox()).map((m) => m.uid),
         [2, 1],
@@ -526,7 +529,7 @@ void main() {
       temp.store.accounts.reorder([c.id, a.id]);
       expect(order(), ['c@x.example', 'a@x.example', 'b@x.example']);
       // An unknown id is ignored; a new account goes last.
-      temp.store.accounts.reorder([b.id, 999]);
+      temp.store.accounts.reorder([b.id, AccountId(999)]);
       temp.addAccount('d@x.example');
       expect(order(), [
         'b@x.example',

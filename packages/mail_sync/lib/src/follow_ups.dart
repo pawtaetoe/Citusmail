@@ -26,7 +26,7 @@ final class FollowUp {
 
   /// The sent message's Message-ID, without brackets.
   final String messageId;
-  final int accountId;
+  final AccountId accountId;
 
   /// When it comes back if nobody has answered (UTC).
   final DateTime due;
@@ -80,7 +80,7 @@ final class FollowUp {
 
   Map<String, Object?> toJson() => {
     'id': messageId,
-    'account': accountId,
+    'account': accountId.value,
     'due': due.millisecondsSinceEpoch,
     'sent': sentAt.millisecondsSinceEpoch,
     'subject': subject,
@@ -104,7 +104,7 @@ final class FollowUp {
     final back = json['back'];
     return FollowUp(
       messageId: id,
-      accountId: account,
+      accountId: AccountId(account),
       due: utc(due),
       sentAt: utc(sent),
       subject: json['subject'] is String ? json['subject'] as String : '',
@@ -256,7 +256,7 @@ final class FollowUpReminders {
   });
 
   /// Ends every follow-up of [accountId] (the account was removed).
-  void forgetAccount(int accountId) => _store.transaction(() {
+  void forgetAccount(AccountId accountId) => _store.transaction(() {
     final current = all();
     final kept = [
       for (final f in current)

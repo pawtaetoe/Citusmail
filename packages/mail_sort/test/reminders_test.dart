@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:test/test.dart';
 
 var _id = 0;
@@ -21,7 +22,7 @@ SubscriptionEmail mail(
   String text = '',
   String? name,
 }) => SubscriptionEmail(
-  messageId: _id++,
+  messageId: MessageId(_id++),
   company: company,
   senderName: name,
   subject: subject,

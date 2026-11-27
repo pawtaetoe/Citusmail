@@ -37,8 +37,8 @@ final class StoredMailbox {
     this.specialUse,
   });
 
-  final int id;
-  final int accountId;
+  final MailboxId id;
+  final AccountId accountId;
 
   /// Name as the server knows it (use in IMAP commands).
   final String encodedName;

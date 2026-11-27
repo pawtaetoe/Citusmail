@@ -4,6 +4,7 @@
 
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:test/test.dart';
 
 /// Wednesday, 4 November 2026.
@@ -23,7 +24,7 @@ DeliveryEmail mail(
       ? const <SchemaThing>[]
       : StructuredData.extract(html);
   return DeliveryEmail(
-    messageId: ++_ids,
+    messageId: MessageId(++_ids),
     shop: shop,
     senderName: name,
     subject: subject,

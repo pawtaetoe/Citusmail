@@ -31,13 +31,13 @@ final class ArchivedMail {
   static const maxWaiting = 500;
 
   /// The Message-IDs waiting to be looked up, per account.
-  static JsonListSetting _waitingFor(int accountId) =>
-      JsonListSetting('sync.archived.$accountId');
+  static JsonListSetting _waitingFor(AccountId accountId) =>
+      JsonListSetting('sync.archived.${accountId.value}');
 
   /// Notes what [results] removed from the account's ordinary folders
   /// (not All Mail, Starred, Important, Trash or Junk), when it has an
   /// All Mail folder.
-  void note(Account account, Map<int, MailboxSyncResult> results) {
+  void note(Account account, Map<MailboxId, MailboxSyncResult> results) {
     if (_allMail(account) == null) return;
     final ids = <String>[];
     for (final MapEntry(key: mailboxId, value: result) in results.entries) {

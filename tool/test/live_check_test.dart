@@ -125,7 +125,7 @@ LIVE_OAUTH_CLIENT_ID=123-abc.apps.googleusercontent.com
     late List<String> renewedWith;
     late LiveTokens live;
     final account = Account(
-      id: 1,
+      id: AccountId(1),
       email: 'me@outlook.com',
       username: 'me@outlook.com',
       imap: ServerSettings(

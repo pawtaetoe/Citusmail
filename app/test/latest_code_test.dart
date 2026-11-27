@@ -176,7 +176,7 @@ void main() {
     expect(
       await android.save(
         FreshCode(
-          messageId: 7,
+          messageId: MessageId(7),
           sender: 'Northwind Bank',
           code: '482913',
           at: at,

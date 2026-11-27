@@ -62,7 +62,7 @@ final class _Shown {
 }
 
 final _account = Account(
-  id: 3,
+  id: AccountId(3),
   email: 'alice@citusmail.test',
   username: 'alice@citusmail.test',
   imap: ServerSettings(
@@ -91,8 +91,8 @@ StoredMessage _message(
   final id = _nextId++;
   final at = address.split('@');
   return StoredMessage(
-    id: id,
-    mailboxId: 1,
+    id: MessageId(id),
+    mailboxId: MailboxId(1),
     accountId: _account.id,
     uid: id,
     receivedAt: DateTime.utc(2026, 11, 4, 9, id % 60),
@@ -427,8 +427,8 @@ void main() {
 
     test('no sender name, no subject, no preview', () {
       final bare = StoredMessage(
-        id: 7,
-        mailboxId: 1,
+        id: MessageId(7),
+        mailboxId: MailboxId(1),
         accountId: _account.id,
         uid: 7,
         receivedAt: DateTime.utc(2026, 11, 4),
@@ -451,8 +451,11 @@ void main() {
     });
 
     test('notification ids stay clear of reminders and summaries', () {
-      expect(MailNotices.idFor(0x7FFFFFFF), lessThan(0x20000000));
-      expect(MailNotices.summaryId(3), greaterThanOrEqualTo(0x40000000));
+      expect(MailNotices.idFor(MessageId(0x7FFFFFFF)), lessThan(0x20000000));
+      expect(
+        MailNotices.summaryId(AccountId(3)),
+        greaterThanOrEqualTo(0x40000000),
+      );
       expect(MailNotices.messageIdOf('message:42'), 42);
       expect(MailNotices.messageIdOf('copy:42:123456'), isNull);
     });
@@ -507,7 +510,7 @@ void main() {
       );
       expect(handled, isTrue);
       expect(copied, ['482913']);
-      expect(dismissed, [MailNotices.idFor(4242)]);
+      expect(dismissed, [MailNotices.idFor(MessageId(4242))]);
     });
 
     test('Windows: the action comes back as the payload', () async {
@@ -645,7 +648,7 @@ void main() {
     });
 
     test('a tap that started the app opens that email', () async {
-      final opened = <int>[];
+      final opened = <MessageId>[];
       await MailNotifier.openLaunchedFrom(
         _LaunchedPlugin(
           const NotificationResponse(
@@ -660,7 +663,7 @@ void main() {
     });
 
     test('nothing opens when the app was started otherwise', () async {
-      final opened = <int>[];
+      final opened = <MessageId>[];
       await MailNotifier.openLaunchedFrom(_LaunchedPlugin(null), opened.add);
       await MailNotifier.openLaunchedFrom(
         _LaunchedPlugin(

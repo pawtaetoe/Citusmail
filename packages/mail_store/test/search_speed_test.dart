@@ -122,7 +122,7 @@ void main() {
   setUp(() => temp = TempStore.create());
   tearDown(() => temp.dispose());
 
-  int inbox(MailStore store) {
+  MailboxId inbox(MailStore store) {
     final account = store.accounts.all().firstOrNull ?? temp.addAccount();
     return store.mailboxes
         .replaceAll(account.id, [

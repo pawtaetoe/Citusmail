@@ -97,23 +97,24 @@ final class PrivacyReportModel extends PageModel<PrivacyReports> {
           account.email.substring(account.email.lastIndexOf('@') + 1),
         ),
     };
-    final contexts = <int, TrustContext>{};
-    TrustContext context(int accountId) => contexts.putIfAbsent(accountId, () {
-      final inbox = _store.mailboxes.inbox(accountId);
-      final account = _store.accounts.byId(accountId);
-      return TrustContext(
-        trustedAuthServId: inbox == null
-            ? null
-            : AuthServIds.learn(
-                _store.messages.firstHeaderValues(
-                  inbox.id,
-                  'authentication-results',
-                ),
-                serverHosts: {?account?.imap.host},
-              ),
-        ownDomains: ownDomains,
-      );
-    });
+    final contexts = <AccountId, TrustContext>{};
+    TrustContext context(AccountId accountId) =>
+        contexts.putIfAbsent(accountId, () {
+          final inbox = _store.mailboxes.inbox(accountId);
+          final account = _store.accounts.byId(accountId);
+          return TrustContext(
+            trustedAuthServId: inbox == null
+                ? null
+                : AuthServIds.learn(
+                    _store.messages.firstHeaderValues(
+                      inbox.id,
+                      'authentication-results',
+                    ),
+                    serverHosts: {?account?.imap.host},
+                  ),
+            ownDomains: ownDomains,
+          );
+        });
     final allowed = <String, bool>{};
     bool imagesAllowed(String? address) => address == null
         ? false

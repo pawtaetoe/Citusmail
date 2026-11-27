@@ -281,7 +281,7 @@ void main() {
           body: 'Hello',
           inReplyTo: 'p@x',
           references: const ['p@x'],
-          answeredMessageId: 3,
+          answeredMessageId: MessageId(3),
           attachments: [
             DraftAttachment(
               fileName: 'a.bin',
@@ -296,7 +296,7 @@ void main() {
       expect(loaded.bcc.single.address, 'secret@x.example');
       expect(loaded.subject, 'Hi');
       expect(loaded.references, ['p@x']);
-      expect(loaded.answeredMessageId, 3);
+      expect(loaded.answeredMessageId, MessageId(3));
       expect(loaded.attachments.single.bytes, [1, 2, 3]);
     });
 

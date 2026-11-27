@@ -23,7 +23,7 @@ final class SenderMail {
   });
 
   /// The stored message's id.
-  final int messageId;
+  final MessageId messageId;
   final MailAddress from;
 
   /// The registrable domain of [from] (`shop.example` of
@@ -71,7 +71,7 @@ final class SenderGroup {
 
   /// The messages counted, newest first; empty when the store did the
   /// counting ([SenderCleanup.groupSenders]).
-  final List<int> messageIds;
+  final List<MessageId> messageIds;
 
   /// How many messages were counted.
   final int count;
@@ -84,10 +84,10 @@ final class SenderGroup {
   final SenderKind kind;
 
   /// The newest message.
-  final int newestId;
+  final MessageId newestId;
 
   /// The newest message that has unsubscribe headers, if any.
-  final int? unsubscribeId;
+  final MessageId? unsubscribeId;
 
   /// Opened share, 0 to 1.
   double get openRate => count == 0 ? 0 : opened / count;
@@ -205,7 +205,7 @@ abstract final class SenderCleanup {
   static SenderGroup _build(String key, List<SenderMail> mail) {
     mail.sort((a, b) {
       final c = b.at.compareTo(a.at);
-      return c != 0 ? c : b.messageId.compareTo(a.messageId);
+      return c != 0 ? c : b.messageId.value.compareTo(a.messageId.value);
     });
     return _buildFromStats(
       key,
@@ -217,11 +217,11 @@ abstract final class SenderCleanup {
   static SenderGroup _buildFromStats(
     String key,
     List<SenderStats> senders, {
-    List<int> messageIds = const [],
+    List<MessageId> messageIds = const [],
   }) {
     senders.sort((a, b) {
       final c = b.last.compareTo(a.last);
-      return c != 0 ? c : b.newestId.compareTo(a.newestId);
+      return c != 0 ? c : b.newestId.value.compareTo(a.newestId.value);
     });
     final perAddress = <String, int>{};
     final names = <String, int>{};

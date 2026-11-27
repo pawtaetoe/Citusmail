@@ -274,7 +274,7 @@ final class OutboxReplayer {
     await imap.append(target.encodedName, data, flags: flags);
   }
 
-  StoredMailbox _mailbox(int id) =>
+  StoredMailbox _mailbox(MailboxId id) =>
       _store.mailboxes.byId(id) ??
       (throw const _PermanentFailure('the folder no longer exists'));
 

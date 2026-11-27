@@ -91,10 +91,10 @@ void main() {
     // account, and the From choice lists them in the same order.
     await tester.tap(find.byTooltip('New message (C)'));
     await tester.pumpAndSettle();
-    final from = tester.widget<DropdownButton<int>>(
+    final from = tester.widget<DropdownButton<AccountId>>(
       find.descendant(
         of: find.byType(ComposePage),
-        matching: find.byType(DropdownButton<int>),
+        matching: find.byType(DropdownButton<AccountId>),
       ),
     );
     expect(from.value, bob.id);

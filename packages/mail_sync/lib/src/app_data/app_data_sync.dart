@@ -129,12 +129,15 @@ final class AppDataSync {
   /// [account], for code without an [AppDataSync] (the settings screen).
   static Account? accountIn(MailStore store) {
     final all = store.accounts.all();
-    final chosen = accountSetting.readOrNull(store.settings);
+    final chosen = switch (accountSetting.readOrNull(store.settings)) {
+      final id? => AccountId(id),
+      null => null,
+    };
     return all.where((a) => a.id == chosen).firstOrNull ?? all.firstOrNull;
   }
 
   static void chooseAccount(MailStore store, Account account) =>
-      accountSetting.write(store.settings, account.id);
+      accountSetting.write(store.settings, account.id.value);
 
   /// How the last exchange went, or null if none happened yet.
   static AppDataSyncStatus? statusIn(MailStore store) =>
@@ -322,7 +325,7 @@ final class AppDataSync {
     final status = await imap.status(folder);
     final records = _snapshotter.localRecords().values.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
-    return '${account.id}:$syncId:${status.uidValidity}:${status.uidNext}:'
+    return '${account.id.value}:$syncId:${status.uidValidity}:${status.uidNext}:'
         '${status.messages}:${_fingerprint(records)}';
   }
 

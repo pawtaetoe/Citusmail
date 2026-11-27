@@ -15,7 +15,7 @@ abstract final class NewFolderDialog {
   static Future<void> show(
     BuildContext context,
     MailController controller,
-    int accountId,
+    AccountId accountId,
   ) => showDialog<void>(
     context: context,
     builder: (_) => _NewFolder(controller: controller, accountId: accountId),
@@ -26,7 +26,7 @@ final class _NewFolder extends StatefulWidget {
   const _NewFolder({required this.controller, required this.accountId});
 
   final MailController controller;
-  final int accountId;
+  final AccountId accountId;
 
   @override
   State<_NewFolder> createState() => _NewFolderState();

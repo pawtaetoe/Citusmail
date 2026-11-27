@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
@@ -21,8 +22,8 @@ final class FolderRuleRepository {
   /// [accountId]). With [includeExisting], mail already in the inbox moves
   /// too; otherwise only mail arriving from now on.
   FolderRule add({
-    required int accountId,
-    required int mailboxId,
+    required AccountId accountId,
+    required MailboxId mailboxId,
     required RuleField field,
     required String value,
     bool includeExisting = false,
@@ -30,11 +31,11 @@ final class FolderRuleRepository {
     DateTime? appliesFrom,
   }) => _db.transaction(() {
     final owner = _db.select('SELECT account_id FROM mailboxes WHERE id = ?', [
-      mailboxId,
+      mailboxId.value,
     ]);
     if (owner.isEmpty || owner.first.columnAt(0) != accountId) {
       throw ArgumentError.value(
-        mailboxId,
+        mailboxId.value,
         'mailboxId',
         'not a folder of this account',
       );
@@ -44,8 +45,8 @@ final class FolderRuleRepository {
       'INSERT INTO folder_rules (account_id, mailbox_id, field, value, applies_from, created_at) '
       'VALUES (?, ?, ?, ?, ?, ?)',
       [
-        accountId,
-        mailboxId,
+        accountId.value,
+        mailboxId.value,
         field.name,
         FolderRule.normalize(field, value),
         appliesFrom?.toUtc().millisecondsSinceEpoch ??
@@ -82,32 +83,32 @@ final class FolderRuleRepository {
   });
 
   /// An account's rules, oldest first (the first match wins).
-  List<FolderRule> forAccount(int accountId) => _db
+  List<FolderRule> forAccount(AccountId accountId) => _db
       .select(
         'SELECT $_columns FROM folder_rules WHERE account_id = ? ORDER BY id',
-        [accountId],
+        [accountId.value],
       )
       .map(_fromRow)
       .toList(growable: false);
 
   /// The rules moving mail into one folder.
-  List<FolderRule> forMailbox(int mailboxId) => _db
+  List<FolderRule> forMailbox(MailboxId mailboxId) => _db
       .select(
         'SELECT $_columns FROM folder_rules WHERE mailbox_id = ? ORDER BY id',
-        [mailboxId],
+        [mailboxId.value],
       )
       .map(_fromRow)
       .toList(growable: false);
 
   /// Whether a rule already moved the message [messageId].
-  bool wasMoved(int accountId, String messageId) => _db.select(
+  bool wasMoved(AccountId accountId, String messageId) => _db.select(
     'SELECT 1 FROM rule_moves WHERE account_id = ? AND message_id_header = ?',
-    [accountId, messageId],
+    [accountId.value, messageId],
   ).isNotEmpty;
 
-  void recordMoved(int accountId, String messageId) => _db.execute(
+  void recordMoved(AccountId accountId, String messageId) => _db.execute(
     'INSERT OR IGNORE INTO rule_moves (account_id, message_id_header, moved_at) VALUES (?, ?, ?)',
-    [accountId, messageId, DateTime.now().toUtc().millisecondsSinceEpoch],
+    [accountId.value, messageId, DateTime.now().toUtc().millisecondsSinceEpoch],
   );
 
   FolderRule? _byId(int id) {
@@ -119,8 +120,8 @@ final class FolderRuleRepository {
 
   static FolderRule _fromRow(Row row) => FolderRule(
     id: row['id'] as int,
-    accountId: row['account_id'] as int,
-    mailboxId: row['mailbox_id'] as int,
+    accountId: AccountId(row['account_id'] as int),
+    mailboxId: MailboxId(row['mailbox_id'] as int),
     field: RuleField.values.byName(row['field'] as String),
     value: row['value'] as String,
     appliesFrom: DateTime.fromMillisecondsSinceEpoch(

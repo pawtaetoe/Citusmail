@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_store/mail_store.dart';
+
 /// Where one setting is in Settings: what the Settings search finds and
 /// what `SettingsPage(show: ...)` opens at. Only these constants (and the
 /// typed constructors for settings made per account or per AI feature)
@@ -10,7 +12,7 @@
 extension type const SettingId._(String id) {
   /// The id for an account of the user's other than the first (the first
   /// is [accounts]).
-  SettingId.account(int accountId) : id = 'account-$accountId';
+  SettingId.account(AccountId accountId) : id = 'account-${accountId.value}';
 
   /// The id for an AI feature's own setting, by the feature's id
   /// ("summaries": [aiSummaries]).

@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
 import 'support/appointment_mail.dart';
@@ -330,7 +331,7 @@ END:VCALENDAR''')!;
     final now = DateTime.utc(2026, 11, 4, 12);
     final appointment = AppointmentFinder.find([
       AppointmentEmail(
-        messageId: 1,
+        messageId: MessageId(1),
         sender: 'brightsmiledental.co.uk',
         senderName: 'Bright Smile Dental',
         subject: 'Appointment confirmation',

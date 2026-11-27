@@ -899,7 +899,7 @@ final class _SettingsPageState extends State<SettingsPage> {
           children: [
             for (final (i, account) in accounts.indexed)
               KeyedSubtree(
-                key: ValueKey('account-order-${account.id}'),
+                key: ValueKey('account-order-${account.id.value}'),
                 child: tile(i, account),
               ),
           ],

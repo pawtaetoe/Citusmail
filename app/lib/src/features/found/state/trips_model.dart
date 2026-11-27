@@ -20,7 +20,7 @@ typedef TripsFound = ({
   List<Booking> all,
   Set<String> hidden,
   Set<String> learned,
-  List<int> toRead,
+  List<MessageId> toRead,
 });
 
 /// The Trips page's findings in [store], reading text and markup off the
@@ -29,7 +29,7 @@ typedef TripsFound = ({
 Future<TripsFound> findTrips(
   MailStore store,
   DateTime now, {
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) async {
   final hidden = {...TripsModel.hiddenSetting.read(store.settings)};
   final candidates = store.messages.withSubjectWords(
@@ -71,11 +71,11 @@ Future<TripsFound> findTrips(
 /// bookings found) and not on the device: its body may say more than its
 /// preview. Small ones only, newsletters aside, at most
 /// [TripsModel.readMax]; [skip] left out.
-List<int> bookingMailToRead(
+List<MessageId> bookingMailToRead(
   MailStore store,
   List<StoredMessage> candidates,
   List<Booking> all, {
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) {
   final known = {
     for (final b in all)
@@ -96,7 +96,7 @@ List<int> bookingMailToRead(
 /// What the classifier reads of [booking]'s emails.
 List<MailSample> bookingSamples(
   Booking booking,
-  StoredMessage? Function(int id) message,
+  StoredMessage? Function(MessageId id) message,
 ) => [
   for (final r in booking.records)
     mailSample(
@@ -129,7 +129,7 @@ final class TripsModel extends FoundModel<Booking, TripsFound> {
   static const maxBytes = 512 * 1024;
 
   @override
-  Future<TripsFound> find(DateTime now, Set<int> skip) =>
+  Future<TripsFound> find(DateTime now, Set<MessageId> skip) =>
       findTrips(store, now, skip: skip);
 
   @override

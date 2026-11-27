@@ -20,8 +20,8 @@ void main() {
     var id = 0;
     StoredMailbox box(String name, {SpecialUse? use, bool selectable = true}) =>
         StoredMailbox(
-          id: ++id,
-          accountId: 1,
+          id: MailboxId(++id),
+          accountId: AccountId(1),
           encodedName: name,
           name: name,
           selectable: selectable,
@@ -495,7 +495,7 @@ void main() {
       directory.deleteSync(recursive: true);
     });
 
-    (SyncEngine, List<int>) engineWith({Duration? inboxCheckInterval}) {
+    (SyncEngine, List<AccountId>) engineWith({Duration? inboxCheckInterval}) {
       final engine = SyncEngine(
         store,
         const _OfflineConnector(),
@@ -503,7 +503,7 @@ void main() {
         inboxCheckInterval: inboxCheckInterval,
         changeDelay: Duration.zero,
       );
-      final started = <int>[];
+      final started = <AccountId>[];
       engine.events.listen((e) {
         if (e is AccountSyncStarted) started.add(e.accountId);
       });

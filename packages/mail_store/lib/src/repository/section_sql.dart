@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_protocol/mail_protocol.dart';
+
 import '../database/mail_database.dart';
 
 /// The Smart Inbox section of a message, kept in `messages.section` so
@@ -212,19 +214,21 @@ abstract final class SectionSql {
   );
 
   /// Recomputes the rows [ids], in chunks (SQLite limits bound values).
-  static void refreshIds(MailDatabase db, List<int> ids) {
+  static void refreshIds(MailDatabase db, List<MessageId> ids) {
     for (var i = 0; i < ids.length; i += 500) {
       final chunk = ids.sublist(i, i + 500 > ids.length ? ids.length : i + 500);
-      refresh(
-        db,
-        'id IN (${List.filled(chunk.length, '?').join(', ')})',
-        chunk,
-      );
+      refresh(db, 'id IN (${List.filled(chunk.length, '?').join(', ')})', [
+        for (final id in chunk) id.value,
+      ]);
     }
   }
 
   /// Recomputes the messages [uids] of [mailboxId], in chunks.
-  static void refreshUids(MailDatabase db, int mailboxId, List<int> uids) {
+  static void refreshUids(
+    MailDatabase db,
+    MailboxId mailboxId,
+    List<int> uids,
+  ) {
     for (var i = 0; i < uids.length; i += 500) {
       final chunk = uids.sublist(
         i,
@@ -233,15 +237,15 @@ abstract final class SectionSql {
       refresh(
         db,
         'mailbox_id = ? AND uid IN (${List.filled(chunk.length, '?').join(', ')})',
-        [mailboxId, ...chunk],
+        [mailboxId.value, ...chunk],
       );
     }
   }
 
   /// Every message of [accountId] (after its special folders changed).
-  static void refreshAccount(MailDatabase db, int accountId) => refresh(
+  static void refreshAccount(MailDatabase db, AccountId accountId) => refresh(
     db,
     'mailbox_id IN (SELECT id FROM mailboxes WHERE account_id = ?)',
-    [accountId],
+    [accountId.value],
   );
 }

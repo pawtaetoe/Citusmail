@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
 import 'support/test_app.dart';
@@ -245,7 +246,7 @@ void main() {
 </script>''');
     final booking = TripFinder.bookings([
       TripEmail(
-        messageId: 1,
+        messageId: MessageId(1),
         sender: 'singaporeair.com',
         senderName: 'Singapore Airlines',
         subject: 'Booking confirmation',

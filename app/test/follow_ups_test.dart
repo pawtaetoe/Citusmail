@@ -60,7 +60,7 @@ void main() {
   });
 
   MailStore store() => app.store;
-  int accountId() => store().accounts.all().single.id;
+  AccountId accountId() => store().accounts.all().single.id;
   StoredMailbox folder(SpecialUse use) =>
       store().mailboxes.bySpecialUse(accountId(), use)!;
   StoredMailbox inbox() => store().mailboxes.inbox(accountId())!;

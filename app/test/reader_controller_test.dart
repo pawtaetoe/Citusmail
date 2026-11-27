@@ -27,7 +27,7 @@ void main() {
   late List<String> notices;
   late List<Draft> drafts;
   late int refreshes;
-  int? viewed;
+  AccountId? viewed;
 
   setUp(() async {
     app = await TestApp.create();
@@ -58,7 +58,7 @@ void main() {
     return app.dispose();
   });
 
-  int accountId() => app.store.accounts.all().single.id;
+  AccountId accountId() => app.store.accounts.all().single.id;
   StoredMailbox box(String name) => app.store.mailboxes
       .forAccount(accountId())
       .firstWhere((b) => b.encodedName == name);
@@ -149,7 +149,7 @@ void main() {
     test('a new message from the viewed account, else the first', () {
       compose.compose();
       expect(drafts.single.accountId, accountId());
-      viewed = 4242;
+      viewed = AccountId(4242);
       compose.compose();
       expect(drafts.last.accountId, 4242);
     });

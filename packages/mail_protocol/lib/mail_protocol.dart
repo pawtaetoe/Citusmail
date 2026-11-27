@@ -13,6 +13,7 @@ library;
 export 'src/charset/charset.dart' show Charset;
 export 'src/charset/charsets.dart';
 export 'src/charset/text_decoder.dart';
+export 'src/ids.dart';
 export 'src/imap/imap_client.dart';
 export 'src/imap/imap_command.dart';
 export 'src/imap/imap_requests.dart';

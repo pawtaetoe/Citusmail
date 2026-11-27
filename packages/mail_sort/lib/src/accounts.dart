@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_store/mail_store.dart';
+
 import 'subscriptions.dart';
 import 'verification_codes.dart';
 
@@ -23,7 +25,7 @@ final class AccountEmail {
   });
 
   /// The stored message, to open it.
-  final int messageId;
+  final MessageId messageId;
 
   /// The sender's registrable domain (`google.com` for
   /// `no-reply@accounts.google.com`). Notification domains are mapped to

@@ -16,7 +16,7 @@ final class AccountOrder {
   final changed = ValueNotifier<int>(0);
 
   /// Puts the accounts in the order of [ids].
-  void reorder(List<int> ids) {
+  void reorder(List<AccountId> ids) {
     _store.accounts.reorder(ids);
     changed.value++;
   }

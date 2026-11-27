@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_extract/mail_extract.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'subscriptions.dart' show SubscriptionFinder;
 import 'travel_places.dart';
@@ -22,7 +23,7 @@ final class TripEmail {
   });
 
   /// The stored message, to open it.
-  final int messageId;
+  final MessageId messageId;
 
   /// The sender's registrable domain (`singaporeair.com`).
   final String sender;

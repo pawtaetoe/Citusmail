@@ -9,6 +9,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'app_data/app_data_sync.dart';
+import 'archived_backfill.dart';
 import 'archived_mail.dart';
 import 'code_reader.dart';
 import 'connector.dart';
@@ -78,13 +79,18 @@ final class SyncFailure {
 final class AccountSyncReport {
   AccountSyncReport({
     required this.replay,
-    required Map<int, MailboxSyncResult> mailboxes,
+    required Map<MailboxId, MailboxSyncResult> mailboxes,
     this.movedByRules = 0,
     this.receipts = 0,
     this.appData,
     this.appDataFailure,
     this.serverRules,
+    this.archived,
   }) : mailboxes = Map.unmodifiable(mailboxes);
+
+  /// Gmail's archived mail filled in on this full sync
+  /// ([ArchivedBackfill]); null on other servers' syncs and inbox checks.
+  final ArchivedBackfillResult? archived;
 
   /// Where the server rules stand, when they are turned on.
   final ServerRulesStatus? serverRules;
@@ -105,7 +111,7 @@ final class AccountSyncReport {
   final int movedByRules;
 
   /// Result per mailbox id.
-  final Map<int, MailboxSyncResult> mailboxes;
+  final Map<MailboxId, MailboxSyncResult> mailboxes;
 }
 
 /// One full sync of an account, in a fixed order:
@@ -130,7 +136,8 @@ final class AccountSynchronizer {
     DateTime Function()? now,
   }) : _connections = connections ?? SyncConnections.unpooled(_connector),
        _now = now ?? DateTime.now,
-       _archived = ArchivedMail(_store, _mailboxSync);
+       _archived = ArchivedMail(_store, _mailboxSync),
+       _archivedFill = ArchivedBackfill(_store, _mailboxSync, now: now);
 
   final MailStore _store;
   final MailConnector _connector;
@@ -144,6 +151,7 @@ final class AccountSynchronizer {
   final SyncConnections _connections;
   final DateTime Function() _now;
   final ArchivedMail _archived;
+  final ArchivedBackfill _archivedFill;
 
   /// How often the folder list is read again. Folders are rarely added
   /// or removed, and one that disappears in between is noticed when it
@@ -151,7 +159,7 @@ final class AccountSynchronizer {
   final Duration listInterval;
 
   /// When each account's folders were last listed.
-  final _listedAt = <int, DateTime>{};
+  final _listedAt = <AccountId, DateTime>{};
 
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled). Without, every
@@ -159,7 +167,7 @@ final class AccountSynchronizer {
   /// ([StoredMailbox.isView]), which are synced when opened.
   Future<AccountSyncReport> sync(
     Account account, {
-    Set<int>? mailboxIds,
+    Set<MailboxId>? mailboxIds,
   }) async {
     final imap = await _connections.take(account);
     try {
@@ -218,11 +226,30 @@ final class AccountSynchronizer {
       // Mail archived elsewhere, on the full sync (Gmail's All Mail is
       // not synced in the background). Optional, like the above.
       _archived.note(account, results);
+      ArchivedBackfillResult? archived;
       if (mailboxIds == null) {
         try {
           await _archived.find(imap, account);
         } on MailException {
           // Looked up again next time.
+        }
+        // On Gmail, archived mail this device never saw in another folder
+        // (it was archived before the device was added), a batch a sync;
+        // and the flags of what All Mail has on the device.
+        try {
+          final allMail = _store.mailboxes.bySpecialUse(
+            account.id,
+            SpecialUse.all,
+          );
+          archived = await _archivedFill.run(
+            imap,
+            account,
+            pendingUids: allMail == null
+                ? const {}
+                : pendingUids(account.id, allMail.id),
+          );
+        } on MailException {
+          // Goes on next time, where it stopped.
         }
       }
 
@@ -256,6 +283,7 @@ final class AccountSynchronizer {
         appData: appData,
         appDataFailure: appDataFailure,
         serverRules: serverRules,
+        archived: archived,
       );
     } on Object {
       // List again next time, in case a folder changed.
@@ -268,7 +296,7 @@ final class AccountSynchronizer {
 
   /// Makes the next sync of [accountId] read the folder list, however
   /// recently it was read (a folder was just added on the server).
-  void listFoldersNextTime(int accountId) => _listedAt.remove(accountId);
+  void listFoldersNextTime(AccountId accountId) => _listedAt.remove(accountId);
 
   /// Reads the folder list when it is older than [listInterval] (or there
   /// is none yet), or when [force]d. Returns whether it did.
@@ -299,7 +327,7 @@ final class AccountSynchronizer {
   /// When the folder list was not [listed] in this sync, a folder the
   /// server refuses to open may have been deleted elsewhere: the list is
   /// read again, and a folder that is gone is no failure.
-  Future<Map<int, MailboxSyncResult>> _syncFolders(
+  Future<Map<MailboxId, MailboxSyncResult>> _syncFolders(
     Account account,
     ImapClient imap,
     Iterable<StoredMailbox> folders, {
@@ -309,7 +337,7 @@ final class AccountSynchronizer {
     final queue = Queue.of(
       [...folders]..sort((a, b) => (b.isInbox ? 1 : 0) - (a.isInbox ? 1 : 0)),
     );
-    final results = <int, MailboxSyncResult>{};
+    final results = <MailboxId, MailboxSyncResult>{};
     (Object, StackTrace)? failure;
     final refused = <StoredMailbox, (Object, StackTrace)>{};
 
@@ -376,7 +404,7 @@ final class AccountSynchronizer {
   /// app's own sync data folder.
   static Iterable<StoredMailbox> foldersToSync(
     Iterable<StoredMailbox> mailboxes,
-    Set<int>? mailboxIds,
+    Set<MailboxId>? mailboxIds,
   ) => mailboxes.where(
     (m) =>
         m.selectable &&
@@ -385,7 +413,7 @@ final class AccountSynchronizer {
   );
 
   /// UIDs in [mailboxId] with local changes still queued.
-  Set<int> pendingUids(int accountId, int mailboxId) {
+  Set<int> pendingUids(AccountId accountId, MailboxId mailboxId) {
     final uids = <int>{};
     for (final entry in _store.outbox.all(accountId)) {
       final action = entry.action;

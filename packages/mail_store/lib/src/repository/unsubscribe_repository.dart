@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
@@ -19,7 +20,7 @@ final class UnsubscribeRepository {
 
   /// Remembers an unsubscribe; a later one for the same list replaces it.
   Unsubscription record({
-    required int accountId,
+    required AccountId accountId,
     required String listKey,
     required String listName,
     required UnsubscribeKind kind,
@@ -32,24 +33,24 @@ final class UnsubscribeRepository {
       'VALUES (?, ?, ?, ?, ?) '
       'ON CONFLICT (account_id, list_key) DO UPDATE SET '
       'list_name = excluded.list_name, kind = excluded.kind, at = excluded.at',
-      [accountId, listKey, name, kind.name, at],
+      [accountId.value, listKey, name, kind.name, at],
     );
     return find(accountId, listKey)!;
   });
 
-  Unsubscription? find(int accountId, String listKey) {
+  Unsubscription? find(AccountId accountId, String listKey) {
     final rows = _db.select(
       'SELECT $_columns FROM unsubscriptions WHERE account_id = ? AND list_key = ?',
-      [accountId, listKey],
+      [accountId.value, listKey],
     );
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
 
   /// An account's unsubscribes, newest first.
-  List<Unsubscription> forAccount(int accountId) => _db
+  List<Unsubscription> forAccount(AccountId accountId) => _db
       .select(
         'SELECT $_columns FROM unsubscriptions WHERE account_id = ? ORDER BY at DESC, id DESC',
-        [accountId],
+        [accountId.value],
       )
       .map(_fromRow)
       .toList(growable: false);
@@ -77,7 +78,7 @@ final class UnsubscribeRepository {
 
   static Unsubscription _fromRow(Row row) => Unsubscription(
     id: row['id'] as int,
-    accountId: row['account_id'] as int,
+    accountId: AccountId(row['account_id'] as int),
     listKey: row['list_key'] as String,
     listName: row['list_name'] as String,
     kind: UnsubscribeKind.values.byName(row['kind'] as String),

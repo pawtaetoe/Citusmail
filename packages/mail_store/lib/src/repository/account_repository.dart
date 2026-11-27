@@ -58,7 +58,7 @@ final class AccountRepository {
       }
       rethrow;
     }
-    return byId(_db.lastInsertRowId)!;
+    return byId(AccountId(_db.lastInsertRowId))!;
   });
 
   List<Account> all() => _db
@@ -66,9 +66,9 @@ final class AccountRepository {
       .map(_fromRow)
       .toList(growable: false);
 
-  Account? byId(int id) {
+  Account? byId(AccountId id) {
     final rows = _db.select('SELECT $_columns FROM accounts WHERE id = ?', [
-      id,
+      id.value,
     ]);
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
@@ -88,7 +88,7 @@ final class AccountRepository {
         account.smtp.port,
         account.smtp.security.name,
         account.sortOrder,
-        account.id,
+        account.id.value,
       ],
     );
   }
@@ -96,7 +96,7 @@ final class AccountRepository {
   /// Puts the accounts in the order of [ids] (any others keep their order,
   /// after them). The first is the "top" account: new messages are sent
   /// from it unless another is chosen.
-  void reorder(List<int> ids) => _db.transaction(() {
+  void reorder(List<AccountId> ids) => _db.transaction(() {
     final current = [for (final a in all()) a.id];
     final ordered = [
       for (final id in ids)
@@ -105,16 +105,20 @@ final class AccountRepository {
         if (!ids.contains(id)) id,
     ];
     for (final (i, id) in ordered.indexed) {
-      _db.execute('UPDATE accounts SET sort_order = ? WHERE id = ?', [i, id]);
+      _db.execute('UPDATE accounts SET sort_order = ? WHERE id = ?', [
+        i,
+        id.value,
+      ]);
     }
   });
 
   /// Removes the account and everything stored for it. The caller also
   /// removes its keychain entry.
-  void remove(int id) => _db.execute('DELETE FROM accounts WHERE id = ?', [id]);
+  void remove(AccountId id) =>
+      _db.execute('DELETE FROM accounts WHERE id = ?', [id.value]);
 
   static Account _fromRow(Row row) => Account(
-    id: row['id'] as int,
+    id: AccountId(row['id'] as int),
     email: row['email'] as String,
     displayName: row['display_name'] as String?,
     username: row['username'] as String,

@@ -127,7 +127,7 @@ final class ReaderPane extends StatelessWidget {
               );
               return SelectionArea(
                 child: CustomScrollView(
-                  key: ValueKey(message.id),
+                  key: ValueKey(message.id.value),
                   slivers: [
                     SliverPadding(
                       padding: padding.copyWith(top: 20),
@@ -334,7 +334,7 @@ final class _Header extends StatelessWidget {
                 when Tips(controller.services.store)
                     .take(tip, where: ready.message.id))
               TipCard(
-                key: ValueKey('tip-${ready.message.id}'),
+                key: ValueKey('tip-${ready.message.id.value}'),
                 tip: tip,
                 controller: controller,
               ),

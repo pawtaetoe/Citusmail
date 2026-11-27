@@ -68,7 +68,7 @@ void main() {
   });
 
   MailStore store() => app.store;
-  int accountId() => store().accounts.all().single.id;
+  AccountId accountId() => store().accounts.all().single.id;
   StoredMailbox inbox() => store().mailboxes.inbox(accountId())!;
   StoredMessage message(String subject) => store().messages
       .list(MessageQuery(mailboxIds: [inbox().id], limit: 100))

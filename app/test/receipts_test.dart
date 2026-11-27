@@ -23,7 +23,7 @@ void main() {
   setUp(() async => app = await TestApp.create());
   tearDown(() => app.dispose());
 
-  int accountId() => app.store.accounts.all().single.id;
+  AccountId accountId() => app.store.accounts.all().single.id;
 
   Future<void> show(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1400, 900);

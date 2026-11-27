@@ -4,6 +4,7 @@
 
 import 'dart:typed_data';
 
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
@@ -24,7 +25,7 @@ final class OutboxRepository {
   /// Queues [action]. With [notBefore], it is not replayed before then
   /// (used to let the user undo a send).
   OutboxEntry enqueue(
-    int accountId,
+    AccountId accountId,
     OutboxAction action, {
     Uint8List? data,
     DateTime? notBefore,
@@ -44,7 +45,7 @@ final class OutboxRepository {
     _db.execute(
       'INSERT INTO outbox (account_id, action, data, created_at, not_before) VALUES (?, ?, ?, ?, ?)',
       [
-        accountId,
+        accountId.value,
         action.encode(),
         data,
         now,
@@ -99,11 +100,11 @@ final class OutboxRepository {
   /// Pending entries of an account whose retry time has come, oldest
   /// first. An entry that cannot be read is marked failed and skipped, so
   /// one corrupted entry never blocks the queue.
-  List<OutboxEntry> due(int accountId, {DateTime? now}) {
+  List<OutboxEntry> due(AccountId accountId, {DateTime? now}) {
     final at = (now ?? DateTime.now()).toUtc().millisecondsSinceEpoch;
     final rows = _db.select(
       "SELECT $_columns FROM outbox WHERE account_id = ? AND state = 'pending' AND not_before <= ? ORDER BY id",
-      [accountId, at],
+      [accountId.value, at],
     );
     final result = <OutboxEntry>[];
     for (final row in rows) {
@@ -118,9 +119,9 @@ final class OutboxRepository {
   }
 
   /// Every entry of an account (pending and failed), oldest first.
-  List<OutboxEntry> all(int accountId) => _db
+  List<OutboxEntry> all(AccountId accountId) => _db
       .select('SELECT $_columns FROM outbox WHERE account_id = ? ORDER BY id', [
-        accountId,
+        accountId.value,
       ])
       .map(_tryFromRow)
       .whereType<OutboxEntry>()
@@ -154,11 +155,11 @@ final class OutboxRepository {
     [id],
   );
 
-  int pendingCount(int accountId) =>
+  int pendingCount(AccountId accountId) =>
       _db
               .select(
                 "SELECT count(*) FROM outbox WHERE account_id = ? AND state = 'pending'",
-                [accountId],
+                [accountId.value],
               )
               .first
               .columnAt(0)
@@ -181,7 +182,7 @@ final class OutboxRepository {
     }
     return OutboxEntry(
       id: row['id'] as int,
-      accountId: row['account_id'] as int,
+      accountId: AccountId(row['account_id'] as int),
       action: action,
       data: row['data'] as Uint8List?,
       state: OutboxState.values.byName(row['state'] as String),

@@ -328,6 +328,37 @@ void main() {
       expect((await client.status(target)).messages, 1);
     });
 
+    test('searching text, subject or sender, also not in ASCII', () async {
+      final booking = (await client.append(
+        folder,
+        sampleMessage('Your redemption booking to Zürich'),
+      ))!.destinationUids.toList().single;
+      final other = (await client.append(
+        folder,
+        sampleMessage('Lunch'),
+      ))!.destinationUids.toList().single;
+      await client.select(folder, readOnly: true);
+      Future<List<int>> search(SearchCriteria criteria) async =>
+          (await client.uidSearch(criteria)).matches.toList();
+
+      expect(await search(SearchCriteria.text('redemption booking')), [
+        booking,
+      ]);
+      // The body ("Test body for Lunch") is searched too.
+      expect(await search(SearchCriteria.text('body for lunch')), [other]);
+      expect(
+        await search(
+          SearchCriteria.or(
+            SearchCriteria.subject('alice'),
+            SearchCriteria.from('alice'),
+          ),
+        ),
+        [booking, other],
+      );
+      expect(await search(SearchCriteria.subject('Zürich')), [booking]);
+      expect(await search(SearchCriteria.flagged()), isEmpty);
+    });
+
     test('creating an existing folder is fine', () async {
       await client.create(folder);
     });

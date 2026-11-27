@@ -43,7 +43,7 @@ final class MessageLoader {
 
   /// The stored body of [messageId], downloading it with [imap] first if
   /// needed.
-  Future<Uint8List> load(ImapClient imap, int messageId) async {
+  Future<Uint8List> load(ImapClient imap, MessageId messageId) async {
     final cached = _store.messages.body(messageId);
     if (cached != null) {
       findCode(messageId, cached);
@@ -98,7 +98,7 @@ final class MessageLoader {
   /// A verification email opened without its code found yet (older mail
   /// the code reader skips): the code is read from [raw] now, so the list
   /// shows it from here on.
-  void findCode(int messageId, Uint8List raw, {MessageView? view}) {
+  void findCode(MessageId messageId, Uint8List raw, {MessageView? view}) {
     final message = _store.messages.byId(messageId);
     if (message == null ||
         message.category != MessageCategory.codes ||
@@ -124,8 +124,8 @@ final class FileLookup {
 
   /// Records the files of [messageIds] (all of one account) as
   /// [FilePart.storedHeader]. Messages that are gone are skipped.
-  Future<void> lookUp(ImapClient imap, List<int> messageIds) async {
-    final byFolder = <int, Map<int, StoredMessage>>{};
+  Future<void> lookUp(ImapClient imap, List<MessageId> messageIds) async {
+    final byFolder = <MailboxId, Map<int, StoredMessage>>{};
     for (final id in messageIds) {
       final m = _store.messages.byId(id);
       if (m != null) byFolder.putIfAbsent(m.mailboxId, () => {})[m.uid] = m;

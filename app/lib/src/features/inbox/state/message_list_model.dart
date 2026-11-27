@@ -33,6 +33,31 @@ final class FollowUpRow {
   final StoredMessage? message;
 }
 
+/// Where a search on one account's server stands.
+enum ServerSearchStatus {
+  /// Asked; waiting for the server.
+  searching,
+
+  /// Done: [ServerSearchState.found] more messages.
+  done,
+
+  /// No connection: only the mail on the device is shown.
+  offline,
+
+  /// The server could not search.
+  failed,
+}
+
+/// A search on one account's server ("Search all of … on the server").
+final class ServerSearchState {
+  const ServerSearchState(this.status, {this.found = 0});
+
+  final ServerSearchStatus status;
+
+  /// Messages the server found that search on the device had not shown.
+  final int found;
+}
+
 /// What the message list shows, loaded a page at a time. Every query reads
 /// an index, so the cost depends on what is on screen, not on the size of
 /// the mailbox.
@@ -74,7 +99,7 @@ final class MessageListModel extends ChangeNotifier {
   /// Smart Inbox: "New since you were away", at the very top. While it is
   /// there, its messages are not in their usual sections.
   AwayMail newSinceAway = AwayMail.none;
-  Set<int> _awayIds = const {};
+  Set<MessageId> _awayIds = const {};
 
   /// How many of [newSinceAway] show before "Show all".
   static const awayPage = 8;
@@ -105,6 +130,63 @@ final class MessageListModel extends ChangeNotifier {
   /// found with typos corrected ("receive" for "recieve").
   String? searchCorrection;
 
+  /// Search: with fewer results on the device than this, each account
+  /// offers to search all of its mail on the server.
+  static const fewResults = SearchResults.enough;
+
+  /// Search: how many of [messages] search on the device found (the rest
+  /// came from the servers).
+  int localResults = 0;
+
+  /// Search: the searches on the servers for this search, by account id.
+  Map<AccountId, ServerSearchState> serverSearches = const {};
+
+  /// Search: the stored messages the servers found, newest first.
+  List<MessageId> _serverFound = const [];
+
+  /// Search: whether to offer searching the servers (the device found
+  /// little).
+  bool get offersServerSearch =>
+      _location is SearchLocation && localResults < fewResults;
+
+  void serverSearchStarted(AccountId accountId) {
+    serverSearches = {
+      ...serverSearches,
+      accountId: const ServerSearchState(ServerSearchStatus.searching),
+    };
+    notifyListeners();
+  }
+
+  /// The server of [accountId] found [ids] (stored by now), newest first:
+  /// they join the results.
+  void serverSearchFinished(AccountId accountId, List<MessageId> ids) {
+    final shown = {for (final m in messages) m.id};
+    _serverFound = [
+      ..._serverFound,
+      ...ids.where((id) => !_serverFound.contains(id)),
+    ];
+    serverSearches = {
+      ...serverSearches,
+      accountId: ServerSearchState(
+        ServerSearchStatus.done,
+        found: ids.where((id) => !shown.contains(id)).length,
+      ),
+    };
+    refresh();
+  }
+
+  /// The search on [accountId]'s server did not happen: [offline], or the
+  /// server could not search. The results from the device stay.
+  void serverSearchFailed(AccountId accountId, {required bool offline}) {
+    serverSearches = {
+      ...serverSearches,
+      accountId: ServerSearchState(
+        offline ? ServerSearchStatus.offline : ServerSearchStatus.failed,
+      ),
+    };
+    notifyListeners();
+  }
+
   /// Snoozed: when each message comes back, by Message-ID.
   Map<String, DateTime> snoozedUntil = const {};
   bool reachedEnd = false;
@@ -127,6 +209,8 @@ final class MessageListModel extends ChangeNotifier {
     _location = location;
     messages = const [];
     reachedEnd = false;
+    serverSearches = const {};
+    _serverFound = const [];
     refresh();
   }
 
@@ -187,6 +271,10 @@ final class MessageListModel extends ChangeNotifier {
         SnoozedLocation() => [for (final s in snoozed) s.message],
         _ => _store.messages.list(_query(location, limit: wanted)),
       };
+      if (location is SearchLocation) {
+        localResults = messages.length;
+        if (_serverFound.isNotEmpty) messages = _withServerFound(messages);
+      }
       if (location is SearchLocation ||
           location is SnoozedLocation ||
           location is FollowUpsLocation) {
@@ -194,6 +282,17 @@ final class MessageListModel extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  /// [local] results, then those only the servers found, newest first
+  /// (still on the device: not deleted since).
+  List<StoredMessage> _withServerFound(List<StoredMessage> local) {
+    final shown = {for (final m in local) m.id};
+    final more = [
+      for (final id in _serverFound)
+        if (!shown.contains(id)) ?_store.messages.byId(id),
+    ]..sort((a, b) => b.receivedAt.compareTo(a.receivedAt));
+    return [...local, ...more];
   }
 
   List<StoredMessage> _searchForgiving(String text) {
@@ -337,7 +436,10 @@ final class MessageListModel extends ChangeNotifier {
   /// Follow-ups (of [accountId], or every account) with their sent
   /// messages: those back with "No reply yet" first, most recent first,
   /// then the ones waiting, soonest due first.
-  List<FollowUpRow> _followUps({bool returnedOnly = false, int? accountId}) {
+  List<FollowUpRow> _followUps({
+    bool returnedOnly = false,
+    AccountId? accountId,
+  }) {
     final reminders = FollowUpReminders(_store);
     return [
       for (final f in [
@@ -351,11 +453,11 @@ final class MessageListModel extends ChangeNotifier {
 
   late final _changes = StoreChanges(_store);
   (int, int)? _countsStamp;
-  final _counts = <int?, Map<SmartSection, SectionCount>>{};
+  final _counts = <AccountId?, Map<SmartSection, SectionCount>>{};
 
   /// The Smart Inbox section counts of [accountId] (or every account),
   /// counted again only when something in the store changed since.
-  Map<SmartSection, SectionCount> sectionCounts({int? accountId}) {
+  Map<SmartSection, SectionCount> sectionCounts({AccountId? accountId}) {
     final stamp = _changes.stamp;
     if (stamp != _countsStamp) {
       _counts.clear();
@@ -366,7 +468,7 @@ final class MessageListModel extends ChangeNotifier {
     );
   }
 
-  static List<int>? _accounts(int? accountId) =>
+  static List<AccountId>? _accounts(AccountId? accountId) =>
       accountId == null ? null : [accountId];
 
   Set<SmartSection> _readCollapsed() {

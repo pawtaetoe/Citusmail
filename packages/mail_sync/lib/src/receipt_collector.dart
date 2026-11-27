@@ -40,8 +40,8 @@ final class ReceiptCollector {
   static const matcherVersion = 2;
 
   /// The [matcherVersion] the account's reports were last read with.
-  static IntSetting _readWith(int accountId) =>
-      IntSetting('receipts.matcher.$accountId');
+  static IntSetting _readWith(AccountId accountId) =>
+      IntSetting('receipts.matcher.${accountId.value}');
 
   /// Reads new reports of [account], over [imap] for those not on the
   /// device yet; returns how many receipts were recorded.

@@ -194,7 +194,7 @@ final class DraftStore {
   /// Queues removal of the folder copy [messageId] and hides it from the
   /// local cache at once (the server confirms on the next sync).
   void _removeServerCopy(
-    int accountId,
+    AccountId accountId,
     StoredMailbox folder,
     String? messageId,
   ) {

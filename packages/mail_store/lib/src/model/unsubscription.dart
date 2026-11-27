@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_protocol/mail_protocol.dart';
+
 /// How the user unsubscribed.
 enum UnsubscribeKind {
   /// The app sent the sender's one-click request.
@@ -27,7 +29,7 @@ final class Unsubscription {
   });
 
   final int id;
-  final int accountId;
+  final AccountId accountId;
 
   /// See [listKeyOf].
   final String listKey;

@@ -44,7 +44,7 @@ final class MessageReads<T> {
 
   /// Whether each message's body was on the device the last time any page
   /// read it, per store.
-  static final _bodies = Expando<Map<int, bool>>();
+  static final _bodies = Expando<Map<MessageId, bool>>();
 
   /// What [messages] say, in order: cached results for those read
   /// before (and whose body has not arrived since), a fresh read for the
@@ -101,7 +101,7 @@ final class MessageReads<T> {
   /// Whether [messageId]'s body is on the device: what the last read
   /// found (bodies are never removed while the message is stored), else
   /// a look in the store.
-  static bool downloaded(MailStore store, int messageId) {
+  static bool downloaded(MailStore store, MessageId messageId) {
     final bodies = _bodies[store] ??= {};
     if (bodies[messageId] == true) return true;
     final has = store.messages.body(messageId) != null;
@@ -122,7 +122,7 @@ final class _Read<T> {
 
   /// Which message it was (an id can be used again once a message is
   /// gone).
-  final int mailboxId;
+  final MailboxId mailboxId;
   final int uid;
   final bool fromBody;
   final String? snippet;
@@ -133,7 +133,7 @@ final class _Read<T> {
 /// Results by message id, the least recently used first.
 final class _Reads<T> {
   // Map literals keep insertion order.
-  final _entries = <int, _Read<T>>{};
+  final _entries = <MessageId, _Read<T>>{};
   int _chars = 0;
 
   _Read<T>? take(StoredMessage m) {

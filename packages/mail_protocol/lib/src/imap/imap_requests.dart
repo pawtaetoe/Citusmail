@@ -102,9 +102,13 @@ final class FetchItems {
 /// Search criteria (RFC 9051 6.4.4), combined with AND. Only what the app
 /// needs; every value is encoded safely by [ImapCommand].
 final class SearchCriteria {
-  SearchCriteria._(this._apply);
+  SearchCriteria._(this._apply, {this.needsUtf8 = false});
 
   final void Function(ImapCommand command) _apply;
+
+  /// Whether a value is not plain ASCII, so the search must name its
+  /// charset (`CHARSET UTF-8`).
+  final bool needsUtf8;
 
   static SearchCriteria all() => SearchCriteria._((c) => c.atom('ALL'));
 
@@ -142,15 +146,57 @@ final class SearchCriteria {
         ..atom('HEADER')
         ..string(field)
         ..string(value),
+      needsUtf8: _notAscii(value),
     );
   }
+
+  /// Messages with the `\Flagged` flag (pinned; starred on Gmail).
+  static SearchCriteria flagged() => SearchCriteria._((c) => c.atom('FLAGGED'));
+
+  /// [text] anywhere in the header or body. The server searches; nothing
+  /// is downloaded.
+  static SearchCriteria text(String text) => _keyed('TEXT', text);
+
+  /// [text] in the Subject.
+  static SearchCriteria subject(String text) => _keyed('SUBJECT', text);
+
+  /// [text] in the From header (name or address).
+  static SearchCriteria from(String text) => _keyed('FROM', text);
+
+  /// Gmail's own search syntax, as in its search box (`X-GM-RAW`; only
+  /// on a server with the `X-GM-EXT-1` capability), e.g.
+  /// `-in:inbox is:starred`.
+  static SearchCriteria gmailRaw(String query) => _keyed('X-GM-RAW', query);
+
+  /// Either [a] or [b].
+  static SearchCriteria or(SearchCriteria a, SearchCriteria b) =>
+      SearchCriteria._((c) {
+        c
+          ..atom('OR')
+          ..openList();
+        a._apply(c);
+        c
+          ..closeList()
+          ..openList();
+        b._apply(c);
+        c.closeList();
+      }, needsUtf8: a.needsUtf8 || b.needsUtf8);
 
   static SearchCriteria and(List<SearchCriteria> criteria) =>
       SearchCriteria._((c) {
         for (final criterion in criteria) {
           criterion._apply(c);
         }
-      });
+      }, needsUtf8: criteria.any((c) => c.needsUtf8));
+
+  static SearchCriteria _keyed(String key, String value) => SearchCriteria._(
+    (c) => c
+      ..atom(key)
+      ..string(value),
+    needsUtf8: _notAscii(value),
+  );
+
+  static bool _notAscii(String value) => value.codeUnits.any((u) => u > 0x7E);
 
   void applyTo(ImapCommand command) => _apply(command);
 

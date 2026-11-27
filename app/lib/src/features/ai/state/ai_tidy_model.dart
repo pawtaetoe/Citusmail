@@ -44,7 +44,7 @@ final class AiTidy {
       ]);
     }
     const limit = TidyCandidates.cap + 1;
-    List<int>? accounts(int? id) => id == null ? null : [id];
+    List<AccountId>? accounts(AccountId? id) => id == null ? null : [id];
     final location = controller.location.value;
     final messages = switch (location) {
       InboxLocation(:final accountId) => [
@@ -134,7 +134,7 @@ final class AiTidy {
     planner.folderNames(candidates),
     [
       for (final m in candidates.messages)
-        [m.id, m.mailboxId, m.flags.bits, m.section.index],
+        [m.id.value, m.mailboxId.value, m.flags.bits, m.section.index],
     ],
   ]);
 
@@ -154,7 +154,7 @@ final class AiTidy {
     final removed = <RemovalReceipt>[];
     final snoozedBefore = <String, Snooze?>{};
     final done = <String>[];
-    final leaving = <int>{};
+    final leaving = <MessageId>{};
 
     // Read and pinned.
     for (final step in steps) {
@@ -198,7 +198,7 @@ final class AiTidy {
       if (step.kind != TidyKind.archive && step.kind != TidyKind.move) {
         continue;
       }
-      final byTarget = <int, (StoredMailbox, List<StoredMessage>)>{};
+      final byTarget = <MailboxId, (StoredMailbox, List<StoredMessage>)>{};
       for (final m in step.messages) {
         final f = fresh(m);
         if (f == null) continue;

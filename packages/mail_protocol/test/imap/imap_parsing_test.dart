@@ -376,6 +376,14 @@ void main() {
       for (final bad in ['', '0', 'a', '1::2', '1,,2', '-1']) {
         expect(SequenceSet.tryParse(bad), isNull, reason: bad);
       }
+      expect(
+        SequenceSet.of([3, 7]).union(SequenceSet.range(100)).toString(),
+        '3,7,100:*',
+      );
+      expect(
+        SequenceSet.of([8, 9]).union(SequenceSet.range(5)).toString(),
+        '5:*',
+      );
     });
 
     test('huge server ranges are never expanded by accident', () {
@@ -449,6 +457,48 @@ void main() {
         text(ImapCommand('SELECT')..mailbox('日本語')),
         'SELECT "&ZeVnLIqe-"',
       );
+    });
+
+    test('search criteria: Gmail search, text, OR, flagged', () {
+      ImapCommand command(SearchCriteria criteria) {
+        final command = ImapCommand('SEARCH');
+        criteria.applyTo(command);
+        return command;
+      }
+
+      String search(SearchCriteria criteria) => text(command(criteria));
+      expect(
+        search(
+          SearchCriteria.and([
+            SearchCriteria.gmailRaw('-in:inbox -in:"sent"'),
+            SearchCriteria.flagged(),
+            SearchCriteria.since(DateTime.utc(2026, 3, 9)),
+          ]),
+        ),
+        r'SEARCH X-GM-RAW "-in:inbox -in:\"sent\"" FLAGGED SINCE 9-Mar-2026',
+      );
+      expect(
+        search(
+          SearchCriteria.or(
+            SearchCriteria.subject('booking'),
+            SearchCriteria.from('booking'),
+          ),
+        ),
+        'SEARCH OR (SUBJECT "booking") (FROM "booking")',
+      );
+      expect(search(SearchCriteria.text('a')), 'SEARCH TEXT "a"');
+      expect(SearchCriteria.text('booking').needsUtf8, isFalse);
+      // Not ASCII: a literal, and the search names its charset.
+      final utf8Search = SearchCriteria.and([
+        SearchCriteria.uids(SequenceSet.range(1)),
+        SearchCriteria.or(
+          SearchCriteria.text('x'),
+          SearchCriteria.gmailRaw('Zürich'),
+        ),
+      ]);
+      expect(utf8Search.needsUtf8, isTrue);
+      final parts = command(utf8Search).build();
+      expect(parts.whereType<LiteralPart>(), hasLength(1));
     });
 
     test('redacted commands hide secrets in descriptions', () {

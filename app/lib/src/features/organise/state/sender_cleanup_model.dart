@@ -114,7 +114,7 @@ final class SenderCleanupModel extends PageModel<SenderCleanupData> {
   /// moves: not pinned mail.
   List<StoredMessage> inboxMail(Iterable<SenderGroup> groups) {
     final accounts = _store.accounts.all();
-    final seen = <int>{};
+    final seen = <MessageId>{};
     return SenderCleanup.actionable([
       for (final g in groups)
         for (final address in g.addresses)

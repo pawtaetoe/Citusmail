@@ -21,7 +21,9 @@ final class Corrections {
 
   final MailStore _store;
 
-  /// What was learned, as [MailTypeClassifier.toText].
+  /// What was learned, as [MailLearning.toText]: the classifier's
+  /// corrections first (as [MailTypeClassifier.toText], which older
+  /// versions read), then the mail model's adjustments.
   static const modelSetting = StringSetting('learning.model');
 
   /// Items the user listed again after learning hid them ("kind/key").
@@ -39,14 +41,14 @@ final class Corrections {
 
   bool get on => AppSettings(_store).learnFromCorrections;
 
-  MailTypeClassifier _load() =>
-      MailTypeClassifier.fromText(modelSetting.readOrNull(_store.settings));
+  MailLearning _load() =>
+      MailLearning.fromText(modelSetting.readOrNull(_store.settings));
 
-  void _save(MailTypeClassifier classifier) {
-    if (classifier.isEmpty) {
+  void _save(MailLearning learning) {
+    if (learning.isEmpty) {
       modelSetting.clear(_store.settings);
     } else {
-      modelSetting.write(_store.settings, classifier.toText());
+      modelSetting.write(_store.settings, learning.toText());
     }
   }
 
@@ -58,11 +60,11 @@ final class Corrections {
     bool undo = false,
   }) {
     if (!on) return;
-    final classifier = _load();
+    final learning = _load();
     for (final email in emails) {
-      classifier.reject(kind, email, undo: undo);
+      learning.reject(kind, email, undo: undo);
     }
-    _save(classifier);
+    _save(learning);
   }
 
   /// The user listed again an item learning had hid ([key], made of
@@ -70,11 +72,11 @@ final class Corrections {
   void kept(MailKind kind, String key, Iterable<MailSample> emails) {
     _write(keptSetting, {..._read(keptSetting), '${kind.code}/$key'});
     if (!on) return;
-    final classifier = _load();
+    final learning = _load();
     for (final email in emails) {
-      classifier.confirm(kind, email);
+      learning.confirm(kind, email);
     }
-    _save(classifier);
+    _save(learning);
   }
 
   /// The user opened an item the rules found: a weak sign that it is one,
@@ -82,15 +84,15 @@ final class Corrections {
   /// [kind] (else nothing changes).
   void opened(MailKind kind, String key, Iterable<MailSample> emails) {
     if (!on) return;
-    final classifier = _load();
-    if (!classifier.hasCorrections(kind)) return;
+    final learning = _load();
+    if (!learning.hasCorrections(kind)) return;
     final opened = _readList(openedSetting);
     final id = '${kind.code}/$key';
     if (opened.contains(id)) return;
     for (final email in emails.take(6)) {
-      classifier.confirm(kind, email, weight: MailTypeClassifier.openedWeight);
+      learning.confirm(kind, email, weight: MailTypeClassifier.openedWeight);
     }
-    _save(classifier);
+    _save(learning);
     final list = [...opened, id];
     openedSetting.write(
       _store.settings,
