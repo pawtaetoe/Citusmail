@@ -226,6 +226,7 @@ abstract final class AppIcons {
   // Around the app.
   static const search = Icons.search;
   static const searchOff = Icons.search_off;
+  static const searchServer = Icons.manage_search;
   static const commandBar = Icons.keyboard_command_key;
   static const keyboard = Icons.keyboard_outlined;
   static const settings = Icons.settings_outlined;

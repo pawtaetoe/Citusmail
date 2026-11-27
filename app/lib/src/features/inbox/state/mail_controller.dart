@@ -333,6 +333,11 @@ final class MailController {
   /// Searches for exactly what was typed, without correcting typos.
   void searchExactly(String text) => locationController.searchExactly(text);
 
+  /// Searches all of [accountId]'s mail on its server, for the search on
+  /// screen.
+  Future<void> searchOnServer(int accountId) =>
+      locationController.searchOnServer(accountId);
+
   // --------------------------------------------------------------- lists
 
   /// Shows more of a flat list: stored messages first, then older mail

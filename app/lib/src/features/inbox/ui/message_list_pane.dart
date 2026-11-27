@@ -36,6 +36,7 @@ import 'inbox_summary_line.dart';
 import 'message_tile.dart';
 import 'new_since_away_section.dart';
 import 'search_correction_line.dart';
+import 'server_search_line.dart';
 
 /// The middle pane: search and compose, the view's header (or the bulk
 /// action bar while selecting), then the messages.
@@ -113,6 +114,8 @@ final class MessageListPane extends StatelessWidget {
         // Searching with the "Ask your mail" assistant on: its answer.
         AskMailPanel(controller: controller),
         SearchCorrectionLine(controller: controller),
+        // Little found on the device: search the servers too.
+        ServerSearchLine(controller: controller),
         Expanded(
           child: _Messages(controller: controller, endSpace: endSpace),
         ),
