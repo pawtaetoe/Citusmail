@@ -10,6 +10,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../../../core/state/notice.dart';
+import '../../../core/text/numbers.dart';
 import '../../../services/app_services.dart';
 import '../../organise/state/folder_controller.dart';
 import '../../reader/state/reader_controller.dart';
@@ -44,21 +45,34 @@ final class MessageActions {
 
   MailStore get _store => _services.store;
 
+  /// While an action on thousands of messages runs in steps: what it is
+  /// doing and how far it got ("Moving to Trash… 2,400 of 7,080"), for a
+  /// notice that updates in place; null otherwise.
+  final working = ValueNotifier<String?>(null);
+
+  MailActions get _mail => _services.actions;
+
   void togglePin(List<StoredMessage> messages) {
     if (messages.isEmpty) return;
     final on = !messages.every((m) => m.flags.flagged);
-    final receipt = _services.actions.markFlagged(messages, flagged: on);
-    _afterFlags(receipt, on ? 'Pinned' : 'Unpinned', messages.length);
+    _changeFlags(
+      messages,
+      pin: true,
+      on: on,
+      done: on ? 'Pinned' : 'Unpinned',
+      doing: on ? 'Pinning' : 'Unpinning',
+    );
   }
 
   void toggleRead(List<StoredMessage> messages) {
     if (messages.isEmpty) return;
     final read = !messages.every((m) => m.flags.seen);
-    final receipt = _services.actions.markRead(messages, read: read);
-    _afterFlags(
-      receipt,
-      read ? 'Marked as read' : 'Marked as unread',
-      messages.length,
+    _changeFlags(
+      messages,
+      pin: false,
+      on: read,
+      done: read ? 'Marked as read' : 'Marked as unread',
+      doing: read ? 'Marking as read' : 'Marking as unread',
     );
   }
 
@@ -83,8 +97,48 @@ final class MessageActions {
   /// Marks [unread] as read, always with Undo ("Mark all as read").
   void markAllRead(List<StoredMessage> unread) {
     if (unread.isEmpty) return;
-    final receipt = _services.actions.markRead(unread);
-    _afterFlags(receipt, 'Marked as read', unread.length, alwaysUndo: true);
+    _changeFlags(
+      unread,
+      pin: false,
+      on: true,
+      done: 'Marked as read',
+      doing: 'Marking as read',
+      alwaysUndo: true,
+    );
+  }
+
+  /// Pins ([pin]) or marks read, or the opposite when not [on]: at once,
+  /// or in steps for more than [MailActions.stepsAbove] messages.
+  void _changeFlags(
+    List<StoredMessage> messages, {
+    required bool pin,
+    required bool on,
+    required String done,
+    required String doing,
+    bool alwaysUndo = false,
+  }) {
+    if (messages.length <= MailActions.stepsAbove) {
+      final receipt = pin
+          ? _mail.markFlagged(messages, flagged: on)
+          : _mail.markRead(messages, read: on);
+      _afterFlags(receipt, done, messages.length, alwaysUndo: alwaysUndo);
+      return;
+    }
+    _selection.clear();
+    unawaited(() async {
+      final receipt = await _inSteps(
+        doing,
+        messages.length,
+        (progress) => pin
+            ? _mail.markFlaggedInSteps(
+                messages,
+                flagged: on,
+                progress: progress,
+              )
+            : _mail.markReadInSteps(messages, read: on, progress: progress),
+      );
+      _afterFlags(receipt, done, messages.length, alwaysUndo: alwaysUndo);
+    }());
   }
 
   void _afterFlags(
@@ -100,12 +154,42 @@ final class MessageActions {
     _refresh();
     if (count > 1 || alwaysUndo) {
       _notify(
-        '$done ($count)',
+        '$done (${grouped(count)})',
         undo: () {
-          _services.actions.undo(receipt);
-          _refresh();
+          if (count <= MailActions.stepsAbove) {
+            _mail.undo(receipt);
+            _refresh();
+            return;
+          }
+          unawaited(() async {
+            await _inSteps(
+              'Undoing',
+              receipt.changed.length,
+              (progress) => _mail.undoInSteps(receipt, progress: progress),
+            );
+            for (final id in receipt.accountIds) {
+              _services.worker.requestSync(id);
+            }
+            _refresh();
+          }());
         },
       );
+    }
+  }
+
+  /// Runs an action in steps, saying what it does and how far it got in
+  /// [working] ("[doing]… 2,400 of 7,080").
+  Future<T> _inSteps<T>(
+    String doing,
+    int total,
+    Future<T> Function(StepProgress progress) run,
+  ) async {
+    String text(int done) => '$doing… ${grouped(done)} of ${grouped(total)}';
+    working.value = text(0);
+    try {
+      return await run((done, _) => working.value = text(done));
+    } finally {
+      working.value = null;
     }
   }
 
@@ -136,10 +220,10 @@ final class MessageActions {
     for (final m in messages) {
       if (isInJunk(m)) byAccount.putIfAbsent(m.accountId, () => []).add(m);
     }
-    final moves = [
+    final moves = <Removal>[
       for (final MapEntry(key: accountId, value: group) in byAccount.entries)
         if (_store.mailboxes.inbox(accountId) case final inbox?)
-          () => _services.actions.move(group, inbox),
+          (messages: group, target: inbox),
     ];
     if (moves.isEmpty) return;
     final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
@@ -147,7 +231,8 @@ final class MessageActions {
       moves,
       count == 1
           ? 'Not spam. Moved to Inbox.'
-          : 'Not spam. Moved $count to Inbox.',
+          : 'Not spam. Moved ${grouped(count)} to Inbox.',
+      doing: 'Moving to Inbox',
     );
   }
 
@@ -174,26 +259,36 @@ final class MessageActions {
       return;
     }
     final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
-    remove([
-      for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-        () => _services.actions.move(group, archiveFolder(accountId)!),
-    ], done ?? (count == 1 ? 'Archived' : 'Archived $count'));
+    remove(
+      [
+        for (final MapEntry(key: accountId, value: group) in byAccount.entries)
+          (messages: group, target: archiveFolder(accountId)!),
+      ],
+      done ?? (count == 1 ? 'Archived' : 'Archived ${grouped(count)}'),
+      doing: 'Archiving',
+    );
   }
 
-  void moveTo(List<StoredMessage> messages, StoredMailbox target) => remove([
-    () => _services.actions.move(messages, target),
-  ], 'Moved to ${_folderName(target)}');
+  void moveTo(List<StoredMessage> messages, StoredMailbox target) => remove(
+    [(messages: messages, target: target)],
+    'Moved to ${_folderName(target)}',
+    doing: 'Moving to ${_folderName(target)}',
+  );
 
   /// Moves to Trash (or deletes for good when already in Trash, or the
   /// account has none; the caller confirms that).
-  void delete(List<StoredMessage> messages) => remove(
-    [() => _services.actions.delete(messages)],
-    messages.every(deletesForever)
-        ? 'Deleted'
-        : (messages.length == 1
-              ? 'Moved to Trash'
-              : 'Moved ${messages.length} to Trash'),
-  );
+  void delete(List<StoredMessage> messages) {
+    final forever = messages.every(deletesForever);
+    remove(
+      [(messages: messages, target: null)],
+      forever
+          ? 'Deleted'
+          : (messages.length == 1
+                ? 'Moved to Trash'
+                : 'Moved ${grouped(messages.length)} to Trash'),
+      doing: forever ? 'Deleting' : 'Moving to Trash',
+    );
+  }
 
   /// "Always move mail from this sender here", then moves this message.
   void moveAlways(StoredMessage message, StoredMailbox target) {
@@ -213,17 +308,51 @@ final class MessageActions {
     moveTo([message], target);
   }
 
-  /// Removes messages from the list with [changes], opens the next message
-  /// if the open one left, and offers Undo for a few seconds ([alsoUndo]
-  /// reverses anything else the action did).
+  /// Removes messages from the list with [removals] (moves, or deletes
+  /// where the target is null), opens the next message if the open one
+  /// left, and offers Undo for a few seconds ([alsoUndo] reverses
+  /// anything else the action did). More than [MailActions.stepsAbove]
+  /// messages go in steps, saying how far they got ([doing], in
+  /// [working]), so the app keeps drawing; Undo then goes in steps too.
   void remove(
-    List<RemovalReceipt Function()> changes,
+    List<Removal> removals,
     String done, {
     VoidCallback? alsoUndo,
+    String doing = 'Moving',
   }) {
     final open = _reader.selected;
     final visible = _list.visible;
-    final receipts = [for (final change in changes) change()];
+    final total = removals.fold(0, (sum, r) => sum + r.messages.length);
+    if (total <= MailActions.stepsAbove) {
+      final receipts = [
+        for (final r in removals)
+          switch (r.target) {
+            final target? => _mail.move(r.messages, target),
+            null => _mail.delete(r.messages),
+          },
+      ];
+      _afterRemoval(receipts, open, visible, done, alsoUndo, inSteps: false);
+      return;
+    }
+    _selection.clear();
+    unawaited(() async {
+      final receipts = await _inSteps(
+        doing,
+        total,
+        (progress) => _mail.removeInSteps(removals, progress: progress),
+      );
+      _afterRemoval(receipts, open, visible, done, alsoUndo, inSteps: true);
+    }());
+  }
+
+  void _afterRemoval(
+    List<RemovalReceipt> receipts,
+    StoredMessage? open,
+    List<StoredMessage> visible,
+    String done,
+    VoidCallback? alsoUndo, {
+    required bool inSteps,
+  }) {
     final removedIds = {
       for (final r in receipts)
         for (final row in r.snapshot.messages) MessageId(row['id']! as int),
@@ -235,15 +364,35 @@ final class MessageActions {
     }
     _selection.clear();
     leaveList(open, visible, removedIds);
+    void undone(bool all) {
+      _refresh();
+      if (!all) _notify('Too late to undo: the change reached the server.');
+    }
+
     _notify(
       done,
       undo: () {
         alsoUndo?.call();
-        final undone = receipts.every(_services.actions.undo);
-        _refresh();
-        if (!undone) {
-          _notify('Too late to undo: the change reached the server.');
-        }
+        if (!inSteps) return undone(receipts.every(_mail.undo));
+        unawaited(() async {
+          var all = true;
+          final count = receipts.fold(
+            0,
+            (sum, r) => sum + r.snapshot.messages.length,
+          );
+          await _inSteps('Putting back', count, (progress) async {
+            var before = 0;
+            for (final r in receipts) {
+              final back = await _mail.undoInSteps(
+                r,
+                progress: (d, _) => progress(before + d, count),
+              );
+              if (!back) all = false;
+              before += r.snapshot.messages.length;
+            }
+          });
+          undone(all);
+        }());
       },
     );
   }

@@ -63,14 +63,16 @@ final class SenderCleanupModel extends PageModel<SenderCleanupData> {
       if (!_bulkOnly || g.isBulk) g,
   ], _order);
 
+  /// Since when the senders' mail is counted: [SenderCleanup.window]
+  /// (3 months) back from now.
+  DateTime get since => _now().subtract(SenderCleanup.window);
+
   @override
   Future<SenderCleanupData> fetch() async {
     final kept = {...keptSetting.read(_store.settings)};
     // The store adds the mail up per sender; grouping senders by company
     // happens off the UI thread.
-    final senders = _store.messages.senderStats(
-      _now().subtract(SenderCleanup.window),
-    );
+    final senders = _store.messages.senderStats(since);
     final all = await compute(_group, (
       senders,
       {for (final a in _store.accounts.all()) a.email.toLowerCase()},
@@ -137,6 +139,15 @@ final class SenderCleanupModel extends PageModel<SenderCleanupData> {
         _store.messages.receivedFrom([for (final g in groups) ...g.addresses]),
       );
 
+  /// [mail] (what [inboxMail] or [allMail] gave) with, of it, what came
+  /// in the period the page counts ([since]): what Archive and Delete
+  /// offer, "only the last 3 months" or all of it.
+  static CleanupScope scopeOf(List<StoredMessage> mail, DateTime since) =>
+      CleanupScope(mail, [
+        for (final m in mail)
+          if (!m.receivedAt.isBefore(since)) m,
+      ]);
+
   /// The newest message of [group] (for blocking).
   StoredMessage? newest(SenderGroup group) =>
       _store.messages.byId(group.newestId);
@@ -163,4 +174,19 @@ List<SenderGroup> _group((List<SenderStats>, Set<String>, Set<String>) input) {
     own: own,
     writtenTo: writtenTo,
   );
+}
+
+/// The mail a Clean up action can take: [all] of it, any age, and of
+/// it the [recent] mail, from the period the cards count.
+final class CleanupScope {
+  const CleanupScope(this.all, this.recent);
+
+  final List<StoredMessage> all;
+  final List<StoredMessage> recent;
+
+  /// How many of [all] are older than the period.
+  int get older => all.length - recent.length;
+
+  /// Whether there is a choice to offer: some recent mail, some older.
+  bool get hasChoice => recent.isNotEmpty && older > 0;
 }

@@ -156,14 +156,12 @@ final class MailController {
     );
     blockingController = BlockingController(
       _store,
-      services.actions,
       messageActions,
       readerController,
       notify: _notify,
     );
     screenerController = ScreenerController(
       _store,
-      services.actions,
       messageActions,
       refresh: refresh,
       notify: _notify,
@@ -270,6 +268,10 @@ final class MailController {
   ValueNotifier<ReaderState> get reader => readerController.reader;
   ValueNotifier<Set<MessageId>> get selection => selectionController.selection;
   ValueNotifier<SyncStatus> get status => syncStatusController.status;
+
+  /// While an action on thousands of messages runs in steps: what it
+  /// does and how far it got ("Moving to Trash… 2,400 of 7,080").
+  ValueNotifier<String?> get working => messageActions.working;
 
   /// Moves old verification codes out of the inbox, once agreed.
   CodeCleaner get codeCleaner => oldCodesController.codeCleaner;

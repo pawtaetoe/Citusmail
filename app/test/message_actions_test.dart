@@ -11,6 +11,7 @@ import 'package:citusmail/src/features/organise/state/folder_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import 'support/controllers.dart';
 import 'support/test_app.dart';
@@ -138,6 +139,108 @@ void main() {
       c.location.goTo(InboxLocation(accountId: c.accountId));
       c.actions.markSectionRead(SmartSection.general);
       expect(c.lastNotice, startsWith('Marked as read ('));
+    });
+  });
+
+  group('thousands at once (select all in a big folder)', () {
+    /// 1,500 newsletters in the inbox.
+    List<StoredMessage> seedMany() {
+      final inbox = c.box('INBOX');
+      final now = DateTime.now().toUtc();
+      for (var start = 0; start < 1500; start += 500) {
+        c.store.messages.upsertSummaries(inbox.id, [
+          for (var i = start; i < start + 500; i++)
+            MessageSummary(
+              uid: 1000 + 3 * i,
+              receivedAt: now.subtract(Duration(minutes: 10 + i)),
+              subject: 'Offer $i',
+              from: const MailAddress(localPart: 'deals', domain: 'shop.test'),
+            ),
+        ]);
+      }
+      return c.store.messages.inboxFromList(
+        c.accountId,
+        fromAddress: 'deals@shop.test',
+        limit: 5000,
+      );
+    }
+
+    /// What [MessageActions.working] said, in order.
+    List<String?> watchWorking() {
+      final said = <String?>[];
+      void listener() => said.add(c.actions.working.value);
+      c.actions.working.addListener(listener);
+      addTearDown(() => c.actions.working.removeListener(listener));
+      return said;
+    }
+
+    Future<void> until(bool Function() done) async {
+      for (var i = 0; i < 2000 && !done(); i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(done(), isTrue);
+    }
+
+    int offers() => c.store.messages
+        .inboxFromList(c.accountId, fromAddress: 'deals@shop.test', limit: 5000)
+        .length;
+
+    test('archive goes in steps, saying how far it got; one Undo', () async {
+      final mail = seedMany();
+      expect(mail, hasLength(1500));
+      final said = watchWorking();
+      c.actions.archive(mail);
+      // The first step is done at once; the rest follow, a step a turn.
+      expect(said.first, 'Archiving… 0 of 1,500');
+      expect(offers(), allOf(greaterThan(0), lessThan(1500)));
+      await until(() => c.lastNotice == 'Archived 1,500');
+      expect(said.last, isNull, reason: 'the progress notice is done');
+      expect(said, contains('Archiving… 1,500 of 1,500'));
+      expect(said.where((s) => s != null).length, greaterThan(3));
+      expect(offers(), 0);
+      final move = c.store.outbox.all(c.accountId).single.action as MoveAction;
+      expect(move.uids, hasLength(1500));
+
+      said.clear();
+      c.undoLast();
+      await until(() => offers() == 1500 && c.actions.working.value == null);
+      expect(said.first, 'Putting back… 0 of 1,500');
+      expect(c.store.outbox.all(c.accountId), isEmpty);
+    });
+
+    test('mark all read goes in steps; one flag change; Undo', () async {
+      final mail = seedMany();
+      final said = watchWorking();
+      c.actions.toggleRead(mail);
+      await until(() => c.lastNotice == 'Marked as read (1,500)');
+      expect(said.first, 'Marking as read… 0 of 1,500');
+      bool allRead() => c.store.messages
+          .inboxFromList(
+            c.accountId,
+            fromAddress: 'deals@shop.test',
+            limit: 5000,
+          )
+          .every((m) => m.flags.seen);
+      expect(allRead(), isTrue);
+      final flags =
+          c.store.outbox.all(c.accountId).single.action as SetFlagsAction;
+      expect(flags.uids, hasLength(1500));
+
+      c.undoLast();
+      await until(() => c.actions.working.value == null && !allRead());
+      expect(
+        c.store.messages
+            .inboxFromList(c.accountId, fromAddress: 'deals@shop.test')
+            .any((m) => m.flags.seen),
+        isFalse,
+      );
+    });
+
+    test('up to the step size, an action is still done at once', () {
+      final mail = seedMany().take(MailActions.stepsAbove).toList();
+      c.actions.archive(mail);
+      expect(c.lastNotice, 'Archived 200');
+      expect(offers(), 1300);
     });
   });
 

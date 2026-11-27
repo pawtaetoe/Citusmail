@@ -58,13 +58,14 @@ void main() {
     required int count,
     int opened = 0,
     int pinned = 0,
+    int daysAgo = 1,
   }) {
     final now = DateTime.now().toUtc();
     app.store.messages.upsertSummaries(inbox.id, [
       for (var i = 0; i < count; i++)
         MessageSummary(
           uid: uid + i,
-          receivedAt: now.subtract(Duration(days: 1 + i)),
+          receivedAt: now.subtract(Duration(days: daysAgo + i)),
           subject: '$name news ${i + 1}',
           from: MailAddress(
             displayName: name,
@@ -127,8 +128,14 @@ void main() {
 
     expect(find.text('8 emails from 1 sender you rarely open'), findsOneWidget);
     expect(find.text('MegaStore'), findsOneWidget);
-    expect(find.textContaining('8 emails · none opened'), findsOneWidget);
-    expect(find.textContaining('5 emails · all opened'), findsOneWidget);
+    expect(
+      find.textContaining('8 emails in 3 months · none opened'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('5 emails in 3 months · all opened'),
+      findsOneWidget,
+    );
     expect(find.text('Can unsubscribe'), findsNWidgets(2));
     expect(
       tester.getTopLeft(find.text('MegaStore')).dy,
@@ -218,7 +225,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete all'));
     await tester.pumpAndSettle();
-    expect(find.text('Delete 3 emails?'), findsOneWidget);
+    expect(find.text('Delete 3 emails from MegaStore?'), findsOneWidget);
     await tester.tap(find.text('Move to Trash'));
     await tester.pump();
     expect(find.text('Moved 3 to Trash'), findsOneWidget);
@@ -256,13 +263,16 @@ void main() {
     const megaStore = ValueKey('sender-deals@megastore.example');
     const paper = ValueKey('sender-weekly@paper.example');
     await openCleanUp(tester);
-    expect(find.textContaining('5 emails · none opened'), findsOneWidget);
+    expect(
+      find.textContaining('5 emails in 3 months · none opened'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byTooltip('What to do with MegaStore'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete all'));
     await tester.pumpAndSettle();
-    expect(find.text('Delete 5 emails?'), findsOneWidget);
+    expect(find.text('Delete 5 emails from MegaStore?'), findsOneWidget);
     expect(find.textContaining('to Trash, from every folder'), findsOneWidget);
     await tester.tap(find.text('Move to Trash'));
     await tester.pump();
@@ -285,10 +295,152 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete all'));
     await tester.pumpAndSettle();
-    expect(find.text('Delete 3 emails?'), findsOneWidget);
+    expect(find.text('Delete 3 emails from The Paper?'), findsOneWidget);
     await tester.tap(find.text('Move to Trash'));
     await settle(tester);
     expect(inInbox('weekly@paper.example'), 1);
     expect(find.byKey(paper), findsNothing);
+  });
+
+  group('older mail than the card counts', () {
+    const megaStore = 'deals@megastore.example';
+
+    /// 4 emails in the last 3 months, 6 from long before.
+    void seedOldAndNew() {
+      seed(megaStore, 'MegaStore', uid: 300, count: 4);
+      seed(megaStore, 'MegaStore', uid: 500, count: 6, daysAgo: 200);
+    }
+
+    /// How many of MegaStore's emails in the inbox are older than the
+    /// card's 3 months.
+    int olderInInbox() => app.store.messages
+        .inboxFromList(inbox.accountId, fromAddress: megaStore)
+        .where(
+          (m) => m.receivedAt.isBefore(
+            DateTime.now().subtract(const Duration(days: 100)),
+          ),
+        )
+        .length;
+
+    Future<void> deleteAll(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('What to do with MegaStore'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete all'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the card says its period; Delete states both numbers and '
+        'each choice deletes exactly that', (tester) async {
+      seedOldAndNew();
+      await openCleanUp(tester);
+      expect(
+        find.textContaining('4 emails in 3 months · none opened'),
+        findsOneWidget,
+      );
+
+      // Cancel takes nothing.
+      await deleteAll(tester);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(inInbox(megaStore), 10);
+
+      await deleteAll(tester);
+      expect(find.text('Delete 10 emails from MegaStore?'), findsOneWidget);
+      expect(
+        find.text(
+          '4 came in the last 3 months; 6 are older. They go to Trash, '
+          'from every folder. Pinned emails stay where they are.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('All 10'), findsOneWidget);
+      await tester.tap(find.text('Only the last 3 months (4)'));
+      await tester.pump();
+      expect(find.text('Moved 4 to Trash'), findsOneWidget);
+      expect(inInbox(megaStore), 6);
+      expect(olderInInbox(), 6, reason: 'the older ones stay');
+      await tester.pump(const Duration(milliseconds: 750));
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+      expect(inInbox(megaStore), 10);
+
+      await settle(tester);
+      await deleteAll(tester);
+      await tester.tap(find.text('All 10'));
+      await tester.pump();
+      expect(find.text('Moved 10 to Trash'), findsOneWidget);
+      expect(inInbox(megaStore), 0);
+    });
+
+    testWidgets('Archive all asks when some of the inbox mail is older', (
+      tester,
+    ) async {
+      seedOldAndNew();
+      await openCleanUp(tester);
+      await tester.tap(find.byTooltip('What to do with MegaStore'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Archive all'));
+      await tester.pumpAndSettle();
+      expect(find.text('Archive 10 emails from MegaStore?'), findsOneWidget);
+      expect(
+        find.textContaining(
+          '4 came in the last 3 months; 6 are older. They move from your '
+          'Inbox to Archive.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Only the last 3 months (4)'));
+      await tester.pump();
+      expect(find.text('Archived 4 emails from MegaStore'), findsOneWidget);
+      expect(inInbox(megaStore), 6);
+      expect(olderInInbox(), 6);
+    });
+
+    testWidgets('thousands of emails: counts with separators, deleted in '
+        'steps with a notice that counts, and one Undo for all', (
+      tester,
+    ) async {
+      seed(megaStore, 'MegaStore', uid: 300, count: 40);
+      seed(megaStore, 'MegaStore', uid: 1000, count: 1200, daysAgo: 200);
+      await openCleanUp(tester);
+      expect(find.textContaining('40 emails in 3 months'), findsOneWidget);
+
+      await deleteAll(tester);
+      expect(find.text('Delete 1,240 emails from MegaStore?'), findsOneWidget);
+      expect(
+        find.textContaining('40 came in the last 3 months; 1,200 are older.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('All 1,240'));
+      await tester.pump();
+      // Underway: a notice says how far it got, and the app keeps
+      // drawing between steps.
+      expect(find.textContaining('Moving to Trash… '), findsOneWidget);
+      expect(find.textContaining(' of 1,240'), findsOneWidget);
+      // The first step is done and the frame drawn; the rest follow.
+      expect(inInbox(megaStore), allOf(greaterThan(0), lessThan(1240)));
+      var frames = 0;
+      while (find.text('Moved 1,240 to Trash').evaluate().isEmpty) {
+        await tester.pump(Duration.zero); // a frame, and the next step
+        expect(++frames, lessThan(500));
+      }
+      expect(inInbox(megaStore), 0);
+      // One queued delete for the folder, with every UID.
+      final queued = app.store.outbox.all(inbox.accountId).single;
+      expect((queued.action as DeleteAction).uids, hasLength(1240));
+
+      await tester.pump(const Duration(milliseconds: 750));
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+      while (inInbox(megaStore) < 1240) {
+        await tester.pump(Duration.zero);
+        expect(++frames, lessThan(1000));
+      }
+      await tester.pump();
+      expect(app.store.outbox.all(inbox.accountId), isEmpty);
+      await settle(tester);
+      expect(find.textContaining('Putting back'), findsNothing);
+      expect(find.byKey(const ValueKey('sender-$megaStore')), findsOneWidget);
+    });
   });
 }
