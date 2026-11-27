@@ -192,13 +192,36 @@ final class _TopBar extends StatefulWidget {
   State<_TopBar> createState() => _TopBarState();
 }
 
-final class _TopBarState extends State<_TopBar> {
+final class _TopBarState extends State<_TopBar> with WidgetsBindingObserver {
   final _search = TextEditingController();
+
+  /// Whether the on-screen keyboard was showing at the last change.
+  bool _keyboardShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
     super.dispose();
+  }
+
+  /// The keyboard closed (Android's back button) while the search box had
+  /// focus: let go of it too, so no cursor is left blinking.
+  @override
+  void didChangeMetrics() {
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    if (views.isEmpty) return;
+    final shown = views.first.viewInsets.bottom > 0;
+    if (_keyboardShown && !shown && widget.searchFocus.hasFocus) {
+      widget.searchFocus.unfocus();
+    }
+    _keyboardShown = shown;
   }
 
   /// Attachments from all your mail, with their own search.
@@ -237,6 +260,9 @@ final class _TopBarState extends State<_TopBar> {
                 child: TextField(
                   controller: _search,
                   focusNode: widget.searchFocus,
+                  // A tap anywhere else lets go of the search box, on touch
+                  // too (Flutter keeps focus on touch by default).
+                  onTapOutside: (_) => widget.searchFocus.unfocus(),
                   textInputAction: TextInputAction.search,
                   inputFormatters: [
                     LengthLimitingTextInputFormatter(
