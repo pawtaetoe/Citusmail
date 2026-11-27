@@ -461,18 +461,28 @@ final class MessageListModel extends ChangeNotifier {
   late final _changes = StoreChanges(_store);
   (int, int)? _countsStamp;
   final _counts = <AccountId?, Map<SmartSection, SectionCount>>{};
+  Map<MailboxId, Map<SmartSection, SectionCount>>? _byInbox;
 
   /// The Smart Inbox section counts of [accountId] (or every account),
-  /// counted again only when something in the store changed since.
+  /// counted again only when something in the store changed since. Every
+  /// inbox is counted in one pass; each account's counts and the unified
+  /// inbox's are added up from those.
   Map<SmartSection, SectionCount> sectionCounts({AccountId? accountId}) {
     final stamp = _changes.stamp;
     if (stamp != _countsStamp) {
       _counts.clear();
+      _byInbox = null;
       _countsStamp = stamp;
     }
-    return _counts[accountId] ??= _store.messages.sectionCounts(
-      accountIds: _accounts(accountId),
-    );
+    return _counts[accountId] ??= () {
+      final byInbox = _byInbox ??= _store.messages.sectionCountsByInbox();
+      final inboxes = accountId == null
+          ? byInbox.keys
+          : _store.messages.inboxIds(accountIds: [accountId]);
+      return MessageRepository.addSectionCounts([
+        for (final id in inboxes) ?byInbox[id],
+      ]);
+    }();
   }
 
   static List<AccountId>? _accounts(AccountId? accountId) =>
