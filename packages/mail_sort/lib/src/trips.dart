@@ -217,7 +217,10 @@ abstract final class TripText {
     r'confirmation (?:code|number|no\.?|#)|'
     r'reservation (?:code|number|no\.?|id|#)|record locator|PNR|'
     r'itinerary(?: number| no\.?)?\s*#?|booking id)'
-    r'(?:\s*\([\w ]{2,20}\))?\s*(?:is\s*)?[:#.]?\s*#?\s*([A-Za-z0-9][A-Za-z0-9-]{4,15})\b',
+    r'(?:\s*\([\w ]{2,20}\))?\s*(?:is\s*)?[:#.]?\s*#?\s*'
+    // The code, maybe on the next line, maybe in groups of four digits
+    // ("0428 3315 6092 7781").
+    r'(\d{4}(?:[ ]\d{4}){2,4}(?![ ]?\d)|[A-Za-z0-9][A-Za-z0-9-]{4,15})\b',
   );
 
   static const _notReferences = {
@@ -230,8 +233,9 @@ abstract final class TripText {
   };
 
   /// Booking references in [text], each next to a word such as "booking
-  /// reference", "confirmation code" or "PNR". A reference of letters
-  /// only must be 6 long (an airline's PNR).
+  /// reference", "confirmation code" or "PNR", or on the line after it.
+  /// A reference of letters only must be 6 long (an airline's PNR); one
+  /// of digits in groups of four keeps its spaces.
   static List<String> referencesIn(String text) {
     final found = <String>[];
     for (final m in _referenceLabel.allMatches(_cap(text, 30000))) {
@@ -976,13 +980,15 @@ abstract final class TripText {
   );
 
   /// Lines whose dates are not the journey's: when it was bought, until
-  /// when a ticket is valid, when to renew it.
+  /// when a ticket is valid, when to renew it; with the next line when
+  /// the label ends its line ("Booking date:" above "25. May 2026").
   static final _notJourneyLine = RegExp(
     r'^.*\b(?:booked on|booking date|date booked|order date|ordered on|'
     r'purchase date|purchased on|date of purchase|date of issue|issued on|'
     r'issue date|kaufdatum|buchungsdatum|bestelldatum|ausstellungsdatum|'
     r'ausgestellt am|gekauft am|payment date|paid on|transaction date|'
-    r'valid until|valid to|gültig bis|expires|expiry|renew\w*|due)\b.*$',
+    r'valid until|valid to|gültig bis|expires|expiry|renew\w*|due)\b'
+    r'(?:[^\n]*:[ \t]*\r?\n.*|.*)$',
     multiLine: true,
     caseSensitive: false,
   );
@@ -994,13 +1000,17 @@ abstract final class TripText {
       '$_stationWord(?:[ \\t]+(?:(?:de|du|des|la|le|am|im|an der|upon|on|'
       'sur|del|di|bei)[ \\t]+)?$_stationWord){0,4}';
   static const _legTime =
-      r'(?:[ \t]+(?:ab|an|dep\.?|arr\.?))?[ \t]+((?:[01]?\d|2[0-3]):[0-5]\d)';
+      r'(?:[ \t]+(?:ab|an|dep\.?|arr\.?))?[ \t]+'
+      r'(\(?(?:[01]?\d|2[0-3]):[0-5]\d\)?)';
   static const _legSeparator =
       r'(?:[ \t]*(?:\r?\n[ \t]*)?(?:→|⟶|➝|->|–|—)[ \t]*(?:\r?\n[ \t]*)?|'
-      r'[ \t]+-[ \t]+|[ \t]+(?:to|nach|naar|till)[ \t]+)';
+      r'[ \t]+[->][ \t]+|[ \t]+(?:to|nach|naar|till)[ \t]+|'
+      r'[ \t]*\r?\n[ \t]*to[ \t]+)';
 
   /// "London Euston to Manchester Piccadilly", "Wien Hbf → Salzburg Hbf",
-  /// "Wien Hbf ab 08:30 → Salzburg Hbf an 10:52".
+  /// "Zürich HB > Bolzano/Bozen", "Wien Hbf ab 08:30 → Salzburg Hbf an
+  /// 10:52", "Glasgow Central (08:00) to London Euston (13:38)", or over
+  /// two lines: "Glasgow Central" above "to London Euston".
   static final _leg = RegExp(
     '($_stationName)(?:$_legTime)?$_legSeparator($_stationName)(?:$_legTime)?',
   );
@@ -1039,7 +1049,7 @@ abstract final class TripText {
   /// Ends of station names: the place before it is a town even when the
   /// app does not know it ("Innsbruck Hbf").
   static final _stationEnd = _re(
-    r'\s+(?:hbf|hauptbahnhof|bahnhof|bhf|westbahnhof|ostbahnhof|südbahnhof|'
+    r'\s+(?:hbf|hb|hauptbahnhof|bahnhof|bhf|westbahnhof|ostbahnhof|südbahnhof|'
     r'central|centraal|centrale|euston|piccadilly|st\.? pancras'
     r"(?: international)?|king'?s cross|paddington|station|termini)$",
   );
@@ -1086,8 +1096,11 @@ abstract final class TripText {
 
   /// [raw] read as a station: a known city's ("London Euston", "Wien
   /// Hbf") or a name ending like a station's ("Innsbruck Hbf"); else null.
+  /// Of names given two ways ("Bolzano/Bozen", "Glasgow Central/Queen
+  /// St"), the first.
   static ReservationPlace? _station(String raw) {
     var name = raw
+        .replaceFirst(RegExp(r'(?<=[\wÀ-ɏ])/(?=[A-ZÀ-Þ]).*$'), '')
         .replaceFirst(_notStationWords, '')
         .replaceFirst(_afterStation, '')
         .replaceFirst(RegExp(r'[\s.,;:/(-]+$'), '')
@@ -1172,10 +1185,10 @@ abstract final class TripText {
     if (transit == null || _notAJourney.hasMatch(email.subject)) {
       return const [];
     }
-    final text = _cap(
-      email.text,
-      20000,
-    ).replaceAllMapped(_notJourneyLine, (m) => ' ' * m[0]!.length);
+    final text = _cap(email.text, 20000).replaceAllMapped(
+      _notJourneyLine,
+      (m) => m[0]!.replaceAll(RegExp(r'[^\r\n]'), ' '),
+    );
     final legs = _legsIn(text);
     if (legs.isEmpty) return const [];
     if (transit.byWords) {

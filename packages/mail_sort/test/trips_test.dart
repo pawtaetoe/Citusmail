@@ -310,6 +310,116 @@ Guests: 2 adults
 If you need to change or cancel your reservation, please contact us.
 ''';
 
+/// An ÖBB ticket email in English, as its HTML reads as text, every
+/// personal detail made up: the booking code on the line after its label,
+/// in groups of four digits; the route with a ">" and a city in two
+/// languages; the date written "Aug 20 2026"; no times (they are in the
+/// PDF); and the booking date above it.
+const _oebbReal = '''
+logo url
+Booking code:
+0428 3315 6092 7781
+Customer number:
+PV318275604
+Booking date:
+25. May 2026
+Transaction number:
+531000000774120586
+Dear SAM LEE,
+please find below the link to your PDF Tickets.
+Please remember to print your tickets in A4 format before you start your journey.
+Download and print tickets
+Please be aware that different cancellation conditions may apply for individual tickets if they have been collected in PDF format. Neither is it possible to convert them into Mobile Tickets or into tickets for pick-up at the station.
+Your PDF Tickets
+Zürich HB > Bolzano/Bozen
+One-way journey for SAM LEE, ALEX LEE
+Day of travel: Aug 20 2026 My timetable\u00a0>
+My booking >
+Updated timetable data
+It is always possible that the timetable has changed. Be sure to check out the current timetable shortly before your journey starts. You will find your timetable details under “My timetable” (see above) or in our route planner Scotty.
+Any more questions?
+Please see our FAQs (currently available in German) for more information. If this did not help in resolving your question, please contact us via oebb.at/kontakt or call us: +43 5 1717.
+We wish you a pleasant journey,
+Your ÖBB
+''';
+
+/// An Avanti West Coast confirmation as its HTML reads as text, every
+/// personal detail made up: the route over two lines ("Glasgow
+/// Central/Queen St" above "to London Euston / Single"), the times in a
+/// table and in brackets, and a "Delay Repay" and "Need a refund?" footer.
+const _avantiReal = '''
+
+
+Your booking is confirmed
+
+Thank you for booking
+with Avanti West Coast
+Glasgow Central/Queen St
+to London Euston / Single
+£ 270.00
+Outward journey
+29 August 2026
+£ 270.00
+Glasgow Central
+08:00
+Direct
+5h 38min
+London Euston
+13:38
+Advance Single Standard Premium
+What can I do with my ticket?
+Train operator: \u00a0 Avanti West Coast
+Train restrictions: \u00a0 Avanti West Coast Only
+Reservations:
+Glasgow Central (08:00) to London Euston (13:38)
+5h 38min\u00a0\u00a0\u00a0\u00a0Avanti West Coast
+Coach:\u00a0J
+Seat:\u00a011
+Window, Table seat, Near toilet, Power socket, Near luggage rack, Forward facing, Window view, Individual
+Coach:\u00a0J
+Seat:\u00a08
+Window, Table seat, Near toilet, Backward facing, Power socket, Near luggage rack, Window view, Individual
+Fare breakdown:
+Adult
+£135.00
+Adult
+£135.00
+Options & delivery:
+2 Adults
+Your e-ticket(s) are attached.
+Booking reference: \u00a0 30482716
+Payment method : Debit or credit card
+Credit card used : VISA\u00a0 400000******0000
+Payment summary
+Train ticket
+£270.00
+Total
+£270.00
+
+Seat Reservations
+You can now book or change your seat reservations online via your account.
+
+
+Change of plans?
+If you travel plans change, you can amend your tickets online via your account.
+
+
+Delay Repay
+The easiest way to sign up for Automatic Delay Repay is by opting in via your account. Then, if you're delayed by 15 minutes or more, a claim will automatically be created for you.
+
+
+Need a refund?
+If you need to claim a refund, the quickest way to apply is only via your account.
+
+
+Frequently Asked Questions
+Got a query for us? Here's the best place to start.
+
+First Trenitalia West Coast Rail Limited. (Company number 10349442)
+Registered Office: 8th Floor, The Point, 37 North Wharf Road, London, W2 1AF
+Contact us | Terms and conditions | Privacy policy
+''';
+
 void main() {
   group('from markup', () {
     test('a Singapore Airlines-style return flight and a hotel: one trip', () {
@@ -995,6 +1105,157 @@ New: Depart 02:15   Arrive 09:50
       expect(b.city, 'Salzburg');
     });
 
+    test('an ÖBB ticket as sent: the code on the next line, a ">" route', () {
+      final b = bookings([
+        mail(
+          'ÖBB ticket – 0428 3315 6092 7781 – Aug 20 2026',
+          sender: 'oebb.at',
+          text: _oebbReal,
+          daysAgo: 163,
+        ),
+      ]).single;
+      final info = b.info as TransitReservationInfo;
+      expect(b.kind, ReservationKind.train);
+      expect(info.reservationNumber, '0428 3315 6092 7781');
+      expect(info.provider, 'ÖBB');
+      expect(info.from?.name, 'Zürich HB');
+      expect(info.to?.name, 'Bolzano');
+      expect(b.start.day, DateTime(2026, 8, 20));
+      expect(b.start.hasTime, isFalse);
+      expect(b.end, isNull);
+      expect(b.fromCity, 'Zurich');
+      expect(b.city, 'Bolzano');
+      expect(b.cancelled, isFalse);
+      expect(TripText.referencesIn(_oebbReal), ['0428 3315 6092 7781']);
+    });
+
+    test('an ÖBB ticket: the booking date is not the day of travel', () {
+      // Without the day of travel, in the text or the subject, there is
+      // no journey: not one on the day it was booked.
+      final noDay = _oebbReal.replaceFirst(RegExp('Day of travel: .*'), '');
+      expect(
+        bookings([
+          mail(
+            'ÖBB ticket – 0428 3315 6092 7781',
+            sender: 'oebb.at',
+            text: noDay,
+            daysAgo: 163,
+          ),
+        ]),
+        isEmpty,
+      );
+      // Even right above the route.
+      final close = _oebbReal.replaceFirst(
+        RegExp(r'Transaction number:[\s\S]*Your PDF Tickets\n'),
+        '',
+      );
+      expect(close, contains('25. May 2026\nZürich HB > Bolzano/Bozen'));
+      final b = bookings([
+        mail(
+          'ÖBB ticket – 0428 3315 6092 7781 – Aug 20 2026',
+          sender: 'oebb.at',
+          text: close,
+          daysAgo: 163,
+        ),
+      ]).single;
+      expect(b.start.day, DateTime(2026, 8, 20));
+      expect(
+        bookings([
+          mail(
+            'ÖBB ticket – 0428 3315 6092 7781',
+            sender: 'oebb.at',
+            text: close.replaceFirst(RegExp('Day of travel: .*'), ''),
+            daysAgo: 163,
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test(
+      'an Avanti West Coast booking as sent: one way, times in brackets',
+      () {
+        final email = mail(
+          'Your Booking Confirmation: 30482716',
+          sender: 'avantiwestcoast.co.uk',
+          name: 'Avanti West Coast',
+          text: _avantiReal,
+          daysAgo: 134,
+        );
+        final b = bookings([email]).single;
+        final info = b.info as TransitReservationInfo;
+        expect(b.kind, ReservationKind.train);
+        expect(info.reservationNumber, '30482716');
+        expect(info.provider, 'Avanti West Coast');
+        expect(info.from?.name, 'Glasgow Central');
+        expect(info.to?.name, 'London Euston');
+        expect(b.start.wall, DateTime.utc(2026, 8, 29, 8));
+        expect(b.end?.wall, DateTime.utc(2026, 8, 29, 13, 38));
+        expect(b.fromCity, 'Glasgow');
+        expect(b.city, 'London');
+
+        // Each way of writing the route will do alone: over two lines...
+        final twoLines = bookings([
+          mail(
+            'Your Booking Confirmation: 30482716',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: _avantiReal.replaceFirst(
+              'Glasgow Central (08:00) to London Euston (13:38)\n',
+              '',
+            ),
+            daysAgo: 134,
+          ),
+        ]).single;
+        expect(twoLines.start.wall, DateTime.utc(2026, 8, 29, 8));
+        expect(twoLines.end?.wall, DateTime.utc(2026, 8, 29, 13, 38));
+        // ...or with the times in brackets.
+        final brackets = bookings([
+          mail(
+            'Your Booking Confirmation: 30482716',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: _avantiReal.replaceFirst(
+              'Glasgow Central/Queen St\nto London Euston / Single\n',
+              '',
+            ),
+            daysAgo: 134,
+          ),
+        ]).single;
+        expect(brackets.info.from?.name, 'Glasgow Central');
+        expect(brackets.start.wall, DateTime.utc(2026, 8, 29, 8));
+        expect(brackets.end?.wall, DateTime.utc(2026, 8, 29, 13, 38));
+      },
+    );
+
+    test('an Avanti footer about Delay Repay and refunds does not veto', () {
+      final email = mail(
+        'Your Booking Confirmation: 30482716',
+        sender: 'avantiwestcoast.co.uk',
+        name: 'Avanti West Coast',
+        text: _avantiReal,
+        daysAgo: 134,
+      );
+      expect(_avantiReal, contains('Delay Repay'));
+      expect(_avantiReal, contains('Need a refund?'));
+      final record = TripFinder.read(email);
+      expect(record.cancels, isFalse);
+      expect(record.reservations, hasLength(1));
+      // In the subject, it is a claim, not a journey.
+      expect(
+        bookings([
+          mail(
+            'Your Delay Repay claim',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: _avantiReal,
+            daysAgo: 134,
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
     test('a coach, and a train booked through a travel site', () {
       final coach = bookings([
         mail(
@@ -1069,6 +1330,11 @@ Coach 05, Seat 12F, 2nd class
         DateTime(2027, 3, 3),
       );
       expect(TripText.datesIn('Version 4412.553.901', sent), isEmpty);
+      // Month first, no comma before the year.
+      expect(
+        TripText.datesIn('Day of travel: Aug 20 2026', sent).single.day,
+        DateTime(2026, 8, 20),
+      );
       expect(TripText.timesIn('Abfahrt 08:30').single.hour, 8);
     });
   });
