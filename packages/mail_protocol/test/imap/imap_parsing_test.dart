@@ -451,6 +451,48 @@ void main() {
       );
     });
 
+    test('search criteria: Gmail search, text, OR, flagged', () {
+      ImapCommand command(SearchCriteria criteria) {
+        final command = ImapCommand('SEARCH');
+        criteria.applyTo(command);
+        return command;
+      }
+
+      String search(SearchCriteria criteria) => text(command(criteria));
+      expect(
+        search(
+          SearchCriteria.and([
+            SearchCriteria.gmailRaw('-in:inbox -in:"sent"'),
+            SearchCriteria.flagged(),
+            SearchCriteria.since(DateTime.utc(2026, 3, 9)),
+          ]),
+        ),
+        r'SEARCH X-GM-RAW "-in:inbox -in:\"sent\"" FLAGGED SINCE 9-Mar-2026',
+      );
+      expect(
+        search(
+          SearchCriteria.or(
+            SearchCriteria.subject('booking'),
+            SearchCriteria.from('booking'),
+          ),
+        ),
+        'SEARCH OR (SUBJECT "booking") (FROM "booking")',
+      );
+      expect(search(SearchCriteria.text('a')), 'SEARCH TEXT "a"');
+      expect(SearchCriteria.text('booking').needsUtf8, isFalse);
+      // Not ASCII: a literal, and the search names its charset.
+      final utf8Search = SearchCriteria.and([
+        SearchCriteria.uids(SequenceSet.range(1)),
+        SearchCriteria.or(
+          SearchCriteria.text('x'),
+          SearchCriteria.gmailRaw('Zürich'),
+        ),
+      ]);
+      expect(utf8Search.needsUtf8, isTrue);
+      final parts = command(utf8Search).build();
+      expect(parts.whereType<LiteralPart>(), hasLength(1));
+    });
+
     test('redacted commands hide secrets in descriptions', () {
       final command = ImapCommand('LOGIN')
         ..string('u')
