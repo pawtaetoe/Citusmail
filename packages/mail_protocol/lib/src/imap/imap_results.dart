@@ -619,4 +619,25 @@ final class ImapAuthenticationException extends MailException {
   ImapAuthenticationException(super.message, {this.code});
 
   final ImapResponseCode? code;
+
+  /// Response codes for a login refused for now, not for its password
+  /// (RFC 5530): the server is busy, the account has too many
+  /// connections, or it is being used elsewhere.
+  static const _busyCodes = {'UNAVAILABLE', 'LIMIT', 'INUSE'};
+
+  /// The same, said in words by servers that send no code (Gmail: "Too
+  /// many simultaneous connections", "Temporary System Problem. Try
+  /// again later").
+  static final _busyWords = RegExp(
+    r'too many|simultaneous|temporar|try again|rate.?limit|throttl|'
+    r'overload|busy|unavailable',
+    caseSensitive: false,
+  );
+
+  /// Whether the login was refused for now (busy, too many connections)
+  /// rather than for its password: worth trying again later, and not a
+  /// reason to ask for the password.
+  bool get temporary =>
+      _busyCodes.contains(code?.name) ||
+      (code?.name != 'AUTHENTICATIONFAILED' && _busyWords.hasMatch(message));
 }
