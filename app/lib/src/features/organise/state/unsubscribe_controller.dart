@@ -65,12 +65,16 @@ final class UnsubscribeController {
         listName: r.unsubscribe.listName,
         kind: kind,
       );
+      // The one-click request may have outlived the screen: the
+      // unsubscription is kept, but there is nothing left to show it on.
+      if (_reader.disposed) return null;
       final reader = _reader.reader;
       if (reader.value case final ReaderReady open
           when open.message.id == r.message.id) {
         reader.value = open.copyWith(unsubscribed: record);
       }
     }
+    if (_reader.disposed) return null;
     final name = r.unsubscribe.listName;
     final done = switch (kind) {
       UnsubscribeKind.webPage => 'Opened the unsubscribe page for $name',

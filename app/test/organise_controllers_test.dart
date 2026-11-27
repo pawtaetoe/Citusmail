@@ -132,6 +132,28 @@ void main() {
       },
     );
 
+    test('an unsubscribe finishing after the screen closed is kept', () async {
+      final message = app.seedFixture(
+        'newsletters/one-click-unsubscribe.eml',
+        subject: '50% off everything this week',
+        uid: 70,
+      );
+      await c.reader.open(message);
+      final ready = c.reader.reader.value as ReaderReady;
+      final before = c.notices.length;
+      c.reader.dispose();
+      final problem = await c.unsubscribe.unsubscribe(
+        ready,
+        WebPageMethod(Uri.parse('https://shop.example/unsub')),
+      );
+      expect(problem, isNull);
+      expect(
+        c.store.unsubscriptions.find(c.accountId, 'list:weekly.shop.example'),
+        isNotNull,
+      );
+      expect(c.notices.length, before, reason: 'nothing left to show it on');
+    });
+
     test('the open message shows it at once', () async {
       final message = app.seedFixture(
         'newsletters/one-click-unsubscribe.eml',
