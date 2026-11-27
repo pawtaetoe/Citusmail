@@ -79,15 +79,17 @@ final class LocationController {
     }
     _list.setLoadingOlder(true);
     var added = 0;
+    var failed = false;
     try {
       for (final mailboxId in folders) {
         added += await _worker.fetchOlder(mailboxId);
       }
     } on SyncWorkerException {
-      // Offline: try again on the next scroll.
+      // Offline: not the end, so the next scroll tries again.
+      failed = true;
     }
     if (_disposed) return;
-    _list.setLoadingOlder(false, reachedEnd: added == 0);
+    _list.setLoadingOlder(false, reachedEnd: !failed && added == 0);
     _list.loadMoreStored();
   }
 

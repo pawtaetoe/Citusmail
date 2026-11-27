@@ -32,13 +32,7 @@ final class FolderController {
       }
       return null;
     } on ArgumentError catch (e) {
-      return switch (e.message) {
-        final String message when message.contains('separator') =>
-          'Folder names can\'t contain "${message.split('"')[1]}" on this server.',
-        final String message when message.contains('INBOX') =>
-          'Inbox already exists.',
-        _ => 'That can\'t be a folder name.',
-      };
+      return refusedName(e.message);
     } on SyncWorkerException catch (e) {
       return e.failure.kind == SyncFailureKind.network
           ? 'Folders can only be created while online.'
@@ -92,6 +86,21 @@ final class FolderController {
   }
 
   void removeRule(FolderRule rule) => _store.folderRules.remove(rule.id);
+
+  /// Says why the sync layer refused a folder name, from its error
+  /// [message].
+  static String refusedName(Object? message) => switch (message) {
+    final String message when message.contains('separator') => switch (RegExp(
+      '"([^"]+)"',
+    ).firstMatch(message)?.group(1)) {
+      final separator? =>
+        'Folder names can\'t contain "$separator" on this server.',
+      null => 'Folder names can\'t contain this server\'s separator.',
+    },
+    final String message when message.contains('INBOX') =>
+      'Inbox already exists.',
+    _ => 'That can\'t be a folder name.',
+  };
 
   void dispose() => _disposed = true;
 }

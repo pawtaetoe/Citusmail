@@ -113,6 +113,203 @@ Depart 10:40   Arrive 16:55
 Baggage: 20kg checked baggage. Manage your booking at scoot.com.
 ''';
 
+/// An Avanti West Coast-style confirmation: no markup, the eTickets in a
+/// PDF, the journeys in its words.
+const _avantiText = '''
+Your Booking Confirmation
+
+Hi Alex,
+
+Thanks for booking with Avanti West Coast. Your booking is confirmed and
+your eTickets are attached to this email as a PDF. Show them on your
+phone or print them, and have them ready for inspection on board.
+
+Booking reference: 21699058
+
+Outward journey
+Sunday 28 June 2026
+London Euston to Manchester Piccadilly
+Depart 08:40   Arrive 10:48
+Direct, 2h 8m
+Coach C, Seat 42 (window, forward facing)
+Ticket: Advance Single, Standard Premium
+
+Return journey
+Wednesday 1 July 2026
+Manchester Piccadilly to London Euston
+Depart 17:35   Arrive 19:47
+Direct, 2h 12m
+Coach C, Seat 18 (aisle)
+Ticket: Advance Single, Standard
+
+Passengers: 1 adult
+Total paid: £86.40
+Booked on 23 June 2026 at 09:14
+
+Manage your booking at avantiwestcoast.co.uk. Travelling with a Railcard?
+Remember to bring it with you.
+''';
+
+/// An ÖBB-style ticket email in German: the stations and times on one
+/// line, the date written the Austrian way.
+const _oebbGerman = '''
+Sehr geehrte Frau Tan,
+
+vielen Dank für Ihre Buchung bei den ÖBB. Ihr Ticket finden Sie im
+Anhang dieser E-Mail als PDF.
+
+Ticketnummer: 0919 1410 7516 0291
+Buchungscode: 8F3KQ2
+
+Hinfahrt
+So., 2. August 2026
+Wien Hbf ab 08:30 → Salzburg Hbf an 10:52
+Railjet Xpress RJX 862, 2. Klasse
+Wagen 23, Platz 45, Fenster
+
+Reisende: 1 Erwachsene/r
+Preis: € 37,90
+Kaufdatum: 26.05.2026, 11:04
+
+Bitte führen Sie Ihr Ticket und einen Lichtbildausweis mit.
+Gute Reise wünschen Ihnen Ihre ÖBB.
+''';
+
+/// The same ticket in English: the stations as a table's cells, no date
+/// but the subject's, and a ticket number only.
+const _oebbEnglish = '''
+Dear Ms Tan,
+
+Thank you for your booking with ÖBB. Your ticket is attached to this
+email as a PDF; please carry it with you together with a photo ID.
+
+Ticket number: 0919 1410 7516 0291
+
+Outward journey
+From:
+Wien Hbf
+To:
+Salzburg Hbf
+Departure 08:30, arrival 10:52
+Railjet Xpress RJX 862, 2nd class
+Coach 23, seat 45
+
+Price: EUR 37.90
+Date of purchase: 26 May 2026
+
+Have a good journey!
+Your ÖBB
+''';
+
+/// A Singapore Airlines-style redemption booking: a table, one cell per
+/// line once the HTML is text, the airport codes in cells of their own.
+const _sqRedemption = '''
+Your redemption booking is confirmed
+
+Dear Ms Alice Tan,
+
+Thank you for redeeming your KrisFlyer miles with Singapore Airlines.
+Your e-ticket itinerary is attached.
+
+Booking reference
+EB3QZK
+
+KrisFlyer miles redeemed
+92,000
+
+Flight 1
+SQ 322
+Sun 12 Jul 2026
+Singapore
+SIN
+22:05
+Changi Airport Terminal 3
+London
+LHR
+05:15 (+1)
+Heathrow Airport Terminal 2
+Business Saver Award
+
+Flight 2
+SQ 317
+Sun 26 Jul 2026
+London
+LHR
+11:35
+Heathrow Airport Terminal 2
+Singapore
+SIN
+07:55 (+1)
+Changi Airport Terminal 3
+Business Saver Award
+
+Taxes and surcharges paid: SGD 642.30
+''';
+
+/// An Osaka hotel's own confirmation, and later its change email under a
+/// new reservation number.
+const _osakaBooked = '''
+Dear Alice Tan,
+
+Thank you for choosing Osaka View Hotel Honmachi. Your reservation has
+been booked as follows.
+
+Reservation number: 20261215-4471
+Hotel: Osaka View Hotel Honmachi
+Address: 2-3-10 Honmachi, Chuo-ku, Osaka 541-0053, Japan
+
+Check-in: Tue, 15 Dec 2026 15:00
+Check-out: Mon, 21 Dec 2026 11:00
+Nights: 6
+Room: Superior Double, non-smoking
+Guests: 2 adults
+
+If you need to change or cancel your reservation, please contact us.
+Free cancellation until 3 days before arrival.
+''';
+
+const _osakaChanged = '''
+Dear Alice Tan,
+
+Your reservation at Osaka View Hotel Honmachi has been changed. Please
+check the new dates below.
+
+Reservation number: 20261221-4583
+
+Previous dates
+Check-in: Tue, 15 Dec 2026
+Check-out: Mon, 21 Dec 2026
+
+New dates
+Check-in: Mon, 21 Dec 2026 15:00
+Check-out: Thu, 24 Dec 2026 11:00
+Nights: 3
+Room: Superior Double, non-smoking
+Guests: 2 adults
+
+Address: 2-3-10 Honmachi, Chuo-ku, Osaka 541-0053, Japan
+''';
+
+/// Three more nights at the same hotel, booked separately.
+const _osakaMoreNights = '''
+Dear Alice Tan,
+
+Thank you for choosing Osaka View Hotel Honmachi again. Your
+reservation has been booked as follows.
+
+Reservation number: 20261221-4583
+Hotel: Osaka View Hotel Honmachi
+Address: 2-3-10 Honmachi, Chuo-ku, Osaka 541-0053, Japan
+
+Check-in: Mon, 21 Dec 2026 15:00
+Check-out: Thu, 24 Dec 2026 11:00
+Nights: 3
+Room: Standard Twin, non-smoking
+Guests: 2 adults
+
+If you need to change or cancel your reservation, please contact us.
+''';
+
 void main() {
   group('from markup', () {
     test('a Singapore Airlines-style return flight and a hotel: one trip', () {
@@ -712,6 +909,503 @@ New: Depart 02:15   Arrive 09:50
         ReservationKind.train,
         ReservationKind.flight,
       ]);
+    });
+  });
+
+  group('trains and coaches from their words', () {
+    test('an Avanti West Coast booking: there and back, one trip', () {
+      final found = trips([
+        mail(
+          'Your Booking Confirmation: 21699058',
+          sender: 'avantiwestcoast.co.uk',
+          name: 'Avanti West Coast',
+          text: _avantiText,
+          daysAgo: 134,
+        ),
+      ]);
+      final trip = found.single;
+      expect(trip.destinations, ['Manchester']);
+      final [out, back] = trip.bookings;
+      expect(out.kind, ReservationKind.train);
+      final info = out.info as TransitReservationInfo;
+      expect(info.reservationNumber, '21699058');
+      expect(info.provider, 'Avanti West Coast');
+      expect(info.from?.name, 'London Euston');
+      expect(info.to?.name, 'Manchester Piccadilly');
+      expect(info.start?.wall, DateTime.utc(2026, 6, 28, 8, 40));
+      expect(info.end?.wall, DateTime.utc(2026, 6, 28, 10, 48));
+      expect(out.city, 'Manchester');
+      expect(out.fromCity, 'London');
+      expect(back.kind, ReservationKind.train);
+      expect(back.start.wall, DateTime.utc(2026, 7, 1, 17, 35));
+      expect(back.end?.wall, DateTime.utc(2026, 7, 1, 19, 47));
+      expect(back.city, 'London');
+      expect(out.cancelled, isFalse);
+    });
+
+    test('an ÖBB ticket in German: European dates, times on the line', () {
+      final b = bookings([
+        mail(
+          'Ihr ÖBB Ticket – 0919 1410 7516 0291',
+          sender: 'oebb.at',
+          name: 'ÖBB',
+          text: _oebbGerman,
+          daysAgo: 162,
+        ),
+      ]).single;
+      final info = b.info as TransitReservationInfo;
+      expect(b.kind, ReservationKind.train);
+      expect(info.reservationNumber, '8F3KQ2');
+      expect(info.number, 'RJX 862');
+      expect(info.from?.name, 'Wien Hbf');
+      expect(info.to?.name, 'Salzburg Hbf');
+      expect(info.start?.wall, DateTime.utc(2026, 8, 2, 8, 30));
+      expect(info.end?.wall, DateTime.utc(2026, 8, 2, 10, 52));
+      expect(b.fromCity, 'Vienna');
+      expect(b.city, 'Salzburg');
+      expect(b.key, 'train:rjx862:2026-08-02');
+    });
+
+    test('an ÖBB ticket in English: the date from the subject', () {
+      final found = bookings([
+        mail(
+          'ÖBB ticket – 0919 1410 7516 0291 – Aug 2, 2026',
+          sender: 'oebb.at',
+          text: _oebbEnglish,
+          daysAgo: 162,
+        ),
+        // The same ticket again, in German: one booking.
+        mail(
+          'Ihr ÖBB Ticket – 0919 1410 7516 0291',
+          sender: 'oebb.at',
+          name: 'ÖBB',
+          text: _oebbGerman,
+          daysAgo: 162,
+        ),
+      ]);
+      final b = found.single;
+      expect(b.records, hasLength(2));
+      final first = b.infos.first as TransitReservationInfo;
+      expect(first.reservationNumber, '0919 1410 7516 0291');
+      expect(first.provider, 'ÖBB');
+      expect(first.from?.name, 'Wien Hbf');
+      expect(first.to?.name, 'Salzburg Hbf');
+      expect(first.start?.wall, DateTime.utc(2026, 8, 2, 8, 30));
+      expect(first.end?.wall, DateTime.utc(2026, 8, 2, 10, 52));
+      expect(b.city, 'Salzburg');
+    });
+
+    test('a coach, and a train booked through a travel site', () {
+      final coach = bookings([
+        mail(
+          'Your FlixBus booking confirmation',
+          sender: 'flixbus.com',
+          name: 'FlixBus',
+          text: '''
+Hello Alice,
+
+thanks for booking with FlixBus! Show your ticket on your phone when you
+board.
+
+Booking number: 3012345678
+
+Outbound trip, Fri 18 Dec 2026
+London Victoria Coach Station → Paris Bercy Seine
+Departure 07:30, arrival 16:15
+1 adult, 1 seat
+''',
+        ),
+      ]).single;
+      expect(coach.kind, ReservationKind.bus);
+      expect(coach.info.from?.name, 'London Victoria Coach Station');
+      expect(coach.start.wall, DateTime.utc(2026, 12, 18, 7, 30));
+      expect(coach.city, 'Paris');
+
+      final train = bookings([
+        mail(
+          'Train ticket booking confirmed',
+          sender: 'trip.com',
+          name: 'Trip.com',
+          text: '''
+Your train ticket booking is confirmed.
+
+Booking No.: 1234567890123
+
+Train G102
+Shanghai Hongqiao → Beijing South
+Sat, 12 Dec 2026
+06:37 – 12:15
+Coach 05, Seat 12F, 2nd class
+''',
+        ),
+      ]).single;
+      expect(train.kind, ReservationKind.train);
+      expect(train.start.wall, DateTime.utc(2026, 12, 12, 6, 37));
+      expect(train.end?.wall, DateTime.utc(2026, 12, 12, 12, 15));
+      expect(train.fromCity, 'Shanghai');
+      expect(train.city, 'Beijing');
+    });
+
+    test('dates and times written the European way', () {
+      final sent = DateTime.utc(2026, 5, 26, 10);
+      expect(
+        TripText.datesIn('02.08.2026', sent).single.day,
+        DateTime(2026, 8, 2),
+      );
+      expect(
+        TripText.datesIn('So., 2. Aug. 2026', sent).single.day,
+        DateTime(2026, 8, 2),
+      );
+      expect(
+        TripText.datesIn('Sun 2 August', sent).single.day,
+        DateTime(2026, 8, 2),
+      );
+      expect(
+        TripText.datesIn('Mo., 14. Dezember 2026', sent).single.day,
+        DateTime(2026, 12, 14),
+      );
+      expect(
+        TripText.datesIn('3. März 2027', sent).single.day,
+        DateTime(2027, 3, 3),
+      );
+      expect(TripText.datesIn('Version 4412.553.901', sent), isEmpty);
+      expect(TripText.timesIn('Abfahrt 08:30').single.hour, 8);
+    });
+  });
+
+  group('flights laid out as tables', () {
+    test('a Singapore Airlines redemption booking', () {
+      final found = trips([
+        mail(
+          'Your redemption booking confirmation EB3QZK',
+          sender: 'singaporeair.com',
+          name: 'Singapore Airlines',
+          text: _sqRedemption,
+          daysAgo: 237,
+        ),
+      ]);
+      final trip = found.single;
+      expect(trip.destinations, ['London']);
+      final [out, back] = trip.bookings;
+      final info = out.info as FlightReservationInfo;
+      expect(info.flightNumber, 'SQ 322');
+      expect(info.reservationNumber, 'EB3QZK');
+      expect(info.from?.code, 'SIN');
+      expect(info.to?.code, 'LHR');
+      expect(info.start?.wall, DateTime.utc(2026, 7, 12, 22, 5));
+      expect(info.end?.wall, DateTime.utc(2026, 7, 13, 5, 15));
+      final home = back.info as FlightReservationInfo;
+      expect(home.flightNumber, 'SQ 317');
+      expect(home.from?.code, 'LHR');
+      expect(home.to?.code, 'SIN');
+      expect(home.start?.wall, DateTime.utc(2026, 7, 26, 11, 35));
+      expect(home.end?.wall, DateTime.utc(2026, 7, 27, 7, 55));
+    });
+
+    test('codes side by side in a row, or one per line', () {
+      final row = TripText.flightsIn(
+        'Booking reference: EB3QZK\nFlight SQ 322 · Sun 12 Jul 2026\n'
+        'Singapore SIN 22:05   London LHR 05:15 (+1)',
+        sent: _now,
+      ).single;
+      expect(row.from?.code, 'SIN');
+      expect(row.to?.code, 'LHR');
+      expect(row.end?.wall, DateTime.utc(2026, 7, 13, 5, 15));
+      final cells = TripText.flightsIn(
+        'Flight SQ 322\n12 Jul 2026\nSIN\n22:05\nLHR\n05:15 (+1)',
+        sent: _now,
+      ).single;
+      expect(cells.from?.code, 'SIN');
+      expect(cells.to?.code, 'LHR');
+    });
+
+    test('words in capitals are not airports', () {
+      // THE and AND are not airports; CAN and ADD are, but not here: one
+      // follows a word in capitals, and one airport alone is no route.
+      expect(
+        TripText.flightsIn(
+          'Booking reference: EB3QZK\nFlight SQ 322 on 12 Jul 2026, 22:05\n'
+          'PLEASE NOTE THE\nAND\nYOU CAN\nADD\nBAGS ONLINE',
+          sent: _now,
+        ),
+        isEmpty,
+      );
+      // No flight number near: no flight.
+      expect(
+        TripText.flightsIn(
+          'Booking reference: EB3QZK\nSun 12 Jul 2026\nSIN\n22:05\nLHR\n05:15',
+          sent: _now,
+        ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('stays: names and changes', () {
+    test('the hotel name, not what the subject says of it', () {
+      String? name(String subject, {String? sender}) => TripText.stayIn(
+        mail(
+          subject,
+          sender: 'osakaviewhotel.jp',
+          name: sender,
+          text:
+              'Reservation number: 20261215-4471\n'
+              'Check-in: Tue, 15 Dec 2026 15:00\n'
+              'Check-out: Mon, 21 Dec 2026 11:00',
+        ),
+      )?.hotel?.name;
+      expect(
+        name('Osaka View Hotel Honmachi has been booked'),
+        'Osaka View Hotel Honmachi',
+      );
+      expect(
+        name(
+          'Reservation confirmation: Osaka View Hotel Honmachi has been booked',
+        ),
+        'Osaka View Hotel Honmachi',
+      );
+      expect(
+        name('Confirmed: Osaka View Hotel Honmachi has been changed'),
+        'Osaka View Hotel Honmachi',
+      );
+      expect(
+        name('Booking confirmed at Osaka View Hotel Honmachi is confirmed'),
+        'Osaka View Hotel Honmachi',
+      );
+      expect(
+        name(
+          'Your reservation has been confirmed',
+          sender: 'Osaka View Hotel Honmachi',
+        ),
+        'Osaka View Hotel Honmachi',
+      );
+    });
+
+    test('a stay changed to new dates shows once, with the new dates', () {
+      final found = bookings([
+        mail(
+          'Reservation confirmation: Osaka View Hotel Honmachi has been booked',
+          sender: 'osakaviewhotel.jp',
+          name: 'Osaka View Hotel Honmachi',
+          text: _osakaBooked,
+          daysAgo: 40,
+        ),
+        mail(
+          'Reservation change: Osaka View Hotel Honmachi has been changed',
+          sender: 'osakaviewhotel.jp',
+          name: 'Osaka View Hotel Honmachi',
+          text: _osakaChanged,
+          daysAgo: 2,
+        ),
+      ]);
+      final stay = found.single;
+      final info = stay.info as LodgingReservationInfo;
+      expect(info.hotel?.name, 'Osaka View Hotel Honmachi');
+      expect(stay.start.wall, DateTime.utc(2026, 12, 21, 15));
+      expect(stay.end?.wall, DateTime.utc(2026, 12, 24, 11));
+      expect(stay.changed, isTrue);
+      expect(stay.previousStart?.day, DateTime(2026, 12, 15));
+      expect(stay.records, hasLength(2));
+      expect(stay.city, 'Osaka');
+    });
+
+    test('two stays back to back, each booked: two stays', () {
+      final found = bookings([
+        mail(
+          'Osaka View Hotel Honmachi has been booked',
+          sender: 'osakaviewhotel.jp',
+          text: _osakaBooked,
+          daysAgo: 40,
+        ),
+        mail(
+          'Osaka View Hotel Honmachi has been booked',
+          sender: 'osakaviewhotel.jp',
+          text: _osakaMoreNights,
+          daysAgo: 2,
+        ),
+      ]);
+      expect(found, hasLength(2));
+      expect(found.map((b) => (b.info as LodgingReservationInfo).hotel?.name), [
+        'Osaka View Hotel Honmachi',
+        'Osaka View Hotel Honmachi',
+      ]);
+      expect(found.map((b) => b.start.day), [
+        DateTime(2026, 12, 15),
+        DateTime(2026, 12, 21),
+      ]);
+      expect(found.every((b) => !b.changed), isTrue);
+      expect(
+        trips([
+          mail(
+            'Osaka View Hotel Honmachi has been booked',
+            sender: 'osakaviewhotel.jp',
+            text: _osakaBooked,
+            daysAgo: 40,
+          ),
+          mail(
+            'Osaka View Hotel Honmachi has been booked',
+            sender: 'osakaviewhotel.jp',
+            text: _osakaMoreNights,
+            daysAgo: 2,
+          ),
+        ]).single.destinations,
+        ['Osaka'],
+      );
+    });
+
+    test('a change elsewhere, or after a gap, is not this stay', () {
+      final found = bookings([
+        mail(
+          'Osaka View Hotel Honmachi has been booked',
+          sender: 'osakaviewhotel.jp',
+          text: _osakaBooked,
+          daysAgo: 40,
+        ),
+        mail(
+          'Reservation change: Osaka View Hotel Honmachi has been changed',
+          sender: 'osakaviewhotel.jp',
+          text: _osakaChanged
+              .replaceAll('21 Dec 2026 15:00', '28 Dec 2026 15:00')
+              .replaceAll('24 Dec 2026', '30 Dec 2026'),
+          daysAgo: 2,
+        ),
+      ]);
+      expect(found, hasLength(2));
+    });
+  });
+
+  group('not trips', () {
+    test('rail marketing', () {
+      const offer = '''
+Hi Alex,
+
+Escape to Scotland for less. Save 30% on Advance fares from London
+Euston to Glasgow Central when you book by 15 November 2026.
+
+London Euston to Glasgow Central from £29.90
+Travel between 1 December 2026 and 28 February 2027.
+
+Booking reference: not needed. Terms and conditions apply.
+Unsubscribe
+''';
+      expect(
+        bookings([
+          mail(
+            'Save 30% on trains to Glasgow',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: offer,
+          ),
+          mail(
+            'Save 30% on trains to Glasgow',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: offer,
+            bulk: true,
+          ),
+          mail(
+            'Your next adventure starts at London Euston',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: offer,
+          ),
+        ]),
+        isEmpty,
+      );
+      expect(
+        TripFinder.looksLikeBooking('Save 30% on trains to Glasgow'),
+        isFalse,
+      );
+    });
+
+    test('a UK ETA approval', () {
+      const eta = '''
+Dear ALICE TAN,
+
+Your application for an electronic travel authorisation (ETA) to travel
+to the UK has been approved.
+
+Application reference number: 7543-2190-8812-4410
+Passport number ending: 4521
+Your ETA is valid for 2 years, until 14 March 2028, or until your
+passport expires, if sooner.
+
+You can travel to the UK by plane, train or ferry. You do not need to
+print anything: your ETA is linked digitally to your passport.
+
+Date of decision: 14 March 2026
+''';
+      expect(
+        trips([
+          mail(
+            'ETA application approved',
+            sender: 'homeoffice.gov.uk',
+            name: 'UK Visas and Immigration',
+            text: eta,
+          ),
+          mail(
+            'Your trip to the UK: travel information',
+            sender: 'homeoffice.gov.uk',
+            name: 'UK Visas and Immigration',
+            text: eta,
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a season ticket renewal: no journey date', () {
+      const renewal = '''
+Hi Alex,
+
+Thank you for travelling with us.
+
+Ticket: Annual Season, Milton Keynes Central to London Euston
+Season ticket number: 7712 3349 0021 5567
+Booking reference: 55120391
+Your current ticket is valid until 31 December 2026.
+Renew by 24 December 2026 to keep travelling without a gap.
+
+Renew online at londonnorthwesternrailway.co.uk, or at any staffed
+ticket office.
+''';
+      expect(
+        bookings([
+          mail(
+            'Your season ticket is due for renewal',
+            sender: 'londonnorthwesternrailway.co.uk',
+            name: 'London Northwestern Railway',
+            text: renewal,
+          ),
+          // A neutral subject: still no day to travel on.
+          mail(
+            'A reminder about your ticket',
+            sender: 'londonnorthwesternrailway.co.uk',
+            name: 'London Northwestern Railway',
+            text: renewal,
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a hotel near a station is a stay, not a train', () {
+      final b = bookings([
+        mail(
+          'Booking confirmation - Hotel Granvia Kyoto',
+          sender: 'granviakyoto.com',
+          name: 'Hotel Granvia Kyoto',
+          text: '''
+Confirmation number: GV-88123
+Hotel Granvia Kyoto, directly above the JR train platforms.
+Access: Kyoto Station to Osaka Station - 15 minutes by train.
+Check-in: Tue, 15 Dec 2026 15:00
+Check-out: Thu, 17 Dec 2026 12:00
+''',
+        ),
+      ]).single;
+      expect(b.kind, ReservationKind.stay);
+      expect(b.city, 'Kyoto');
     });
   });
 

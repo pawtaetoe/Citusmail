@@ -40,6 +40,9 @@ final class ReaderController {
   final VoidCallback _refresh;
   bool _disposed = false;
 
+  /// Whether the screen has closed (nothing may be shown any more).
+  bool get disposed => _disposed;
+
   MailStore get _store => _services.store;
 
   final reader = ValueNotifier<ReaderState>(const ReaderEmpty());
@@ -243,6 +246,7 @@ final class ReaderController {
   }
 
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     reader.dispose();
   }

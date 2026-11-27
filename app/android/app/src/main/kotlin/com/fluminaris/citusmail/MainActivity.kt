@@ -6,12 +6,15 @@ package com.fluminaris.citusmail
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
+import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.PowerManager
 import android.os.SystemClock
+import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.work.OneTimeWorkRequestBuilder
@@ -20,6 +23,7 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.IOException
 
 // A FragmentActivity, as the system's fingerprint dialog (local_auth) needs.
 class MainActivity : FlutterFragmentActivity() {
@@ -127,6 +131,12 @@ class MainActivity : FlutterFragmentActivity() {
                         val title = call.argument<String>("title") ?: ""
                         result.success(bytes != null && shareFile(name, bytes, title))
                     }
+                    "saveToDownloads" -> {
+                        val name = call.argument<String>("name") ?: "file"
+                        val bytes = call.argument<ByteArray>("bytes")
+                        val mime = call.argument<String>("mime") ?: "application/octet-stream"
+                        result.success(if (bytes == null) null else saveToDownloads(name, bytes, mime))
+                    }
                     "forgetSharedFile" -> {
                         File(cacheDir, "pairing").deleteRecursively()
                         result.success(true)
@@ -157,6 +167,35 @@ class MainActivity : FlutterFragmentActivity() {
             true
         } catch (e: ActivityNotFoundException) {
             false
+        }
+    }
+
+    // A file the user saved, into the public Downloads/Citusmail folder
+    // where the Files app and other apps find it (Android 10+: through
+    // MediaStore, no storage permission needed). The system picks a free
+    // name ("report (1).pdf"), so nothing is overwritten. Returns the name
+    // it was saved under, or null on older Android (Dart then keeps it in
+    // the app's own folder) or when it could not be written.
+    private fun saveToDownloads(name: String, bytes: ByteArray, mime: String): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val safeName = name.replace(Regex("""[/\\\x00-\x1f]"""), "_").ifBlank { "file" }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
+            put(MediaStore.MediaColumns.MIME_TYPE, mime)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Citusmail")
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val resolver = contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
+        return try {
+            resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: throw IOException("no stream")
+            resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+            resolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) it.getString(0) else null
+            } ?: safeName
+        } catch (e: Exception) {
+            resolver.delete(uri, null, null)
+            null
         }
     }
 

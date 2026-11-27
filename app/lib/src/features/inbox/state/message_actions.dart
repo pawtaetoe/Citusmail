@@ -155,14 +155,22 @@ final class MessageActions {
   /// there or in accounts without one).
   void archive(List<StoredMessage> messages, {String? done}) {
     final byAccount = <AccountId, List<StoredMessage>>{};
+    var alreadyArchived = 0;
     for (final m in messages) {
       final archive = archiveFor(m);
-      if (archive != null && archive.id != m.mailboxId) {
+      if (archive == null) continue;
+      if (archive.id == m.mailboxId) {
+        alreadyArchived++;
+      } else {
         byAccount.putIfAbsent(m.accountId, () => []).add(m);
       }
     }
     if (byAccount.isEmpty) {
-      _notify('There is no Archive folder for this account.');
+      _notify(
+        alreadyArchived > 0
+            ? 'Already in Archive.'
+            : 'There is no Archive folder for this account.',
+      );
       return;
     }
     final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
