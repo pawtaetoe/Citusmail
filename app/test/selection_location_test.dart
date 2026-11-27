@@ -120,7 +120,7 @@ void main() {
       expect(location.location.value, const InboxLocation());
     });
 
-    test('loading more offline keeps the list and can try again', () async {
+    test('loading more offline keeps the list', () async {
       await location.loadMore();
       expect(list.loadingOlder, isFalse);
       expect(list.visible.length, 5);

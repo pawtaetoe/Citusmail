@@ -46,20 +46,31 @@ export '../../reader/state/reader_state.dart'
 export 'mail_counts.dart' show MailCounts;
 export 'sync_status.dart' show SyncIdle, SyncProblem, SyncRunning, SyncStatus;
 
-/// The mail screen's state, in separate pieces so each part of the screen
-/// rebuilds only when its own data changes:
+/// The mail screen's state, as one object for the screens to hold.
 ///
-/// - [location]: where the user is;
+/// It makes the focused controllers below, wires them together and keeps
+/// the screen's API by handing each call to the one whose job it is. Each
+/// part of the screen rebuilds only when its own data changes:
+///
+/// - [location]: where the user is ([locationController]);
 /// - [list]: what the list shows (paged; index reads only);
-/// - [counts]: sidebar and section counts;
-/// - [reader]: the open message;
-/// - [selection]: messages picked for a bulk action;
-/// - [status]: sync status.
+/// - [counts]: sidebar and section counts ([countsController]);
+/// - [reader]: the open message ([readerController]);
+/// - [selection]: messages picked for a bulk action
+///   ([selectionController]);
+/// - [status]: sync status ([syncStatusController]).
+///
+/// The controllers depend on each other one way only (see
+/// docs/architecture.md); what goes back up is a callback: [refresh] to
+/// re-read the screen, [onNotice] to tell the user something.
 final class MailController {
   MailController(this.services)
     : list = MessageListModel(services.store),
       followUps = FollowUpReminders(services.store),
-      syncStatus = SyncStatusController(services.store, services.worker) {
+      syncStatusController = SyncStatusController(
+        services.store,
+        services.worker,
+      ) {
     countsController = CountsController(_store, list, followUps);
     composeStarter = ComposeStarter(
       services,
@@ -156,7 +167,6 @@ final class MailController {
       refresh: refresh,
       notify: _notify,
     );
-    accountOrder = AccountOrder(_store);
     invitationController = InvitationController(
       services,
       refresh: refresh,
@@ -169,15 +179,17 @@ final class MailController {
       refresh: refresh,
       notify: _notify,
     );
-    syncStatus.onEvent = _onSyncEvent;
+    accountOrder = AccountOrder(_store);
+    syncStatusController.onEvent = _onSyncEvent;
+
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
     // What arrived since the app was last used (closed, or in the
     // background) is "New since you were away".
     list.away.cameBack();
     list.show(location.value);
-    _refreshCounts();
-    _refreshCodesOffer();
+    countsController.refresh();
+    oldCodesController.refreshOffer();
     wakeSnoozes();
     checkFollowUps();
     // Android: a background check when the next scheduled message (or
@@ -188,25 +200,35 @@ final class MailController {
   final AppServices services;
   final MessageListModel list;
 
-  /// Where the user is, and loading more of its list.
-  late final LocationController locationController;
-  ValueNotifier<MailLocation> get location => locationController.location;
+  /// "Remind me if no reply" on sent mail, kept on this device.
+  final FollowUpReminders followUps;
+
+  // The focused controllers, in the order they are made: each takes only
+  // those above it. The compose starter reads the location through a
+  // callback.
+
+  /// The sync worker's events and the status line.
+  final SyncStatusController syncStatusController;
 
   /// Sidebar and section counts.
   late final CountsController countsController;
-  ValueNotifier<MailCounts> get counts => countsController.counts;
-
-  /// The open message.
-  late final ReaderController readerController;
-  ValueNotifier<ReaderState> get reader => readerController.reader;
 
   /// New messages, replies, forwards and drafts in the compose window.
   late final ComposeStarter composeStarter;
 
+  /// The open message, its images and read receipts.
+  late final ReaderController readerController;
+
+  /// Messages picked for a bulk action.
+  late final SelectionController selectionController;
+
+  /// Where the user is, and loading more of its list.
+  late final LocationController locationController;
+
   /// Pin, read, archive, move and delete, with Undo.
   late final MessageActions messageActions;
 
-  /// Creating folders, and their rules.
+  /// Creating folders, where mail can move, and folder rules.
   late final FolderController folderController;
 
   /// When snoozed mail and follow-ups are next due.
@@ -233,22 +255,20 @@ final class MailController {
   /// The Screener's first-time senders.
   late final ScreenerController screenerController;
 
-  /// The accounts' order.
-  late final AccountOrder accountOrder;
-
   /// Answering calendar invitations.
   late final InvitationController invitationController;
 
   /// Failed and scheduled sends.
   late final OutboxController outboxController;
 
-  /// Messages picked for a bulk action.
-  late final SelectionController selectionController;
-  ValueNotifier<Set<int>> get selection => selectionController.selection;
+  /// The accounts' order.
+  late final AccountOrder accountOrder;
 
-  /// The sync worker's events and the status line.
-  final SyncStatusController syncStatus;
-  ValueNotifier<SyncStatus> get status => syncStatus.status;
+  ValueNotifier<MailLocation> get location => locationController.location;
+  ValueNotifier<MailCounts> get counts => countsController.counts;
+  ValueNotifier<ReaderState> get reader => readerController.reader;
+  ValueNotifier<Set<int>> get selection => selectionController.selection;
+  ValueNotifier<SyncStatus> get status => syncStatusController.status;
 
   /// Moves old verification codes out of the inbox, once agreed.
   CodeCleaner get codeCleaner => oldCodesController.codeCleaner;
@@ -281,9 +301,10 @@ final class MailController {
 
   /// Asks for an account's new password or sign-in (set by the screen
   /// that can show it).
-  void Function(Account account)? get onReconnect => syncStatus.onReconnect;
+  void Function(Account account)? get onReconnect =>
+      syncStatusController.onReconnect;
   set onReconnect(void Function(Account account)? value) =>
-      syncStatus.onReconnect = value;
+      syncStatusController.onReconnect = value;
 
   /// Announces snoozed mail that came back (set by the screen that can
   /// post notifications).
@@ -299,7 +320,8 @@ final class MailController {
       followUpController.onFollowUpsBack = value;
 
   /// Fixes the login of the account in [status], if that is the problem.
-  void reconnect(SyncProblem problem) => syncStatus.reconnect(problem);
+  void reconnect(SyncProblem problem) =>
+      syncStatusController.reconnect(problem);
 
   // ------------------------------------------------------------ location
 
@@ -320,17 +342,13 @@ final class MailController {
   void refresh() {
     if (_disposed) return;
     list.refresh();
-    _refreshCounts();
-    _refreshSelected();
-    _refreshCodesOffer();
+    countsController.refresh();
+    readerController.refreshOpen();
+    oldCodesController.refreshOffer();
     wakeTimer.schedule();
   }
 
-  void _refreshCounts() => countsController.refresh();
-
   // ---------------------------------------------------------- old codes
-
-  void _refreshCodesOffer() => oldCodesController.refreshOffer();
 
   /// After a sync: moves old codes out of the inbox (at most once an hour,
   /// once the user agreed), and says so with Undo. The open message and
@@ -361,6 +379,10 @@ final class MailController {
 
   void closeMessage() => readerController.close();
 
+  /// Opens the message after (or before) the open one in the list.
+  void openNext({bool previous = false}) =>
+      readerController.openNext(previous: previous);
+
   // -------------------------------------------------------------- images
 
   /// Loads the open message's images; with [always], also for later mail
@@ -383,12 +405,6 @@ final class MailController {
     UnsubscribeMethod method, {
     bool archiveList = false,
   }) => unsubscribeController.unsubscribe(r, method, archiveList: archiveList);
-
-  /// Opens the message after (or before) the open one in the list.
-  void openNext({bool previous = false}) =>
-      readerController.openNext(previous: previous);
-
-  void _refreshSelected() => readerController.refreshOpen();
 
   // ----------------------------------------------------------- selection
 
@@ -505,9 +521,6 @@ final class MailController {
 
   // ---------------------------------------------------------- follow-ups
 
-  /// "Remind me if no reply" on sent mail, kept on this device.
-  final FollowUpReminders followUps;
-
   /// Whether [m] is mail the user sent (in Sent, or from one of their
   /// addresses) that can get a follow-up reminder.
   bool canFollowUp(StoredMessage m) => followUpController.canFollowUp(m);
@@ -622,16 +635,10 @@ final class MailController {
   void screenOut(WaitingSender sender, {bool wholeDomain = false}) =>
       screenerController.screenOut(sender, wholeDomain: wholeDomain);
 
-  /// Folders a message can be moved to.
-  List<StoredMailbox> moveTargets(StoredMessage m) =>
-      folderController.moveTargets(m);
-
   // ----------------------------------------------------------- composing
 
   /// A new message from the account being viewed (or the first account).
-  void compose() {
-    composeStarter.compose();
-  }
+  void compose() => composeStarter.compose();
 
   /// A new message to a `mailto:` link's address (and subject, if given).
   void composeTo(Uri mailto) {
@@ -696,6 +703,10 @@ final class MailController {
 
   void removeRule(FolderRule rule) => folderController.removeRule(rule);
 
+  /// Folders a message can be moved to.
+  List<StoredMailbox> moveTargets(StoredMessage m) =>
+      folderController.moveTargets(m);
+
   // -------------------------------------------------------------- outbox
 
   /// Messages waiting to be sent or failed, oldest first.
@@ -728,9 +739,10 @@ final class MailController {
 
   // ---------------------------------------------------------------- sync
 
-  SyncEvent? lastEvent(int accountId) => syncStatus.lastEvent(accountId);
+  SyncEvent? lastEvent(int accountId) =>
+      syncStatusController.lastEvent(accountId);
 
-  Future<void> syncNow() => syncStatus.syncNow();
+  Future<void> syncNow() => syncStatusController.syncNow();
 
   /// After each sync event (the status line is up to date by then).
   void _onSyncEvent(SyncEvent event) {
@@ -744,24 +756,26 @@ final class MailController {
     _refreshSoon = Timer(const Duration(milliseconds: 250), refresh);
   }
 
+  /// Stops what can still call in (timers, sync events, the sorter),
+  /// then disposes the controllers, those that use others first.
   void dispose() {
     _disposed = true;
     _refreshSoon?.cancel();
     wakeTimer.dispose();
-    snoozeController.dispose();
-    followUpController.dispose();
-    syncStatus.dispose();
+    syncStatusController.dispose();
     services.resorted.removeListener(refresh);
-    _summary?.dispose();
-    list.dispose();
-    locationController.dispose();
-    countsController.dispose();
-    readerController.dispose();
-    composeStarter.dispose();
-    folderController.dispose();
-    selectionController.dispose();
     invitationController.dispose();
     accountOrder.dispose();
     oldCodesController.dispose();
+    followUpController.dispose();
+    snoozeController.dispose();
+    folderController.dispose();
+    locationController.dispose();
+    selectionController.dispose();
+    readerController.dispose();
+    composeStarter.dispose();
+    countsController.dispose();
+    _summary?.dispose();
+    list.dispose();
   }
 }
