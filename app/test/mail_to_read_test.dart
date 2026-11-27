@@ -30,7 +30,7 @@ void main() {
   tearDown(() => app.dispose());
 
   /// An inbox message [daysAgo] old; returns its id.
-  int add(
+  MessageId add(
     String subject,
     String from, {
     String? name,
@@ -58,14 +58,14 @@ void main() {
     return app.store.messages.byUid(inbox.id, at)!.id;
   }
 
-  void download(int id) => app.store.messages.saveBody(
+  void download(MessageId id) => app.store.messages.saveBody(
     id,
     utf8.encode('Subject: x\r\n\r\nThanks.\r\n'),
     searchableText: 'Thanks.',
   );
 
   group('Subscriptions', () {
-    Future<List<int>> toRead({Set<int> skip = const {}}) async =>
+    Future<List<MessageId>> toRead({Set<MessageId> skip = const {}}) async =>
         (await findSubscriptions(
           app.store,
           now,

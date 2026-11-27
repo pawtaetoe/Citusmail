@@ -23,7 +23,7 @@ typedef DeliveriesFound = ({
   Set<String> learned,
   Set<String> marked,
   List<ReturnWindow> returns,
-  List<int> toRead,
+  List<MessageId> toRead,
 });
 
 /// The Deliveries page's findings in [store], reading text and markup off
@@ -32,7 +32,7 @@ typedef DeliveriesFound = ({
 Future<DeliveriesFound> findDeliveries(
   MailStore store,
   DateTime now, {
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) async {
   Set<String> read(StringListSetting setting) =>
       setting.read(store.settings).toSet();
@@ -71,12 +71,12 @@ Future<DeliveriesFound> findDeliveries(
 /// deliveries on the way without a tracking number or a date (those in
 /// [left] aside), not on the device. Small ones only, newsletters aside,
 /// at most [DeliveriesModel.readMax]; [skip] left out.
-List<int> deliveryMailToRead(
+List<MessageId> deliveryMailToRead(
   MailStore store,
   List<StoredMessage> candidates,
   List<Delivery> all, {
   required Set<String> left,
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) {
   final known = {
     for (final d in all)
@@ -105,7 +105,7 @@ List<int> deliveryMailToRead(
 /// What the classifier reads of [delivery]'s emails.
 List<MailSample> deliverySamples(
   Delivery delivery,
-  StoredMessage? Function(int id) message,
+  StoredMessage? Function(MessageId id) message,
 ) => [
   for (final r in delivery.records)
     mailSample(
@@ -155,7 +155,7 @@ final class DeliveriesModel extends FoundModel<Delivery, DeliveriesPage> {
       setting.read(store.settings).toSet();
 
   @override
-  Future<DeliveriesPage> find(DateTime now, Set<int> skip) async {
+  Future<DeliveriesPage> find(DateTime now, Set<MessageId> skip) async {
     final returned = _readSet(returnedSetting);
     final kept = _readSet(keptSetting);
     final found = await findDeliveries(store, now, skip: skip);

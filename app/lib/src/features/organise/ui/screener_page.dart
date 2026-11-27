@@ -36,7 +36,7 @@ final class ScreenerPage extends StatefulWidget {
   final MailController controller;
 
   /// The inbox shown (null: every account).
-  final int? accountId;
+  final AccountId? accountId;
 
   @override
   State<ScreenerPage> createState() => _ScreenerPageState();

@@ -48,7 +48,7 @@ final class AiSortNotice extends StatelessWidget {
         final colors = Theme.of(context).colorScheme;
         final section = MailText.section(sectionOf(now.category));
         return Container(
-          key: ValueKey('ai-sort-notice-${message.id}'),
+          key: ValueKey('ai-sort-notice-${message.id.value}'),
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.fromLTRB(12, 10, 4, 4),
           decoration: BoxDecoration(

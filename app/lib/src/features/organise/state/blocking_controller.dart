@@ -114,7 +114,7 @@ final class BlockingController {
     final name = kind == BlockKind.domain
         ? 'everyone at ${blocked.value}'
         : blocked.value;
-    final byAccount = <int, List<StoredMessage>>{};
+    final byAccount = <AccountId, List<StoredMessage>>{};
     if (moveExisting) {
       for (final m in _inboxesFrom(kind, blocked.value)) {
         byAccount.putIfAbsent(m.accountId, () => []).add(m);

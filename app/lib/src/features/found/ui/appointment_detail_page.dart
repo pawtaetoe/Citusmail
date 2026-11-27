@@ -34,12 +34,12 @@ final class AppointmentDetailPage extends StatelessWidget {
 
   final Appointment appointment;
   final MailController controller;
-  final StoredMessage? Function(int id) messageById;
+  final StoredMessage? Function(MessageId id) messageById;
 
   /// Now (tests).
   final DateTime Function()? now;
 
-  Future<void> _openEmail(BuildContext context, int messageId) async {
+  Future<void> _openEmail(BuildContext context, MessageId messageId) async {
     final message = messageById(messageId);
     if (message == null) return;
     await EmailPage.open(context, controller, message, title: 'Email');
@@ -197,7 +197,7 @@ final class AppointmentDetailPage extends StatelessWidget {
           children: [
             for (final (i, r) in a.records.indexed)
               ListTile(
-                key: ValueKey('appointment-email-${r.email.messageId}'),
+                key: ValueKey('appointment-email-${r.email.messageId.value}'),
                 leading: Icon(
                   r.cancels
                       ? AppIcons.eventCancelled

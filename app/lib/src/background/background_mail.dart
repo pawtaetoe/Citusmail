@@ -232,7 +232,7 @@ abstract final class BackgroundMail {
         store,
         MailActions(store),
       ).run(DateTime.now().toUtc());
-      for (final accountId in tidied?.accountIds ?? const <int>{}) {
+      for (final accountId in tidied?.accountIds ?? const <AccountId>{}) {
         await engine.syncAccount(accountId);
       }
       // Deleted elsewhere, or too old by now: the tile lets go of it.
@@ -339,7 +339,7 @@ abstract final class BackgroundMail {
       if (event is! AccountSynced) return;
       unawaited(latestCode.update());
       final tidied = cleaner.run(DateTime.now().toUtc());
-      for (final accountId in tidied?.accountIds ?? const <int>{}) {
+      for (final accountId in tidied?.accountIds ?? const <AccountId>{}) {
         engine.requestSync(accountId);
       }
       final mail = tracker.claim(event.accountId);

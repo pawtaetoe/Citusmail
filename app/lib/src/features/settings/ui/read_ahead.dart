@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:mail_store/mail_store.dart';
 
 import '../../../core/theme/app_icons.dart';
 import '../../../services/app_services.dart';
@@ -42,7 +43,7 @@ mixin ReadsAhead<T extends StatefulWidget> on State<T> {
   }
 
   /// After the page loaded: emails it still wants are read shortly.
-  void loadedWith(List<int> toRead) {
+  void loadedWith(List<MessageId> toRead) {
     if (mounted && readsAhead && toRead.isNotEmpty) {
       _reader.request(after: const Duration(seconds: 2));
     }

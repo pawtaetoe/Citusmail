@@ -268,7 +268,7 @@ final class MailController {
   ValueNotifier<MailLocation> get location => locationController.location;
   ValueNotifier<MailCounts> get counts => countsController.counts;
   ValueNotifier<ReaderState> get reader => readerController.reader;
-  ValueNotifier<Set<int>> get selection => selectionController.selection;
+  ValueNotifier<Set<MessageId>> get selection => selectionController.selection;
   ValueNotifier<SyncStatus> get status => syncStatusController.status;
 
   /// Moves old verification codes out of the inbox, once agreed.
@@ -550,7 +550,7 @@ final class MailController {
 
   /// Puts the accounts in the order of [ids]: the sidebar, the From
   /// choice and new messages (from the top account) follow it.
-  void reorderAccounts(List<int> ids) => accountOrder.reorder(ids);
+  void reorderAccounts(List<AccountId> ids) => accountOrder.reorder(ids);
 
   // --------------------------------------------------------- invitations
 
@@ -610,7 +610,7 @@ final class MailController {
 
   /// First-time senders waiting in the Screener, in the inbox of
   /// [accountId] (or every inbox).
-  List<WaitingSender> waitingSenders({int? accountId}) =>
+  List<WaitingSender> waitingSenders({AccountId? accountId}) =>
       screenerController.waitingSenders(accountId: accountId);
 
   /// Whether [m] comes from someone the Screener would hold back if it
@@ -675,7 +675,7 @@ final class MailController {
 
   /// Creates a folder on the server and opens it. Returns an error to
   /// show, or null on success.
-  Future<String?> createFolder(int accountId, String name) =>
+  Future<String?> createFolder(AccountId accountId, String name) =>
       folderController.createFolder(accountId, name);
 
   /// Whether rules can move mail into [mailbox] (not the inbox, Drafts or
@@ -683,7 +683,7 @@ final class MailController {
   bool canHaveRules(StoredMailbox mailbox) =>
       FolderController.canHaveRules(mailbox);
 
-  List<FolderRule> rulesFor(int mailboxId) =>
+  List<FolderRule> rulesFor(MailboxId mailboxId) =>
       folderController.rulesFor(mailboxId);
 
   /// Adds a rule; with [includeExisting] the inbox is filed with the next
@@ -738,7 +738,7 @@ final class MailController {
 
   // ---------------------------------------------------------------- sync
 
-  SyncEvent? lastEvent(int accountId) =>
+  SyncEvent? lastEvent(AccountId accountId) =>
       syncStatusController.lastEvent(accountId);
 
   Future<void> syncNow() => syncStatusController.syncNow();

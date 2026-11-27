@@ -9,7 +9,7 @@ sealed class MailLocation {
   const MailLocation();
 
   /// The account it is limited to, or null for all accounts.
-  int? get accountId => null;
+  AccountId? get accountId => null;
 }
 
 /// The inbox of every account (or one), as the Smart Inbox.
@@ -17,7 +17,7 @@ final class InboxLocation extends MailLocation {
   const InboxLocation({this.accountId});
 
   @override
-  final int? accountId;
+  final AccountId? accountId;
 
   @override
   bool operator ==(Object other) =>
@@ -34,7 +34,7 @@ final class SectionLocation extends MailLocation {
   final SmartSection section;
 
   @override
-  final int? accountId;
+  final AccountId? accountId;
 
   @override
   bool operator ==(Object other) =>
@@ -50,10 +50,10 @@ final class SectionLocation extends MailLocation {
 final class FolderLocation extends MailLocation {
   const FolderLocation(this.mailboxId, this.accountId);
 
-  final int mailboxId;
+  final MailboxId mailboxId;
 
   @override
-  final int accountId;
+  final AccountId accountId;
 
   @override
   bool operator ==(Object other) =>

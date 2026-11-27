@@ -57,7 +57,7 @@ final class TidyCandidates {
     for (final (i, m) in messages.indexed) 'm${i + 1}': m,
   };
 
-  late final Map<int, String> _refOf = {
+  late final Map<MessageId, String> _refOf = {
     for (final MapEntry(:key, :value) in _byRef.entries) value.id: key,
   };
 
@@ -193,7 +193,7 @@ final class TidyPlanner {
   }
 
   /// The folder called [name] in [accountId] that mail may be moved into.
-  StoredMailbox? folderIn(int accountId, String name) {
+  StoredMailbox? folderIn(AccountId accountId, String name) {
     final wanted = name.trim().toLowerCase();
     for (final box in _store.mailboxes.forAccount(accountId)) {
       if (canMoveInto(box) && folderName(box).toLowerCase() == wanted) {
@@ -401,9 +401,9 @@ Propose only what the request asks for, and only for emails it clearly matches. 
   TidyPlan check(Map<String, Object?> json, TidyCandidates candidates) {
     var leftOut = 0;
     final steps = <TidyStep>[];
-    final leaving = <int>{};
-    final readSet = <int>{};
-    final pinSet = <int>{};
+    final leaving = <MessageId>{};
+    final readSet = <MessageId>{};
+    final pinSet = <MessageId>{};
     final actions = json['actions'];
     for (final item in actions is List ? actions : const <Object?>[]) {
       if (item is! Map) {

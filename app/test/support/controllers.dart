@@ -159,7 +159,7 @@ final class Controllers {
     notify: notify,
   );
 
-  int get accountId => store.accounts.all().single.id;
+  AccountId get accountId => store.accounts.all().single.id;
 
   StoredMailbox box(String name) => store.mailboxes
       .forAccount(accountId)

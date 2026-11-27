@@ -100,7 +100,7 @@ final class KeychainCredentials implements CredentialProvider {
 
   final SecretStore _secrets;
   final TokenClient _tokens;
-  final _renewing = <int, Future<String>>{};
+  final _renewing = <AccountId, Future<String>>{};
 
   @override
   Future<String> passwordFor(Account account) async {

@@ -27,9 +27,9 @@ final class AccountDetailPage extends StatelessWidget {
 
   final OnlineAccount account;
   final MailController controller;
-  final StoredMessage? Function(int id) messageById;
+  final StoredMessage? Function(MessageId id) messageById;
 
-  Future<void> _openEmail(BuildContext context, int messageId) async {
+  Future<void> _openEmail(BuildContext context, MessageId messageId) async {
     final message = messageById(messageId);
     if (message == null) return;
     await EmailPage.open(context, controller, message, title: 'Email');
@@ -146,7 +146,7 @@ final class AccountDetailPage extends StatelessWidget {
             children: [
               for (final r in records)
                 ListTile(
-                  key: ValueKey('account-email-${r.email.messageId}'),
+                  key: ValueKey('account-email-${r.email.messageId.value}'),
                   leading: Icon(AccountWords.icon(r.evidence)),
                   title: Text(
                     r.email.subject.isEmpty ? '(no subject)' : r.email.subject,

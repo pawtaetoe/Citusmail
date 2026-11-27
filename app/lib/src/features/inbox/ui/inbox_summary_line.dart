@@ -7,6 +7,7 @@ import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/material.dart';
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 
 import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
@@ -107,7 +108,7 @@ final class _InboxSummaryLineState extends State<InboxSummaryLine> {
     );
   }
 
-  void _openMessage(int id) {
+  void _openMessage(MessageId id) {
     final message = _c.services.store.messages.byId(id);
     if (message != null) unawaited(_c.open(message));
   }

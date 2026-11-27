@@ -27,7 +27,7 @@ void main() {
     return app.dispose();
   });
 
-  int accountId() => app.store.accounts.all().single.id;
+  AccountId accountId() => app.store.accounts.all().single.id;
 
   test('empty until counted, then the inbox unread', () {
     expect(counts.counts.value, same(MailCounts.empty));

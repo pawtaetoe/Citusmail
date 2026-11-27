@@ -10,6 +10,7 @@ import 'package:citusmail/src/features/settings/ui/settings_catalog.dart';
 import 'package:citusmail/src/features/settings/ui/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'support/test_app.dart';
 
@@ -28,7 +29,7 @@ void main() {
     expect(SettingId.parse('aiSorting'), isNull);
     expect(SettingId.parse('@discover'), isNull);
     expect(SettingId.aiFeature('sorting'), SettingId.aiSorting);
-    expect(SettingId.account(7).id, 'account-7');
+    expect(SettingId.account(AccountId(7)).id, 'account-7');
   });
 
   group('the search', () {

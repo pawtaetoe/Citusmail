@@ -24,7 +24,7 @@ final class ComposeStarter {
   final AppServices _services;
 
   /// The account being viewed, if one is.
-  final int? Function() _accountInView;
+  final AccountId? Function() _accountInView;
   final ShowNotice _notify;
   bool _disposed = false;
 

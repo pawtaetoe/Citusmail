@@ -40,7 +40,7 @@ Delivery _parcel(String key) => Delivery(
 /// A dentist on [_now]'s day (found as the page finds it).
 Appointment _dentist({String time = '3.30pm'}) => AppointmentFinder.find([
   AppointmentEmail(
-    messageId: 1,
+    messageId: MessageId(1),
     sender: 'brightsmiledental.co.uk',
     senderName: 'Bright Smile Dental',
     subject: 'Appointment confirmation - Bright Smile Dental',
@@ -54,7 +54,7 @@ Appointment _dentist({String time = '3.30pm'}) => AppointmentFinder.find([
 /// A table at [hour] on [_now]'s day.
 Booking _table(int hour) => TripFinder.bookings([
   TripEmail(
-    messageId: 2,
+    messageId: MessageId(2),
     sender: 'burntends.com.sg',
     senderName: 'Burnt Ends',
     subject: 'Your reservation is confirmed',
@@ -70,13 +70,14 @@ Booking _table(int hour) => TripFinder.bookings([
   ),
 ]).single;
 
-Reminder _bill({int days = 1, int messageId = 1}) => Reminder(
-  kind: ReminderKind.billDue,
-  company: 'myrepublic.com.sg',
-  name: 'MyRepublic',
-  date: DateTime.utc(_now.year, _now.month, _now.day + days),
-  messageId: messageId,
-);
+Reminder _bill({int days = 1, MessageId messageId = const MessageId(1)}) =>
+    Reminder(
+      kind: ReminderKind.billDue,
+      company: 'myrepublic.com.sg',
+      name: 'MyRepublic',
+      date: DateTime.utc(_now.year, _now.month, _now.day + days),
+      messageId: messageId,
+    );
 
 void main() {
   late TestApp app;
@@ -96,9 +97,9 @@ void main() {
 
   group('the pieces', () {
     final code = StoredMessage(
-      id: 9,
-      mailboxId: 1,
-      accountId: 1,
+      id: MessageId(9),
+      mailboxId: MailboxId(1),
+      accountId: AccountId(1),
       uid: 9,
       receivedAt: _now,
       size: 0,

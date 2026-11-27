@@ -34,7 +34,7 @@ final class ScreenerController {
 
   /// First-time senders waiting in the Screener, in the inbox of
   /// [accountId] (or every inbox).
-  List<WaitingSender> waitingSenders({int? accountId}) => _store.screener
+  List<WaitingSender> waitingSenders({AccountId? accountId}) => _store.screener
       .waiting(accountIds: accountId == null ? null : [accountId]);
 
   /// Whether [m] comes from someone the Screener would hold back if it
@@ -107,7 +107,7 @@ final class ScreenerController {
     final place = screener.outPlace;
     if (place == ScreenOutPlace.archive) {
       // Their waiting mail goes now; later mail with each sync.
-      final byAccount = <int, List<StoredMessage>>{};
+      final byAccount = <AccountId, List<StoredMessage>>{};
       for (final w in waiting) {
         if (!decided.matches(w.address)) continue;
         for (final m in w.messages) {

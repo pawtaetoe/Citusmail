@@ -91,7 +91,7 @@ final class LocationController {
     _list.loadMoreStored();
   }
 
-  List<int> _foldersToExtend(MailLocation at) => switch (at) {
+  List<MailboxId> _foldersToExtend(MailLocation at) => switch (at) {
     FolderLocation(:final mailboxId) => [mailboxId],
     InboxLocation(:final accountId) ||
     SectionLocation(:final accountId) => _store.messages.inboxIds(

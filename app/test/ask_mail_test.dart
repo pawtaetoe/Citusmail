@@ -43,7 +43,7 @@ void main() {
     app.services.ai.setOn(AiFeatures.ask.id, true);
   }
 
-  int accountId() => app.store.accounts.all().single.id;
+  AccountId accountId() => app.store.accounts.all().single.id;
   StoredMailbox box(String name) => app.store.mailboxes
       .forAccount(accountId())
       .firstWhere((b) => b.encodedName == name);

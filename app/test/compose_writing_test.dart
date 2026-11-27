@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_ai/testing.dart';
 import 'package:mail_compose/mail_compose.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
 import 'support/test_app.dart';
@@ -33,7 +34,7 @@ void main() {
   });
   tearDown(() => app.dispose());
 
-  int accountId() => app.store.accounts.all().single.id;
+  AccountId accountId() => app.store.accounts.all().single.id;
 
   void turnOn({bool confirmed = true}) {
     app.services.ai.setOn(AiFeatures.writing.id, true);

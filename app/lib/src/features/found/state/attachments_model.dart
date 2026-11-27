@@ -32,11 +32,11 @@ final class LibraryFile {
   FileKind get kind => file.kind;
 
   /// Stays the same while the message does.
-  String get key => '${message.id}/$index/${file.name}';
+  String get key => '${message.id.value}/$index/${file.name}';
 
   /// For "don't list this file": survives the message moving folders.
   String get hideKey =>
-      '${message.messageId ?? 'id:${message.id}'}/${file.name}';
+      '${message.messageId ?? 'id:${message.id.value}'}/${file.name}';
 }
 
 /// The Attachments page's data: files people sent, newest first, across
@@ -95,7 +95,7 @@ final class AttachmentsModel extends ChangeNotifier {
 
   /// Messages with files this device has not listed yet (synced before
   /// file names were kept, and not downloaded).
-  List<int> unknown = const [];
+  List<MessageId> unknown = const [];
 
   /// While looking those up: how many are done, of how many.
   ({int done, int total})? lookingUp;
@@ -224,8 +224,8 @@ final class AttachmentsModel extends ChangeNotifier {
 
   /// The files of downloaded messages that were never listed, read off
   /// the UI thread a few at a time and kept, so it happens once.
-  Future<Map<int, List<FilePart>>> _parse(List<int> ids) async {
-    final result = <int, List<FilePart>>{};
+  Future<Map<MessageId, List<FilePart>>> _parse(List<MessageId> ids) async {
+    final result = <MessageId, List<FilePart>>{};
     for (var i = 0; i < ids.length; i += _parseChunk) {
       final chunk = ids.sublist(i, (i + _parseChunk).clamp(0, ids.length));
       final bodies = [for (final id in chunk) _store.messages.body(id)];
@@ -317,7 +317,7 @@ final class AttachmentsModel extends ChangeNotifier {
     unawaited(load());
   }
 
-  StoredMessage? message(int id) => _store.messages.byId(id);
+  StoredMessage? message(MessageId id) => _store.messages.byId(id);
 
   void _notify() {
     if (!_disposed) notifyListeners();

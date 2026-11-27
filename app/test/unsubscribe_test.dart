@@ -112,7 +112,7 @@ void main() {
 
   // The newsletter's own body also has an "Unsubscribe" link; the app's
   // button is the TextButton.
-  int accountId() => app.store.accounts.all().single.id;
+  AccountId accountId() => app.store.accounts.all().single.id;
 
   testWidgets('verified one-click unsubscribes and archives the list', (
     tester,

@@ -217,7 +217,7 @@ void main() {
       app.dispose();
     });
 
-    int accountId() => app.store.accounts.all().single.id;
+    AccountId accountId() => app.store.accounts.all().single.id;
     StoredMailbox inbox() => app.store.mailboxes.inbox(accountId())!;
     StoredMailbox sent() =>
         app.store.mailboxes.bySpecialUse(accountId(), SpecialUse.sent)!;

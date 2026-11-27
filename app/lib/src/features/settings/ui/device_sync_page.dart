@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:mail_appsync/mail_appsync.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 
 import '../../../app/app.dart' show appName;
@@ -185,7 +186,7 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
             'The account whose mailbox carries the data. Choose the same one '
             'on every device.',
           ),
-          trailing: DropdownButton<int>(
+          trailing: DropdownButton<AccountId>(
             value: sync.account?.id,
             underline: const SizedBox.shrink(),
             items: [

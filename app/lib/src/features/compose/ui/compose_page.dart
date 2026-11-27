@@ -6,7 +6,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:mail_ai/mail_ai.dart';
 import 'package:mail_compose/mail_compose.dart';
-import 'package:mail_store/mail_store.dart' show SignOff;
+import 'package:mail_store/mail_store.dart' show AccountId, SignOff;
 
 import '../../../core/state/validation.dart';
 import '../../../core/text/mail_text.dart';
@@ -424,7 +424,7 @@ final class _ComposePageState extends State<ComposePage> {
                               ),
                             ),
                           ),
-                          DropdownButton<int>(
+                          DropdownButton<AccountId>(
                             value: draft.accountId,
                             underline: const SizedBox.shrink(),
                             items: [

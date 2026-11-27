@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:mail_ai/mail_ai.dart';
+import 'package:mail_store/mail_store.dart';
 
 import '../../../services/ai_assistant.dart';
 import 'ai_task.dart';
@@ -14,7 +15,7 @@ import 'ai_task.dart';
 final class Translation extends AiTask<String> {
   Translation._(this.messageId, this.language);
 
-  final int messageId;
+  final MessageId messageId;
 
   /// The language it is (being) translated into, as a code (`en`).
   final String language;
@@ -53,24 +54,24 @@ final class MailTranslations extends ChangeNotifier {
   /// How many translations are kept, the oldest dropped first.
   static const keep = 40;
 
-  final _cache = <(int, String), Translation>{};
-  final _shown = <int, String>{};
-  final _notNow = <int>{};
-  final _guesses = <int, String?>{};
+  final _cache = <(MessageId, String), Translation>{};
+  final _shown = <MessageId, String>{};
+  final _notNow = <MessageId>{};
+  final _guesses = <MessageId, String?>{};
 
   /// [messageId]'s translation into [language], finished or not.
-  Translation? find(int messageId, String language) =>
+  Translation? find(MessageId messageId, String language) =>
       _cache[(messageId, LanguageGuess.baseCode(language))];
 
   /// The translation [messageId] shows instead of its text, if any.
-  Translation? shown(int messageId) => switch (_shown[messageId]) {
+  Translation? shown(MessageId messageId) => switch (_shown[messageId]) {
     final language? => find(messageId, language),
     null => null,
   };
 
   /// The language of [messageId] as far as the device can tell
   /// ([LanguageGuess]); [text] is read once per email.
-  String? guess(int messageId, String Function() text) {
+  String? guess(MessageId messageId, String Function() text) {
     if (_guesses.containsKey(messageId)) return _guesses[messageId];
     final guess = LanguageGuess.of(text());
     _guesses[messageId] = guess;
@@ -79,15 +80,15 @@ final class MailTranslations extends ChangeNotifier {
   }
 
   /// Whether the user put away the offer to translate [messageId].
-  bool notNow(int messageId) => _notNow.contains(messageId);
+  bool notNow(MessageId messageId) => _notNow.contains(messageId);
 
-  void dismiss(int messageId) {
+  void dismiss(MessageId messageId) {
     _notNow.add(messageId);
     notifyListeners();
   }
 
   /// Back to the email as written; its translation is kept.
-  void showOriginal(int messageId) {
+  void showOriginal(MessageId messageId) {
     if (_shown.remove(messageId) != null) notifyListeners();
   }
 
@@ -95,7 +96,7 @@ final class MailTranslations extends ChangeNotifier {
   /// the translation already made, once [confirm] agrees to send it to
   /// the provider (`confirmAiSend`, which asks the user the first time).
   Future<void> translate(
-    int messageId,
+    MessageId messageId,
     PromptMail mail,
     String language, {
     required Future<bool> Function(AiFeatureProvider provider) confirm,
@@ -145,7 +146,7 @@ final class MailTranslations extends ChangeNotifier {
   }
 
   /// Stops a translation under way, and shows the original again.
-  void stop(int messageId) {
+  void stop(MessageId messageId) {
     final t = shown(messageId);
     if (t == null || !t.isRunning) return;
     t.stop();
@@ -154,7 +155,7 @@ final class MailTranslations extends ChangeNotifier {
     notifyListeners();
   }
 
-  Translation _put((int, String) key, Translation t) {
+  Translation _put((MessageId, String) key, Translation t) {
     _cache
       ..remove(key)
       ..[key] = t;

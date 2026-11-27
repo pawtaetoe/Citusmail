@@ -75,7 +75,7 @@ Future<Set<String>> learnedNotSubscriptions(
 /// What the classifier reads of [subscription]'s emails.
 List<MailSample> subscriptionSamples(
   Subscription subscription,
-  StoredMessage? Function(int id) message,
+  StoredMessage? Function(MessageId id) message,
 ) => [
   for (final r in subscription.records)
     mailSample(
@@ -96,7 +96,7 @@ typedef SubscriptionsFound = ({
   Set<String> hidden,
   Set<String> learned,
   List<Reminder> reminders,
-  List<int> toRead,
+  List<MessageId> toRead,
 });
 
 /// The Subscriptions page's findings in [store], reading text off the UI
@@ -106,7 +106,7 @@ Future<SubscriptionsFound> findSubscriptions(
   MailStore store,
   DateTime now, {
   required bool monthlyRenewals,
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) async {
   final hidden = hiddenSubscriptions(store);
   final mail = await loadSubscriptionMail(store, now);
@@ -143,17 +143,17 @@ Future<SubscriptionsFound> findSubscriptions(
 /// companies not recognised yet, and recent bills and trial emails whose
 /// date is not known ([reminders]). Small ones only, at most a few per
 /// subscription; [skip] left out.
-List<int> subscriptionMailToRead(
+List<MessageId> subscriptionMailToRead(
   MailStore store,
   SubscriptionMail mail, {
   required DateTime now,
   required List<Subscription> found,
   required Set<String> left,
   required List<Reminder> reminders,
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) {
   final sizes = {for (final m in mail.messages) m.id: m.size};
-  bool wanted(int id) =>
+  bool wanted(MessageId id) =>
       !skip.contains(id) &&
       !MessageReads.downloaded(store, id) &&
       (sizes[id] ?? 0) <= SubscriptionsModel.maxBytes;
@@ -231,7 +231,7 @@ final class SubscriptionsModel
   static const datesBack = Duration(days: 45);
 
   @override
-  Future<SubscriptionsPage> find(DateTime now, Set<int> skip) async {
+  Future<SubscriptionsPage> find(DateTime now, Set<MessageId> skip) async {
     final found = await findSubscriptions(
       store,
       now,

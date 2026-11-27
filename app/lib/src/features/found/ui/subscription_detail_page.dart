@@ -26,9 +26,9 @@ final class SubscriptionDetailPage extends StatelessWidget {
 
   final Subscription subscription;
   final MailController controller;
-  final StoredMessage? Function(int id) messageById;
+  final StoredMessage? Function(MessageId id) messageById;
 
-  Future<void> _openReceipt(BuildContext context, int messageId) async {
+  Future<void> _openReceipt(BuildContext context, MessageId messageId) async {
     final message = messageById(messageId);
     if (message == null) return;
     await EmailPage.open(context, controller, message);
@@ -137,7 +137,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
             children: [
               for (final r in records)
                 ListTile(
-                  key: ValueKey('receipt-${r.email.messageId}'),
+                  key: ValueKey('receipt-${r.email.messageId.value}'),
                   leading: Icon(_icon(r.event)),
                   title: Text(
                     r.amount != null

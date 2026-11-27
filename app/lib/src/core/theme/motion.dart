@@ -8,6 +8,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'citusmail_theme.dart';
 
@@ -32,12 +33,12 @@ final class OpenTransition extends StatefulWidget {
   });
 
   /// The open message's id; null shows the list.
-  final int? message;
+  final MessageId? message;
   final Widget list;
   final Widget reader;
 
   /// Called by a row about to open [message]: it grows from that row.
-  static void growFrom(BuildContext row, int message) =>
+  static void growFrom(BuildContext row, MessageId message) =>
       row.findAncestorStateOfType<_OpenTransitionState>()?._from(row, message);
 
   @override
@@ -59,13 +60,13 @@ final class _OpenTransitionState extends State<OpenTransition>
 
   /// The row it grows from, in this widget's coordinates, and its message.
   Rect? _origin;
-  int? _originOf;
+  MessageId? _originOf;
 
   /// The message as it last looked, while it shrinks back into its row
   /// (the reader itself is empty by then).
   ui.Image? _last;
 
-  void _from(BuildContext row, int message) {
+  void _from(BuildContext row, MessageId message) {
     final box = row.findRenderObject();
     final own = context.findRenderObject();
     if (box is! RenderBox || own is! RenderBox) return;

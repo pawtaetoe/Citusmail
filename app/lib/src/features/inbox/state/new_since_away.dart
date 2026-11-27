@@ -41,7 +41,7 @@ final class AwayMail {
 
   bool get isEmpty => messages.isEmpty;
 
-  Set<int> get ids => {for (final m in messages) m.id};
+  Set<MessageId> get ids => {for (final m in messages) m.id};
 
   int get unread => messages.where((m) => !m.flags.seen).length;
 }
@@ -104,7 +104,7 @@ final class NewSinceAway {
   /// account): read through the inbox list index, newest first, only as
   /// far back as the user went away.
   /// Nothing while the setting is off.
-  AwayMail mail({List<int>? accountIds}) {
+  AwayMail mail({List<AccountId>? accountIds}) {
     final window = this.window;
     if (window == null || !AppSettings(_store).newSinceAway) {
       return AwayMail.none;
@@ -120,7 +120,7 @@ final class NewSinceAway {
   late final _changes = StoreChanges(_store);
   (((int, int), String?, AwayWindow), AwayMail)? _last;
 
-  AwayMail _read(AwayWindow window, List<int>? accountIds) {
+  AwayMail _read(AwayWindow window, List<AccountId>? accountIds) {
     final candidates = <StoredMessage>[];
     // Starts where the window ends, not at the newest mail: what came
     // after the user was back is not paged through on every refresh.
@@ -149,9 +149,9 @@ final class NewSinceAway {
   /// A list position just after the last message listed by [window]'s
   /// end (paging continues before it).
   static StoredMessage _endOf(AwayWindow window) => StoredMessage(
-    id: 1 << 62,
-    mailboxId: 0,
-    accountId: 0,
+    id: const MessageId(1 << 62),
+    mailboxId: const MailboxId(0),
+    accountId: const AccountId(0),
     uid: 1,
     receivedAt: window.until,
     size: 0,

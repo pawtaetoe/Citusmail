@@ -133,12 +133,15 @@ void main() {
     final history = CommandHistory(app.store);
     expect(history.ids, isEmpty);
     for (var i = 0; i < 10; i++) {
-      history.used(FolderCommand(i));
+      history.used(FolderCommand(MailboxId(i)));
     }
-    history.used(const FolderCommand(5));
+    history.used(const FolderCommand(MailboxId(5)));
     expect(history.ids, hasLength(8));
-    expect(history.ids.first, const FolderCommand(5));
-    expect(history.ids.where((i) => i == const FolderCommand(5)), hasLength(1));
+    expect(history.ids.first, const FolderCommand(MailboxId(5)));
+    expect(
+      history.ids.where((i) => i == const FolderCommand(MailboxId(5))),
+      hasLength(1),
+    );
     expect(
       app.store.settings.read(CommandHistory.setting.key),
       isNot(contains(' ')),

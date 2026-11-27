@@ -30,7 +30,7 @@ const _microsoft = OAuthProvider(
 );
 
 final _account = Account(
-  id: 7,
+  id: AccountId(7),
   email: 'me@outlook.com',
   username: 'me@outlook.com',
   imap: ServerSettings(
@@ -595,7 +595,7 @@ void main() {
           'GOCSPX-x1y2z3',
         );
         final google = Account(
-          id: 8,
+          id: AccountId(8),
           email: 'me@gmail.com',
           username: 'me@gmail.com',
           imap: _account.imap,

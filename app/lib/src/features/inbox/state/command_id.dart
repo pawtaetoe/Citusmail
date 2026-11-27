@@ -36,7 +36,7 @@ sealed class CommandId {
         null => null,
       },
       'email' => switch (int.tryParse(rest)) {
-        final messageId? => EmailCommand(messageId),
+        final messageId? => EmailCommand(MessageId(messageId)),
         null => null,
       },
       _ => null,
@@ -54,11 +54,11 @@ sealed class CommandId {
         null => null,
       },
       'account' => switch (int.tryParse(value)) {
-        final accountId? => AccountCommand(accountId),
+        final accountId? => AccountCommand(AccountId(accountId)),
         null => null,
       },
       'folder' => switch (int.tryParse(value)) {
-        final mailboxId? => FolderCommand(mailboxId),
+        final mailboxId? => FolderCommand(MailboxId(mailboxId)),
         null => null,
       },
       _ => null,
@@ -155,20 +155,20 @@ final class SectionCommand extends CommandId {
 final class AccountCommand extends CommandId {
   const AccountCommand(this.accountId);
 
-  final int accountId;
+  final AccountId accountId;
 
   @override
-  String get id => 'go.account.$accountId';
+  String get id => 'go.account.${accountId.value}';
 }
 
 /// `go.folder.<id>`: a folder.
 final class FolderCommand extends CommandId {
   const FolderCommand(this.mailboxId);
 
-  final int mailboxId;
+  final MailboxId mailboxId;
 
   @override
-  String get id => 'go.folder.$mailboxId';
+  String get id => 'go.folder.${mailboxId.value}';
 }
 
 /// `setting.<id>`: a setting, in Settings.
@@ -195,10 +195,10 @@ final class CreateCommand extends CommandId {
 final class EmailCommand extends CommandId {
   const EmailCommand(this.messageId);
 
-  final int messageId;
+  final MessageId messageId;
 
   @override
-  String get id => 'email.$messageId';
+  String get id => 'email.${messageId.value}';
 }
 
 /// `search`: a search of all mail (never kept as recent).

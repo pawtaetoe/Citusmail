@@ -74,7 +74,7 @@ final class MessageListModel extends ChangeNotifier {
   /// Smart Inbox: "New since you were away", at the very top. While it is
   /// there, its messages are not in their usual sections.
   AwayMail newSinceAway = AwayMail.none;
-  Set<int> _awayIds = const {};
+  Set<MessageId> _awayIds = const {};
 
   /// How many of [newSinceAway] show before "Show all".
   static const awayPage = 8;
@@ -337,7 +337,10 @@ final class MessageListModel extends ChangeNotifier {
   /// Follow-ups (of [accountId], or every account) with their sent
   /// messages: those back with "No reply yet" first, most recent first,
   /// then the ones waiting, soonest due first.
-  List<FollowUpRow> _followUps({bool returnedOnly = false, int? accountId}) {
+  List<FollowUpRow> _followUps({
+    bool returnedOnly = false,
+    AccountId? accountId,
+  }) {
     final reminders = FollowUpReminders(_store);
     return [
       for (final f in [
@@ -351,11 +354,11 @@ final class MessageListModel extends ChangeNotifier {
 
   late final _changes = StoreChanges(_store);
   (int, int)? _countsStamp;
-  final _counts = <int?, Map<SmartSection, SectionCount>>{};
+  final _counts = <AccountId?, Map<SmartSection, SectionCount>>{};
 
   /// The Smart Inbox section counts of [accountId] (or every account),
   /// counted again only when something in the store changed since.
-  Map<SmartSection, SectionCount> sectionCounts({int? accountId}) {
+  Map<SmartSection, SectionCount> sectionCounts({AccountId? accountId}) {
     final stamp = _changes.stamp;
     if (stamp != _countsStamp) {
       _counts.clear();
@@ -366,7 +369,7 @@ final class MessageListModel extends ChangeNotifier {
     );
   }
 
-  static List<int>? _accounts(int? accountId) =>
+  static List<AccountId>? _accounts(AccountId? accountId) =>
       accountId == null ? null : [accountId];
 
   Set<SmartSection> _readCollapsed() {

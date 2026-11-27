@@ -19,7 +19,7 @@ typedef AccountsFound = ({
   Set<String> hidden,
   Set<String> learned,
   List<String> ownAddresses,
-  List<int> toRead,
+  List<MessageId> toRead,
 });
 
 /// The "Online accounts" page's findings in [store], reading text off the
@@ -28,7 +28,7 @@ typedef AccountsFound = ({
 Future<AccountsFound> findOnlineAccounts(
   MailStore store,
   DateTime now, {
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) async {
   final hidden = {...AccountsModel.hiddenSetting.read(store.settings)};
   final mailAccounts = store.accounts.all();
@@ -105,12 +105,12 @@ Future<AccountsFound> findOnlineAccounts(
 /// too little and that are not on the device, of companies not in
 /// [left]. Small ones only, at most [AccountsModel.readMax]; [skip] left
 /// out.
-List<int> accountMailToRead(
+List<MessageId> accountMailToRead(
   MailStore store,
   List<StoredMessage> candidates,
   List<AccountEmail> emails, {
   required Set<String> left,
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) {
   final sizes = {for (final m in candidates) m.id: m.size};
   return [
@@ -127,7 +127,7 @@ List<int> accountMailToRead(
 /// What the classifier reads of [account]'s emails (the newest few).
 List<MailSample> accountSamples(
   OnlineAccount account,
-  StoredMessage? Function(int id) message,
+  StoredMessage? Function(MessageId id) message,
 ) => [
   for (final r in account.records.take(20))
     mailSample(
@@ -160,7 +160,7 @@ final class AccountsModel extends FoundModel<OnlineAccount, AccountsFound> {
   static const maxBytes = 256 * 1024;
 
   @override
-  Future<AccountsFound> find(DateTime now, Set<int> skip) =>
+  Future<AccountsFound> find(DateTime now, Set<MessageId> skip) =>
       findOnlineAccounts(store, now, skip: skip);
 
   @override

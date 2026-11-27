@@ -17,7 +17,7 @@ import '../../inbox/state/message_reads.dart';
 
 /// Messages behind the "Found in your mail" items (trips, deliveries,
 /// subscriptions, appointments) that [question] is about, newest first.
-typedef AskHints = Future<List<int>> Function(
+typedef AskHints = Future<List<MessageId>> Function(
   MailStore store,
   String question,
   DateTime now,
@@ -175,7 +175,11 @@ final class AskMailModel extends ChangeNotifier {
         provider.model,
         q,
         for (final e in exchanges) ...[e.question, e.answer],
-        for (final s in sent) ...['${s.id}', s.mail.subject ?? '', s.mail.body],
+        for (final s in sent) ...[
+          '${s.id.value}',
+          s.mail.subject ?? '',
+          s.mail.body,
+        ],
       ].join('\u0000');
       final cache = _cacheOf(_store);
       final answer =
@@ -246,13 +250,13 @@ final class AskMailModel extends ChangeNotifier {
   /// [queries] count double, then each word of the question, then the
   /// [previous] question's words (for a follow-up such as "and which
   /// terminal?") and the [hinted] "Found in your mail" emails.
-  List<int> _search(
+  List<MessageId> _search(
     String question,
     String? previous,
     List<String> queries,
-    List<int> hinted,
+    List<MessageId> hinted,
   ) {
-    final boxes = <int, bool>{};
+    final boxes = <MailboxId, bool>{};
     bool searchable(StoredMessage m) => boxes.putIfAbsent(m.mailboxId, () {
       final box = _store.mailboxes.byId(m.mailboxId);
       return box != null &&
@@ -260,12 +264,12 @@ final class AskMailModel extends ChangeNotifier {
           box.specialUse != SpecialUse.junk &&
           box.specialUse != SpecialUse.trash;
     });
-    Iterable<(int, DateTime)> hits(Iterable<StoredMessage> found) => [
+    Iterable<(MessageId, DateTime)> hits(Iterable<StoredMessage> found) => [
       for (final m in found)
         if (searchable(m)) (m.id, m.receivedAt),
     ];
     // Forgiving of typos, as the search list is.
-    Iterable<(int, DateTime)> find(String text) =>
+    Iterable<(MessageId, DateTime)> find(String text) =>
         hits(_store.messages.searchForgiving(text, limit: perSearch).messages);
 
     final matches = AskMatches();
@@ -308,7 +312,7 @@ final class AskMailModel extends ChangeNotifier {
 
   /// The "Found in your mail" emails [question] is about; none if they
   /// can't be read now (they only help).
-  Future<List<int>> _hintsFor(String question) async {
+  Future<List<MessageId>> _hintsFor(String question) async {
     try {
       return await _hints(_store, question, _now());
     } on Exception {
@@ -400,15 +404,15 @@ final _appointmentWords =
 /// found in [store] that [question] is about by its words (those the
 /// user hid aside), at most five of each kind, the newest first. Reads
 /// mail the way those pages do, off the UI thread.
-Future<List<int>> foundInMailHints(
+Future<List<MessageId>> foundInMailHints(
   MailStore store,
   String question,
   DateTime now,
 ) async {
   final words = AskMail.keywords(question, limit: 20).toSet();
   bool about(Set<String> topic) => words.any(topic.contains);
-  final out = <int>[];
-  void newest(Iterable<int> ids) {
+  final out = <MessageId>[];
+  void newest(Iterable<MessageId> ids) {
     final messages = [for (final id in ids.toSet()) ?store.messages.byId(id)]
       ..sort((a, b) => b.receivedAt.compareTo(a.receivedAt));
     out.addAll(messages.take(5).map((m) => m.id));

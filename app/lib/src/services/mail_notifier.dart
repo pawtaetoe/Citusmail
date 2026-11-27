@@ -44,7 +44,7 @@ final class MailNotifier {
   /// Starts the notification system. [onOpen] gets the stored message id
   /// when a notification is tapped while the app runs.
   static Future<MailNotifier?> create({
-    void Function(int messageId)? onOpen,
+    void Function(MessageId messageId)? onOpen,
   }) async {
     if (!(Platform.isAndroid || Platform.isLinux || Platform.isWindows)) {
       return null;
@@ -101,7 +101,7 @@ final class MailNotifier {
   @visibleForTesting
   static Future<void> openLaunchedFrom(
     FlutterLocalNotificationsPlugin plugin,
-    void Function(int messageId)? onOpen,
+    void Function(MessageId messageId)? onOpen,
   ) async {
     if (onOpen == null) return;
     final NotificationAppLaunchDetails? details;
@@ -220,7 +220,7 @@ final class MailNotifier {
         title: n.title,
         body: n.text,
         notificationDetails: _reminderDetails,
-        payload: 'message:${n.reminder.messageId}',
+        payload: 'message:${n.reminder.messageId.value}',
       );
     }
   }
@@ -413,7 +413,7 @@ final class MailNotifier {
         // The lock screen shows only that there is new mail ("Contents
         // hidden"); the details show once the phone is unlocked.
         visibility: NotificationVisibility.private,
-        groupKey: 'account.${account.id}',
+        groupKey: 'account.${account.id.value}',
         setAsGroupSummary: notice.isSummary && notice.lines.isNotEmpty,
         groupAlertBehavior: bundled
             ? GroupAlertBehavior.summary

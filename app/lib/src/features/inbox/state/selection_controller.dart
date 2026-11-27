@@ -18,7 +18,7 @@ final class SelectionController {
   final StoredMessage? Function() _openMessage;
 
   /// The ids of the selected messages.
-  final selection = ValueNotifier<Set<int>>(const {});
+  final selection = ValueNotifier<Set<MessageId>>(const {});
 
   bool get selecting => selection.value.isNotEmpty;
 

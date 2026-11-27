@@ -711,7 +711,7 @@ final class _MessagesState extends State<_Messages> {
   Widget _tile(StoredMessage m) {
     final selection = _c.selection.value;
     return MessageTile(
-      key: ValueKey(m.id),
+      key: ValueKey(m.id.value),
       message: m,
       controller: _c,
       open: _c.selected?.id == m.id,

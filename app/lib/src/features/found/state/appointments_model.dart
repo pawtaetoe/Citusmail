@@ -20,7 +20,7 @@ typedef AppointmentsFound = ({
   List<Appointment> all,
   Set<String> hidden,
   Set<String> learned,
-  List<int> toRead,
+  List<MessageId> toRead,
 });
 
 /// The Appointments page's findings in [store], reading text, markup and
@@ -30,7 +30,7 @@ typedef AppointmentsFound = ({
 Future<AppointmentsFound> findAppointments(
   MailStore store,
   DateTime now, {
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) async {
   final hidden = {...AppointmentsModel.hiddenSetting.read(store.settings)};
   final candidates = store.messages.withSubjectWords(
@@ -117,11 +117,11 @@ DateTime localTime(PlaceTime t) => t.offset == null
 /// appointments found) and not on the device: its body may say more
 /// than its preview. Small ones only, newsletters aside, at most
 /// [AppointmentsModel.readMax]; [skip] left out.
-List<int> appointmentMailToRead(
+List<MessageId> appointmentMailToRead(
   MailStore store,
   List<StoredMessage> candidates,
   List<Appointment> all, {
-  Set<int> skip = const {},
+  Set<MessageId> skip = const {},
 }) {
   final known = {
     for (final a in all)
@@ -142,7 +142,7 @@ List<int> appointmentMailToRead(
 /// What the classifier reads of [appointment]'s emails.
 List<MailSample> appointmentSamples(
   Appointment appointment,
-  StoredMessage? Function(int id) message,
+  StoredMessage? Function(MessageId id) message,
 ) => [
   for (final r in appointment.records)
     mailSample(
@@ -178,7 +178,7 @@ final class AppointmentsModel
   static const maxBytes = 512 * 1024;
 
   @override
-  Future<AppointmentsFound> find(DateTime now, Set<int> skip) =>
+  Future<AppointmentsFound> find(DateTime now, Set<MessageId> skip) =>
       findAppointments(store, now, skip: skip);
 
   @override

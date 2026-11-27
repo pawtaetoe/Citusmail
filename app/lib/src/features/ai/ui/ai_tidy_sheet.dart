@@ -195,7 +195,7 @@ final class _TidyPanelState extends State<_TidyPanel> {
     ..addListener(_changed);
 
   /// Per step, the messages still ticked.
-  List<Set<int>> _ticked = const [];
+  List<Set<MessageId>> _ticked = const [];
   final _open = <int>{};
 
   String get _to => widget.provider.recipient;
@@ -435,7 +435,7 @@ final class _TidyPanelState extends State<_TidyPanel> {
   }
 
   Widget _message(ThemeData theme, int i, StoredMessage m) => CheckboxListTile(
-    key: ValueKey('tidy-message-$i-${m.id}'),
+    key: ValueKey('tidy-message-$i-${m.id.value}'),
     dense: true,
     controlAffinity: ListTileControlAffinity.leading,
     contentPadding: const EdgeInsets.only(left: 40, right: 16),

@@ -23,7 +23,7 @@ final class FolderController {
 
   /// Creates a folder on the server and opens it. Returns an error to
   /// show, or null on success.
-  Future<String?> createFolder(int accountId, String name) async {
+  Future<String?> createFolder(AccountId accountId, String name) async {
     try {
       final id = await _worker.createFolder(accountId, name);
       if (!_disposed) {
@@ -60,7 +60,7 @@ final class FolderController {
       mailbox.specialUse != SpecialUse.drafts &&
       mailbox.specialUse != SpecialUse.sent;
 
-  List<FolderRule> rulesFor(int mailboxId) =>
+  List<FolderRule> rulesFor(MailboxId mailboxId) =>
       _store.folderRules.forMailbox(mailboxId);
 
   /// Adds a rule; with [includeExisting] the inbox is filed with the next

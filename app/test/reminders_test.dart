@@ -262,7 +262,7 @@ void main() {
         company: 'myrepublic.com.sg',
         name: 'MyRepublic',
         date: DateTime.utc(2026, 11, 15),
-        messageId: 1,
+        messageId: MessageId(1),
       );
       final now = DateTime(2026, 11, 14, 9);
       expect(
@@ -279,7 +279,7 @@ void main() {
         company: 'spotify.com',
         name: 'Spotify',
         date: DateTime.utc(2026, 11, 17),
-        messageId: 2,
+        messageId: MessageId(2),
         amount: const Money(1198, 'SGD'),
         cadence: Cadence.monthly,
       );
@@ -292,7 +292,7 @@ void main() {
         company: 'uniqlo.com',
         name: 'UNIQLO',
         date: DateTime.utc(2026, 11, 14),
-        messageId: 3,
+        messageId: MessageId(3),
       );
       expect(
         ReminderWords.notification(uniqlo, now),
@@ -304,7 +304,7 @@ void main() {
         company: 'brightsmile.co.uk',
         name: 'Bright Smile Dental',
         date: DateTime.utc(2026, 11, 15),
-        messageId: 4,
+        messageId: MessageId(4),
         at: DateTime(2026, 11, 15, 9, 5),
       );
       expect(

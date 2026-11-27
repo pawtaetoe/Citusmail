@@ -35,8 +35,8 @@ final class MailCounts {
   final int followUps;
 
   final Map<SmartSection, SectionCount> sections;
-  final Map<int, int> perAccountUnread;
-  final Map<int, int> folderUnread;
+  final Map<AccountId, int> perAccountUnread;
+  final Map<MailboxId, int> folderUnread;
   final int outbox;
 
   /// Unread mail in the Smart Inbox (mail waiting in the Screener isn't

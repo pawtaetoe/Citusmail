@@ -21,7 +21,7 @@ enum SummaryScope { message, conversation }
 final class SummaryRequest {
   SummaryRequest(this.messageId, this.scope);
 
-  final int messageId;
+  final MessageId messageId;
   final SummaryScope scope;
 }
 
@@ -152,7 +152,7 @@ final class MessageSummaries {
 
   /// Downloads a message's body that isn't on the device yet (from the
   /// user's own mail server).
-  final Future<void> Function(int messageId) loadBody;
+  final Future<void> Function(MessageId messageId) loadBody;
 
   static final feature = AiFeatures.summaries;
 
@@ -202,7 +202,8 @@ final class MessageSummaries {
   /// Message-ID) give the same key, so a new reply makes a new summary.
   static String _key(SummaryScope scope, List<StoredMessage> emails) {
     final ids = [
-      for (final m in emails) '${m.accountId}:${m.messageId ?? 'row${m.id}'}',
+      for (final m in emails)
+        '${m.accountId.value}:${m.messageId ?? 'row${m.id.value}'}',
     ]..sort();
     final hash = sha256.convert(utf8.encode(ids.join('\n'))).toString();
     return '$_prefix${scope.name[0]}.${hash.substring(0, 24)}';

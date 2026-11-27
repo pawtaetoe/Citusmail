@@ -33,7 +33,7 @@ final class SyncProblem extends SyncStatus {
 
   final SyncFailureKind kind;
   final String account;
-  final int? accountId;
+  final AccountId? accountId;
 
   /// The account signs in with OAuth: a refused login means its sign-in
   /// ended, not a wrong password.
@@ -60,9 +60,9 @@ final class SyncStatusController {
   final status = ValueNotifier<SyncStatus>(const SyncIdle(null));
 
   late final StreamSubscription<SyncEvent> _events;
-  final Map<int, SyncEvent> _lastEvent = {};
+  final Map<AccountId, SyncEvent> _lastEvent = {};
 
-  SyncEvent? lastEvent(int accountId) => _lastEvent[accountId];
+  SyncEvent? lastEvent(AccountId accountId) => _lastEvent[accountId];
 
   Future<void> syncNow() async {
     try {

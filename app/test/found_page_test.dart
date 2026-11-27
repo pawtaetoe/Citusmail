@@ -4,6 +4,7 @@
 
 import 'package:citusmail/src/features/found/state/found_model.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_store/mail_store.dart';
 
 void main() {
   test('a found page splits what is listed from what is left out', () {
@@ -11,7 +12,7 @@ void main() {
       all: ['a', 'b', 'c', 'd'],
       hidden: {'b'},
       learned: {'d'},
-      toRead: [7],
+      toRead: [MessageId(7)],
     ), (item) => item);
     expect(page.listed, ['a', 'c']);
     expect(page.hiddenOnes, ['b', 'd']);
