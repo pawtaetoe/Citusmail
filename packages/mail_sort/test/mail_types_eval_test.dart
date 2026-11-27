@@ -419,6 +419,76 @@ final List<_Mail> _sample = [
       '"addressLocality": "Singapore"}}}',
     ),
   ),
+  // Trains, and a redemption flight laid out as a table: words only.
+  _Mail(
+    _b,
+    'noreply@avantiwestcoast.co.uk',
+    'Avanti West Coast',
+    'Your Booking Confirmation: 21699058',
+    'Thanks for booking with Avanti West Coast. Your eTickets are attached.'
+        '\n\nBooking reference: 21699058\n\nOutward journey\n'
+        'Sunday 28 June 2026\nLondon Euston to Manchester Piccadilly\n'
+        'Depart 08:40   Arrive 10:48\nCoach C, Seat 42\n\n'
+        'Booked on 23 June 2026 at 09:14',
+    _day(6, 23),
+  ),
+  _Mail(
+    _b,
+    'noreply@oebb.at',
+    'ÖBB',
+    'ÖBB ticket – 0919 1410 7516 0291 – Aug 2, 2026',
+    'Thank you for your booking with ÖBB. Your ticket is attached.\n\n'
+        'Ticket number: 0919 1410 7516 0291\n\nFrom:\nWien Hbf\nTo:\n'
+        'Salzburg Hbf\nDeparture 08:30, arrival 10:52\n'
+        'Railjet Xpress RJX 862, 2nd class\n\n'
+        'Date of purchase: 26 May 2026',
+    _day(5, 26),
+  ),
+  _Mail(
+    _b,
+    'booking@singaporeair.com',
+    'Singapore Airlines',
+    'Your redemption booking confirmation EB3QZK',
+    'Thank you for redeeming your KrisFlyer miles.\n\nBooking reference\n'
+        'EB3QZK\n\nFlight 1\nSQ 322\nSun 12 Jul 2026\nSingapore\nSIN\n22:05\n'
+        'Changi Airport Terminal 3\nLondon\nLHR\n05:15 (+1)\n'
+        'Heathrow Airport Terminal 2\nBusiness Saver Award',
+    _day(3, 12),
+  ),
+  // ------------------------- not bookings (travel, but no journey)
+  _Mail(
+    null,
+    'hello@avantiwestcoast.co.uk',
+    'Avanti West Coast',
+    'Save 30% on trains to Glasgow',
+    'Save 30% on Advance fares from London Euston to Glasgow Central when '
+        'you book by 15 November 2026. Travel between 1 December 2026 and '
+        '28 February 2027. Terms apply. Unsubscribe',
+    _day(10, 28),
+  ),
+  _Mail(
+    null,
+    'no-reply@eta.homeoffice.gov.uk',
+    'UK Visas and Immigration',
+    'ETA application approved',
+    'Your application for an electronic travel authorisation (ETA) to '
+        'travel to the UK has been approved. Application reference number: '
+        '7543-2190-8812-4410. Your ETA is valid until 14 March 2028. You can '
+        'travel to the UK by plane, train or ferry.',
+    _day(3, 14),
+    company: 'homeoffice.gov.uk',
+  ),
+  _Mail(
+    null,
+    'tickets@londonnorthwesternrailway.co.uk',
+    'London Northwestern Railway',
+    'A reminder about your ticket',
+    'Ticket: Annual Season, Milton Keynes Central to London Euston\n'
+        'Booking reference: 55120391\n'
+        'Your current ticket is valid until 31 December 2026.\n'
+        'Renew by 24 December 2026 to keep travelling without a gap.',
+    _day(11, 2),
+  ),
   // ----------------------- not bookings (appointments, not travel)
   for (final (i, (from, name, what, month, day)) in [
     ('hello@snipstudio.com', 'Snip Studio', 'Haircut with Mel', 11, 12),

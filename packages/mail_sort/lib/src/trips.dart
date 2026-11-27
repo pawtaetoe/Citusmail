@@ -200,13 +200,19 @@ abstract final class TripText {
     r'\b(?:deals?|sale|offers?|save up to|fares? from|from (?:S\$|US\$|\$|€|£)|'
     r'promo(?:tion|s)?|miles|points|statement|newsletter|rate your|review|'
     r'how was|survey|feedback|tell us|inspiration|ideas|win|earn)\b|'
-    r'\d+% off',
+    r'\d+% off|\bsave\s+(?:up to\s+)?\d+\s?%|'
+    // Visas and travel permits: about a trip, not a booking.
+    r'\b(?:e-?visa|visa|travel authori[sz]ation|eta application)\b|'
+    r'\bapplication (?:approved|received|granted|submitted)\b|'
+    // Season tickets and railcards: no journey.
+    r'\bseason ticket|\brenew(?:al|ed)?\b|\b(?:rail|travel)cards?\b',
   );
 
   // ---------------------------------------------------------- references
 
   static final _referenceLabel = _re(
-    r'\b(?:booking (?:reference|ref\.?|code|number|no\.?|id)|'
+    r'\b(?:booking (?:reference|ref\.?|code|number|no\.?|id|confirmation)|'
+    r'buchungs(?:code|nummer)|reservierungsnummer|ticketcode|'
     r'confirmation (?:code|number|no\.?|#)|'
     r'reservation (?:code|number|no\.?|id|#)|record locator|PNR|'
     r'itinerary(?: number| no\.?)?\s*#?|booking id)'
@@ -268,23 +274,47 @@ abstract final class TripText {
     r'\bschedule (?:change|update)|\b(?:flight|time|itinerary|booking|reservation) '
     r'(?:change|changed|update|updated|modified|amended)\b|'
     r'\b(?:has|have) been (?:changed|modified|amended|rescheduled)\b|'
-    r'\brescheduled\b|\bnew (?:departure|arrival|flight) times?\b',
+    r'\brescheduled\b|\bnew (?:departure|arrival|flight) times?\b|'
+    r'\bnew (?:check-?in |stay |travel )?dates\b',
   );
 
   /// Whether the email says the booking changed.
   static bool saysChanged(String subject, String text) =>
       _changed.hasMatch(subject) || _changed.hasMatch(_cap(text, 3000));
 
+  /// A stay changed: said in the subject, or said of the booking itself
+  /// in the text (not "to change your booking, ..." in every email).
+  static final _stayChangedSubject = _re(
+    r'\b(?:has|have) been (?:changed|modified|amended|updated)\b|'
+    r'\b(?:booking|reservation|stay) (?:change|changed|modified|amended|updated)\b|'
+    r'\b(?:change|modification|amendment) (?:confirmation|confirmed)\b|'
+    r'\bnew dates\b',
+  );
+  static final _stayChangedText = _re(
+    r'\b(?:booking|reservation|stay|dates)\b[^.\n]{0,30}\b(?:has|have) been '
+    r'(?:changed|modified|amended|updated)\b|'
+    r'\b(?:change|modification|amendment) (?:confirmation|confirmed)\b|'
+    r'\bnew (?:check-?in |stay )?dates\b',
+  );
+
+  /// Whether the email says a stay was changed (new dates, a modified
+  /// booking), rather than booked.
+  static bool saysStayChanged(String subject, String text) =>
+      _stayChangedSubject.hasMatch(subject) ||
+      _stayChangedText.hasMatch(_cap(text, 3000));
+
   // ------------------------------------------------------- dates, times
 
   static const _monthNames =
-      r'(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|'
-      r'aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?';
+      r'(jan(?:uary|uar)?|jän(?:ner)?|feb(?:ruary|ruar)?|mar(?:ch)?|märz?|'
+      r'apr(?:il)?|may|mai|june?|juni|july?|juli|aug(?:ust)?|'
+      r'sep(?:t(?:ember)?)?|oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|'
+      r'dec(?:ember)?|dez(?:ember)?)\.?';
   static const _weekdayNames =
       r'(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+)?';
 
   static final _dateDayMonth = _re(
-    '\\b$_weekdayNames(\\d{1,2})(?:st|nd|rd|th)?\\s+$_monthNames'
+    '\\b$_weekdayNames(\\d{1,2})(?:st|nd|rd|th|\\.)?\\s+$_monthNames'
     '(?:,?\\s+(\\d{4}))?\\b',
   );
   static final _dateMonthDay = _re(
@@ -293,20 +323,30 @@ abstract final class TripText {
   );
   static final _dateIso = RegExp(r'\b(\d{4})-(\d{2})-(\d{2})\b');
 
-  static const _months = [
-    'jan',
-    'feb',
-    'mar',
-    'apr',
-    'may',
-    'jun',
-    'jul',
-    'aug',
-    'sep',
-    'oct',
-    'nov',
-    'dec',
-  ];
+  /// "02.08.2026", "2.8.2026": day first, as in most of Europe.
+  static final _dateDots = RegExp(
+    r'(?<![\d.])(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})(?![\d.]*\d)',
+  );
+
+  static const _months = {
+    'jan': 1,
+    'jän': 1,
+    'feb': 2,
+    'mar': 3,
+    'mär': 3,
+    'apr': 4,
+    'may': 5,
+    'mai': 5,
+    'jun': 6,
+    'jul': 7,
+    'aug': 8,
+    'sep': 9,
+    'oct': 10,
+    'okt': 10,
+    'nov': 11,
+    'dec': 12,
+    'dez': 12,
+  };
 
   /// The dates written in [text], by where they start. Without a year,
   /// the next such day from [sent] (a booking is for later).
@@ -326,8 +366,7 @@ abstract final class TripText {
       return date;
     }
 
-    int month(String name) =>
-        _months.indexOf(name.toLowerCase().substring(0, 3)) + 1;
+    int month(String name) => _months[name.toLowerCase().substring(0, 3)]!;
     final found = <({int at, int end, DateTime day})>[];
     void add(int at, int end, DateTime? d) {
       if (d == null) return;
@@ -339,6 +378,12 @@ abstract final class TripText {
       final mo = int.parse(m[2]!);
       if (mo < 1 || mo > 12) continue;
       add(m.start, m.end, day(int.parse(m[1]!), mo, int.parse(m[3]!)));
+    }
+    for (final m in _dateDots.allMatches(text)) {
+      final mo = int.parse(m[2]!);
+      if (mo < 1 || mo > 12) continue;
+      final y = int.parse(m[3]!);
+      add(m.start, m.end, day(y < 100 ? 2000 + y : y, mo, int.parse(m[1]!)));
     }
     for (final m in _dateDayMonth.allMatches(text)) {
       add(
@@ -471,7 +516,11 @@ abstract final class TripText {
         i > 0 ? numbers[i - 1].end : (m.start - 200).clamp(0, m.start),
         m.start,
       );
-      final route = _route(window) ?? _route(before);
+      final route =
+          _route(window) ??
+          _tableRoute(_cap(window, 400)) ??
+          _route(before) ??
+          _tableRoute(before);
       if (route == null) continue;
       final dates = datesIn(window, sent);
       final beforeDates = datesIn(before, sent);
@@ -572,6 +621,48 @@ abstract final class TripText {
     return null;
   }
 
+  /// An airport code standing alone in a table cell: at the end of its
+  /// line, or followed by a time ("SIN 22:05", "SIN\n22:05").
+  static final _codeCell = RegExp(
+    r'(?<![A-Za-z0-9])([A-Z]{3})(?![A-Za-z0-9])[ \t]*'
+    r'(?=\r?\n|\||\t|$|(?:[01]?\d|2[0-3]):[0-5]\d(?!\d))',
+  );
+
+  /// The word before such a code, on its line, if any: a place's name
+  /// ("Singapore SIN"), a label ("Departure:"), a time, a number or an
+  /// arrow; never a word in capitals ("THE SIN") or in prose ("at SIN").
+  static final _beforeCode = RegExp(
+    r"^(?:[A-Z][a-z][\w'.-]*:?|\d{1,2}:\d{2}|\d{1,4}|\(?\+\d\)?|[→>–—-])$",
+  );
+
+  /// The route of a confirmation laid out as a table, its cells one per
+  /// line or side by side: "Singapore SIN 22:05 … London LHR 05:15",
+  /// "SIN\n22:05\nLHR". Two different airports the app knows, each in a
+  /// cell of its own; the first is where it leaves from.
+  static ({ReservationPlace from, ReservationPlace to})? _tableRoute(
+    String text,
+  ) {
+    final codes = <String>[];
+    for (final m in _codeCell.allMatches(text)) {
+      final code = m[1]!;
+      if (!TravelPlaces.isAirport(code)) continue;
+      final lineStart = text.lastIndexOf(RegExp(r'[\n|\t]'), m.start) + 1;
+      final before = text.substring(lineStart, m.start).trim();
+      if (before.isNotEmpty &&
+          !_beforeCode.hasMatch(before.split(RegExp(r'\s+')).last)) {
+        continue;
+      }
+      if (!codes.contains(code)) codes.add(code);
+      if (codes.length == 2) {
+        return (
+          from: ReservationPlace(code: codes[0]),
+          to: ReservationPlace(code: codes[1]),
+        );
+      }
+    }
+    return null;
+  }
+
   // ------------------------------------------------------------- stays
 
   static final _checkIn = _re(
@@ -601,6 +692,37 @@ abstract final class TripText {
     _re(r'\byour (?:stay|booking|reservation) at\s+(.+)$'),
     _re(r'\b(?:booking|reservation) confirmation\s*[-–:|]\s*(.+)$'),
   ];
+
+  /// "Osaka View Hotel Honmachi has been booked": the name, said first.
+  static final _staySubjectFirst = _re(
+    r'^(?:[\[【(][^\]】)]{1,40}[\]】)]\s*|[^:]{1,30}:\s+)?'
+    r'(.+?)\s+(?:has|have)\s+been\s+'
+    r'(?:booked|confirmed|reserved|changed|modified|updated|amended)\b',
+  );
+
+  /// Not a place's name: "Your booking has been confirmed".
+  static final _notAName = _re(
+    r'^(?:your|my|our|this|a)\b|'
+    r'\b(?:booking|reservation|order|payment|flight|ticket|request)s?\b',
+  );
+
+  /// What a subject says of the booking after the place's name: "has
+  /// been booked", "is confirmed", ": reservation changed".
+  static final _statusTail = _re(
+    r'\s+(?:has|have)\s+been\s+(?:booked|confirmed|reserved|changed|'
+    r'modified|updated|amended|cancel+ed|rebooked)\b.*$|'
+    r'\s+(?:is|are|was|were)\s+(?:now\s+)?(?:booked|confirmed|reserved|'
+    r'changed|modified|updated|amended|cancel+ed)\b.*$|'
+    r'\s*[:,]?\s+(?:booking|reservation|stay)\s+(?:is\s+)?(?:confirmed|'
+    r'changed|modified|updated|amended|cancel+ed)\b.*$',
+  );
+
+  /// Where a change email gives the new dates, after the old ones.
+  static final _newDates = _re(
+    r'\b(?:new|updated|revised|changed|current)\s+(?:booking\s+|reservation\s+|'
+    r'stay\s+)?(?:dates?|details|check-?in)\b|\bafter (?:the )?change\b|'
+    r'\bchanged to\b',
+  );
   static final _stayLabel = _re(
     r'^\s*(?:hotel|property|accommodation|hotel name|your hotel|where)\s*:\s*(.+)$',
   );
@@ -615,16 +737,36 @@ abstract final class TripText {
 
   /// A stay in [email]'s words: check-in and check-out dates and the
   /// place's name, or null.
-  static LodgingReservationInfo? stayIn(TripEmail email, {String? reference}) {
+  /// [changed]: the email says the stay changed; dates after "New
+  /// dates" count over the old ones before them.
+  static LodgingReservationInfo? stayIn(
+    TripEmail email, {
+    String? reference,
+    bool changed = false,
+  }) {
     final text = _cap(email.text, 20000);
-    final checkIn = _dayAfter(_checkIn, text, email.at);
-    final checkOut = _dayAfter(_checkOut, text, email.at);
+    var checkIn = _dayAfter(_checkIn, text, email.at);
+    var checkOut = _dayAfter(_checkOut, text, email.at);
+    if (changed) {
+      if (_newDates.allMatches(text).lastOrNull case final label?) {
+        final rest = text.substring(label.end);
+        final newIn = _dayAfter(_checkIn, rest, email.at);
+        final newOut = _dayAfter(_checkOut, rest, email.at);
+        if (newIn != null && newOut != null) {
+          checkIn = newIn;
+          checkOut = newOut;
+        }
+      }
+    }
     if (checkIn == null || checkOut == null) return null;
     final nights = checkOut.day.difference(checkIn.day).inDays;
     if (nights < 1 || nights > 60) return null;
 
     String? clean(String? name) {
-      final n = name?.replaceFirst(_nameEnd, '').trim();
+      final n = name
+          ?.replaceFirst(_statusTail, '')
+          .replaceFirst(_nameEnd, '')
+          .trim();
       if (n == null || n.length < 3 || n.length > 80) return null;
       if (!RegExp('[A-Za-z]{3}').hasMatch(n)) return null;
       // A date or a reference is not a name.
@@ -641,6 +783,12 @@ abstract final class TripText {
       if (clean(re.firstMatch(email.subject)?[1]) case final n?) {
         name = n;
         break;
+      }
+    }
+    if (name == null) {
+      if (clean(_staySubjectFirst.firstMatch(email.subject)?[1]) case final n?
+          when !_notAName.hasMatch(n)) {
+        name = n;
       }
     }
     if (name == null) {
@@ -703,15 +851,459 @@ abstract final class TripText {
     return null;
   }
 
+  // ------------------------------------------------------- trains, coaches
+
+  /// Railways and the sites that sell their tickets, by the first label of
+  /// the sender's domain (`oebb` for oebb.at).
+  static const _railSenders = {
+    'avantiwestcoast',
+    'oebb',
+    'nightjet',
+    'westbahn',
+    'lner',
+    'gwr',
+    'trainline',
+    'thetrainline',
+    'sncf',
+    'sncf-connect',
+    'oui',
+    'sbb',
+    'bahn',
+    'db',
+    'dbregio',
+    'eurostar',
+    'renfe',
+    'trenitalia',
+    'italotreno',
+    'italo',
+    'ns',
+    'nsinternational',
+    'raileurope',
+    'nationalrail',
+    'scotrail',
+    'crosscountrytrains',
+    'tpexpress',
+    'northernrailway',
+    'southeasternrailway',
+    'thameslinkrailway',
+    'greateranglia',
+    'chilternrailways',
+    'eastmidlandsrailway',
+    'westmidlandsrailway',
+    'lumo',
+    'grandcentralrail',
+    'hulltrains',
+    'sleeper',
+    'splitmyfare',
+    'trainpal',
+    'regiojet',
+    'cd',
+    'sj',
+    'vy',
+    'irishrail',
+    'amtrak',
+    'viarail',
+    'ktmb',
+    'korail',
+    'thsrc',
+    'smart-ex',
+    'eki-net',
+    'westjr',
+  };
+
+  /// Coach companies, by the first label of their domain.
+  static const _coachSenders = {
+    'flixbus',
+    'nationalexpress',
+    'megabus',
+    'citylink',
+    'easybook',
+    'busbud',
+    'redbus',
+    'alsa',
+    'eurolines',
+  };
+
+  /// What to call the company when the email gives no sender name.
+  static const _operators = {
+    'avantiwestcoast': 'Avanti West Coast',
+    'oebb': 'ÖBB',
+    'lner': 'LNER',
+    'gwr': 'GWR',
+    'trainline': 'Trainline',
+    'thetrainline': 'Trainline',
+    'sncf': 'SNCF',
+    'sncf-connect': 'SNCF Connect',
+    'sbb': 'SBB',
+    'bahn': 'Deutsche Bahn',
+    'db': 'Deutsche Bahn',
+    'eurostar': 'Eurostar',
+    'renfe': 'Renfe',
+    'trenitalia': 'Trenitalia',
+    'italotreno': 'Italo',
+    'ns': 'NS',
+    'flixbus': 'FlixBus',
+    'nationalexpress': 'National Express',
+    'megabus': 'Megabus',
+  };
+
+  static final _railName = _re(
+    r'(?<![a-z])(?:rail(?:ways?)?|trains|bahn|ÖBB|OEBB|SNCF|SBB|Eurostar|'
+    r'Trenitalia|Italo|Renfe|LNER|GWR|Avanti West Coast|Trainline|Nightjet|'
+    r'ScotRail|Amtrak)(?![a-z])',
+  );
+  static final _jrName = RegExp(r'(?<![A-Za-z])JR(?![A-Za-z])');
+  static final _coachName = _re(
+    r'(?<![a-z])(?:flixbus|national express|megabus|citylink|coach(?:es)?|'
+    r'bus(?:es)?)(?![a-z])',
+  );
+
+  /// Words of rail travel, in English and German.
+  static final _railWords = _re(
+    r'\b(?:trains?|rail(?:way)?|coach|carriage|platform|zug|bahn|gleis|'
+    r'wagen|railjet|nightjet|intercity|sitzplatz)\b',
+  );
+  static final _busWords = _re(r'\b(?:bus|coach station|by coach)\b');
+  static final _trainOnlyWords = _re(r'\b(?:trains?|rail(?:way)?|zug|bahn)\b');
+
+  /// Subjects about rail travel that is not a journey: season tickets,
+  /// railcards, refunds, compensation, surveys.
+  static final _notAJourney = _re(
+    r'\bseason\b|\brenew|\b(?:rail|travel)cards?\b|klimaticket|jahreskarte|'
+    r'monatskarte|wochenkarte|vorteilscard|\bdelay repay\b|compensation|'
+    r'\brefund|\bclaim\b|\bsurvey\b|\bfeedback\b',
+  );
+
+  /// Lines whose dates are not the journey's: when it was bought, until
+  /// when a ticket is valid, when to renew it.
+  static final _notJourneyLine = RegExp(
+    r'^.*\b(?:booked on|booking date|date booked|order date|ordered on|'
+    r'purchase date|purchased on|date of purchase|date of issue|issued on|'
+    r'issue date|kaufdatum|buchungsdatum|bestelldatum|ausstellungsdatum|'
+    r'ausgestellt am|gekauft am|payment date|paid on|transaction date|'
+    r'valid until|valid to|gültig bis|expires|expiry|renew\w*|due)\b.*$',
+    multiLine: true,
+    caseSensitive: false,
+  );
+
+  /// One word of a station's name ("Euston", "Hbf", "Saint-Lazare",
+  /// "Frankfurt(Main)Hbf", "d'Austerlitz").
+  static const _stationWord = r"(?:d'|l')?[A-ZÀ-Þ][\wÀ-ɏ'’()./-]*";
+  static const _stationName =
+      '$_stationWord(?:[ \\t]+(?:(?:de|du|des|la|le|am|im|an der|upon|on|'
+      'sur|del|di|bei)[ \\t]+)?$_stationWord){0,4}';
+  static const _legTime =
+      r'(?:[ \t]+(?:ab|an|dep\.?|arr\.?))?[ \t]+((?:[01]?\d|2[0-3]):[0-5]\d)';
+  static const _legSeparator =
+      r'(?:[ \t]*(?:\r?\n[ \t]*)?(?:→|⟶|➝|->|–|—)[ \t]*(?:\r?\n[ \t]*)?|'
+      r'[ \t]+-[ \t]+|[ \t]+(?:to|nach|naar|till)[ \t]+)';
+
+  /// "London Euston to Manchester Piccadilly", "Wien Hbf → Salzburg Hbf",
+  /// "Wien Hbf ab 08:30 → Salzburg Hbf an 10:52".
+  static final _leg = RegExp(
+    '($_stationName)(?:$_legTime)?$_legSeparator($_stationName)(?:$_legTime)?',
+  );
+  static final _stationAt = RegExp(_stationName);
+
+  /// "From: London Euston", "Von / From: Wien Hbf", the name maybe on the
+  /// next line (a table's cells).
+  static final _fromLabel = RegExp(
+    r'^[ \t]*(?:(?:from|von|departure station|departing from|leaving from|'
+    r'origin|abfahrtsbahnhof|startbahnhof)[ \t]*/?[ \t]*)+:?[ \t]*'
+    r'(?:\r?\n[ \t]*)?',
+    multiLine: true,
+    caseSensitive: false,
+  );
+  static final _toLabel = RegExp(
+    r'^[ \t]*(?:(?:to|nach|arrival station|arriving at|destination|'
+    r'zielbahnhof|ziel)[ \t]*/?[ \t]*)+:?[ \t]*(?:\r?\n[ \t]*)?',
+    multiLine: true,
+    caseSensitive: false,
+  );
+
+  /// Words that come before a station's name without being part of it.
+  static final _notStationWords = _re(
+    r'^(?:(?:your|journey|outward|outbound|return|inbound|from|to|von|nach|'
+    r'hinfahrt|rückfahrt|ticket|train|zug|route|reise|trip|leg)\b[:\s]*)+',
+  );
+
+  /// Words that come after it, on the same line.
+  static final _afterStation = _re(
+    r'\s+(?:depart\w*|arriv\w*|abfahrt|ankunft|coach\s+[a-z0-9]{1,2}|'
+    r'carriage|seat|platform|train|zug|wagen|platz|gleis|class|klasse|'
+    r'standard|first|outward|return|single|advance|off-peak|anytime|ticket|'
+    r'via|valid|dep|arr)\b.*$',
+  );
+
+  /// Ends of station names: the place before it is a town even when the
+  /// app does not know it ("Innsbruck Hbf").
+  static final _stationEnd = _re(
+    r'\s+(?:hbf|hauptbahnhof|bahnhof|bhf|westbahnhof|ostbahnhof|südbahnhof|'
+    r'central|centraal|centrale|euston|piccadilly|st\.? pancras'
+    r"(?: international)?|king'?s cross|paddington|station|termini)$",
+  );
+
+  /// The train or coach ("RJX 862", "ICE 1003", "TGV 9241").
+  static final _trainNumber = RegExp(
+    r'(?<![\w-])(ICE|IC|EC|ECE|EN|NJ|RJX|RJ|TGV|IR|IRE|RE|REX|ES|AVE|FR|FA|'
+    r'EST|THA|WB)\s?(\d{2,5})(?![\w-])',
+  );
+
+  /// A ticket number, often in groups of four ("0919 1410 7516 0291").
+  static final _ticketNumber = _re(
+    r'\bticket(?:nummer|code|nr\.?|\s*(?:number|no\.?|code|nr\.?))?\b'
+    r'[^\d\n]{0,25}?(\d{4}(?:[ ]\d{4}){2,4}|\d{10,20})(?!\d)',
+  );
+
+  /// A ticket number in [text] ("Ticket number: 0919 1410 7516 0291",
+  /// "ÖBB ticket – 0919 1410 7516 0291"), or null.
+  static String? ticketNumberIn(String text) =>
+      _ticketNumber.firstMatch(_cap(text, 20000))?[1];
+
+  /// The kind of transport [email] is about: a train or a coach, from its
+  /// sender, else from its words ([byWords]); or null.
+  static ({ReservationKind kind, bool byWords})? _transitOf(TripEmail email) {
+    final label = email.sender.toLowerCase().split('.').first;
+    final name = email.senderName ?? '';
+    final rail =
+        _railSenders.contains(label) ||
+        label.startsWith('jr') ||
+        _railName.hasMatch(name) ||
+        _jrName.hasMatch(name);
+    if (rail) return (kind: ReservationKind.train, byWords: false);
+    if (_coachSenders.contains(label) || _coachName.hasMatch(name)) {
+      return (kind: ReservationKind.bus, byWords: false);
+    }
+    final sample = _cap('${email.subject}\n${email.text}', 8000);
+    if (!_railWords.hasMatch(sample)) return null;
+    final bus = _busWords.hasMatch(sample) && !_trainOnlyWords.hasMatch(sample);
+    return (
+      kind: bus ? ReservationKind.bus : ReservationKind.train,
+      byWords: true,
+    );
+  }
+
+  /// [raw] read as a station: a known city's ("London Euston", "Wien
+  /// Hbf") or a name ending like a station's ("Innsbruck Hbf"); else null.
+  static ReservationPlace? _station(String raw) {
+    var name = raw
+        .replaceFirst(_notStationWords, '')
+        .replaceFirst(_afterStation, '')
+        .replaceFirst(RegExp(r'[\s.,;:/(-]+$'), '')
+        .trim();
+    if (name.length < 3 || name.length > 50) return null;
+    if (name == name.toUpperCase()) {
+      // "LONDON EUSTON", as on a ticket.
+      name = name
+          .toLowerCase()
+          .split(' ')
+          .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+          .join(' ');
+    }
+    final known = TravelPlaces.cityIn(name);
+    if (known != null) return ReservationPlace(name: name, locality: known);
+    if (name.startsWith(RegExp(r'Gare\b'))) {
+      return ReservationPlace(name: name, locality: 'Paris');
+    }
+    final m = _stationEnd.firstMatch(name);
+    if (m == null) return null;
+    final town = name.substring(0, m.start).trim();
+    if (town.length < 3) return null;
+    return ReservationPlace(name: name, locality: town);
+  }
+
+  /// The journeys written in [text]: where each is in it, its stations
+  /// and, when written beside them, its times.
+  static List<_Leg> _legsIn(String text) {
+    final legs = <_Leg>[];
+    for (final m in _leg.allMatches(text)) {
+      final from = _station(m[1]!);
+      final to = _station(m[3]!);
+      if (from == null || to == null || from.name == to.name) continue;
+      legs.add((
+        start: m.start,
+        end: m.end,
+        from: from,
+        to: to,
+        departs: m[2],
+        arrives: m[4],
+      ));
+    }
+    if (legs.isNotEmpty) return legs;
+    // "From: London Euston … To: Manchester Piccadilly".
+    for (final f in _fromLabel.allMatches(text)) {
+      final fromName = _stationAt.matchAsPrefix(text, f.end);
+      if (fromName == null) continue;
+      final from = _station(fromName[0]!);
+      if (from == null) continue;
+      final rest = text.substring(
+        fromName.end,
+        (fromName.end + 300).clamp(0, text.length),
+      );
+      for (final t in _toLabel.allMatches(rest)) {
+        final toName = _stationAt.matchAsPrefix(rest, t.end);
+        if (toName == null) continue;
+        final to = _station(toName[0]!);
+        if (to == null || to.name == from.name) continue;
+        legs.add((
+          start: f.start,
+          end: fromName.end + toName.end,
+          from: from,
+          to: to,
+          departs: null,
+          arrives: null,
+        ));
+        break;
+      }
+    }
+    return legs;
+  }
+
+  /// The train or coach journeys in [email]'s words: each route between
+  /// two stations or towns, with its date (written near it, else the
+  /// subject's) and its times when given. Only for mail from a railway
+  /// or a coach company, or about trains in more than one word.
+  static List<TransitReservationInfo> trainsIn(
+    TripEmail email, {
+    String? reference,
+  }) {
+    final transit = _transitOf(email);
+    if (transit == null || _notAJourney.hasMatch(email.subject)) {
+      return const [];
+    }
+    final text = _cap(
+      email.text,
+      20000,
+    ).replaceAllMapped(_notJourneyLine, (m) => ' ' * m[0]!.length);
+    final legs = _legsIn(text);
+    if (legs.isEmpty) return const [];
+    if (transit.byWords) {
+      // Words alone: more than one of them, or a station's name.
+      final words = {
+        for (final m in _railWords.allMatches(_cap(text, 8000)))
+          m[0]!.toLowerCase().replaceFirst(RegExp(r's$'), ''),
+      };
+      final station = legs.any(
+        (l) =>
+            _stationEnd.hasMatch(l.from.name!) ||
+            _stationEnd.hasMatch(l.to.name!),
+      );
+      if (words.length < 2 && !station) return const [];
+    }
+    final local = email.at.toLocal();
+    final earliest = DateTime(local.year, local.month, local.day - 1);
+    final latest = earliest.add(const Duration(days: 400));
+    final subjectDay = datesIn(email.subject, email.at).firstOrNull?.day;
+    final label = email.sender.toLowerCase().split('.').first;
+    final provider = email.senderName ?? _operators[label];
+
+    final out = <TransitReservationInfo>[];
+    for (final (i, leg) in legs.indexed) {
+      final lo = i > 0 ? legs[i - 1].end : 0;
+      final hi = i + 1 < legs.length ? legs[i + 1].start : text.length;
+      final before = text.substring(
+        leg.start - 250 > lo ? leg.start - 250 : lo,
+        leg.start,
+      );
+      final after = text.substring(
+        leg.end,
+        leg.end + 400 < hi ? leg.end + 400 : hi,
+      );
+      final dateBefore = datesIn(before, email.at).lastOrNull;
+      final datesAfter = datesIn(after, email.at);
+      final gapBefore = dateBefore == null
+          ? null
+          : before.length - dateBefore.end;
+      final gapAfter = datesAfter.firstOrNull?.at;
+      DateTime? day;
+      var near = after;
+      var nearBefore = '';
+      if (dateBefore != null && (gapAfter == null || gapBefore! <= gapAfter)) {
+        day = dateBefore.day;
+        // A date after it is the next journey's.
+        if (datesAfter.isNotEmpty) near = after.substring(0, datesAfter[0].at);
+        nearBefore = before.substring(dateBefore.end);
+      } else if (datesAfter.isNotEmpty) {
+        day = datesAfter[0].day;
+        if (datesAfter.length > 1) near = after.substring(0, datesAfter[1].at);
+      } else if (i == 0) {
+        day = subjectDay;
+      }
+      if (day == null || day.isBefore(earliest) || day.isAfter(latest)) {
+        continue;
+      }
+      final times = [
+        if (leg.departs case final d?) ...timesIn(d),
+        if (leg.arrives case final a?) ...timesIn(a),
+      ];
+      if (times.isEmpty) {
+        times.addAll(timesIn(near));
+        if (times.isEmpty) times.addAll(timesIn(nearBefore));
+      }
+      PlaceTime at(
+        DateTime d,
+        ({int at, int hour, int minute, bool nextDay}) t,
+      ) => PlaceTime(d.year, d.month, d.day, hour: t.hour, minute: t.minute);
+      final departure = times.isEmpty
+          ? PlaceTime(day.year, day.month, day.day, hasTime: false)
+          : at(day, times.first);
+      PlaceTime? arrival;
+      if (times.length > 1) {
+        final t = times[1];
+        final earlier =
+            t.hour * 60 + t.minute < times.first.hour * 60 + times.first.minute;
+        arrival = at(
+          t.nextDay || earlier
+              ? DateTime(day.year, day.month, day.day + 1)
+              : day,
+          t,
+        );
+      }
+      if (out.any(
+        (o) =>
+            o.from?.name == leg.from.name &&
+            o.to?.name == leg.to.name &&
+            o.start?.day == departure.day,
+      )) {
+        continue;
+      }
+      final number =
+          _trainNumber.firstMatch(near) ?? _trainNumber.firstMatch(nearBefore);
+      out.add(
+        TransitReservationInfo(
+          kind: transit.kind,
+          reservationNumber: reference,
+          provider: provider,
+          number: number == null ? null : '${number[1]} ${number[2]}',
+          departureStation: leg.from,
+          arrivalStation: leg.to,
+          departureTime: departure,
+          arrivalTime: arrival,
+        ),
+      );
+    }
+    return out;
+  }
+
   // ----------------------------------------------------------- reading
 
   /// The bookings [email]'s words describe (none for bulk mail or offers,
-  /// or without a booking reference).
+  /// or without a booking reference; a railway's ticket number will do).
   static List<ReservationInfo> read(TripEmail email, {bool changed = false}) {
     if (email.bulk || notABooking.hasMatch(email.subject)) return const [];
     final words = '${email.subject}\n${email.text}';
     final reference = referencesIn(words).firstOrNull;
-    if (reference == null) return const [];
+    final railway = _transitOf(email)?.byWords == false;
+    if (reference == null) {
+      if (!railway) return const [];
+      final ticket = ticketNumberIn(words);
+      if (ticket == null) return const [];
+      return trainsIn(email, reference: ticket);
+    }
+    if (railway) {
+      final trains = trainsIn(email, reference: reference);
+      if (trains.isNotEmpty) return trains;
+    }
     final flights = flightsIn(
       words,
       sent: email.at,
@@ -719,7 +1311,13 @@ abstract final class TripText {
       changed: changed,
     );
     if (flights.isNotEmpty) return flights;
-    if (stayIn(email, reference: reference) case final s?) return [s];
+    final stay = stayIn(
+      email,
+      reference: reference,
+      changed: changed || saysStayChanged(email.subject, email.text),
+    );
+    if (stay != null) return [stay];
+    if (!railway) return trainsIn(email, reference: reference);
     return const [];
   }
 
@@ -754,12 +1352,15 @@ abstract final class TripFinder {
     'bus ',
     'journey',
     'going to',
+    'buchung',
+    'fahrkarte',
   ];
 
   static final _bookingSubject = RegExp(
     r'\b(?:flights?|booking|reservation|itinerary|e-?tickets?|tickets?|'
     r'hotel|check-?in|boarding pass|trip|stay|table for|train|bus|'
-    r'car (?:rental|hire)|rental car|schedule change|cancel+ed|cancel+ation)\b',
+    r'car (?:rental|hire)|rental car|schedule change|cancel+ed|cancel+ation|'
+    r'buchung\w*|fahrkarten?)\b',
     caseSensitive: false,
   );
 
@@ -848,6 +1449,10 @@ abstract final class TripFinder {
     final groups = <_Group>[];
     for (final r in records) {
       final touched = <_Group>{};
+      // A stay changed under a new reference: the email says so.
+      final stayChanged =
+          !r.email.bulk &&
+          TripText.saysStayChanged(r.email.subject, r.email.text);
       for (final info in r.reservations) {
         final key = naturalKey(info);
         if (key == null) continue;
@@ -864,14 +1469,21 @@ abstract final class TripFinder {
                             g.kind == info.kind && g.references.contains(ref),
                       )
                       .firstOrNull);
-        final g = group ?? _Group(key, info.kind);
-        if (group == null) groups.add(g);
+        final g =
+            group ??
+            (info is LodgingReservationInfo && stayChanged
+                ? _changedStay(groups, info)
+                : null) ??
+            _Group(key, info.kind);
+        if (!groups.contains(g)) groups.add(g);
         g.keys.add(key);
         if (ref != null) g.references.add(ref);
         g.infos.add(info);
         g.statuses.add(r.cancels || info.status == ReservationStatus.cancelled);
         if (!g.records.contains(r)) g.records.add(r);
-        if (r.changes) g.changed = true;
+        if (r.changes || (stayChanged && info is LodgingReservationInfo)) {
+          g.changed = true;
+        }
         touched.add(g);
       }
       // A cancellation or change that names the booking but describes no
@@ -901,6 +1513,30 @@ abstract final class TripFinder {
   }
 
   static bool _moved(List<ReservationInfo> infos) => _previous(infos) != null;
+
+  /// The stay [changed] changes: the latest at the same place whose
+  /// nights overlap or adjoin its new ones (moved, made longer or
+  /// shorter). Two stays back to back are two bookings unless an email
+  /// says it changed one.
+  static _Group? _changedStay(
+    List<_Group> groups,
+    LodgingReservationInfo changed,
+  ) {
+    String norm(String? s) =>
+        (s ?? '').toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final name = norm(changed.hotel?.name);
+    final start = changed.checkin?.day;
+    final end = changed.checkout?.day;
+    if (name.isEmpty || start == null || end == null) return null;
+    return groups.where((g) {
+      final last = g.infos.last;
+      if (last is! LodgingReservationInfo || g.statuses.last) return false;
+      if (norm(last.hotel?.name) != name) return false;
+      final s = last.checkin?.day;
+      final e = last.checkout?.day;
+      return s != null && e != null && !start.isAfter(e) && !end.isBefore(s);
+    }).lastOrNull;
+  }
 
   /// The start before the latest one, if it moved.
   static PlaceTime? _previous(List<ReservationInfo> infos) {
@@ -1025,6 +1661,15 @@ abstract final class TripFinder {
   static bool _same(String? a, String? b) =>
       a != null && b != null && a.toLowerCase() == b.toLowerCase();
 }
+
+typedef _Leg = ({
+  int start,
+  int end,
+  ReservationPlace from,
+  ReservationPlace to,
+  String? departs,
+  String? arrives,
+});
 
 final class _Group {
   _Group(this.key, this.kind);
