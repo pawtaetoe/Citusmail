@@ -513,10 +513,16 @@ final class ImapClient {
     return FetchResult(messages, removed);
   }
 
-  /// UIDs matching [criteria] in the selected folder.
+  /// UIDs matching [criteria] in the selected folder. Text that is not
+  /// plain ASCII is sent as UTF-8 (`CHARSET UTF-8`).
   Future<SearchResult> uidSearch(SearchCriteria criteria) async {
     _requireSelected();
     final command = ImapCommand('UID')..atom('SEARCH');
+    if (criteria.needsUtf8) {
+      command
+        ..atom('CHARSET')
+        ..atom('UTF-8');
+    }
     criteria.applyTo(command);
     final found = <int>[];
     int? modSeq;

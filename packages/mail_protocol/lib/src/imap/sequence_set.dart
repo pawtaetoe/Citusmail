@@ -84,6 +84,11 @@ final class SequenceSet {
     return false;
   }
 
+  /// The members of this set and of [other], e.g. `3,7` and `100:*` make
+  /// `3,7,100:*`.
+  SequenceSet union(SequenceSet other) =>
+      SequenceSet._([..._ranges, ...other._ranges]);
+
   /// The members, refusing to expand more than [max] of them (protects
   /// against huge server-provided ranges).
   List<int> toList({int max = 1000000}) {

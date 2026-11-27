@@ -86,16 +86,26 @@ final class FakeFolder {
 /// for folder syncs (LIST, STATUS, SELECT, UID SEARCH/FETCH/STORE/EXPUNGE/
 /// MOVE, APPEND, CREATE), optionally with CONDSTORE. It records every
 /// command and counts logins, so tests can check how much a sync does.
+///
+/// With [gmail], it says it has Gmail's extensions (`X-GM-EXT-1`) and
+/// answers `X-GM-RAW` searches: `in:inbox` (and sent, drafts, spam, trash)
+/// is true when that folder has a message with the same Message-ID,
+/// `is:starred` when it is flagged, other words when the message has them;
+/// a leading `-` turns any of them around.
 final class FakeImap {
-  FakeImap._(this._server, this.condstore);
+  FakeImap._(this._server, this.condstore, this.gmail);
 
-  static Future<FakeImap> start({bool condstore = false}) async {
+  static Future<FakeImap> start({
+    bool condstore = false,
+    bool gmail = false,
+  }) async {
     final context = SecurityContext()
       ..useCertificateChain('${_certs.path}/mail.crt')
       ..usePrivateKey('${_certs.path}/mail.key');
     final fake = FakeImap._(
       await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, context),
       condstore,
+      gmail,
     );
     fake._server.listen(fake._session, onError: (Object _) {});
     return fake;
@@ -106,6 +116,10 @@ final class FakeImap {
 
   final SecureServerSocket _server;
   final bool condstore;
+  final bool gmail;
+
+  /// Whether SINCE compares dates (by default every date matches).
+  bool filterDates = false;
 
   final folders = <String, FakeFolder>{'INBOX': FakeFolder()};
 
@@ -161,7 +175,8 @@ final class FakeImap {
 
   String get _capabilities =>
       'IMAP4rev1 AUTH=PLAIN SASL-IR LITERAL+ UIDPLUS MOVE SPECIAL-USE '
-      'LIST-EXTENDED${condstore ? ' CONDSTORE' : ''}';
+      'LIST-EXTENDED${condstore ? ' CONDSTORE' : ''}'
+      '${gmail ? ' X-GM-EXT-1' : ''}';
 
   void _session(Socket socket) {
     open++;
@@ -209,9 +224,15 @@ final class FakeImap {
               '$tag OK [READ-WRITE] done\r\n';
         case 'UID SEARCH':
           final folder = selected!;
+          final keys = _searchTokens(
+            line.replaceFirst(
+              RegExp(r'^UID\s+SEARCH', caseSensitive: false),
+              '',
+            ),
+          );
           final found = [
             for (final m in folder.messages)
-              if (_matches(m, folder, words.sublist(2))) m.uid,
+              if (_matches(m, folder, keys)) m.uid,
           ];
           return '* SEARCH${found.map((n) => ' $n').join()}\r\n'
               '$tag OK done\r\n';
@@ -362,33 +383,127 @@ final class FakeImap {
 
   static int _n(String s, int highest) => s == '*' ? highest : int.parse(s);
 
-  static bool _matches(FakeMessage m, FakeFolder folder, List<String> words) {
-    for (var i = 0; i < words.length; i++) {
-      final word = words[i].replaceAll(RegExp('[()]'), '').toUpperCase();
-      switch (word) {
-        case 'ALL' || '':
-          break;
+  /// Search keys: quoted strings (unquoted), parentheses, and words.
+  static List<String> _searchTokens(String text) => [
+    for (final m in RegExp(
+      r'"((?:[^"\\]|\\.)*)"|[()]|[^\s()]+',
+    ).allMatches(text))
+      m.group(1)?.replaceAllMapped(RegExp(r'\\(.)'), (e) => e.group(1)!) ??
+          m.group(0)!,
+  ];
+
+  /// Whether [m] matches every key of [keys]. Keys the fake does not know
+  /// match everything.
+  bool _matches(FakeMessage m, FakeFolder folder, List<String> keys) {
+    var i = 0;
+    bool key() {
+      final word = keys[i++];
+      switch (word.toUpperCase()) {
+        case '(':
+          var all = true;
+          while (i < keys.length && keys[i] != ')') {
+            if (!key()) all = false;
+          }
+          i++;
+          return all;
+        case 'OR':
+          final a = key();
+          final b = key();
+          return a || b;
+        case 'NOT':
+          return !key();
         case 'UID':
-          if (!_set(words[++i], folder)(m.uid)) return false;
+          return _set(keys[i++], folder)(m.uid);
         case 'SINCE':
-          i++; // the fake keeps every date
+          final since = _parseDate(keys[i++]);
+          return !filterDates || !m.date.isBefore(since);
+        case 'CHARSET' || 'MODSEQ':
+          i++;
+          return true;
+        case 'FLAGGED':
+          return m.flags.contains(r'\Flagged');
         case 'HEADER':
-          final name = words[++i].toLowerCase();
-          final value = words[++i].toLowerCase();
-          final head = latin1.decode(m.raw).split('\r\n\r\n').first;
-          final hit = head
-              .split('\r\n')
-              .any(
-                (l) =>
-                    l.toLowerCase().startsWith('$name:') &&
-                    l.toLowerCase().contains(value),
-              );
-          if (!hit) return false;
+          final name = keys[i++].toLowerCase();
+          final value = keys[i++].toLowerCase();
+          return _header(m, name)?.toLowerCase().contains(value) ?? false;
+        case 'SUBJECT' || 'FROM':
+          final value = keys[i++].toLowerCase();
+          final header = _header(m, word.toLowerCase());
+          return header?.toLowerCase().contains(value) ?? false;
+        case 'TEXT':
+          final value = keys[i++].toLowerCase();
+          return latin1.decode(m.raw).toLowerCase().contains(value);
+        case 'X-GM-RAW' when gmail:
+          return _gmailMatches(m, keys[i++]);
         default:
-          break;
+          return true;
       }
     }
+
+    var all = true;
+    while (i < keys.length) {
+      if (!key()) all = false;
+    }
+    return all;
+  }
+
+  /// Gmail's search ([gmail]): see the class comment.
+  bool _gmailMatches(FakeMessage m, String query) {
+    final id = _header(m, 'message-id');
+    bool inFolder(String label) {
+      final name = switch (label) {
+        'inbox' => 'INBOX',
+        'sent' => _named('Sent'),
+        'drafts' => _named('Drafts'),
+        'spam' => _named('Junk'),
+        'trash' => _named('Trash'),
+        _ => null,
+      };
+      final folder = folders[name];
+      return folder != null &&
+          id != null &&
+          folder.messages.any((o) => _header(o, 'message-id') == id);
+    }
+
+    final text = latin1.decode(m.raw).toLowerCase();
+    for (final match in RegExp(r'-?"[^"]*"|\S+').allMatches(query)) {
+      var term = match.group(0)!;
+      final negated = term.startsWith('-');
+      if (negated) term = term.substring(1);
+      term = term.replaceAll('"', '').toLowerCase();
+      final hit = term.startsWith('in:')
+          ? inFolder(term.substring(3))
+          : term == 'is:starred'
+          ? m.flags.contains(r'\Flagged')
+          : text.contains(term);
+      if (hit == negated) return false;
+    }
     return true;
+  }
+
+  /// The name of the folder with [specialUse], if any.
+  String? _named(String specialUse) => folders.entries
+      .where((e) => e.value.specialUse == specialUse)
+      .map((e) => e.key)
+      .firstOrNull;
+
+  static String? _header(FakeMessage m, String name) {
+    final head = latin1.decode(m.raw).split('\r\n\r\n').first;
+    for (final line in head.split('\r\n')) {
+      if (line.toLowerCase().startsWith('$name:')) {
+        return line.substring(name.length + 1).trim();
+      }
+    }
+    return null;
+  }
+
+  static DateTime _parseDate(String text) {
+    final [day, month, year] = text.split('-');
+    return DateTime.utc(
+      int.parse(year),
+      _months.indexOf(month) + 1,
+      int.parse(day),
+    );
   }
 
   String _fetch(FakeMessage m, String line, FakeFolder folder) {
@@ -407,6 +522,22 @@ final class FakeImap {
     if (upper.contains('BODY.PEEK[]')) {
       final raw = latin1.decode(m.raw);
       body = ' BODY[] {${m.raw.length}}\r\n$raw';
+    }
+    final fields = RegExp(
+      r'BODY\.PEEK\[HEADER\.FIELDS \(([^)]*)\)\]',
+      caseSensitive: false,
+    ).firstMatch(line);
+    if (fields != null) {
+      final names = fields.group(1)!.toLowerCase().split(' ');
+      final head = latin1.decode(m.raw).split('\r\n\r\n').first;
+      final kept = [
+        for (final l in head.split('\r\n'))
+          if (names.any((n) => l.toLowerCase().startsWith('$n:'))) '$l\r\n',
+      ].join();
+      final section = '$kept\r\n';
+      body +=
+          ' BODY[HEADER.FIELDS (${fields.group(1)})] {${section.length}}'
+          '\r\n$section';
     }
     final seq = folder.messages.indexOf(m) + 1;
     return '* $seq FETCH (${items.join(' ')}$body)\r\n';
