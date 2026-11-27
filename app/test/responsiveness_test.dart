@@ -20,6 +20,7 @@ import 'package:citusmail/src/features/organise/state/sender_cleanup_model.dart'
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
+import 'package:mail_sync/mail_sync.dart';
 
 import 'support/big_mailbox.dart';
 import 'support/test_app.dart';
@@ -118,6 +119,62 @@ void main() {
       runs: 5,
       before: () => arrive(account++ % 5),
     );
+  });
+
+  test('an idle app while the accounts are checked for mail', () async {
+    // Every minute each account's inbox is checked: a sync starts and
+    // ends for each, and the worker writes (the folders' sync state)
+    // without changing anything on screen.
+    final summary = controller.summary..watch();
+    // What the earlier tests stored is on screen.
+    controller.refresh();
+    var list = 0, counts = 0, reader = 0, status = 0, line = 0;
+    controller.list.addListener(() => list++);
+    controller.counts.addListener(() => counts++);
+    controller.reader.addListener(() => reader++);
+    controller.status.addListener(() => status++);
+    summary.addListener(() => line++);
+    final refreshes = controller.refreshes;
+    final statements = store().database.statementCount;
+    const minutes = 3;
+    for (var minute = 0; minute < minutes; minute++) {
+      for (final a in big.accounts) {
+        controller.syncStatusController.debugEvent(AccountSyncStarted(a.id));
+      }
+      for (final a in big.accounts) {
+        final inbox = store().mailboxes.inbox(a.id)!;
+        store().mailboxes.saveSyncState(
+          inbox.id,
+          MailboxSyncState(uidValidity: 1, uidNext: 100000 + minute),
+        );
+        controller.syncStatusController.debugEvent(
+          AccountSynced(
+            a.id,
+            AccountSyncReport(
+              replay: const ReplayResult(),
+              mailboxes: {
+                inbox.id: MailboxSyncResult(method: SyncMethod.qresync),
+              },
+            ),
+          ),
+        );
+      }
+      await Future<void>.delayed(
+        MailController.refreshDelay + const Duration(milliseconds: 100),
+      );
+    }
+    summary.unwatch();
+    print(
+      '$minutes idle minutes: ${controller.refreshes - refreshes} refreshes, '
+      '${store().database.statementCount - statements} statements; the '
+      'list told $list times, counts $counts, the reader $reader, the '
+      'status line $status, the summary line $line',
+    );
+    // One refresh per check of all accounts, and nothing built again:
+    // only the status line says "Updating…" and "Updated".
+    expect(controller.refreshes - refreshes, lessThanOrEqualTo(minutes));
+    expect((list, counts, reader, line), (0, 0, 0, 0));
+    expect(status, lessThanOrEqualTo(2 * minutes));
   });
 
   test('opening a message', () async {

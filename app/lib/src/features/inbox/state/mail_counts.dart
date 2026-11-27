@@ -44,6 +44,21 @@ final class MailCounts {
   /// back).
   int get inboxUnread => unreadIn(sections);
 
+  /// Whether [other] counts the same: then nothing needs showing again.
+  bool same(MailCounts other) =>
+      identical(this, other) ||
+      (snoozed == other.snoozed &&
+          followUps == other.followUps &&
+          outbox == other.outbox &&
+          mapEquals(perAccountUnread, other.perAccountUnread) &&
+          mapEquals(folderUnread, other.folderUnread) &&
+          sections.length == other.sections.length &&
+          sections.entries.every(
+            (e) =>
+                other.sections[e.key]?.total == e.value.total &&
+                other.sections[e.key]?.unread == e.value.unread,
+          ));
+
   static int unreadIn(Map<SmartSection, SectionCount> sections) => [
     for (final MapEntry(:key, :value) in sections.entries)
       if (key != SmartSection.screener && key != SmartSection.snoozed)
@@ -72,7 +87,7 @@ final class CountsController {
     _stamp = stamp;
     final accounts = _store.accounts.all();
     final sections = _list.sectionCounts();
-    counts.value = MailCounts(
+    final fresh = MailCounts(
       sections: sections,
       perAccountUnread: {
         for (final a in accounts)
@@ -87,6 +102,9 @@ final class CountsController {
       snoozed: _store.snoozes.count(),
       followUps: _followUps.all().length,
     );
+    // The sync worker writes after every check, mostly without changing
+    // any count: the sidebar is built again only when one changed.
+    if (!fresh.same(counts.value)) counts.value = fresh;
   }
 
   void dispose() => counts.dispose();

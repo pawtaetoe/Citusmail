@@ -17,6 +17,7 @@ import '../../../services/app_services.dart';
 import '../../compose/state/compose_starter.dart';
 import '../../inbox/state/mail_counts.dart';
 import '../../inbox/state/message_list_model.dart';
+import '../../inbox/state/same_content.dart';
 import 'reader_state.dart';
 
 /// The open message: opening it (read, downloaded and checked), moving to
@@ -209,8 +210,10 @@ final class ReaderController {
   }
 
   /// Reads the open message again from the store (its flags, its
-  /// section); closes it if it is gone.
-  void refreshOpen() {
+  /// section); closes it if it is gone. The reading pane is built again
+  /// (it also shows what is stored apart from the message: a block, say),
+  /// unless [quiet] and the message is as it was.
+  void refreshOpen({bool quiet = false}) {
     final current = selected;
     if (current == null) return;
     final fresh = _store.messages.byId(current.id);
@@ -218,6 +221,9 @@ final class ReaderController {
       reader.value = const ReaderEmpty();
       return;
     }
+    // After a sync that left it as it was (most), the open message isn't
+    // built again.
+    if (quiet && sameMessage(current, fresh)) return;
     reader.value = switch (reader.value) {
       ReaderLoading() => ReaderLoading(fresh),
       final ReaderReady ready => ready.copyWith(message: fresh),

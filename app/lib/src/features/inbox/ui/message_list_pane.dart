@@ -691,6 +691,26 @@ final class _MessagesState extends State<_Messages> {
       }
     });
     _c.location.addListener(_toTop);
+    _c.status.addListener(_statusChanged);
+    _statusChanged();
+    _c.reader.addListener(_readerChanged);
+  }
+
+  /// The message open in the reading pane: the list is built again when
+  /// another one opens, not each time the open one loads or changes.
+  late final _openId = ValueNotifier<MessageId?>(_c.selected?.id);
+
+  void _readerChanged() => _openId.value = _c.selected?.id;
+
+  /// The first check for mail is under way: rows on their way, not
+  /// "empty". Follows the sync status, so the list is built again only
+  /// when this changes, not on every sync.
+  final _arriving = ValueNotifier<bool>(false);
+
+  void _statusChanged() {
+    final status = _c.status.value;
+    if (status is SyncIdle && status.lastSynced != null) _checked = true;
+    _arriving.value = !_checked && status is SyncRunning;
   }
 
   void _toTop() {
@@ -700,6 +720,10 @@ final class _MessagesState extends State<_Messages> {
   @override
   void dispose() {
     _c.location.removeListener(_toTop);
+    _c.status.removeListener(_statusChanged);
+    _c.reader.removeListener(_readerChanged);
+    _arriving.dispose();
+    _openId.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -717,7 +741,7 @@ final class _MessagesState extends State<_Messages> {
       key: ValueKey(m.id.value),
       message: m,
       controller: _c,
-      open: _c.selected?.id == m.id,
+      open: _openId.value == m.id,
       checked: selection.contains(m.id),
       selecting: selection.isNotEmpty,
     );
@@ -728,17 +752,15 @@ final class _MessagesState extends State<_Messages> {
     listenable: Listenable.merge([
       _c.list,
       _c.selection,
-      _c.reader,
+      _openId,
       _c.codesOffer,
-      _c.status,
+      _arriving,
     ]),
     builder: (context, _) {
       final list = _c.list;
-      final status = _c.status.value;
-      if (status is SyncIdle && status.lastSynced != null) _checked = true;
       // The first check for mail: rows on their way, not "empty".
       const arriving = SkeletonRows(label: 'Checking for mail…');
-      final firstCheck = !_checked && status is SyncRunning;
+      final firstCheck = _arriving.value;
       // Asks once, in the Verification section, before tidying up codes.
       final codesOffer = _c.codesOffer.value
           ? SliverToBoxAdapter(child: CodeCleanupBanner(controller: _c))

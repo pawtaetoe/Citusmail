@@ -8,6 +8,7 @@ import 'package:mail_sync/mail_sync.dart';
 
 import 'mail_location.dart';
 import 'new_since_away.dart';
+import 'same_content.dart';
 import 'store_changes.dart';
 
 /// One Smart Inbox section in the accordion.
@@ -172,7 +173,7 @@ final class MessageListModel extends ChangeNotifier {
         found: ids.where((id) => !shown.contains(id)).length,
       ),
     };
-    refresh();
+    _refresh(changed: true);
   }
 
   /// The search on [accountId]'s server did not happen: [offline], or the
@@ -211,11 +212,17 @@ final class MessageListModel extends ChangeNotifier {
     reachedEnd = false;
     serverSearches = const {};
     _serverFound = const [];
-    refresh();
+    _refresh(changed: true);
   }
 
-  /// Re-reads what is shown, keeping how much was loaded.
-  void refresh() {
+  /// Re-reads what is shown, keeping how much was loaded. Listeners hear
+  /// of it only when something shown changed: after a sync that brought
+  /// nothing new, nothing is built again.
+  void refresh() => _refresh(changed: false);
+
+  void _refresh({required bool changed}) {
+    // The Outbox's entries are read by the screen itself.
+    final before = changed || _location is OutboxLocation ? null : _Shown(this);
     final location = _location;
     followUps = switch (location) {
       InboxLocation(:final accountId) => _followUps(
@@ -281,7 +288,7 @@ final class MessageListModel extends ChangeNotifier {
         reachedEnd = true;
       }
     }
-    notifyListeners();
+    if (before == null || !before.same(_Shown(this))) notifyListeners();
   }
 
   /// [local] results, then those only the servers found, newest first
@@ -478,5 +485,97 @@ final class MessageListModel extends ChangeNotifier {
       return const {SmartSection.notifications, SmartSection.newsletters};
     }
     return {for (final name in stored) ?SmartSection.values.asNameMap()[name]};
+  }
+}
+
+/// What the list shows, copied, to tell whether a refresh changed any of
+/// it.
+final class _Shown {
+  _Shown(MessageListModel list)
+    : location = list.location,
+      sections = [
+        for (final s in list.sections)
+          (s.section, s.expanded, s.count.total, s.count.unread, s.messages),
+      ],
+      screenerWaiting = list.screenerWaiting,
+      away = list.newSinceAway,
+      awayShown = list.awayShown.length,
+      followUps = list.followUps,
+      messages = list.messages,
+      searchCorrection = list.searchCorrection,
+      localResults = list.localResults,
+      serverSearches = list.serverSearches,
+      snoozedUntil = list.snoozedUntil,
+      reachedEnd = list.reachedEnd,
+      loadingOlder = list.loadingOlder;
+
+  final MailLocation location;
+  final List<(SmartSection, bool, int, int, List<StoredMessage>)> sections;
+  final int screenerWaiting;
+  final AwayMail away;
+  final int awayShown;
+  final List<FollowUpRow> followUps;
+  final List<StoredMessage> messages;
+  final String? searchCorrection;
+  final int localResults;
+  final Map<AccountId, ServerSearchState> serverSearches;
+  final Map<String, DateTime> snoozedUntil;
+  final bool reachedEnd;
+  final bool loadingOlder;
+
+  bool same(_Shown o) =>
+      location == o.location &&
+      screenerWaiting == o.screenerWaiting &&
+      awayShown == o.awayShown &&
+      searchCorrection == o.searchCorrection &&
+      localResults == o.localResults &&
+      reachedEnd == o.reachedEnd &&
+      loadingOlder == o.loadingOlder &&
+      identical(serverSearches, o.serverSearches) &&
+      mapEquals(snoozedUntil, o.snoozedUntil) &&
+      _sameSections(o) &&
+      _sameAway(o.away) &&
+      _sameFollowUps(o.followUps) &&
+      sameMessages(messages, o.messages);
+
+  bool _sameSections(_Shown o) {
+    if (sections.length != o.sections.length) return false;
+    for (var i = 0; i < sections.length; i++) {
+      final (s, e, t, u, m) = sections[i];
+      final (os, oe, ot, ou, om) = o.sections[i];
+      if (s != os || e != oe || t != ot || u != ou || !sameMessages(m, om)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _sameAway(AwayMail o) =>
+      identical(away, o) ||
+      (away.since == o.since &&
+          away.newsletters == o.newsletters &&
+          away.notifications == o.notifications &&
+          sameMessages(away.messages, o.messages));
+
+  bool _sameFollowUps(List<FollowUpRow> o) {
+    if (followUps.length != o.length) return false;
+    for (var i = 0; i < o.length; i++) {
+      final a = followUps[i].followUp, b = o[i].followUp;
+      if (a.messageId != b.messageId ||
+          a.accountId != b.accountId ||
+          a.due != b.due ||
+          a.sentAt != b.sentAt ||
+          a.subject != b.subject ||
+          a.returnedAt != b.returnedAt ||
+          a.notified != b.notified ||
+          !listEquals(
+            [for (final r in a.recipients) r.toString()],
+            [for (final r in b.recipients) r.toString()],
+          ) ||
+          !sameMessage(followUps[i].message, o[i].message)) {
+        return false;
+      }
+    }
+    return true;
   }
 }

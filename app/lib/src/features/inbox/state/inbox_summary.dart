@@ -16,6 +16,7 @@ import '../../found/state/deliveries_model.dart';
 import '../../found/state/subscriptions_model.dart';
 import '../../found/state/trips_model.dart';
 import 'message_list_model.dart';
+import 'same_content.dart';
 import 'store_changes.dart';
 
 /// One piece of the summary line at the top of the inbox.
@@ -233,8 +234,11 @@ final class InboxSummary extends ChangeNotifier {
   /// Builds the pieces again (the list changed, a setting changed).
   void update() {
     if (_disposed) return;
-    pieces = _compute();
-    notifyListeners();
+    final next = _compute();
+    if (!samePieces(next, pieces)) {
+      pieces = next;
+      notifyListeners();
+    }
     if (_watchers > 0) {
       _scheduleTick();
       _maybeLoad();
@@ -271,6 +275,41 @@ final class InboxSummary extends ChangeNotifier {
       bills: settings.reminders,
       now: now,
     );
+  }
+
+  /// Whether [a] and [b] show the same line (today's findings by the
+  /// very same reading).
+  static bool samePieces(List<SummaryPiece> a, List<SummaryPiece> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final same = switch ((a[i], b[i])) {
+        (final NewMailPiece x, final NewMailPiece y) =>
+          x.count == y.count && sameMessage(x.first, y.first),
+        (final CodePiece x, final CodePiece y) => sameMessage(
+          x.message,
+          y.message,
+        ),
+        (final DeliveriesPiece x, final DeliveriesPiece y) => listEquals(
+          x.deliveries,
+          y.deliveries,
+        ),
+        (final AppointmentPiece x, final AppointmentPiece y) => identical(
+          x.appointment,
+          y.appointment,
+        ),
+        (final BookingPiece x, final BookingPiece y) => identical(
+          x.booking,
+          y.booking,
+        ),
+        (final BillPiece x, final BillPiece y) => identical(
+          x.reminder,
+          y.reminder,
+        ),
+        _ => false,
+      };
+      if (!same) return false;
+    }
+    return true;
   }
 
   static bool _fresh(StoredMessage m, DateTime now) =>
