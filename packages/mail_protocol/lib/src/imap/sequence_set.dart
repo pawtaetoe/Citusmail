@@ -102,14 +102,39 @@ final class SequenceSet {
     ];
   }
 
+  /// The set in parts, in order, whose text ([toString]) is at most
+  /// [maxLength] characters each; a range is never cut. A command with
+  /// thousands of scattered UIDs then stays within the line length
+  /// servers accept (RFC 7162 asks clients to keep command lines to 8192
+  /// octets), as a few commands instead of one per message.
+  List<SequenceSet> split({int maxLength = 4000}) {
+    if (maxLength < 41) throw ArgumentError.value(maxLength, 'maxLength');
+    final parts = <SequenceSet>[];
+    var current = <(int, int)>[];
+    var length = 0;
+    for (final r in _ranges) {
+      final text = _rangeText(r);
+      final added = current.isEmpty ? text.length : text.length + 1;
+      if (current.isNotEmpty && length + added > maxLength) {
+        parts.add(SequenceSet._(current));
+        current = [];
+        length = 0;
+      }
+      length += current.isEmpty ? text.length : text.length + 1;
+      current.add(r);
+    }
+    if (current.isNotEmpty) parts.add(SequenceSet._(current));
+    return parts;
+  }
+
+  static String _rangeText((int, int) r) {
+    final end = r.$2 == _star ? '*' : '${r.$2}';
+    return r.$1 == r.$2 ? '${r.$1}' : '${r.$1}:$end';
+  }
+
   /// IMAP syntax, e.g. `1:3,5,9:*`.
   @override
-  String toString() => _ranges
-      .map((r) {
-        final end = r.$2 == _star ? '*' : '${r.$2}';
-        return r.$1 == r.$2 ? '${r.$1}' : '${r.$1}:$end';
-      })
-      .join(',');
+  String toString() => _ranges.map(_rangeText).join(',');
 
   @override
   bool operator ==(Object other) =>

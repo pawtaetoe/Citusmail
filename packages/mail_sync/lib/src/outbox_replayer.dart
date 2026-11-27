@@ -132,6 +132,16 @@ final class OutboxReplayer {
     );
   }
 
+  /// The longest UID set in one command, in characters.
+  static const maxUidSetLength = 4000;
+
+  /// [uids] as few UID sets as fit in command lines: ranges where the
+  /// UIDs run on (`1:500,502,510:900`), and for thousands of scattered
+  /// UIDs a few commands of at most [maxUidSetLength] characters, never
+  /// one command per message.
+  static List<SequenceSet> uidSets(List<int> uids) =>
+      SequenceSet.of(uids).split(maxLength: maxUidSetLength);
+
   void _retryLater(OutboxEntry entry, String error) => _store.outbox.retryLater(
     entry.id,
     error,
@@ -155,40 +165,36 @@ final class OutboxReplayer {
     switch (entry.action) {
       case final SetFlagsAction a:
         await _selectFor(imap, a);
-        if (a.add.isNotEmpty) {
-          await imap.uidStore(
-            SequenceSet.of(a.uids),
-            FlagChange.add,
-            a.add.toSet(),
-          );
-        }
-        if (a.remove.isNotEmpty) {
-          await imap.uidStore(
-            SequenceSet.of(a.uids),
-            FlagChange.remove,
-            a.remove.toSet(),
-          );
+        for (final uids in uidSets(a.uids)) {
+          if (a.add.isNotEmpty) {
+            await imap.uidStore(uids, FlagChange.add, a.add.toSet());
+          }
+          if (a.remove.isNotEmpty) {
+            await imap.uidStore(uids, FlagChange.remove, a.remove.toSet());
+          }
         }
       case final MoveAction a:
         final target = _mailbox(a.targetMailboxId);
         await _selectFor(imap, a);
-        await imap.uidMove(SequenceSet.of(a.uids), target.encodedName);
+        for (final uids in uidSets(a.uids)) {
+          await imap.uidMove(uids, target.encodedName);
+        }
       case final DeleteAction a:
         final source = await _selectFor(imap, a);
         final trash = _store.mailboxes.bySpecialUse(
           account.id,
           SpecialUse.trash,
         );
-        if (trash == null || trash.id == source.id) {
-          // Already in Trash (or there is none): remove for good.
-          await imap.uidStore(SequenceSet.of(a.uids), FlagChange.add, {
-            r'\Deleted',
-          });
-          if (imap.capabilities.has('UIDPLUS')) {
-            await imap.uidExpunge(SequenceSet.of(a.uids));
+        for (final uids in uidSets(a.uids)) {
+          if (trash == null || trash.id == source.id) {
+            // Already in Trash (or there is none): remove for good.
+            await imap.uidStore(uids, FlagChange.add, {r'\Deleted'});
+            if (imap.capabilities.has('UIDPLUS')) {
+              await imap.uidExpunge(uids);
+            }
+          } else {
+            await imap.uidMove(uids, trash.encodedName);
           }
-        } else {
-          await imap.uidMove(SequenceSet.of(a.uids), trash.encodedName);
         }
       case final AppendAction a:
         final target = _mailbox(a.mailboxId);
