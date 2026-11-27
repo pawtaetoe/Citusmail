@@ -425,9 +425,9 @@ final List<_Mail> _sample = [
     _b,
     'noreply@avantiwestcoast.co.uk',
     'Avanti West Coast',
-    'Your Booking Confirmation: 21699058',
+    'Your Booking Confirmation: 40871235',
     'Thanks for booking with Avanti West Coast. Your eTickets are attached.'
-        '\n\nBooking reference: 21699058\n\nOutward journey\n'
+        '\n\nBooking reference: 40871235\n\nOutward journey\n'
         'Sunday 28 June 2026\nLondon Euston to Manchester Piccadilly\n'
         'Depart 08:40   Arrive 10:48\nCoach C, Seat 42\n\n'
         'Booked on 23 June 2026 at 09:14',
@@ -437,9 +437,9 @@ final List<_Mail> _sample = [
     _b,
     'noreply@oebb.at',
     'ÖBB',
-    'ÖBB ticket – 0919 1410 7516 0291 – Aug 2, 2026',
+    'ÖBB ticket – 1234 5678 9012 3456 – Aug 2, 2026',
     'Thank you for your booking with ÖBB. Your ticket is attached.\n\n'
-        'Ticket number: 0919 1410 7516 0291\n\nFrom:\nWien Hbf\nTo:\n'
+        'Ticket number: 1234 5678 9012 3456\n\nFrom:\nWien Hbf\nTo:\n'
         'Salzburg Hbf\nDeparture 08:30, arrival 10:52\n'
         'Railjet Xpress RJX 862, 2nd class\n\n'
         'Date of purchase: 26 May 2026',

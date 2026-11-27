@@ -504,6 +504,51 @@ void main() {
       expect(s.nextCharge, day(12, 24));
     });
 
+    test('a shop order\'s invoice is not a subscription', () {
+      // A sports shop's "invoice available" email for one order: its links
+      // and footer name "Membership", which is not about this order.
+      const text = '''
+Trouble viewing this email? View in browser.
+Your invoice
+Order no. SG00EXAMPLE1
+Order status :
+In transit
+Download my invoice
+Hello Sam,
+You may download the invoice for your order SG00EXAMPLE1 in the Purchase History page.
+Free 2 hours Click & Collect*
+Return & Exchange Free
+Find a store
+FAQ
+Do you have a question?
+Contact us
+Our services Membership Terms of sale Privacy Policy
+''';
+      final found = SubscriptionFinder.find([
+        mail(
+          'sportshop.example',
+          'Your invoice is available - SG00EXAMPLE1',
+          day(10, 18),
+          name: 'Sport Shop',
+          text: text,
+        ),
+      ], now: now);
+      expect(found, isEmpty);
+    });
+
+    test('a membership named in the subject still counts', () {
+      final found = SubscriptionFinder.find([
+        mail(
+          'gym.example',
+          'Your membership invoice',
+          day(10, 18),
+          name: 'Gym',
+          text: 'Order no. 1234. Membership, monthly. Total S\$59.00',
+        ),
+      ], now: now);
+      expect(found.single.name, 'Gym');
+    });
+
     test('replies and forwards are not receipts', () {
       final found = SubscriptionFinder.find([
         mail(
