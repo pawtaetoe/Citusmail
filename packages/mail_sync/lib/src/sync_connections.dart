@@ -39,7 +39,7 @@ final class SyncConnections {
   /// After how long unused a connection is checked before reuse.
   final Duration checkAfter;
 
-  final _idle = <int, List<_Idle>>{};
+  final _idle = <AccountId, List<_Idle>>{};
 
   /// A logged-in connection for [account]: a kept one that still answers,
   /// else a new one. Give it back with [give] when done.
@@ -88,7 +88,7 @@ final class SyncConnections {
 
   /// Closes the kept connections of one account (removed, its settings
   /// changed, or the app came back and they may have died).
-  Future<void> close(int accountId) =>
+  Future<void> close(AccountId accountId) =>
       _closeKept(_idle.remove(accountId) ?? const []);
 
   Future<void> closeAll() async {

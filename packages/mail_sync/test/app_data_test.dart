@@ -357,8 +357,8 @@ void main() {
 
   test('the sync folder is recognised under any layout', () {
     StoredMailbox box(String name, String? delimiter) => StoredMailbox(
-      id: 1,
-      accountId: 1,
+      id: MailboxId(1),
+      accountId: AccountId(1),
       encodedName: name,
       name: name,
       selectable: true,

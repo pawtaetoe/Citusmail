@@ -68,7 +68,7 @@ final class CodeReader {
       FetchItems(fullMessage: true),
     );
     var found = 0;
-    final seen = <int>{};
+    final seen = <MessageId>{};
     for (final item in fetched.messages) {
       final message = byUid[item.uid];
       final raw = item.sections[''];

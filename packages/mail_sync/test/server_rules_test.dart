@@ -22,8 +22,8 @@ ImapMailboxInfo _folder(String name, {String? use}) => ImapMailboxInfo(
 
 StoredMailbox _box(int id, String name, {bool selectable = true}) =>
     StoredMailbox(
-      id: id,
-      accountId: 1,
+      id: MailboxId(id),
+      accountId: AccountId(1),
       encodedName: name,
       name: name,
       selectable: selectable,
@@ -31,10 +31,10 @@ StoredMailbox _box(int id, String name, {bool selectable = true}) =>
       delimiter: '/',
     );
 
-FolderRule _rule(int id, int mailboxId, RuleField field, String value) =>
+FolderRule _rule(int id, MailboxId mailboxId, RuleField field, String value) =>
     FolderRule(
       id: id,
-      accountId: 1,
+      accountId: AccountId(1),
       mailboxId: mailboxId,
       field: field,
       value: value,
@@ -169,13 +169,13 @@ void main() {
         ],
         blockTarget: junk,
         rules: [
-          _rule(1, 3, RuleField.fromDomain, 'shop.example'),
-          _rule(2, 4, RuleField.subject, 'Prüfung "Q3"'),
-          _rule(3, 4, RuleField.toAddress, 'alias@me.example'),
-          _rule(4, 3, RuleField.fromAddress, 'bills@power.example'),
-          _rule(5, 99, RuleField.fromAddress, 'gone@x.example'),
+          _rule(1, MailboxId(3), RuleField.fromDomain, 'shop.example'),
+          _rule(2, MailboxId(4), RuleField.subject, 'Prüfung "Q3"'),
+          _rule(3, MailboxId(4), RuleField.toAddress, 'alias@me.example'),
+          _rule(4, MailboxId(3), RuleField.fromAddress, 'bills@power.example'),
+          _rule(5, MailboxId(99), RuleField.fromAddress, 'gone@x.example'),
         ],
-        folders: {3: receipts, 4: work},
+        folders: {MailboxId(3): receipts, MailboxId(4): work},
         extensions: const {'fileinto', 'comparator-i;unicode-casemap'},
       )!;
       expect(
@@ -200,10 +200,10 @@ void main() {
         blocks: const [],
         blockTarget: null,
         rules: [
-          _rule(1, 3, RuleField.subject, 'a"; discard; #\\'),
-          _rule(2, 3, RuleField.subject, 'line\r\nbreak'),
+          _rule(1, MailboxId(3), RuleField.subject, 'a"; discard; #\\'),
+          _rule(2, MailboxId(3), RuleField.subject, 'line\r\nbreak'),
         ],
-        folders: {3: receipts},
+        folders: {MailboxId(3): receipts},
         extensions: const {'fileinto'},
       )!;
       expect(script, contains(r'"a\"; discard; #\\"'));
@@ -217,8 +217,11 @@ void main() {
         SieveRules.script(
           blocks: const [],
           blockTarget: null,
-          rules: [_rule(1, 5, RuleField.subject, 'x')],
-          folders: {5: _box(5, 'INBOX'), 6: _box(6, 'Old', selectable: false)},
+          rules: [_rule(1, MailboxId(5), RuleField.subject, 'x')],
+          folders: {
+            MailboxId(5): _box(5, 'INBOX'),
+            MailboxId(6): _box(6, 'Old', selectable: false),
+          },
           extensions: const {'fileinto'},
         ),
         isNull,

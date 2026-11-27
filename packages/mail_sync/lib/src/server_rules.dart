@@ -25,7 +25,7 @@ abstract final class SieveRules {
     required List<BlockedSender> blocks,
     required StoredMailbox? blockTarget,
     required List<FolderRule> rules,
-    required Map<int, StoredMailbox> folders,
+    required Map<MailboxId, StoredMailbox> folders,
     required Set<String> extensions,
   }) {
     final unicode = extensions.contains('comparator-i;unicode-casemap');
@@ -189,16 +189,16 @@ final class ServerRules {
   static const retryFailed = Duration(hours: 1);
 
   /// The account's last known state, as [ServerRulesStatus.toJson].
-  static StringSetting _status(int accountId) =>
-      StringSetting('serverRules.$accountId');
+  static StringSetting _status(AccountId accountId) =>
+      StringSetting('serverRules.${accountId.value}');
 
   bool get enabled => setting.read(_store.settings);
 
   /// The account's last known state, or null if never checked (or off).
-  ServerRulesStatus? status(int accountId) => statusOf(_store, accountId);
+  ServerRulesStatus? status(AccountId accountId) => statusOf(_store, accountId);
 
   /// The same, read by the app.
-  static ServerRulesStatus? statusOf(MailStore store, int accountId) =>
+  static ServerRulesStatus? statusOf(MailStore store, AccountId accountId) =>
       ServerRulesStatus.fromJson(_status(accountId).readOrNull(store.settings));
 
   /// Brings the server in line; returns the new state (null when off).

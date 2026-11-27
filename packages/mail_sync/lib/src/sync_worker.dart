@@ -109,14 +109,15 @@ final class SyncWorker {
   }
 
   /// Syncs one account now, or all.
-  Future<void> syncNow([int? accountId]) => _request(_SyncNow(accountId));
+  Future<void> syncNow([AccountId? accountId]) => _request(_SyncNow(accountId));
 
   /// Syncs one folder now (one not synced in the background, such as
   /// Gmail's Starred, when the user opens it).
-  Future<void> syncFolder(int mailboxId) => _request(_SyncFolder(mailboxId));
+  Future<void> syncFolder(MailboxId mailboxId) =>
+      _request(_SyncFolder(mailboxId));
 
   /// Asks for a sync soon (after a local change).
-  void requestSync(int accountId) => unawaited(
+  void requestSync(AccountId accountId) => unawaited(
     _request(_RequestSync(accountId)).catchError((Object _) => null),
   );
 
@@ -130,23 +131,23 @@ final class SyncWorker {
       unawaited(_request(const _Reconnect()).catchError((Object _) => null));
 
   /// Syncs the account at [at] (a delayed send becomes due then).
-  void syncAt(int accountId, DateTime at) => unawaited(
+  void syncAt(AccountId accountId, DateTime at) => unawaited(
     _request(_SyncAt(accountId, at)).catchError((Object _) => null),
   );
 
   /// Downloads a message body into the store. Throws
   /// [BodyUnavailableException] or [SyncWorkerException].
-  Future<void> loadBody(int messageId) => _request(_LoadBody(messageId));
+  Future<void> loadBody(MessageId messageId) => _request(_LoadBody(messageId));
 
   /// Downloads a message body nobody is waiting for (reading receipts
   /// ahead of time), on its own connection: messages the user opens never
   /// wait behind it.
-  Future<void> loadBodyInBackground(int messageId) =>
+  Future<void> loadBodyInBackground(MessageId messageId) =>
       _request(_LoadBody(messageId, background: true));
 
   /// Looks up which files messages have, without downloading them (see
   /// [SyncEngine.lookUpFiles]). Throws [SyncWorkerException].
-  Future<void> lookUpFiles(List<int> messageIds) =>
+  Future<void> lookUpFiles(List<MessageId> messageIds) =>
       _request(_LookUpFiles(List.unmodifiable(messageIds)));
 
   /// Sorts stored mail again when the sorting rules changed, here in the
@@ -163,14 +164,14 @@ final class SyncWorker {
       await _request(const _CountSearchWords()) as int;
 
   /// Loads older mail of a folder; returns how many messages were added.
-  Future<int> fetchOlder(int mailboxId, {int count = 100}) async =>
+  Future<int> fetchOlder(MailboxId mailboxId, {int count = 100}) async =>
       await _request(_FetchOlder(mailboxId, count)) as int;
 
   /// Creates a folder on the server; returns its id. Throws
   /// [SyncWorkerException] (offline, refused) or [ArgumentError] (a name
   /// that cannot be a folder).
-  Future<int> createFolder(int accountId, String name) async =>
-      await _request(_CreateFolder(accountId, name)) as int;
+  Future<MailboxId> createFolder(AccountId accountId, String name) async =>
+      await _request(_CreateFolder(accountId, name)) as MailboxId;
 
   /// After accounts were added, removed or changed.
   Future<void> accountsChanged() => _request(const _AccountsChanged());
@@ -579,19 +580,19 @@ final class _Stop extends _Command {
 final class _SyncNow extends _Command {
   const _SyncNow(this.accountId);
 
-  final int? accountId;
+  final AccountId? accountId;
 }
 
 final class _SyncFolder extends _Command {
   const _SyncFolder(this.mailboxId);
 
-  final int mailboxId;
+  final MailboxId mailboxId;
 }
 
 final class _RequestSync extends _Command {
   const _RequestSync(this.accountId);
 
-  final int accountId;
+  final AccountId accountId;
 }
 
 final class _CheckInboxes extends _Command {
@@ -605,14 +606,14 @@ final class _Reconnect extends _Command {
 final class _SyncAt extends _Command {
   const _SyncAt(this.accountId, this.at);
 
-  final int accountId;
+  final AccountId accountId;
   final DateTime at;
 }
 
 final class _LoadBody extends _Command {
   const _LoadBody(this.messageId, {this.background = false});
 
-  final int messageId;
+  final MessageId messageId;
   final bool background;
 }
 
@@ -627,20 +628,20 @@ final class _CountSearchWords extends _Command {
 final class _LookUpFiles extends _Command {
   const _LookUpFiles(this.messageIds);
 
-  final List<int> messageIds;
+  final List<MessageId> messageIds;
 }
 
 final class _FetchOlder extends _Command {
   const _FetchOlder(this.mailboxId, this.count);
 
-  final int mailboxId;
+  final MailboxId mailboxId;
   final int count;
 }
 
 final class _CreateFolder extends _Command {
   const _CreateFolder(this.accountId, this.name);
 
-  final int accountId;
+  final AccountId accountId;
   final String name;
 }
 

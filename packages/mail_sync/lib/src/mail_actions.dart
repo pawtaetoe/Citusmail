@@ -10,7 +10,7 @@ sealed class ActionReceipt {
   const ActionReceipt(this.accountIds);
 
   /// Accounts whose queue changed (to sync them).
-  final Set<int> accountIds;
+  final Set<AccountId> accountIds;
 }
 
 /// Messages left a folder (move, delete). The server change waits until
@@ -64,7 +64,7 @@ final class MailActions {
 
   /// The account's Archive folder, if it has one. On Gmail, archiving
   /// means moving to All Mail (the message leaves the inbox, nothing else).
-  static StoredMailbox? archiveFolder(MailStore store, int accountId) =>
+  static StoredMailbox? archiveFolder(MailStore store, AccountId accountId) =>
       store.mailboxes.bySpecialUse(accountId, SpecialUse.archive) ??
       store.mailboxes.bySpecialUse(accountId, SpecialUse.all);
 
@@ -127,13 +127,13 @@ final class MailActions {
     List<StoredMessage> messages,
     UidAction Function(StoredMailbox mailbox, List<StoredMessage> group)
     action, {
-    int? skip,
+    MailboxId? skip,
     bool dropCopies = false,
   }) {
     final undoUntil = DateTime.now().add(undoWindow);
     final entries = <int>[];
-    final accounts = <int>{};
-    final ids = <int>[];
+    final accounts = <AccountId>{};
+    final ids = <MessageId>[];
     return _store.transaction(() {
       final groups = [
         for (final (mailbox, group) in _byMailbox(messages))
@@ -205,7 +205,7 @@ final class MailActions {
     required bool on,
   }) {
     final allChanged = <StoredMessage>[];
-    final accounts = <int>{};
+    final accounts = <AccountId>{};
     for (final (mailbox, group) in _byMailbox(messages)) {
       final changed = [
         for (final m in group)
@@ -237,7 +237,7 @@ final class MailActions {
   List<(StoredMailbox, List<StoredMessage>)> _byMailbox(
     List<StoredMessage> messages,
   ) {
-    final groups = <int, List<StoredMessage>>{};
+    final groups = <MailboxId, List<StoredMessage>>{};
     for (final m in messages) {
       groups.putIfAbsent(m.mailboxId, () => []).add(m);
     }

@@ -30,7 +30,7 @@ void main() {
   late MailStore store;
   late FakeMailServers servers;
   late MailConnector connector;
-  late int accountId;
+  late AccountId accountId;
 
   // Wednesday morning; the message is due Thursday at 8.
   final now = DateTime(2026, 11, 4, 9, 10);

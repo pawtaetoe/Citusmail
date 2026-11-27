@@ -164,7 +164,7 @@ void main() {
       final counting = _CountingConnector(servers.connector());
       final engine = SyncEngine(store, counting);
       addTearDown(engine.dispose);
-      int id(int uid) => store.messages.byUid(inbox.id, uid)!.id;
+      MessageId id(int uid) => store.messages.byUid(inbox.id, uid)!.id;
 
       await engine.loadBody(id(1), background: true);
       expect(counting.imapLogins, 1);

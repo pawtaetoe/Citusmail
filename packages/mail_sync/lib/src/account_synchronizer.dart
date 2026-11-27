@@ -73,7 +73,7 @@ final class SyncFailure {
 final class AccountSyncReport {
   AccountSyncReport({
     required this.replay,
-    required Map<int, MailboxSyncResult> mailboxes,
+    required Map<MailboxId, MailboxSyncResult> mailboxes,
     this.movedByRules = 0,
     this.receipts = 0,
     this.appData,
@@ -100,7 +100,7 @@ final class AccountSyncReport {
   final int movedByRules;
 
   /// Result per mailbox id.
-  final Map<int, MailboxSyncResult> mailboxes;
+  final Map<MailboxId, MailboxSyncResult> mailboxes;
 }
 
 /// One full sync of an account, in a fixed order:
@@ -146,7 +146,7 @@ final class AccountSynchronizer {
   final Duration listInterval;
 
   /// When each account's folders were last listed.
-  final _listedAt = <int, DateTime>{};
+  final _listedAt = <AccountId, DateTime>{};
 
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled). Without, every
@@ -154,7 +154,7 @@ final class AccountSynchronizer {
   /// ([StoredMailbox.isView]), which are synced when opened.
   Future<AccountSyncReport> sync(
     Account account, {
-    Set<int>? mailboxIds,
+    Set<MailboxId>? mailboxIds,
   }) async {
     final imap = await _connections.take(account);
     try {
@@ -263,7 +263,7 @@ final class AccountSynchronizer {
 
   /// Makes the next sync of [accountId] read the folder list, however
   /// recently it was read (a folder was just added on the server).
-  void listFoldersNextTime(int accountId) => _listedAt.remove(accountId);
+  void listFoldersNextTime(AccountId accountId) => _listedAt.remove(accountId);
 
   /// Reads the folder list when it is older than [listInterval] (or there
   /// is none yet), or when [force]d. Returns whether it did.
@@ -294,7 +294,7 @@ final class AccountSynchronizer {
   /// When the folder list was not [listed] in this sync, a folder the
   /// server refuses to open may have been deleted elsewhere: the list is
   /// read again, and a folder that is gone is no failure.
-  Future<Map<int, MailboxSyncResult>> _syncFolders(
+  Future<Map<MailboxId, MailboxSyncResult>> _syncFolders(
     Account account,
     ImapClient imap,
     Iterable<StoredMailbox> folders, {
@@ -304,7 +304,7 @@ final class AccountSynchronizer {
     final queue = Queue.of(
       [...folders]..sort((a, b) => (b.isInbox ? 1 : 0) - (a.isInbox ? 1 : 0)),
     );
-    final results = <int, MailboxSyncResult>{};
+    final results = <MailboxId, MailboxSyncResult>{};
     (Object, StackTrace)? failure;
     final refused = <StoredMailbox, (Object, StackTrace)>{};
 
@@ -371,7 +371,7 @@ final class AccountSynchronizer {
   /// app's own sync data folder.
   static Iterable<StoredMailbox> foldersToSync(
     Iterable<StoredMailbox> mailboxes,
-    Set<int>? mailboxIds,
+    Set<MailboxId>? mailboxIds,
   ) => mailboxes.where(
     (m) =>
         m.selectable &&
@@ -380,7 +380,7 @@ final class AccountSynchronizer {
   );
 
   /// UIDs in [mailboxId] with local changes still queued.
-  Set<int> pendingUids(int accountId, int mailboxId) {
+  Set<int> pendingUids(AccountId accountId, MailboxId mailboxId) {
     final uids = <int>{};
     for (final entry in _store.outbox.all(accountId)) {
       final action = entry.action;

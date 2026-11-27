@@ -172,7 +172,7 @@ final class CodeCleanup {
   int get count => messages.length;
 
   /// Accounts with queued moves (to sync them).
-  Set<int> get accountIds => {for (final r in receipts) ...r.accountIds};
+  Set<AccountId> get accountIds => {for (final r in receipts) ...r.accountIds};
 }
 
 /// Moves old verification codes, sign-in links and password-reset emails
@@ -223,7 +223,7 @@ final class CodeCleaner {
   List<StoredMessage> candidates(
     DateTime now, {
     int limit = batchSize,
-    Set<int> except = const {},
+    Set<MessageId> except = const {},
   }) {
     final age = settings.age.age;
     if (age == null) return const [];
@@ -264,12 +264,12 @@ final class CodeCleaner {
 
   /// Cleans up, if it is on, agreed to, and the last run was over an hour
   /// ago. Null when nothing moved. [except]: ids left alone this time.
-  CodeCleanup? run(DateTime now, {Set<int> except = const {}}) {
+  CodeCleanup? run(DateTime now, {Set<MessageId> except = const {}}) {
     if (settings.age == CodeCleanupAge.off || !settings.agreed) return null;
     if (!_claim(now)) return null;
     final messages = candidates(now, except: except);
     if (messages.isEmpty) return null;
-    final byAccount = <int, List<StoredMessage>>{};
+    final byAccount = <AccountId, List<StoredMessage>>{};
     for (final m in messages) {
       byAccount.putIfAbsent(m.accountId, () => []).add(m);
     }
@@ -298,13 +298,13 @@ final class CodeCleaner {
 
   /// What identifies a message across Undo (which may give it a new id).
   static String keyOf(StoredMessage m) =>
-      m.messageId ?? 'uid:${m.mailboxId}:${m.uid}';
+      m.messageId ?? 'uid:${m.mailboxId.value}:${m.uid}';
 
   /// Where the account's codes go: its Archive (on Gmail, All Mail: the
   /// message just leaves the inbox), or its Trash. Null when there is
   /// none; then nothing is moved (a delete without a Trash would remove
   /// mail for good).
-  StoredMailbox? _target(int accountId) => switch (settings.action) {
+  StoredMailbox? _target(AccountId accountId) => switch (settings.action) {
     CodeCleanupAction.archive => MailActions.archiveFolder(_store, accountId),
     CodeCleanupAction.trash => _store.mailboxes.bySpecialUse(
       accountId,

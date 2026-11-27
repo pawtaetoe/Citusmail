@@ -643,8 +643,8 @@ final class _FolderMemo {
   final String? backfillDone;
 
   /// One folder's memo, by its id.
-  static JsonSetting<_FolderMemo?> _setting(int mailboxId) => JsonSetting(
-    'sync.folder.$mailboxId',
+  static JsonSetting<_FolderMemo?> _setting(MailboxId mailboxId) => JsonSetting(
+    'sync.folder.${mailboxId.value}',
     fallback: null,
     fromJson: _fromJson,
     toJson: _toJson,
@@ -676,7 +676,7 @@ final class _FolderMemo {
 
   static _FolderMemo? read(
     MailStore store,
-    int mailboxId,
+    MailboxId mailboxId,
     MailboxSyncState state,
   ) {
     final memo = _setting(mailboxId).read(store.settings);
@@ -697,6 +697,6 @@ final class _FolderMemo {
     backfillDone: backfillDone,
   );
 
-  void save(MailStore store, int mailboxId) =>
+  void save(MailStore store, MailboxId mailboxId) =>
       _setting(mailboxId).write(store.settings, this);
 }

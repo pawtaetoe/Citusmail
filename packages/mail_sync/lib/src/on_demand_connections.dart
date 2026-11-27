@@ -22,7 +22,7 @@ final class OnDemandConnections {
 
   final MailConnector _connector;
   final Duration idleTimeout;
-  final _sessions = <int, _Session>{};
+  final _sessions = <AccountId, _Session>{};
 
   /// Runs [action] with a logged-in connection for [account]. A connection
   /// the server dropped while idle is replaced once, transparently.
@@ -56,7 +56,7 @@ final class OnDemandConnections {
 
   /// Closes the connection of one account (e.g. after it was removed or
   /// its password changed).
-  Future<void> close(int accountId) async {
+  Future<void> close(AccountId accountId) async {
     final session = _sessions.remove(accountId);
     if (session == null) return;
     await session.tail;
