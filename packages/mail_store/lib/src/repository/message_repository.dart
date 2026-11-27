@@ -1569,20 +1569,21 @@ final class MessageRepository {
   static List<String> _sectionCountSql(int folders) {
     final ids = _placeholders(folders);
     final hidden = SectionSql.receiptFreeSections.map((s) => "'$s'").join(', ');
-    return [
-      'SELECT mailbox_id, section, count(*) AS n FROM messages '
-          'WHERE mailbox_id IN ($ids) '
-          'GROUP BY mailbox_id, section ORDER BY mailbox_id, section',
-      'SELECT mailbox_id, section, count(*) AS n FROM messages '
-          'WHERE mailbox_id IN ($ids) AND (flags & 1) = 0 '
-          'GROUP BY mailbox_id, section ORDER BY mailbox_id, section',
-      'SELECT mailbox_id, section, count(*) AS n, '
-          'sum((flags & 1) = 0) AS unread FROM messages '
-          // From the few receipts to their rows (not through the inbox).
-          'WHERE id IN (${SectionSql.readReceiptIds}) '
-          'AND +mailbox_id IN ($ids) AND +section IN ($hidden) '
-          "AND +category = 'notifications' GROUP BY mailbox_id, section",
-    ];
+    const grouped = 'GROUP BY mailbox_id, section ORDER BY mailbox_id, section';
+    final totals =
+        'SELECT mailbox_id, section, count(*) AS n FROM messages '
+        'WHERE mailbox_id IN ($ids) $grouped';
+    final unread =
+        'SELECT mailbox_id, section, count(*) AS n FROM messages '
+        'WHERE mailbox_id IN ($ids) AND (flags & 1) = 0 $grouped';
+    // From the few receipts to their rows (not through the inbox).
+    final receipts =
+        'SELECT mailbox_id, section, count(*) AS n, '
+        'sum((flags & 1) = 0) AS unread FROM messages '
+        'WHERE id IN (${SectionSql.readReceiptIds}) '
+        'AND +mailbox_id IN ($ids) AND +section IN ($hidden) '
+        "AND +category = 'notifications' GROUP BY mailbox_id, section";
+    return [totals, unread, receipts];
   }
 
   /// How SQLite runs the queries of [sectionCountsByInbox] (for tests that

@@ -551,7 +551,6 @@ const List<Migration> schemaMigrations = [
   // their own (a handful of rows), the counts read only indexes. Stores
   // nothing new.
   Migration(19, [
-    'CREATE INDEX message_headers_reports ON message_headers (message_id) '
-        'WHERE ${SectionSql.reportHeader}',
+    'CREATE INDEX message_headers_reports ON message_headers (message_id) WHERE ${SectionSql.reportHeader}',
   ]),
 ];
