@@ -361,7 +361,7 @@ void main() {
       test('a correction stays in force, with the user\'s category', () {
         final log = AiSortLog(store)..add(entry(1));
         log.correct(MessageId(1), MessageCategory.notifications);
-        final corrected = log.applied()[1]!;
+        final corrected = log.applied()[MessageId(1)]!;
         expect(corrected.outcome, AiSortOutcome.corrected);
         expect(corrected.category, MessageCategory.notifications);
         expect(log.asked, {1});

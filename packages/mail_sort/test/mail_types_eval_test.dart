@@ -623,7 +623,7 @@ void main() {
     for (final s in subscriptions) {
       if (!hiddenSubscriptions.contains(s.company)) continue;
       for (final r in s.records) {
-        classifier.reject(_s, _byId[r.email.messageId]!.sample);
+        classifier.reject(_s, _byId[r.email.messageId.value]!.sample);
       }
     }
     final firstFood = _sample.firstWhere((m) => m.name == 'GrabFood');
@@ -640,11 +640,11 @@ void main() {
           ),
     ], now: _now);
     final food = deliveries.where(
-      (d) => d.records.any((r) => r.email.messageId == firstFood.id),
+      (d) => d.records.any((r) => r.email.messageId == MessageId(firstFood.id)),
     );
     for (final d in food) {
       for (final r in d.records) {
-        classifier.reject(_d, _byId[r.email.messageId]!.sample);
+        classifier.reject(_d, _byId[r.email.messageId.value]!.sample);
       }
     }
     final firstHaircut = _sample.firstWhere((m) => m.name == 'Snip Studio');
@@ -661,11 +661,12 @@ void main() {
         ),
     ]);
     final haircut = bookings.where(
-      (b) => b.records.any((r) => r.email.messageId == firstHaircut.id),
+      (b) =>
+          b.records.any((r) => r.email.messageId == MessageId(firstHaircut.id)),
     );
     for (final b in haircut) {
       for (final r in b.records) {
-        classifier.reject(_b, _byId[r.email.messageId]!.sample);
+        classifier.reject(_b, _byId[r.email.messageId.value]!.sample);
       }
     }
     final hidden = (
