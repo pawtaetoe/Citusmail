@@ -135,6 +135,36 @@ the controllers, those that use others first.
 Each controller has its own tests that build it without the facade or
 a widget (`app/test/support/controllers.dart` wires them by hand).
 
+## Gmail's All Mail and search on the server
+
+Gmail's All Mail, Starred and Important repeat the mail of other folders
+(`StoredMailbox.isView`), so the background sync leaves them out and
+nothing is stored twice; they sync when opened. Archived Gmail mail is
+only in All Mail, so `mail_sync` keeps it on the device in two ways:
+
+- `ArchivedMail`: what this device saw leave an ordinary folder is looked
+  up in All Mail (by Message-ID) on the next full sync.
+- `ArchivedBackfill`: on each full sync of a Gmail account (the server
+  has `X-GM-EXT-1`), Gmail's search (`X-GM-RAW` with
+  `-in:inbox -in:sent -in:drafts -in:spam -in:trash -in:chats` and
+  `SINCE` the `KeepMail` date) finds the archived mail; what is in no
+  stored folder (by Message-ID) has its summary stored in All Mail.
+  Starred mail first, then the rest, newest first, at most
+  `SyncSettings.backfillBatch` messages a sync, with a cursor in the
+  settings (`sync.archivedFill.<account>`), so a device added later, or
+  an account set up before this existed, fills in over a few syncs. It
+  also keeps the flags of everything stored in All Mail in step, and
+  drops what left All Mail. Other servers keep their archive in a real
+  folder, synced like any other: nothing changes for them.
+
+Search runs over the stored mail. When it finds fewer than
+`MessageListModel.fewResults`, each account offers "Search all of … on
+the server" (`ServerSearch`): `X-GM-RAW` in All Mail on Gmail, `TEXT`
+for each word in the inbox and Archive elsewhere. The newest 50 matches
+have their summaries stored like synced mail, so they open and pin like
+any other, and join the results. Offline, the results on the device stay
+and the row says so.
+
 ## Conventions
 
 - **Types over strings.** Ids are extension types (`MessageId`,
