@@ -7,6 +7,7 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 
+import '../../../services/store_reader.dart';
 import '../../found/state/found_model.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
@@ -143,6 +144,10 @@ List<MailSample> accountSamples(
 /// account with, found in welcome, sign-in, password and security mail on
 /// the device. [readEmails] downloads account emails whose preview says
 /// too little, only when the user asks.
+/// [findOnlineAccounts] as a [StoreTask], off the UI isolate.
+StoreTask<AccountsFound> _accountsTask(DateTime now, Set<MessageId> skip) =>
+    (store) => findOnlineAccounts(store, now, skip: skip);
+
 final class AccountsModel extends FoundModel<OnlineAccount, AccountsFound> {
   AccountsModel(super.services, {super.now})
     : super(kind: MailKind.account, hiddenKeys: hiddenSetting);
@@ -161,7 +166,7 @@ final class AccountsModel extends FoundModel<OnlineAccount, AccountsFound> {
 
   @override
   Future<AccountsFound> find(DateTime now, Set<MessageId> skip) =>
-      findOnlineAccounts(store, now, skip: skip);
+      services.reads.run(_accountsTask(now, skip));
 
   @override
   Finds<OnlineAccount> findsOf(AccountsFound found) => (

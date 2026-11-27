@@ -9,14 +9,23 @@
 // Timings are printed for the record.
 // ignore_for_file: avoid_print
 
+import 'package:citusmail/src/core/state/load_state.dart';
+import 'package:citusmail/src/core/state/page_model.dart';
+import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/accounts/state/accounts_model.dart';
 import 'package:citusmail/src/features/found/state/appointments_model.dart';
+import 'package:citusmail/src/features/found/state/attachments_model.dart';
 import 'package:citusmail/src/features/found/state/deliveries_model.dart';
 import 'package:citusmail/src/features/found/state/subscriptions_model.dart';
 import 'package:citusmail/src/features/found/state/trips_model.dart';
-import 'package:citusmail/src/features/inbox/state/inbox_summary.dart';
 import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
 import 'package:citusmail/src/features/inbox/state/mail_location.dart';
+import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
+import 'package:citusmail/src/features/inbox/ui/message_tile.dart';
+import 'package:citusmail/src/features/organise/state/privacy_report_model.dart';
 import 'package:citusmail/src/features/organise/state/sender_cleanup_model.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
@@ -34,7 +43,7 @@ void main() {
   final results = <UiWork>[];
 
   setUpAll(() async {
-    app = await TestApp.create();
+    app = await TestApp.create(readsInIsolate: true);
     final watch = Stopwatch()..start();
     big = BigMailbox.seed(app, now: now);
     print(
@@ -251,23 +260,102 @@ void main() {
     controller.goTo(const InboxLocation());
   });
 
-  test('found pages and the summary line', () async {
-    await measure('Deliveries', () async {
-      await findDeliveries(store(), now);
+  test('found pages, the summary line and reading ahead', () async {
+    final services = app.services;
+    Future<void> page(PageModel<Object?> model) async {
+      await model.load();
+      expect(model.state, isA<Loaded<Object?>>());
+      model.dispose();
+    }
+
+    await measure('Deliveries', () => page(DeliveriesModel(services)));
+    await measure('Subscriptions', () => page(SubscriptionsModel(services)));
+    await measure('Trips', () => page(TripsModel(services)));
+    await measure('Appointments', () => page(AppointmentsModel(services)));
+    await measure('Online accounts', () => page(AccountsModel(services)));
+    await measure('Deliveries again', () => page(DeliveriesModel(services)));
+    await measure('Clean up', () => page(SenderCleanupModel(controller)));
+    await measure('Privacy report', () => page(PrivacyReportModel(services)));
+    await measure('Files', () async {
+      final files = AttachmentsModel(services);
+      await files.load();
+      files.dispose();
     });
-    await measure('Subscriptions', () async {
-      await findSubscriptions(store(), now, monthlyRenewals: true);
-    });
-    await measure('Trips', () async => findTrips(store(), now));
-    await measure('Appointments', () async => findAppointments(store(), now));
+    final summary = controller.summary..watch();
     await measure('summary line: today', () async {
-      await findToday(store(), now, monthlyRenewals: true);
+      await summary.debugRead();
     });
-    await measure('Deliveries again (cached reads)', () async {
-      await findDeliveries(store(), now);
+    summary.unwatch();
+    await measure('reading ahead: what to read', () async {
+      await services.autoRead.debugWanted();
     });
-    await measure('Clean up', () async {
-      await SenderCleanupModel(controller).fetch();
+  });
+
+  testWidgets('the mail screen on a phone: scrolling and opening', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+    final frames = <String, List<UiWork>>{};
+
+    /// [action] and the frame after it, timed (the harness's own work
+    /// included), with the statements it ran.
+    Future<UiWork> frame(String name, Future<void> Function() action) async {
+      final before = store().database.statementCount;
+      final watch = Stopwatch()..start();
+      await action();
+      await tester.pump(const Duration(milliseconds: 16));
+      final work = UiWork.frame(
+        name,
+        watch.elapsed,
+        store().database.statementCount - before,
+      );
+      (frames[name] ??= []).add(work);
+      return work;
+    }
+
+    await frame('phone: the mail screen, first frame', () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: CitusmailTheme.light(),
+          home: MailShell(
+            notifications: false,
+            services: app.services,
+            onAddAccount: () {},
+            onAccountsChanged: () {},
+          ),
+        ),
+      );
     });
+    final list = find.byType(CustomScrollView).first;
+    MessageId top() =>
+        tester.widget<MessageTile>(find.byType(MessageTile).first).message.id;
+    final first = top();
+    for (var i = 0; i < 20; i++) {
+      await frame('phone: a frame of scrolling the inbox', () async {
+        await tester.drag(list, const Offset(0, -120));
+      });
+    }
+    // The list did scroll, building new rows on the way.
+    expect(top(), isNot(first));
+    final row = find.byType(MessageTile).first;
+    await frame('phone: tap a row, the frame after', () async {
+      await tester.tap(row);
+    });
+    for (final MapEntry(key: name, value: all) in frames.entries) {
+      all.sort((a, b) => a.longest.compareTo(b.longest));
+      final median = all[all.length ~/ 2];
+      results.add(
+        UiWork.frame(
+          all.length == 1 ? name : '$name (median of ${all.length})',
+          median.longest,
+          median.statements,
+        ),
+      );
+    }
+    await tester.pumpWidget(const SizedBox());
+    debugDefaultTargetPlatformOverride = null;
   });
 }

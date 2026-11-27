@@ -76,9 +76,14 @@ final class TestApp {
   /// [web] answers one-click requests; by default every lookup fails, so
   /// nothing can reach the network. [aiProviders] makes the AI
   /// assistant's providers (a fake; by default none can be made).
+  ///
+  /// With [readsInIsolate], long reads run in a helper isolate as in the
+  /// app ([AppServices.reads]); dispose such an app with real time
+  /// running (in `tester.runAsync` in a widget test).
   static Future<TestApp> create({
     WebClient? web,
     AiProviderFactory? aiProviders,
+    bool readsInIsolate = false,
   }) async {
     final directory = Directory.systemTemp.createTempSync('citusmail_app_test');
 
@@ -210,6 +215,9 @@ final class TestApp {
         worker,
         web: web ?? offlineWeb,
         databasePath: path,
+        // Long reads in a helper isolate, as in the app, only when asked:
+        // widget tests can't wait for another isolate in fake time.
+        databaseKey: readsInIsolate ? key : null,
         // Fast PIN hashing: the real strength is tested in pin_hasher_test.
         pinRounds: 1000,
         aiProviders: aiProviders ?? _noAi,

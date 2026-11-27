@@ -15,6 +15,7 @@ import '../features/found/state/subscriptions_model.dart';
 import '../features/found/state/trips_model.dart';
 import '../features/inbox/state/message_reads.dart';
 import 'app_settings.dart';
+import 'store_reader.dart';
 
 /// Downloads one message's body into the store (BODY.PEEK: it stays
 /// unread), as `SyncWorker.loadBody` and `SyncEngine.loadBody` do.
@@ -49,9 +50,14 @@ final class AutoReader extends ChangeNotifier {
     this.firstDelay = const Duration(seconds: 20),
     this.minGap = const Duration(minutes: 2),
     DateTime Function()? now,
+    this._reads,
   }) : _now = now ?? DateTime.now;
 
   final MailStore _store;
+
+  /// Where the pages' finders run to pick what to read (off the UI
+  /// isolate); on this isolate without.
+  final StoreReader? _reads;
   final BodyLoader _load;
   final DateTime Function() _now;
 
@@ -138,7 +144,7 @@ final class AutoReader extends ChangeNotifier {
     notifyListeners();
     var count = 0;
     try {
-      final ids = await wanted(_store, _now(), cap: cap);
+      final ids = await _wantedNow();
       final unreachable = <AccountId>{};
       final failures = ReadFailures(_store);
       for (final id in ids) {
@@ -177,6 +183,19 @@ final class AutoReader extends ChangeNotifier {
     }
     return count;
   }
+
+  /// [wanted] now, where the finders run.
+  Future<List<MessageId>> _wantedNow() {
+    final now = _now();
+    return switch (_reads) {
+      final reads? => reads.run(_wantedTask(now, cap)),
+      null => wanted(_store, now, cap: cap),
+    };
+  }
+
+  /// What a run would read now (tests).
+  @visibleForTesting
+  Future<List<MessageId>> debugWanted() => _wantedNow();
 
   /// Stops reading (the app is closing); a run going on ends after the
   /// message it is on.
@@ -242,6 +261,10 @@ final class AutoReader extends ChangeNotifier {
     return kind != SyncFailureKind.server;
   }
 }
+
+/// [AutoReader.wanted] as a [StoreTask] (it holds only [now] and [cap]).
+StoreTask<List<MessageId>> _wantedTask(DateTime now, int cap) =>
+    (store) => AutoReader.wanted(store, now, cap: cap);
 
 /// Messages that could not be downloaded, with how many times, in the
 /// settings store ("id:times", the latest last; at most [keep]).

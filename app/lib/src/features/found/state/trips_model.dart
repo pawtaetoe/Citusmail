@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
+import '../../../services/store_reader.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
 import 'found_model.dart';
@@ -114,6 +115,10 @@ List<MailSample> bookingSamples(
 /// data in their HTML; the others by their preview. [readEmails]
 /// downloads booking emails that are not on the device yet, only when
 /// the user asks.
+/// [findTrips] as a [StoreTask], off the UI isolate.
+StoreTask<TripsFound> _tripsTask(DateTime now, Set<MessageId> skip) =>
+    (store) => findTrips(store, now, skip: skip);
+
 final class TripsModel extends FoundModel<Booking, TripsFound> {
   TripsModel(super.services, {super.now})
     : super(kind: MailKind.booking, hiddenKeys: hiddenSetting);
@@ -130,7 +135,7 @@ final class TripsModel extends FoundModel<Booking, TripsFound> {
 
   @override
   Future<TripsFound> find(DateTime now, Set<MessageId> skip) =>
-      findTrips(store, now, skip: skip);
+      services.reads.run(_tripsTask(now, skip));
 
   @override
   Finds<Booking> findsOf(TripsFound found) => found;

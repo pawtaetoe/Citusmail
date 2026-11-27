@@ -30,6 +30,7 @@ import 'device_sync.dart';
 import 'link_safety.dart';
 import 'remote_images.dart';
 import 'secret_store.dart';
+import 'store_reader.dart';
 import 'virus_total_checks.dart';
 
 /// Everything the running app uses.
@@ -45,6 +46,7 @@ final class AppServices {
     WebClient? web,
     Biometrics? biometrics,
     String? databasePath,
+    DatabaseKey? databaseKey,
     int pinRounds = PinHasher.iterations,
     AiProviderFactory? aiProviders,
   }) => AppServices._(
@@ -55,6 +57,9 @@ final class AppServices {
     AppLock(store, secrets, biometrics: biometrics, pinRounds: pinRounds),
     databasePath,
     AiAssistant(store, secrets, providers: aiProviders),
+    databasePath != null && databaseKey != null
+        ? StoreReader.isolate(databasePath, databaseKey, fallback: store)
+        : StoreReader.inline(store),
   );
 
   AppServices._(
@@ -65,6 +70,7 @@ final class AppServices {
     this.lock,
     this._databasePath,
     this.ai,
+    this.reads,
   ) : deviceSync = DeviceSync(store, secrets, worker),
       virusTotal = VirusTotalChecks(store, secrets, web),
       linkSafety = LinkSafety(
@@ -83,7 +89,7 @@ final class AppServices {
       replies = ReplyBuilder(store),
       settings = AppSettings(store),
       summaries = MessageSummaries(store, ai, loadBody: worker.loadBody),
-      autoRead = AutoReader(store, worker.loadBodyInBackground),
+      autoRead = AutoReader(store, worker.loadBodyInBackground, reads: reads),
       aiSort = AiSorter(store, ai, worker.loadBodyInBackground) {
     // Summaries are forgotten when the user turns them off.
     ai.whenTurnedOff(AiFeatures.summaries.id, summaries.forgetAll);
@@ -104,6 +110,11 @@ final class AppServices {
   final SecretStore secrets;
   final SyncWorker worker;
   final String? _databasePath;
+
+  /// Long reads off the UI isolate (the finders, the summary line,
+  /// reading ahead): with their own connection when the store has a file
+  /// and its key is known.
+  final StoreReader reads;
 
   /// The app lock (PIN, biometrics, when to lock).
   final AppLock lock;
@@ -303,6 +314,7 @@ final class AppServices {
     autoRead.stop();
     aiSort.stop();
     lock.dispose();
+    await reads.dispose();
     await worker.close();
     store.close();
     _closed = true;
@@ -425,7 +437,13 @@ abstract final class AppStartup {
         store.close();
         rethrow;
       }
-      final services = AppServices(store, keychain, worker, databasePath: path);
+      final services = AppServices(
+        store,
+        keychain,
+        worker,
+        databasePath: path,
+        databaseKey: key,
+      );
       await services.lock.start();
       // Mail stored by an older version (or with older rules) is sorted
       // again once the mail screen is up, then its search words counted.

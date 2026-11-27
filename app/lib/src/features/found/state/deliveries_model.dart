@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
+import '../../../services/store_reader.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
 import 'found_model.dart';
@@ -65,6 +66,10 @@ Future<DeliveriesFound> findDeliveries(
     ),
   );
 }
+
+/// [findDeliveries] as a [StoreTask], off the UI isolate.
+StoreTask<DeliveriesFound> _deliveriesTask(DateTime now, Set<MessageId> skip) =>
+    (store) => findDeliveries(store, now, skip: skip);
 
 /// Where something may be missing: shipping mail of [candidates] not
 /// understood yet ([all] are the deliveries found), and that of
@@ -158,7 +163,7 @@ final class DeliveriesModel extends FoundModel<Delivery, DeliveriesPage> {
   Future<DeliveriesPage> find(DateTime now, Set<MessageId> skip) async {
     final returned = _readSet(returnedSetting);
     final kept = _readSet(keptSetting);
-    final found = await findDeliveries(store, now, skip: skip);
+    final found = await services.reads.run(_deliveriesTask(now, skip));
     return (found: found, returned: returned, kept: kept);
   }
 

@@ -14,6 +14,13 @@ import 'package:mail_store/mail_store.dart';
 final class UiWork {
   UiWork._(this.name);
 
+  /// One frame of a widget test, built in [time] with [statements] run on
+  /// the store's connection meanwhile.
+  UiWork.frame(this.name, Duration time, this.statements)
+    : total = time,
+      longest = time,
+      slices = 1;
+
   final String name;
 
   /// Time in the slices, all together.

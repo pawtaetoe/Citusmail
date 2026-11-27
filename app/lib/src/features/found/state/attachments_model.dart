@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../../../services/app_services.dart';
+import '../../../services/store_reader.dart';
 
 /// One file in the attachments list.
 final class LibraryFile {
@@ -143,13 +144,11 @@ final class AttachmentsModel extends ChangeNotifier {
     loading = true;
     loadingMore = false;
     hidden = {...hiddenSetting.read(_store.settings)};
-    unknown = [
-      for (final m in _store.messages.withUnknownFiles(
-        header: FilePart.storedHeader,
-      ))
-        m.id,
-    ];
     _notify();
+    // Off the UI isolate: these look through every email with files.
+    final unknownFiles = await _services.reads.run(_unknownTask());
+    if (generation != _generation || _disposed) return;
+    unknown = unknownFiles;
     await _fill(generation, _batch);
     if (generation != _generation) return;
     loading = false;
@@ -174,13 +173,10 @@ final class AttachmentsModel extends ChangeNotifier {
     final words = FileSearch.words(_search);
     final found = <LibraryFile>[];
     while (!_exhausted && files.length + found.length < want) {
-      final rows = _store.messages.withAttachments(
-        header: FilePart.storedHeader,
-        peopleOnly: _peopleOnly,
-        words: words,
-        before: _cursor,
-        limit: _page,
+      final rows = await _services.reads.run(
+        _pageTask(_peopleOnly, words, _cursor, _page),
       );
+      if (generation != _generation || _disposed) return;
       if (rows.length < _page) _exhausted = true;
       if (rows.isEmpty) break;
       _cursor = rows.last.message;
@@ -353,3 +349,30 @@ Uint8List? _bytesOf((Uint8List, String, int) request) {
   if (matching.isEmpty) return null;
   return matching[index.clamp(0, matching.length - 1)].bytes();
 }
+
+/// The emails whose files are not known on the device, as a
+/// [StoreTask].
+StoreTask<List<MessageId>> _unknownTask() =>
+    (store) => [
+      for (final m in store.messages.withUnknownFiles(
+        header: FilePart.storedHeader,
+      ))
+        m.id,
+    ];
+
+/// A page of emails with files, as a [StoreTask] (it holds only plain
+/// values).
+StoreTask<List<({StoredMessage message, List<String> files, bool downloaded})>>
+_pageTask(
+  bool peopleOnly,
+  List<String> words,
+  StoredMessage? before,
+  int limit,
+) =>
+    (store) => store.messages.withAttachments(
+      header: FilePart.storedHeader,
+      peopleOnly: peopleOnly,
+      words: words,
+      before: before,
+      limit: limit,
+    );
