@@ -479,9 +479,13 @@ final class _StatusLine extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (status is SyncRunning)
-                  const SizedBox.square(
-                    dimension: 12,
-                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  // Turns every frame while mail is checked: only this
+                  // little square is painted again, not the list header.
+                  const RepaintBoundary(
+                    child: SizedBox.square(
+                      dimension: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    ),
                   )
                 else if (icon != null)
                   Icon(icon, size: 14, color: color),

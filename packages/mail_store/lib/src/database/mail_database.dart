@@ -35,6 +35,12 @@ final class MailDatabase {
   int get statementCount => _statements;
   int _statements = 0;
 
+  /// Statements that may have written, run on this connection so far
+  /// (any but [select]). What was read before is still current while this
+  /// stays the same, as long as no other connection committed meanwhile.
+  int get writeCount => _writes;
+  int _writes = 0;
+
   /// The plain-SQLite file signature; an encrypted file must never start
   /// with it.
   static const _plainHeader = 'SQLite format 3\u0000';
@@ -119,6 +125,7 @@ final class MailDatabase {
   void execute(String sql, [List<Object?> parameters = const []]) {
     _checkOpen();
     _statements++;
+    _writes++;
     _db.execute(sql, parameters);
   }
 
@@ -136,6 +143,7 @@ final class MailDatabase {
     try {
       for (final row in rows) {
         _statements++;
+        _writes++;
         statement.execute(row);
       }
     } finally {
