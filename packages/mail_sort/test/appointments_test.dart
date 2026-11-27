@@ -4,6 +4,7 @@
 
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:test/test.dart';
 
 /// Mail sent around noon, so "tomorrow" is the same day everywhere.
@@ -26,7 +27,7 @@ AppointmentEmail mail(
       ? const <SchemaThing>[]
       : StructuredData.extract(html);
   return AppointmentEmail(
-    messageId: ++_ids,
+    messageId: MessageId(++_ids),
     sender: sender,
     senderName: name,
     subject: subject,

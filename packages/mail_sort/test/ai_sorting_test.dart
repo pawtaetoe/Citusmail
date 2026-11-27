@@ -248,7 +248,7 @@ void main() {
       return store.messages.byUid(box.id, uid)!;
     }
 
-    List<int> candidates({int limit = 20}) => [
+    List<MessageId> candidates({int limit = 20}) => [
       for (final m in AiSortCandidates.find(store, now: now, limit: limit))
         m.id,
     ];
@@ -312,7 +312,7 @@ void main() {
     group('AiSortLog', () {
       AiSortEntry entry(int id, [AiSortOutcome o = AiSortOutcome.applied]) =>
           AiSortEntry(
-            messageId: id,
+            messageId: MessageId(id),
             outcome: o,
             at: now,
             category: MessageCategory.codes,
@@ -330,7 +330,7 @@ void main() {
           ..add(entry(2, AiSortOutcome.ignored));
         expect(log.asked, {1, 2});
         expect(log.applied().keys, [1]);
-        final one = log.forMessage(1)!;
+        final one = log.forMessage(MessageId(1))!;
         expect(one.category, MessageCategory.codes);
         expect(one.reason, 'A sign-in code.');
         expect(one.verification, isTrue);
@@ -341,10 +341,10 @@ void main() {
 
       test('undo: no longer applied, still never asked again', () {
         final log = AiSortLog(store)..add(entry(1));
-        log.undo(1);
+        log.undo(MessageId(1));
         expect(log.applied(), isEmpty);
         expect(log.asked, {1});
-        expect(log.forMessage(1)!.outcome, AiSortOutcome.undone);
+        expect(log.forMessage(MessageId(1))!.outcome, AiSortOutcome.undone);
         expect(log.entries, hasLength(1));
       });
 
@@ -360,13 +360,13 @@ void main() {
 
       test('a correction stays in force, with the user\'s category', () {
         final log = AiSortLog(store)..add(entry(1));
-        log.correct(1, MessageCategory.notifications);
+        log.correct(MessageId(1), MessageCategory.notifications);
         final corrected = log.applied()[1]!;
         expect(corrected.outcome, AiSortOutcome.corrected);
         expect(corrected.category, MessageCategory.notifications);
         expect(log.asked, {1});
         // Nothing to correct for a message never asked about.
-        log.correct(2, MessageCategory.general);
+        log.correct(MessageId(2), MessageCategory.general);
         expect(log.asked, {1});
       });
 

@@ -77,7 +77,7 @@ final class Resorter {
           for (final message in batch) decide(message, ai: ai),
         ]);
         count += batch.length;
-        progress.write(_store.settings, '$version:${batch.last.id}');
+        progress.write(_store.settings, '$version:${batch.last.id.value}');
         return batch.last.id;
       });
       if (last == null) break;
@@ -90,17 +90,19 @@ final class Resorter {
   }
 
   /// Where an earlier, unfinished run with the same rules stopped.
-  int _resumeAfter(String version) {
+  MessageId _resumeAfter(String version) {
     final saved = progress.readOrNull(_store.settings)?.split(':');
-    if (saved == null || saved.length != 2 || saved[0] != version) return 0;
-    return int.tryParse(saved[1]) ?? 0;
+    if (saved == null || saved.length != 2 || saved[0] != version) {
+      return const MessageId(0);
+    }
+    return MessageId(int.tryParse(saved[1]) ?? 0);
   }
 
   /// The decision for one stored message: the rules', or, while they
   /// are unsure, the AI sorter's in [ai] (by message id).
   CategoryDecision decide(
     SortableMessage message, {
-    Map<int, AiSortEntry> ai = const {},
+    Map<MessageId, AiSortEntry> ai = const {},
   }) {
     var decision = classifier.classify(
       ClassificationInput(

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_extract/mail_extract.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'due_dates.dart';
 import 'subscriptions.dart' show SubscriptionFinder;
@@ -122,7 +123,7 @@ final class AppointmentEmail {
   });
 
   /// The stored message, to open it.
-  final int messageId;
+  final MessageId messageId;
 
   /// The sender's registrable domain (`brightsmile.co.uk`).
   final String sender;
@@ -1224,7 +1225,7 @@ abstract final class AppointmentFinder {
         final byAt = a.email.at.compareTo(b.email.at);
         return byAt != 0
             ? byAt
-            : a.email.messageId.compareTo(b.email.messageId);
+            : a.email.messageId.value.compareTo(b.email.messageId.value);
       });
 
     final groups = <_Group>[];

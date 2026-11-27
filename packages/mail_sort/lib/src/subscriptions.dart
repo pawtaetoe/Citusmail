@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'package:mail_store/mail_store.dart';
+
 /// One email that may be about a paid subscription: a receipt, a renewal
 /// notice, a cancellation.
 final class SubscriptionEmail {
@@ -15,7 +17,7 @@ final class SubscriptionEmail {
   });
 
   /// The stored message, to open it.
-  final int messageId;
+  final MessageId messageId;
 
   /// Who charges: the sender's registrable domain (`netflix.com`).
   final String company;

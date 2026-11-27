@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_extract/mail_extract.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'subscriptions.dart' show SubscriptionFinder;
 
@@ -22,7 +23,7 @@ final class DeliveryEmail {
   });
 
   /// The stored message, to open it.
-  final int messageId;
+  final MessageId messageId;
 
   /// The sender's registrable domain (`shopee.sg`).
   final String shop;

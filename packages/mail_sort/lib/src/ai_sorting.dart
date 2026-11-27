@@ -160,7 +160,7 @@ final class AiSortEntry {
   });
 
   /// The stored message's id.
-  final int messageId;
+  final MessageId messageId;
   final AiSortOutcome outcome;
   final DateTime at;
 
@@ -194,7 +194,7 @@ final class AiSortEntry {
       );
 
   Map<String, Object?> toJson() => {
-    'id': messageId,
+    'id': messageId.value,
     'outcome': outcome.name,
     'at': at.toUtc().millisecondsSinceEpoch,
     if (category != null) 'category': category!.name,
@@ -216,7 +216,7 @@ final class AiSortEntry {
     String? text(String key) =>
         json[key] is String ? json[key]! as String : null;
     return AiSortEntry(
-      messageId: id,
+      messageId: MessageId(id),
       outcome: outcome,
       at: DateTime.fromMillisecondsSinceEpoch(at, isUtc: true),
       category: MessageCategory.values
@@ -268,9 +268,9 @@ final class AiSortLog {
   }
 
   /// The messages asked about (whatever came of it).
-  Set<int> get asked => {for (final e in entries) e.messageId};
+  Set<MessageId> get asked => {for (final e in entries) e.messageId};
 
-  AiSortEntry? forMessage(int messageId) =>
+  AiSortEntry? forMessage(MessageId messageId) =>
       entries.where((e) => e.messageId == messageId).lastOrNull;
 
   /// Records [entry], in place of an earlier one for the same message.
@@ -282,7 +282,7 @@ final class AiSortLog {
 
   /// The decisions in force, by message id: the assistant's
   /// ([AiSortOutcome.applied]) and the user's ([AiSortOutcome.corrected]).
-  Map<int, AiSortEntry> applied() => {
+  Map<MessageId, AiSortEntry> applied() => {
     for (final e in entries)
       if ((e.outcome == AiSortOutcome.applied ||
               e.outcome == AiSortOutcome.corrected) &&
@@ -291,7 +291,7 @@ final class AiSortLog {
   };
 
   /// The user put [messageId] back: its decision no longer applies.
-  void undo(int messageId) {
+  void undo(MessageId messageId) {
     final entry = forMessage(messageId);
     if (entry == null) return;
     add(entry.withOutcome(AiSortOutcome.undone));
@@ -299,7 +299,7 @@ final class AiSortLog {
 
   /// The user chose [category] for [messageId] instead of the
   /// assistant's decision: it stays there.
-  void correct(int messageId, MessageCategory category) {
+  void correct(MessageId messageId, MessageCategory category) {
     final entry = forMessage(messageId);
     if (entry == null) return;
     add(entry.withOutcome(AiSortOutcome.corrected, category: category));

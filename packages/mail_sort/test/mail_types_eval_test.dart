@@ -10,6 +10,7 @@ library;
 
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 import 'package:test/test.dart';
 
 final _now = DateTime.utc(2026, 11, 4);
@@ -495,7 +496,7 @@ _Picked _run({
   final subscriptions = SubscriptionFinder.find([
     for (final m in _sample)
       SubscriptionEmail(
-        messageId: m.id,
+        messageId: MessageId(m.id),
         company: m.company,
         senderName: m.name,
         subject: m.subject,
@@ -507,7 +508,7 @@ _Picked _run({
     for (final m in _sample)
       if (DeliveryFinder.subjectWords.any(m.subject.toLowerCase().contains))
         DeliveryEmail(
-          messageId: m.id,
+          messageId: MessageId(m.id),
           shop: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -519,7 +520,7 @@ _Picked _run({
   final bookings = TripFinder.bookings([
     for (final m in _sample)
       TripEmail(
-        messageId: m.id,
+        messageId: MessageId(m.id),
         sender: m.company,
         senderName: m.name,
         subject: m.subject,
@@ -533,22 +534,22 @@ _Picked _run({
     _s: {
       for (final s in subscriptions)
         if (!hiddenSubscriptions.contains(s.company))
-          if ([for (final r in s.records) r.email.messageId] case final ids
-              when !vetoed(_s, ids))
+          if ([for (final r in s.records) r.email.messageId.value]
+              case final ids when !vetoed(_s, ids))
             ...ids,
     },
     _d: {
       for (final d in deliveries)
         if (!hiddenDeliveries.contains(d.key))
-          if ([for (final r in d.records) r.email.messageId] case final ids
-              when !vetoed(_d, ids))
+          if ([for (final r in d.records) r.email.messageId.value]
+              case final ids when !vetoed(_d, ids))
             ...ids,
     },
     _b: {
       for (final b in bookings)
         if (!hiddenBookings.contains(b.key))
-          if ([for (final r in b.records) r.email.messageId] case final ids
-              when !vetoed(_b, ids))
+          if ([for (final r in b.records) r.email.messageId.value]
+              case final ids when !vetoed(_b, ids))
             ...ids,
     },
   };
@@ -610,7 +611,7 @@ void main() {
     final subscriptions = SubscriptionFinder.find([
       for (final m in _sample)
         SubscriptionEmail(
-          messageId: m.id,
+          messageId: MessageId(m.id),
           company: m.company,
           senderName: m.name,
           subject: m.subject,
@@ -630,7 +631,7 @@ void main() {
       for (final m in _sample)
         if (DeliveryFinder.subjectWords.any(m.subject.toLowerCase().contains))
           DeliveryEmail(
-            messageId: m.id,
+            messageId: MessageId(m.id),
             shop: m.company,
             senderName: m.name,
             subject: m.subject,
@@ -650,7 +651,7 @@ void main() {
     final bookings = TripFinder.bookings([
       for (final m in _sample)
         TripEmail(
-          messageId: m.id,
+          messageId: MessageId(m.id),
           sender: m.company,
           senderName: m.name,
           subject: m.subject,

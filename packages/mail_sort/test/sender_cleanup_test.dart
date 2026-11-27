@@ -30,7 +30,7 @@ List<SenderMail> emails(
 }) => [
   for (var i = 0; i < count; i++)
     SenderMail(
-      messageId: _id++,
+      messageId: MessageId(_id++),
       from: address(from, name),
       domain: domain ?? from.split('@').last,
       at: now.subtract(Duration(days: startDaysAgo + i)),
@@ -166,9 +166,9 @@ void main() {
 
     test('pinned messages are never acted on', () {
       StoredMessage stored(int id, {bool pinned = false}) => StoredMessage(
-        id: id,
-        mailboxId: 1,
-        accountId: 1,
+        id: MessageId(id),
+        mailboxId: MailboxId(1),
+        accountId: AccountId(1),
         uid: id,
         receivedAt: now,
         size: 100,
@@ -194,7 +194,7 @@ void main() {
       int opened = 0,
       int newsletters = 0,
       int daysAgo = 1,
-      int? unsubscribeId,
+      MessageId? unsubscribeId,
       int? unsubscribeDaysAgo,
     }) => SenderStats(
       from: address(from, name),
@@ -203,7 +203,7 @@ void main() {
       newsletters: newsletters,
       notifications: 0,
       last: now.subtract(Duration(days: daysAgo)),
-      newestId: _id++,
+      newestId: MessageId(_id++),
       unsubscribeId: unsubscribeId,
       unsubscribeAt: unsubscribeDaysAgo == null
           ? null
@@ -220,7 +220,7 @@ void main() {
             name: 'Bank',
             count: 6,
             opened: 6,
-            unsubscribeId: 70,
+            unsubscribeId: MessageId(70),
             unsubscribeDaysAgo: 9,
           ),
           totals(
@@ -229,7 +229,7 @@ void main() {
             count: 10,
             opened: 2,
             daysAgo: 2,
-            unsubscribeId: 71,
+            unsubscribeId: MessageId(71),
             unsubscribeDaysAgo: 3,
           ),
           totals(
