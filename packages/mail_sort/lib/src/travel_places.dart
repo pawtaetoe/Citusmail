@@ -70,6 +70,9 @@ abstract final class TravelPlaces {
     'Kraków': 'Krakow',
     'København': 'Copenhagen',
     'Göteborg': 'Gothenburg',
+    'Bozen': 'Bolzano',
+    'Trient': 'Trento',
+    'Meran': 'Merano',
   };
 
   /// Cities without their own airport code here, often reached by train.
@@ -140,6 +143,9 @@ abstract final class TravelPlaces {
     'Genoa',
     'Verona',
     'Gothenburg',
+    'Bolzano',
+    'Trento',
+    'Merano',
   };
 
   static const _airports = {

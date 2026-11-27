@@ -366,8 +366,25 @@ abstract final class SubscriptionFinder {
 
   static bool _speaksOfSubscription(SubscriptionEmail email) =>
       _subscriptionWords.hasMatch(email.subject) ||
-      _subscriptionWords.hasMatch(email.text) ||
-      billingPeriodIn(email.text) != null;
+      billingPeriodIn(email.text) != null ||
+      // A shop order's page names "Membership" or a trial in its links and
+      // footer; that is not about this order.
+      (_subscriptionWords.hasMatch(email.text) && !isShopOrder(email));
+
+  /// What a one-off shop order says of itself: its order number or
+  /// status, its parcel, the shop's purchase history.
+  static final _shopOrder = RegExp(
+    r'\b(?:order (?:no\.?|number|#|status|id|details|summary)|in transit|'
+    r'(?:has|have) (?:been )?shipped|out for delivery|track (?:your )?'
+    r'(?:order|parcel|package)|purchase history|click (?:&|and) collect)',
+    caseSensitive: false,
+  );
+
+  /// Whether [email] reads as a one-off shop order (an order number, a
+  /// parcel on its way) and its subject names no subscription.
+  static bool isShopOrder(SubscriptionEmail email) =>
+      !_subscriptionWords.hasMatch(email.subject) &&
+      (_shopOrder.hasMatch(email.subject) || _shopOrder.hasMatch(email.text));
 
   /// An account statement (bank, card, brokerage, CDP): what the account
   /// holds or did, not a charge.

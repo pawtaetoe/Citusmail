@@ -124,7 +124,7 @@ Thanks for booking with Avanti West Coast. Your booking is confirmed and
 your eTickets are attached to this email as a PDF. Show them on your
 phone or print them, and have them ready for inspection on board.
 
-Booking reference: 21699058
+Booking reference: 40871235
 
 Outward journey
 Sunday 28 June 2026
@@ -158,7 +158,7 @@ Sehr geehrte Frau Tan,
 vielen Dank für Ihre Buchung bei den ÖBB. Ihr Ticket finden Sie im
 Anhang dieser E-Mail als PDF.
 
-Ticketnummer: 0919 1410 7516 0291
+Ticketnummer: 1234 5678 9012 3456
 Buchungscode: 8F3KQ2
 
 Hinfahrt
@@ -183,7 +183,7 @@ Dear Ms Tan,
 Thank you for your booking with ÖBB. Your ticket is attached to this
 email as a PDF; please carry it with you together with a photo ID.
 
-Ticket number: 0919 1410 7516 0291
+Ticket number: 1234 5678 9012 3456
 
 Outward journey
 From:
@@ -308,6 +308,243 @@ Room: Standard Twin, non-smoking
 Guests: 2 adults
 
 If you need to change or cancel your reservation, please contact us.
+''';
+
+/// An ÖBB ticket email in English, as its HTML reads as text, every
+/// personal detail made up: the booking code on the line after its label,
+/// in groups of four digits; the route with a ">" and a city in two
+/// languages; the date written "Aug 20 2026"; no times (they are in the
+/// PDF); and the booking date above it.
+const _oebbReal = '''
+logo url
+Booking code:
+0428 3315 6092 7781
+Customer number:
+PV318275604
+Booking date:
+25. May 2026
+Transaction number:
+531000000774120586
+Dear SAM LEE,
+please find below the link to your PDF Tickets.
+Please remember to print your tickets in A4 format before you start your journey.
+Download and print tickets
+Please be aware that different cancellation conditions may apply for individual tickets if they have been collected in PDF format. Neither is it possible to convert them into Mobile Tickets or into tickets for pick-up at the station.
+Your PDF Tickets
+Zürich HB > Bolzano/Bozen
+One-way journey for SAM LEE, ALEX LEE
+Day of travel: Aug 20 2026 My timetable\u00a0>
+My booking >
+Updated timetable data
+It is always possible that the timetable has changed. Be sure to check out the current timetable shortly before your journey starts. You will find your timetable details under “My timetable” (see above) or in our route planner Scotty.
+Any more questions?
+Please see our FAQs (currently available in German) for more information. If this did not help in resolving your question, please contact us via oebb.at/kontakt or call us: +43 5 1717.
+We wish you a pleasant journey,
+Your ÖBB
+''';
+
+/// An Avanti West Coast confirmation as its HTML reads as text, every
+/// personal detail made up: the route over two lines ("Glasgow
+/// Central/Queen St" above "to London Euston / Single"), the times in a
+/// table and in brackets, and a "Delay Repay" and "Need a refund?" footer.
+const _avantiReal = '''
+
+
+Your booking is confirmed
+
+Thank you for booking
+with Avanti West Coast
+Glasgow Central/Queen St
+to London Euston / Single
+£ 270.00
+Outward journey
+29 August 2026
+£ 270.00
+Glasgow Central
+08:00
+Direct
+5h 38min
+London Euston
+13:38
+Advance Single Standard Premium
+What can I do with my ticket?
+Train operator: \u00a0 Avanti West Coast
+Train restrictions: \u00a0 Avanti West Coast Only
+Reservations:
+Glasgow Central (08:00) to London Euston (13:38)
+5h 38min\u00a0\u00a0\u00a0\u00a0Avanti West Coast
+Coach:\u00a0J
+Seat:\u00a011
+Window, Table seat, Near toilet, Power socket, Near luggage rack, Forward facing, Window view, Individual
+Coach:\u00a0J
+Seat:\u00a08
+Window, Table seat, Near toilet, Backward facing, Power socket, Near luggage rack, Window view, Individual
+Fare breakdown:
+Adult
+£135.00
+Adult
+£135.00
+Options & delivery:
+2 Adults
+Your e-ticket(s) are attached.
+Booking reference: \u00a0 30482716
+Payment method : Debit or credit card
+Credit card used : VISA\u00a0 400000******0000
+Payment summary
+Train ticket
+£270.00
+Total
+£270.00
+
+Seat Reservations
+You can now book or change your seat reservations online via your account.
+
+
+Change of plans?
+If you travel plans change, you can amend your tickets online via your account.
+
+
+Delay Repay
+The easiest way to sign up for Automatic Delay Repay is by opting in via your account. Then, if you're delayed by 15 minutes or more, a claim will automatically be created for you.
+
+
+Need a refund?
+If you need to claim a refund, the quickest way to apply is only via your account.
+
+
+Frequently Asked Questions
+Got a query for us? Here's the best place to start.
+
+First Trenitalia West Coast Rail Limited. (Company number 10349442)
+Registered Office: 8th Floor, The Point, 37 North Wharf Road, London, W2 1AF
+Contact us | Terms and conditions | Privacy policy
+''';
+
+/// A Singapore Airlines redemption confirmation as its HTML reads as text,
+/// every personal detail made up: "SQ308" without a space, an "Airbus
+/// A380-800" under it, each airport code followed by its time and then a
+/// date line without a year ("13 Jul (Mon)"), and the flight again as "SQ
+/// 308 SIN - LHR".
+const _sqRedemptionReal = '''
+This is an automatically generated message. Please do not reply to this address.
+Your redemption booking is confirmed
+Booking Reference\u00a0KQ7T4P
+Singapore Airlines
+spacing
+Dear\u00a0MR\u00a0Sam Lee,
+You're all set for your trip! This email has all the details of your redemption booking on singaporeair.com, and your e-ticket and receipt are attached. Remember to print these, or be sure you have easy access to them when you travel.
+spacing
+spacing
+spacing 20
+spacing
+Manage booking
+spacing 20
+Select / Change seats and meals, update passenger details, and more. As 2FA is enabled, a One-Time Password (OTP) will be required for verification when accessing passenger details, change booking, or cancel it.
+spacing
+spacing 20
+spacing
+View KrisFlyer account
+spacing 20
+Find out how many KrisFlyer miles you have and view the details of your account activities.
+spacing
+Itinerary
+Flight
+Departs
+Arrives
+1. Singapore to London - Total travel time:\u00a0 13hrs 45mins
+Status: Confirmed
+SQ308
+Airbus A380-800
+Singapore Airlines
+SIN 09:00
+13 Jul (Mon)
+Singapore, Changi , Terminal 3
+LHR 15:45
+13 Jul (Mon)
+London, Heathrow , Terminal 2
+Flying time:\u00a013hrs 45mins
+Cabin class: Premium Economy (P)
+spacing
+Passenger
+> Visa requirements
+Flights
+Seats
+Baggage
+1.
+MR SAM LEE
+Membership no: 8812345670
+SQ 308 SIN - LHR
+No seats selected
+Free:\u00a035\u00a0kg
+spacing
+Hertz
+Travel advisories
+Always check the latest advisories for your destinations before you fly. As entry restrictions and other requirements may change at short notice, you may wish to subscribe to email updates .
+plus
+spacing
+Travel Guard
+Added selected coverage for epidemic and pandemic diseases, including Covid-19. Terms and conditions apply.
+Checked
+spacing
+MIX MILES AND CASH
+Pss
+Enjoy extra legroom with a Extra Legroom Seat.If you're a KrisFlyer member, you can now pay for Extra Legroom Seats with your miles.
+Checked
+spacing
+Baggages
+Checking in more bags? You can buy additional baggage allowance, even before arriving at the airport.
+Checked
+spacing
+icon-hotel.com
+Choose from over 1.2 million stays worldwide, and earn 3 KrisFlyer miles for every USD 1 spent.
+plus
+spacing
+Rental cars
+Off on a road trip? Or just getting from A to B? A wide range of vehicles is available with our partner.
+plus
+spacing
+Hertz
+Pre-order exclusive products at duty-free prices on KrisShop Online, and collect them on board when you fly with us.
+plus
+spacing
+KrisFlyer miles redeemed
+74,500 miles
+Paid with debit/credit card
+SGD 65.20
+Card details
+SAM LEE
+Visa Card
+XXXX-XXXX-XXXX-0000
+Cost breakdown
+Miles
+Total miles
+74,500
+SGD
+Airport/Government taxes
+65.20
+Total cost
+65.20
+To view the full cost breakdown, download your E-ticket (in PDF format, attached to this email).
+spacing
+spacing
+Additional information
+Valid travel documents
+Each passenger must hold a valid passport (and visa(s), if required) to be allowed entry into each destination on the flight itinerary. Singapore Airlines cannot be held responsible if a passenger is denied entry and/or deported by any local authority.
+Privacy Policy
+The information you give us is protected by our privacy policy. However, in some circumstances, government regulations may require us to provide information or permit access to our passenger/customer data.
+Overbooking of flights for tickets sold in the USA
+Airline flights may be overbooked, and there is a slight chance that a seat will not be available on a flight for which a person has a confirmed reservation. If the flight is overbooked, no one will be denied a seat until airline personnel first ask for volunteers willing to give up their reservation in exchange for compensation of the airline's choosing. If there are not enough volunteers, the airline will deny boarding to other persons in accordance with its particular boarding priority. With few exceptions, including failure to comply with the carrier's check-in deadline (which are available upon request from the air carrier), persons denied boarding involuntarily are entitled to compensation. The complete rules for the payment of compensation and each airline's boarding priorities are available at all airport ticket counters and boarding locations. Some airlines do not apply these consumer protections to travel from some foreign countries, although other consumer protections may be available. Check with your airline or your ticket agent.
+spacing
+Changes to your redemption booking
+If you make a change to your redemption booking (such as change of itinerary, travel date, and/or passenger name) through KrisFlyer Membership Services, or a Singapore Airlines reservations or ticket office, the online redemption booking discount will no longer be applicable.
+spacing
+Ticket collection
+You don't need a printed ticket to fly. However, if you are travelling to and from Colombo, Fukuoka, Manila or the USA, you must present a printed copy of this booking confirmation or your e-ticket receipt to the check-in counter staff at the airport.
+spacing
+Get the SingaporeAir app to check in and receive the latest flight updates
+
+
+© 2026 Singapore Airlines. All Rights Reserved. Singapore Co. reg. No. 1972000078R | Privacy Policy
 ''';
 
 void main() {
@@ -866,6 +1103,50 @@ New: Depart 02:15   Arrive 09:50
       );
     });
 
+    test('a hotel named for the city, in a town beside it: that city', () {
+      // An airport hotel: London in its name, Hounslow as its town.
+      final found = trips([
+        mail(
+          'Your redemption booking confirmation KQ7T4P',
+          sender: 'singaporeair.com',
+          text: _sqRedemptionReal,
+          daysAgo: 238,
+        ),
+        mail(
+          'Confirmation of your reservation: Airport Inn London Heathrow',
+          sender: 'airportinn.example',
+          daysAgo: 184,
+          html: '''
+<script type="application/ld+json">
+{"@context": "http://schema.org", "@type": "LodgingReservation",
+ "reservationNumber": "QWXRTPLM",
+ "reservationStatus": "http://schema.org/ReservationConfirmed",
+ "reservationFor": {"@type": "LodgingBusiness",
+   "name": "Airport Inn London Heathrow",
+   "address": {"@type": "PostalAddress", "streetAddress": "1 Bath Road",
+     "addressLocality": "HOUNSLOW", "addressCountry": "GB"}},
+ "checkinDate": "2026-07-13", "checkoutDate": "2026-07-15"}
+</script>''',
+        ),
+      ]);
+      final trip = found.single;
+      expect(trip.destinations, ['London']);
+      expect(trip.bookings, hasLength(2));
+      // A town the app knows comes first; one it does not, as written.
+      expect(
+        TripFinder.cityOf(
+          const ReservationPlace(name: 'Paris Hotel', locality: 'Las Vegas'),
+        ),
+        'Las Vegas',
+      );
+      expect(
+        TripFinder.cityOf(
+          const ReservationPlace(name: 'Hotel Adler', locality: 'Ortisei'),
+        ),
+        'Ortisei',
+      );
+    });
+
     test('a trip through two cities: by train from Tokyo to Kyoto', () {
       final found = trips([
         mail(
@@ -916,7 +1197,7 @@ New: Depart 02:15   Arrive 09:50
     test('an Avanti West Coast booking: there and back, one trip', () {
       final found = trips([
         mail(
-          'Your Booking Confirmation: 21699058',
+          'Your Booking Confirmation: 40871235',
           sender: 'avantiwestcoast.co.uk',
           name: 'Avanti West Coast',
           text: _avantiText,
@@ -928,7 +1209,7 @@ New: Depart 02:15   Arrive 09:50
       final [out, back] = trip.bookings;
       expect(out.kind, ReservationKind.train);
       final info = out.info as TransitReservationInfo;
-      expect(info.reservationNumber, '21699058');
+      expect(info.reservationNumber, '40871235');
       expect(info.provider, 'Avanti West Coast');
       expect(info.from?.name, 'London Euston');
       expect(info.to?.name, 'Manchester Piccadilly');
@@ -946,7 +1227,7 @@ New: Depart 02:15   Arrive 09:50
     test('an ÖBB ticket in German: European dates, times on the line', () {
       final b = bookings([
         mail(
-          'Ihr ÖBB Ticket – 0919 1410 7516 0291',
+          'Ihr ÖBB Ticket – 1234 5678 9012 3456',
           sender: 'oebb.at',
           name: 'ÖBB',
           text: _oebbGerman,
@@ -969,14 +1250,14 @@ New: Depart 02:15   Arrive 09:50
     test('an ÖBB ticket in English: the date from the subject', () {
       final found = bookings([
         mail(
-          'ÖBB ticket – 0919 1410 7516 0291 – Aug 2, 2026',
+          'ÖBB ticket – 1234 5678 9012 3456 – Aug 2, 2026',
           sender: 'oebb.at',
           text: _oebbEnglish,
           daysAgo: 162,
         ),
         // The same ticket again, in German: one booking.
         mail(
-          'Ihr ÖBB Ticket – 0919 1410 7516 0291',
+          'Ihr ÖBB Ticket – 1234 5678 9012 3456',
           sender: 'oebb.at',
           name: 'ÖBB',
           text: _oebbGerman,
@@ -986,13 +1267,198 @@ New: Depart 02:15   Arrive 09:50
       final b = found.single;
       expect(b.records, hasLength(2));
       final first = b.infos.first as TransitReservationInfo;
-      expect(first.reservationNumber, '0919 1410 7516 0291');
+      expect(first.reservationNumber, '1234 5678 9012 3456');
       expect(first.provider, 'ÖBB');
       expect(first.from?.name, 'Wien Hbf');
       expect(first.to?.name, 'Salzburg Hbf');
       expect(first.start?.wall, DateTime.utc(2026, 8, 2, 8, 30));
       expect(first.end?.wall, DateTime.utc(2026, 8, 2, 10, 52));
       expect(b.city, 'Salzburg');
+    });
+
+    test('an ÖBB ticket as sent: the code on the next line, a ">" route', () {
+      final b = bookings([
+        mail(
+          'ÖBB ticket – 0428 3315 6092 7781 – Aug 20 2026',
+          sender: 'oebb.at',
+          text: _oebbReal,
+          daysAgo: 163,
+        ),
+      ]).single;
+      final info = b.info as TransitReservationInfo;
+      expect(b.kind, ReservationKind.train);
+      expect(info.reservationNumber, '0428 3315 6092 7781');
+      expect(info.provider, 'ÖBB');
+      expect(info.from?.name, 'Zürich HB');
+      expect(info.to?.name, 'Bolzano');
+      expect(b.start.day, DateTime(2026, 8, 20));
+      expect(b.start.hasTime, isFalse);
+      expect(b.end, isNull);
+      expect(b.fromCity, 'Zurich');
+      expect(b.city, 'Bolzano');
+      expect(b.cancelled, isFalse);
+      expect(TripText.referencesIn(_oebbReal), ['0428 3315 6092 7781']);
+    });
+
+    test('an ÖBB ticket: the booking date is not the day of travel', () {
+      // Without the day of travel, in the text or the subject, there is
+      // no journey: not one on the day it was booked.
+      final noDay = _oebbReal.replaceFirst(RegExp('Day of travel: .*'), '');
+      expect(
+        bookings([
+          mail(
+            'ÖBB ticket – 0428 3315 6092 7781',
+            sender: 'oebb.at',
+            text: noDay,
+            daysAgo: 163,
+          ),
+        ]),
+        isEmpty,
+      );
+      // Even right above the route.
+      final close = _oebbReal.replaceFirst(
+        RegExp(r'Transaction number:[\s\S]*Your PDF Tickets\n'),
+        '',
+      );
+      expect(close, contains('25. May 2026\nZürich HB > Bolzano/Bozen'));
+      final b = bookings([
+        mail(
+          'ÖBB ticket – 0428 3315 6092 7781 – Aug 20 2026',
+          sender: 'oebb.at',
+          text: close,
+          daysAgo: 163,
+        ),
+      ]).single;
+      expect(b.start.day, DateTime(2026, 8, 20));
+      expect(
+        bookings([
+          mail(
+            'ÖBB ticket – 0428 3315 6092 7781',
+            sender: 'oebb.at',
+            text: close.replaceFirst(RegExp('Day of travel: .*'), ''),
+            daysAgo: 163,
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test(
+      'an Avanti West Coast booking as sent: one way, times in brackets',
+      () {
+        final email = mail(
+          'Your Booking Confirmation: 30482716',
+          sender: 'avantiwestcoast.co.uk',
+          name: 'Avanti West Coast',
+          text: _avantiReal,
+          daysAgo: 134,
+        );
+        final b = bookings([email]).single;
+        final info = b.info as TransitReservationInfo;
+        expect(b.kind, ReservationKind.train);
+        expect(info.reservationNumber, '30482716');
+        expect(info.provider, 'Avanti West Coast');
+        expect(info.from?.name, 'Glasgow Central');
+        expect(info.to?.name, 'London Euston');
+        expect(b.start.wall, DateTime.utc(2026, 8, 29, 8));
+        expect(b.end?.wall, DateTime.utc(2026, 8, 29, 13, 38));
+        expect(b.fromCity, 'Glasgow');
+        expect(b.city, 'London');
+
+        // Each way of writing the route will do alone: over two lines...
+        final twoLines = bookings([
+          mail(
+            'Your Booking Confirmation: 30482716',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: _avantiReal.replaceFirst(
+              'Glasgow Central (08:00) to London Euston (13:38)\n',
+              '',
+            ),
+            daysAgo: 134,
+          ),
+        ]).single;
+        expect(twoLines.start.wall, DateTime.utc(2026, 8, 29, 8));
+        expect(twoLines.end?.wall, DateTime.utc(2026, 8, 29, 13, 38));
+        // ...or with the times in brackets.
+        final brackets = bookings([
+          mail(
+            'Your Booking Confirmation: 30482716',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: _avantiReal.replaceFirst(
+              'Glasgow Central/Queen St\nto London Euston / Single\n',
+              '',
+            ),
+            daysAgo: 134,
+          ),
+        ]).single;
+        expect(brackets.info.from?.name, 'Glasgow Central');
+        expect(brackets.start.wall, DateTime.utc(2026, 8, 29, 8));
+        expect(brackets.end?.wall, DateTime.utc(2026, 8, 29, 13, 38));
+      },
+    );
+
+    test('an Avanti footer about Delay Repay and refunds does not veto', () {
+      final email = mail(
+        'Your Booking Confirmation: 30482716',
+        sender: 'avantiwestcoast.co.uk',
+        name: 'Avanti West Coast',
+        text: _avantiReal,
+        daysAgo: 134,
+      );
+      expect(_avantiReal, contains('Delay Repay'));
+      expect(_avantiReal, contains('Need a refund?'));
+      final record = TripFinder.read(email);
+      expect(record.cancels, isFalse);
+      expect(record.reservations, hasLength(1));
+      // In the subject, it is a claim, not a journey.
+      expect(
+        bookings([
+          mail(
+            'Your Delay Repay claim',
+            sender: 'avantiwestcoast.co.uk',
+            name: 'Avanti West Coast',
+            text: _avantiReal,
+            daysAgo: 134,
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a flight and two trains: London, Bolzano, then London again', () {
+      final found = trips([
+        mail(
+          'Your redemption booking confirmation KQ7T4P',
+          sender: 'singaporeair.com',
+          text: _sqRedemptionReal,
+          daysAgo: 238,
+        ),
+        mail(
+          'ÖBB ticket – 0428 3315 6092 7781 – Aug 20 2026',
+          sender: 'oebb.at',
+          text: _oebbReal,
+          daysAgo: 163,
+        ),
+        mail(
+          'Your Booking Confirmation: 30482716',
+          sender: 'avantiwestcoast.co.uk',
+          name: 'Avanti West Coast',
+          text: _avantiReal,
+          daysAgo: 134,
+        ),
+      ]);
+      expect(found.map((t) => t.destinations), [
+        ['London'],
+        ['Bolzano'],
+        ['London'],
+      ]);
+      expect(found.map((t) => t.start.day), [
+        DateTime(2026, 7, 13),
+        DateTime(2026, 8, 20),
+        DateTime(2026, 8, 29),
+      ]);
     });
 
     test('a coach, and a train booked through a travel site', () {
@@ -1069,6 +1535,11 @@ Coach 05, Seat 12F, 2nd class
         DateTime(2027, 3, 3),
       );
       expect(TripText.datesIn('Version 4412.553.901', sent), isEmpty);
+      // Month first, no comma before the year.
+      expect(
+        TripText.datesIn('Day of travel: Aug 20 2026', sent).single.day,
+        DateTime(2026, 8, 20),
+      );
       expect(TripText.timesIn('Abfahrt 08:30').single.hour, 8);
     });
   });
@@ -1100,6 +1571,52 @@ Coach 05, Seat 12F, 2nd class
       expect(home.to?.code, 'SIN');
       expect(home.start?.wall, DateTime.utc(2026, 7, 26, 11, 35));
       expect(home.end?.wall, DateTime.utc(2026, 7, 27, 7, 55));
+    });
+
+    test('a Singapore Airlines redemption as sent: "SQ308", times first', () {
+      final found = trips([
+        mail(
+          'Your redemption booking confirmation KQ7T4P',
+          sender: 'singaporeair.com',
+          text: _sqRedemptionReal,
+          daysAgo: 238,
+        ),
+      ]);
+      final trip = found.single;
+      expect(trip.destinations, ['London']);
+      final b = trip.bookings.single;
+      final info = b.info as FlightReservationInfo;
+      expect(info.flightNumber, 'SQ 308');
+      expect(info.provider, 'Singapore Airlines');
+      expect(info.reservationNumber, 'KQ7T4P');
+      expect(info.from?.code, 'SIN');
+      expect(info.to?.code, 'LHR');
+      // No year: the next 13 July after it was sent, in March.
+      expect(info.start?.wall, DateTime.utc(2026, 7, 13, 9));
+      expect(info.end?.wall, DateTime.utc(2026, 7, 13, 15, 45));
+      expect(b.key, 'f:sq308:2026-07-13');
+    });
+
+    test('an aircraft is not a flight: "Airbus A380" is not A3 80', () {
+      // Aegean Airlines is A3. Without "-800" after it, and with the
+      // table's "Flight" heading close above, A380 reads like its flight
+      // 80, by the same route and date.
+      final a380 = _sqRedemptionReal
+          .replaceFirst('A380-800', 'A380')
+          .replaceFirst(RegExp(r'1\. Singapore to London.*\nStatus: .*\n'), '');
+      expect(a380, contains('Flight\nDeparts\nArrives\nSQ308\nAirbus A380\n'));
+      final sent = _now.subtract(const Duration(days: 238));
+      final flights = TripText.flightsIn(a380, sent: sent, reference: 'KQ7T4P');
+      expect(flights.map((f) => f.flightNumber), ['SQ 308']);
+      // Nor without SQ308 above it.
+      expect(
+        TripText.flightsIn(
+          a380.replaceFirst('SQ308\n', ''),
+          sent: sent,
+          reference: 'KQ7T4P',
+        ).map((f) => f.flightNumber),
+        isNot(contains('A3 80')),
+      );
     });
 
     test('codes side by side in a row, or one per line', () {

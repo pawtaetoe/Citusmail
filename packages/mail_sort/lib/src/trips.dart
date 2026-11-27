@@ -217,7 +217,10 @@ abstract final class TripText {
     r'confirmation (?:code|number|no\.?|#)|'
     r'reservation (?:code|number|no\.?|id|#)|record locator|PNR|'
     r'itinerary(?: number| no\.?)?\s*#?|booking id)'
-    r'(?:\s*\([\w ]{2,20}\))?\s*(?:is\s*)?[:#.]?\s*#?\s*([A-Za-z0-9][A-Za-z0-9-]{4,15})\b',
+    r'(?:\s*\([\w ]{2,20}\))?\s*(?:is\s*)?[:#.]?\s*#?\s*'
+    // The code, maybe on the next line, maybe in groups of four digits
+    // ("0428 3315 6092 7781").
+    r'(\d{4}(?:[ ]\d{4}){2,4}(?![ ]?\d)|[A-Za-z0-9][A-Za-z0-9-]{4,15})\b',
   );
 
   static const _notReferences = {
@@ -230,8 +233,9 @@ abstract final class TripText {
   };
 
   /// Booking references in [text], each next to a word such as "booking
-  /// reference", "confirmation code" or "PNR". A reference of letters
-  /// only must be 6 long (an airline's PNR).
+  /// reference", "confirmation code" or "PNR", or on the line after it.
+  /// A reference of letters only must be 6 long (an airline's PNR); one
+  /// of digits in groups of four keeps its spaces.
   static List<String> referencesIn(String text) {
     final found = <String>[];
     for (final m in _referenceLabel.allMatches(_cap(text, 30000))) {
@@ -435,6 +439,13 @@ abstract final class TripText {
     r'\b(?:operated|marketed) by\b[^\n]{0,30}$|\bcodeshare\b[^\n]{0,20}$',
   );
 
+  /// An aircraft's maker or a label for it: "Airbus A380" is not Aegean
+  /// Airlines (A3) flight 80.
+  static final _aircraft = _re(
+    r'\b(?:airbus|boeing|embraer|bombardier|aircraft(?: type)?|equipment)'
+    r'[\s:]*$',
+  );
+
   /// Two letters that are more often words or units than airlines.
   static const _notAirlines = {
     'AM',
@@ -492,16 +503,19 @@ abstract final class TripText {
         m.start - 40 < 0 ? 0 : m.start - 40,
         m.start,
       );
-      if (_operatedBy.hasMatch(before)) continue;
+      if (_operatedBy.hasMatch(before) || _aircraft.hasMatch(before)) continue;
       final labelled = _flightLabel.hasMatch(before);
       final code = m[1]!;
       if (!labelled) {
         if (_notAirlines.contains(code) || TravelPlaces.airline(code) == null) {
           continue;
         }
+        // A flight number in a cell of its own: the table's "Flight"
+        // heading may be further away.
+        final reach = _aloneOnLine(sample, m.start, m.end) ? 200 : 80;
         final near = sample.substring(
-          m.start - 80 < 0 ? 0 : m.start - 80,
-          m.end + 80 > sample.length ? sample.length : m.end + 80,
+          m.start - reach < 0 ? 0 : m.start - reach,
+          m.end + reach > sample.length ? sample.length : m.end + reach,
         );
         if (!_flightWord.hasMatch(near)) continue;
       }
@@ -593,6 +607,15 @@ abstract final class TripText {
       );
     }
     return flights;
+  }
+
+  /// Whether [start]–[end] is all of its line in [text], but for spaces.
+  static bool _aloneOnLine(String text, int start, int end) {
+    final lineStart = text.lastIndexOf('\n', start) + 1;
+    var lineEnd = text.indexOf('\n', end);
+    if (lineEnd < 0) lineEnd = text.length;
+    return text.substring(lineStart, start).trim().isEmpty &&
+        text.substring(end, lineEnd).trim().isEmpty;
   }
 
   /// "SIN → NRT", "Singapore (SIN) to Tokyo Narita (NRT)".
@@ -976,13 +999,15 @@ abstract final class TripText {
   );
 
   /// Lines whose dates are not the journey's: when it was bought, until
-  /// when a ticket is valid, when to renew it.
+  /// when a ticket is valid, when to renew it; with the next line when
+  /// the label ends its line ("Booking date:" above "25. May 2026").
   static final _notJourneyLine = RegExp(
     r'^.*\b(?:booked on|booking date|date booked|order date|ordered on|'
     r'purchase date|purchased on|date of purchase|date of issue|issued on|'
     r'issue date|kaufdatum|buchungsdatum|bestelldatum|ausstellungsdatum|'
     r'ausgestellt am|gekauft am|payment date|paid on|transaction date|'
-    r'valid until|valid to|gültig bis|expires|expiry|renew\w*|due)\b.*$',
+    r'valid until|valid to|gültig bis|expires|expiry|renew\w*|due)\b'
+    r'(?:[^\n]*:[ \t]*\r?\n.*|.*)$',
     multiLine: true,
     caseSensitive: false,
   );
@@ -994,13 +1019,17 @@ abstract final class TripText {
       '$_stationWord(?:[ \\t]+(?:(?:de|du|des|la|le|am|im|an der|upon|on|'
       'sur|del|di|bei)[ \\t]+)?$_stationWord){0,4}';
   static const _legTime =
-      r'(?:[ \t]+(?:ab|an|dep\.?|arr\.?))?[ \t]+((?:[01]?\d|2[0-3]):[0-5]\d)';
+      r'(?:[ \t]+(?:ab|an|dep\.?|arr\.?))?[ \t]+'
+      r'(\(?(?:[01]?\d|2[0-3]):[0-5]\d\)?)';
   static const _legSeparator =
       r'(?:[ \t]*(?:\r?\n[ \t]*)?(?:→|⟶|➝|->|–|—)[ \t]*(?:\r?\n[ \t]*)?|'
-      r'[ \t]+-[ \t]+|[ \t]+(?:to|nach|naar|till)[ \t]+)';
+      r'[ \t]+[->][ \t]+|[ \t]+(?:to|nach|naar|till)[ \t]+|'
+      r'[ \t]*\r?\n[ \t]*to[ \t]+)';
 
   /// "London Euston to Manchester Piccadilly", "Wien Hbf → Salzburg Hbf",
-  /// "Wien Hbf ab 08:30 → Salzburg Hbf an 10:52".
+  /// "Zürich HB > Bolzano/Bozen", "Wien Hbf ab 08:30 → Salzburg Hbf an
+  /// 10:52", "Glasgow Central (08:00) to London Euston (13:38)", or over
+  /// two lines: "Glasgow Central" above "to London Euston".
   static final _leg = RegExp(
     '($_stationName)(?:$_legTime)?$_legSeparator($_stationName)(?:$_legTime)?',
   );
@@ -1039,7 +1068,7 @@ abstract final class TripText {
   /// Ends of station names: the place before it is a town even when the
   /// app does not know it ("Innsbruck Hbf").
   static final _stationEnd = _re(
-    r'\s+(?:hbf|hauptbahnhof|bahnhof|bhf|westbahnhof|ostbahnhof|südbahnhof|'
+    r'\s+(?:hbf|hb|hauptbahnhof|bahnhof|bhf|westbahnhof|ostbahnhof|südbahnhof|'
     r'central|centraal|centrale|euston|piccadilly|st\.? pancras'
     r"(?: international)?|king'?s cross|paddington|station|termini)$",
   );
@@ -1050,14 +1079,14 @@ abstract final class TripText {
     r'EST|THA|WB)\s?(\d{2,5})(?![\w-])',
   );
 
-  /// A ticket number, often in groups of four ("0919 1410 7516 0291").
+  /// A ticket number, often in groups of four ("1234 5678 9012 3456").
   static final _ticketNumber = _re(
     r'\bticket(?:nummer|code|nr\.?|\s*(?:number|no\.?|code|nr\.?))?\b'
     r'[^\d\n]{0,25}?(\d{4}(?:[ ]\d{4}){2,4}|\d{10,20})(?!\d)',
   );
 
-  /// A ticket number in [text] ("Ticket number: 0919 1410 7516 0291",
-  /// "ÖBB ticket – 0919 1410 7516 0291"), or null.
+  /// A ticket number in [text] ("Ticket number: 1234 5678 9012 3456",
+  /// "ÖBB ticket – 1234 5678 9012 3456"), or null.
   static String? ticketNumberIn(String text) =>
       _ticketNumber.firstMatch(_cap(text, 20000))?[1];
 
@@ -1086,8 +1115,11 @@ abstract final class TripText {
 
   /// [raw] read as a station: a known city's ("London Euston", "Wien
   /// Hbf") or a name ending like a station's ("Innsbruck Hbf"); else null.
+  /// Of names given two ways ("Bolzano/Bozen", "Glasgow Central/Queen
+  /// St"), the first.
   static ReservationPlace? _station(String raw) {
     var name = raw
+        .replaceFirst(RegExp(r'(?<=[\wÀ-ɏ])/(?=[A-ZÀ-Þ]).*$'), '')
         .replaceFirst(_notStationWords, '')
         .replaceFirst(_afterStation, '')
         .replaceFirst(RegExp(r'[\s.,;:/(-]+$'), '')
@@ -1172,10 +1204,10 @@ abstract final class TripText {
     if (transit == null || _notAJourney.hasMatch(email.subject)) {
       return const [];
     }
-    final text = _cap(
-      email.text,
-      20000,
-    ).replaceAllMapped(_notJourneyLine, (m) => ' ' * m[0]!.length);
+    final text = _cap(email.text, 20000).replaceAllMapped(
+      _notJourneyLine,
+      (m) => m[0]!.replaceAll(RegExp(r'[^\r\n]'), ' '),
+    );
     final legs = _legsIn(text);
     if (legs.isEmpty) return const [];
     if (transit.byWords) {
@@ -1400,17 +1432,22 @@ abstract final class TripFinder {
     );
   }
 
-  /// The city of [place]: an airport's, its town, or a city its name or
-  /// address names.
+  /// The city of [place]: an airport's, its town when the app knows it,
+  /// a city its name or address names (an airport hotel in Hounslow
+  /// named "London Heathrow" is in London), else its town.
   static String? cityOf(ReservationPlace? place) {
     if (place == null) return null;
     if (place.code case final c?) {
       if (TravelPlaces.cityOfAirport(c) case final city?) return city;
     }
-    if (place.locality case final l? when l.trim().isNotEmpty) {
-      return TravelPlaces.cityIn(l) ?? l.trim();
+    final town = place.locality?.trim() ?? '';
+    if (town.isNotEmpty) {
+      if (TravelPlaces.cityIn(town) case final city?) return city;
     }
-    return TravelPlaces.cityIn([place.name, place.address].nonNulls.join(' '));
+    final named = TravelPlaces.cityIn(
+      [place.name, place.address].nonNulls.join(' '),
+    );
+    return named ?? (town.isEmpty ? null : town);
   }
 
   /// What makes a booking the same in another email: its kind, its
