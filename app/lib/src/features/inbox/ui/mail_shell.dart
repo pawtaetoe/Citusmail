@@ -140,7 +140,8 @@ final class _MailShellState extends State<MailShell> {
     if (!mounted) return;
     final text = _controller.working.value;
     if (text == null) {
-      _workNotice?.close();
+      // Also when it is still waiting for the notice before it to go.
+      if (_workNotice != null) ScaffoldMessenger.of(context).clearSnackBars();
       _workNotice = null;
       return;
     }

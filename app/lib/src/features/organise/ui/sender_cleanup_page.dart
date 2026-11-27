@@ -8,12 +8,12 @@ import 'package:mail_sync/mail_sync.dart';
 
 import '../../../app/app.dart' show appName;
 import '../../../core/state/load_state.dart';
+import '../../../core/text/numbers.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
 import '../../../core/widgets/avatar.dart';
 import '../../../core/widgets/badge.dart';
-import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/page_scaffold.dart';
 import '../../../core/widgets/skeleton_rows.dart';
 import '../../inbox/state/mail_controller.dart';
@@ -39,6 +39,9 @@ final class SenderCleanupPage extends StatefulWidget {
 
 /// What can be done to senders.
 enum _Action { unsubscribe, archive, delete, block, keep }
+
+/// Which of a sender's mail Archive or Delete takes.
+enum _Scope { recent, all }
 
 final class _SenderCleanupPageState extends State<SenderCleanupPage> {
   late final SenderCleanupModel _model = SenderCleanupModel(
@@ -95,7 +98,10 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
   static String _who(List<SenderGroup> groups) =>
       groups.length == 1 ? groups.single.name : '${groups.length} senders';
 
-  static String _emails(int n) => n == 1 ? '1 email' : '$n emails';
+  static String _emails(int n) => countOf(n, 'email');
+
+  /// The period the cards count, as the cards say it.
+  static const _period = '3 months';
 
   Future<void> _act(_Action action, List<SenderGroup> groups) async {
     if (groups.isEmpty) return;
@@ -103,7 +109,7 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
       case _Action.unsubscribe:
         await _unsubscribe(groups.single);
       case _Action.archive:
-        _archive(groups);
+        await _archive(groups);
       case _Action.delete:
         await _delete(groups);
       case _Action.block:
@@ -114,12 +120,29 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
   }
 
   /// Every message from them in the inboxes goes to Archive, as one queued
-  /// move per folder; Undo puts it back.
-  void _archive(List<SenderGroup> groups) {
-    final mail = _model.inboxMail(groups);
-    if (mail.isEmpty) {
+  /// move per folder; Undo puts it back. When some of it is older than
+  /// the period the cards count, the user chooses: only the recent mail,
+  /// or all of it.
+  Future<void> _archive(List<SenderGroup> groups) async {
+    final scope = SenderCleanupModel.scopeOf(
+      _model.inboxMail(groups),
+      _model.since,
+    );
+    if (scope.all.isEmpty) {
       _notice('Nothing from ${_who(groups)} is in your Inbox.');
       return;
+    }
+    var mail = scope.all;
+    if (scope.older > 0) {
+      final choice = await _ScopeDialog.show(
+        context,
+        title: 'Archive ${_emails(scope.all.length)} from ${_who(groups)}?',
+        scope: scope,
+        what: 'They move from your Inbox to Archive.',
+        confirm: 'Archive',
+      );
+      if (choice == null || !mounted) return;
+      if (choice == _Scope.recent) mail = scope.recent;
     }
     _clearSelection();
     _c.archive(
@@ -129,25 +152,31 @@ final class _SenderCleanupPageState extends State<SenderCleanupPage> {
   }
 
   /// Every message from them that this page counts (any folder but Sent,
-  /// Drafts, Trash and Junk) goes to Trash; Undo puts it back.
+  /// Drafts, Trash and Junk) goes to Trash, or, when the user chooses,
+  /// only what came in the period the cards count; Undo puts it back.
   Future<void> _delete(List<SenderGroup> groups) async {
-    final mail = _model.allMail(groups);
-    if (mail.isEmpty) {
+    final scope = SenderCleanupModel.scopeOf(
+      _model.allMail(groups),
+      _model.since,
+    );
+    if (scope.all.isEmpty) {
       _notice('Only pinned emails from ${_who(groups)} are left.');
       return;
     }
-    final sure = await confirmDialog(
+    final choice = await _ScopeDialog.show(
       context,
-      title: 'Delete ${_emails(mail.length)}?',
-      message:
-          '${mail.length == 1 ? 'The email' : 'All ${_emails(mail.length)}'} '
-          'from ${_who(groups)} go${mail.length == 1 ? 'es' : ''} to Trash, '
-          'from every folder. Pinned emails stay where they are.',
+      title: 'Delete ${_emails(scope.all.length)} from ${_who(groups)}?',
+      scope: scope,
+      what: scope.all.length == 1
+          ? 'It goes to Trash, from every folder.'
+          : scope.hasChoice
+          ? 'They go to Trash, from every folder.'
+          : 'All ${_emails(scope.all.length)} go to Trash, from every folder.',
       confirm: 'Move to Trash',
     );
-    if (sure != true || !mounted) return;
+    if (choice == null || !mounted) return;
     _clearSelection();
-    _c.delete(mail);
+    _c.delete(choice == _Scope.recent ? scope.recent : scope.all);
   }
 
   void _keep(List<SenderGroup> groups) {
@@ -457,7 +486,7 @@ final class _SenderTile extends StatelessWidget {
         ? 'none opened'
         : g.opened == g.count
         ? 'all opened'
-        : '${g.opened} opened ($pct%)';
+        : '${grouped(g.opened)} opened ($pct%)';
     final unsubscribed = model.unsubscribed(g);
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: colors.onSurfaceVariant,
@@ -512,8 +541,9 @@ final class _SenderTile extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${_SenderCleanupPageState._emails(g.count)} · '
-                          '$opened · last ${material.formatShortMonthDay(g.last.toLocal())}',
+                          '${_SenderCleanupPageState._emails(g.count)} in '
+                          '${_SenderCleanupPageState._period} · $opened · '
+                          'last ${material.formatShortMonthDay(g.last.toLocal())}',
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 6),
@@ -709,10 +739,11 @@ final class _HowDialog extends StatelessWidget {
       'written to and your own addresses are never listed. Nothing is sent '
       'anywhere.\n\n'
       'Archive all moves the sender\'s mail in your Inbox to Archive. '
-      'Delete all moves all of the sender\'s mail to Trash, from every '
-      'folder. Pinned emails stay where they are and aren\'t counted. Keep '
-      'takes a sender off this page; you can list them again at the '
-      'bottom.',
+      'Delete all moves the sender\'s mail to Trash, from every folder. '
+      'When some of it is older than 3 months, you choose: only the last '
+      '3 months, or all of it. Pinned emails stay where they are and '
+      'aren\'t counted. Keep takes a sender off this page; you can list '
+      'them again at the bottom.',
     ),
     actions: [
       TextButton(
@@ -721,4 +752,76 @@ final class _HowDialog extends StatelessWidget {
       ),
     ],
   );
+}
+
+/// Asks before Archive or Delete takes a sender's mail: how much, and,
+/// when some of it is older than the period the cards count, whether to
+/// take only the recent mail ("Only the last 3 months (28)") or all of it
+/// ("All 7,080").
+final class _ScopeDialog extends StatelessWidget {
+  const _ScopeDialog({
+    required this.title,
+    required this.scope,
+    required this.what,
+    required this.confirm,
+  });
+
+  final String title;
+  final CleanupScope scope;
+
+  /// Where the mail goes.
+  final String what;
+
+  /// The button when there is no choice to make.
+  final String confirm;
+
+  static Future<_Scope?> show(
+    BuildContext context, {
+    required String title,
+    required CleanupScope scope,
+    required String what,
+    required String confirm,
+  }) => showDialog<_Scope>(
+    context: context,
+    builder: (_) =>
+        _ScopeDialog(title: title, scope: scope, what: what, confirm: confirm),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    const period = _SenderCleanupPageState._period;
+    final recent = scope.recent.length;
+    final older = scope.older;
+    final counts = scope.hasChoice
+        ? '${grouped(recent)} came in the last $period; '
+              '${grouped(older)} ${older == 1 ? 'is' : 'are'} older. '
+        : older > 0
+        ? '${scope.all.length == 1 ? 'It is' : 'They are all'} older than '
+              '$period. '
+        : '';
+    return AlertDialog(
+      title: Text(title),
+      content: Text('$counts$what Pinned emails stay where they are.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        if (scope.hasChoice) ...[
+          TextButton(
+            onPressed: () => Navigator.pop(context, _Scope.recent),
+            child: Text('Only the last $period (${grouped(recent)})'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, _Scope.all),
+            child: Text('All ${grouped(scope.all.length)}'),
+          ),
+        ] else
+          FilledButton(
+            onPressed: () => Navigator.pop(context, _Scope.all),
+            child: Text(confirm),
+          ),
+      ],
+    );
+  }
 }
