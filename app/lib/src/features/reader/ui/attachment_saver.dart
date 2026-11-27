@@ -4,23 +4,92 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:mail_view/mail_view.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// Saves attachments (and whole messages, as .eml) into the Downloads folder. Files are never opened
-/// automatically: an attachment can be malware.
+/// Where a file was saved: [path] is what to tell the user.
+final class SavedFile {
+  const SavedFile(this.path);
+
+  final String path;
+}
+
+/// Saves attachments (and whole messages, as .eml) into the Downloads
+/// folder: on Android the public Download/Citusmail folder the Files app
+/// shows. Files are never opened automatically: an attachment can be
+/// malware.
 abstract final class AttachmentSaver {
+  static const _android = MethodChannel('citusmail/files');
+
+  /// Whether this is Android (tests set it).
+  @visibleForTesting
+  static bool Function() isAndroid = () => !kIsWeb && Platform.isAndroid;
+
+  /// The Downloads folder the platform gives (tests set it).
+  @visibleForTesting
+  static Future<Directory> Function() downloads = () async =>
+      await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+
+  /// The folder on Android, as the Files app names it.
+  static const androidFolder = 'Download/Citusmail';
+
   /// Writes [attachment] and returns where. Never overwrites a file.
-  static Future<File> save(AttachmentView attachment) =>
+  static Future<SavedFile> save(AttachmentView attachment) =>
       saveBytes(attachment.fileName, attachment.bytes());
 
   /// Writes [bytes] as [fileName] (already a safe name, see
   /// `SafeFileName`) into Downloads and returns where. Never overwrites a
   /// file.
-  static Future<File> saveBytes(String fileName, List<int> bytes) async {
-    final directory =
-        await getDownloadsDirectory() ??
-        await getApplicationDocumentsDirectory();
+  static Future<SavedFile> saveBytes(String fileName, List<int> bytes) async {
+    if (isAndroid()) {
+      // Android 10+: through MediaStore into the public folder. Null on
+      // older Android, which keeps the app's own folder below.
+      final name = await _android.invokeMethod<String>('saveToDownloads', {
+        'name': fileName,
+        'bytes': Uint8List.fromList(bytes),
+        'mime': _mimeOf(fileName),
+      });
+      if (name != null) return SavedFile('$androidFolder/$name');
+    }
+    return SavedFile((await _saveFile(fileName, bytes)).path);
+  }
+
+  /// The file's type from its name, for the Files app; anything unknown
+  /// is plain bytes.
+  static String _mimeOf(String name) {
+    final dot = name.lastIndexOf('.');
+    final ext = dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+    return switch (ext) {
+      'pdf' => 'application/pdf',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      'heic' => 'image/heic',
+      'txt' => 'text/plain',
+      'csv' => 'text/csv',
+      'ics' => 'text/calendar',
+      'eml' => 'message/rfc822',
+      'zip' => 'application/zip',
+      'doc' => 'application/msword',
+      'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls' => 'application/vnd.ms-excel',
+      'xlsx' =>
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'ppt' => 'application/vnd.ms-powerpoint',
+      'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'mp3' => 'audio/mpeg',
+      'mp4' => 'video/mp4',
+      _ => 'application/octet-stream',
+    };
+  }
+
+  /// Writes into the Downloads folder the platform gives (the user's
+  /// Downloads on a computer; the app's own folder on older Android).
+  static Future<File> _saveFile(String fileName, List<int> bytes) async {
+    final directory = await downloads();
     await directory.create(recursive: true);
     final file = await _createNew(directory, fileName);
     try {
