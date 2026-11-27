@@ -89,11 +89,6 @@ final class ArchivedBackfill {
   /// Whether [imap] is a Gmail-style server this applies to.
   static bool appliesTo(ImapClient imap) => imap.capabilities.has('X-GM-EXT-1');
 
-  /// Whether the archived mail of [accountId] within [KeepMail]'s date is
-  /// all on the device.
-  bool isComplete(int accountId) =>
-      _setting(accountId).read(_store.settings)?.phase == _Phase.done;
-
   /// One pass over [imap] for [account]: stores the next archived
   /// messages and refreshes the flags of those stored. [pendingUids] are
   /// All Mail UIDs with local changes still queued, whose flags are left
