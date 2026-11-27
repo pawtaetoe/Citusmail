@@ -4,6 +4,8 @@
 
 import 'dart:math';
 
+import 'package:mail_protocol/mail_protocol.dart' show MessageId;
+
 import 'ai_errors.dart';
 import 'ai_types.dart';
 import 'mail_prompt.dart';
@@ -14,7 +16,7 @@ final class AskSource {
   const AskSource({required this.id, required this.mail});
 
   /// The app's own id of the message (never sent).
-  final int id;
+  final MessageId id;
 
   /// What is sent: sender, date, subject and an excerpt of the text.
   final PromptMail mail;
@@ -55,13 +57,17 @@ final class AskAnswer {
 /// are sent ([AskMail.pick]): each search that found an email counts
 /// once for it, by its weight, and the newest come first among equals.
 final class AskMatches {
-  final _score = <int, double>{};
-  final _at = <int, DateTime>{};
-  final _seen = <int, Set<String>>{};
+  final _score = <MessageId, double>{};
+  final _at = <MessageId, DateTime>{};
+  final _seen = <MessageId, Set<String>>{};
 
   /// Messages [hits] found by [term], counted [weight] each (once per
   /// term and message).
-  void add(String term, Iterable<(int, DateTime)> hits, {double weight = 1}) {
+  void add(
+    String term,
+    Iterable<(MessageId, DateTime)> hits, {
+    double weight = 1,
+  }) {
     for (final (id, at) in hits) {
       final seen = _seen.putIfAbsent(id, () => {});
       if (!seen.add(term)) continue;
@@ -73,16 +79,16 @@ final class AskMatches {
   bool get isEmpty => _score.isEmpty;
 
   /// The searches (terms) that found [id].
-  Set<String> foundBy(int id) => {...?_seen[id]};
+  Set<String> foundBy(MessageId id) => {...?_seen[id]};
 
   /// The [limit] best, best first.
-  List<int> best(int limit) {
+  List<MessageId> best(int limit) {
     final ids = _score.keys.toList()
       ..sort((a, b) {
         final byScore = _score[b]!.compareTo(_score[a]!);
         if (byScore != 0) return byScore;
         final byDate = _at[b]!.compareTo(_at[a]!);
-        return byDate != 0 ? byDate : b.compareTo(a);
+        return byDate != 0 ? byDate : b.value.compareTo(a.value);
       });
     return ids.take(max(0, limit)).toList();
   }

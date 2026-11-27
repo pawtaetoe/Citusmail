@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import 'package:mail_ai/mail_ai.dart';
+import 'package:mail_protocol/mail_protocol.dart' show MessageId;
 import 'package:test/test.dart';
 
 AiResponse _reply(String text, {AiStopReason stop = AiStopReason.finished}) =>
@@ -15,7 +16,7 @@ AiResponse _reply(String text, {AiStopReason stop = AiStopReason.finished}) =>
 
 void main() {
   final flight = AskSource(
-    id: 41,
+    id: MessageId(41),
     mail: PromptMail(
       from: 'TAP Air Portugal <booking@flytap.example>',
       date: DateTime.utc(2026, 11, 2, 9, 30),
@@ -26,7 +27,7 @@ void main() {
     ),
   );
   final hotel = AskSource(
-    id: 57,
+    id: MessageId(57),
     mail: PromptMail(
       from: 'Booking.com <noreply@booking.example>',
       date: DateTime.utc(2026, 11, 3),
@@ -97,15 +98,21 @@ void main() {
 
   test('matches: found by more searches first, then the newest', () {
     final matches = AskMatches()
-      ..add('flight', [(1, DateTime.utc(2026, 1)), (2, DateTime.utc(2026, 3))])
-      ..add('lisbon', [(1, DateTime.utc(2026, 1)), (3, DateTime.utc(2026, 2))])
+      ..add('flight', [
+        (MessageId(1), DateTime.utc(2026, 1)),
+        (MessageId(2), DateTime.utc(2026, 3)),
+      ])
+      ..add('lisbon', [
+        (MessageId(1), DateTime.utc(2026, 1)),
+        (MessageId(3), DateTime.utc(2026, 2)),
+      ])
       // The same search again counts once.
-      ..add('lisbon', [(3, DateTime.utc(2026, 2))])
-      ..add('tap lisbon', [(4, DateTime.utc(2025, 1))], weight: 2);
+      ..add('lisbon', [(MessageId(3), DateTime.utc(2026, 2))])
+      ..add('tap lisbon', [(MessageId(4), DateTime.utc(2025, 1))], weight: 2);
     expect(matches.best(10), [1, 4, 2, 3]);
     expect(matches.best(2), [1, 4]);
-    expect(matches.foundBy(1), {'flight', 'lisbon'});
-    expect(matches.foundBy(99), isEmpty);
+    expect(matches.foundBy(MessageId(1)), {'flight', 'lisbon'});
+    expect(matches.foundBy(MessageId(99)), isEmpty);
     expect(AskMatches().isEmpty, isTrue);
   });
 
@@ -209,7 +216,7 @@ void main() {
 
     test('an email that gives orders stays inside its own block', () {
       final attack = AskSource(
-        id: 9,
+        id: MessageId(9),
         mail: const PromptMail(
           from: 'IT Desk <it@evil.example>',
           subject: 'Flight update',
