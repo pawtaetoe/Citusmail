@@ -64,6 +64,76 @@ reader; the reader offers snooze). Keep those links few and pointing one
 way; a type two features both need belongs in the lower one's `state/` or
 in `core/`.
 
+## The mail screen's controllers
+
+`MailController` (`features/inbox/state/mail_controller.dart`) is what
+the mail screen holds. It is a facade: it makes the focused controllers
+below, wires them together, and keeps the screen's API by handing each
+call to the one whose job it is. New code can use a focused controller
+directly (each is a public field, such as `controller.snoozeController`).
+
+| Controller | File (under `features/`) | Its job |
+| --- | --- | --- |
+| `SyncStatusController` | `inbox/state/sync_status.dart` | the sync worker's events and the status line (`status`), sync now, reconnect |
+| `CountsController` | `inbox/state/mail_counts.dart` | sidebar and section counts (`counts`), read again only when the store changed |
+| `ComposeStarter` | `compose/state/compose_starter.dart` | new messages, replies, forwards and drafts in the compose window (`onCompose`) |
+| `ReaderController` | `reader/state/reader_controller.dart` | the open message (`reader`): opening, next and previous, images, read receipts |
+| `SelectionController` | `inbox/state/selection_controller.dart` | messages picked for a bulk action (`selection`) |
+| `LocationController` | `inbox/state/location_controller.dart` | where the user is (`location`), search, loading older mail |
+| `MessageActions` | `inbox/state/message_actions.dart` | pin, read, archive, move, delete, "Not spam", with Undo; leaving the list |
+| `FolderController` | `organise/state/folder_controller.dart` | new folders, where mail can move, folder rules |
+| `WakeTimer` | `organise/state/wake_timer.dart` | a timer for the next snooze or follow-up due |
+| `SnoozeController` | `organise/state/snooze_controller.dart` | snooze, unsnooze, waking snoozed mail |
+| `FollowUpController` | `organise/state/follow_up_controller.dart` | "Remind me if no reply" |
+| `AwayController` | `inbox/state/away_controller.dart` | leaving and coming back, "New since you were away" |
+| `OldCodesController` | `organise/state/old_codes_controller.dart` | tidying up old verification codes (`codesOffer`) |
+| `UnsubscribeController` | `organise/state/unsubscribe_controller.dart` | unsubscribing from a list |
+| `BlockingController` | `organise/state/blocking_controller.dart` | blocking and unblocking senders |
+| `ScreenerController` | `organise/state/screener_controller.dart` | the Screener's first-time senders |
+| `InvitationController` | `reader/state/invitation_controller.dart` | answering calendar invitations |
+| `OutboxController` | `compose/state/outbox_controller.dart` | failed sends and "Send later" |
+| `AccountOrder` | `accounts/state/account_order.dart` | the accounts' order (`accountsChanged`) |
+
+Each is a plain class (with `ValueNotifier`s where the screen listens)
+that takes what it needs in its constructor: services, the store, the
+message list and the other controllers it uses. They depend on each
+other one way only, in the order `MailController` makes them (an arrow
+reads "uses"):
+
+```
+SyncStatusController, CountsController, ComposeStarter, AccountOrder,
+InvitationController                        (no other controller)
+ReaderController      -> CountsController, ComposeStarter
+SelectionController   -> (the open message, by a callback)
+LocationController    -> SelectionController
+MessageActions        -> LocationController, SelectionController,
+                         ReaderController
+FolderController      -> LocationController, CountsController
+SnoozeController      -> LocationController, SelectionController,
+                         ReaderController, MessageActions, WakeTimer
+FollowUpController    -> WakeTimer
+AwayController        -> MessageActions, SnoozeController,
+                         FollowUpController
+OldCodesController    -> ReaderController, SelectionController
+UnsubscribeController -> ReaderController, MessageActions
+BlockingController    -> ReaderController, MessageActions
+ScreenerController    -> MessageActions
+OutboxController      -> ComposeStarter
+```
+
+What goes back the other way is a callback the facade passes in:
+`refresh` (re-read the list, the counts, the open message and the
+Verification offer, and set the wake timer), `notify` (a notice with
+Undo, shown through `onNotice`), the viewed account for
+`ComposeStarter`, and the wake timer's `onDue` (wake snoozed mail, then
+check follow-ups). After each sync the facade tidies old codes, wakes
+snoozes and checks follow-ups, then refreshes once. `dispose` stops the
+timers, the sync events and the sorter's listener first, then disposes
+the controllers, those that use others first.
+
+Each controller has its own tests that build it without the facade or
+a widget (`app/test/support/controllers.dart` wires them by hand).
+
 ## Conventions
 
 - **Types over strings.** Ids are extension types (`MessageId`,
@@ -113,7 +183,8 @@ in `core/`.
   Before copying a widget or a state machine a third time, fold it into
   one of these or a new shared piece.
 - **Small classes.** A controller does one job. `MailController` is a
-  facade over focused controllers (selection, reading, actions, snooze,
-  Screener, send later, …).
+  facade over focused controllers (see "The mail screen's controllers"
+  above); a new mail screen feature gets its own controller, not more
+  code in the facade.
 - **No behaviour change in a move.** Moving and renaming land on their
   own, with the full test suite passing, before any logic changes.
