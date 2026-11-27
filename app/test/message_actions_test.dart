@@ -74,6 +74,22 @@ void main() {
       expect(inInbox('Lunch?'), isTrue);
     });
 
+    test('archiving mail already in Archive says so', () {
+      c.store.messages.upsertSummaries(c.box('Archive').id, [
+        MessageSummary(
+          uid: 8,
+          receivedAt: DateTime.utc(2026, 10, 21),
+          subject: 'Filed away',
+          from: const MailAddress(localPart: 'erin', domain: 'x.example'),
+        ),
+      ]);
+      final filed = c.message('Filed away');
+      expect(filed.mailboxId, c.actions.archiveFor(filed)!.id);
+      c.actions.archive([filed]);
+      expect(c.lastNotice, 'Already in Archive.');
+      expect(c.store.messages.byId(filed.id), isNotNull);
+    });
+
     test('the open message leaving opens the next one', () async {
       final visible = c.list.visible;
       final first = visible.first;
@@ -163,6 +179,21 @@ void main() {
       final rule = folders.rulesFor(projects.id).single;
       folders.removeRule(rule);
       expect(folders.rulesFor(projects.id), isEmpty);
+    });
+
+    test('a refused name is worded, whatever the error says', () {
+      expect(
+        FolderController.refusedName('contains the folder separator "/"'),
+        'Folder names can\'t contain "/" on this server.',
+      );
+      expect(
+        FolderController.refusedName('contains the folder separator'),
+        'Folder names can\'t contain this server\'s separator.',
+      );
+      expect(
+        FolderController.refusedName(null),
+        'That can\'t be a folder name.',
+      );
     });
 
     test('creating a folder offline says so', () async {
