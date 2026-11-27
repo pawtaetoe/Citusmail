@@ -21,6 +21,7 @@ import 'outbox_replayer.dart';
 import 'screener_archiver.dart';
 import 'sender_blocker.dart';
 import 'server_rules.dart';
+import 'server_search.dart';
 import 'summary_mapper.dart';
 import 'sync_connections.dart';
 
@@ -321,6 +322,20 @@ final class SyncEngine {
     return _onDemand.run(
       account,
       (imap) => _mailboxSync.fetchOlder(imap, mailbox, count: count),
+    );
+  }
+
+  /// Searches all of [accountId]'s mail on its server for [text], and
+  /// stores the summaries of what it finds ([ServerSearch]). Returns the
+  /// stored messages found, newest first, at most
+  /// [ServerSearch.maxResults]. Throws a [MailException] when the server
+  /// cannot be reached.
+  Future<List<int>> searchServer(int accountId, String text) async {
+    final account = _store.accounts.byId(accountId);
+    if (account == null) return const [];
+    return _onDemand.run(
+      account,
+      (imap) => ServerSearch(_store, _mailboxSync).search(imap, account, text),
     );
   }
 

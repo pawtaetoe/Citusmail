@@ -162,6 +162,13 @@ final class SyncWorker {
   Future<int> countSearchWords() async =>
       await _request(const _CountSearchWords()) as int;
 
+  /// Searches all of an account's mail on its server (see
+  /// [SyncEngine.searchServer]); returns the ids of the stored messages
+  /// found, newest first. Throws [SyncWorkerException] (offline, refused).
+  Future<List<int>> searchServer(int accountId, String text) async =>
+      (await _request(_SearchServer(accountId, text)) as List<Object?>)
+          .cast<int>();
+
   /// Loads older mail of a folder; returns how many messages were added.
   Future<int> fetchOlder(int mailboxId, {int count = 100}) async =>
       await _request(_FetchOlder(mailboxId, count)) as int;
@@ -371,6 +378,8 @@ Future<void> _workerMain(_Boot boot) async {
         await engine.lookUpFiles(messageIds);
       case _FetchOlder(:final mailboxId, :final count):
         return engine.fetchOlder(mailboxId, count: count);
+      case _SearchServer(:final accountId, :final text):
+        return engine.searchServer(accountId, text);
       case _CreateFolder(:final accountId, :final name):
         return engine.createFolder(accountId, name);
       case _ForgetAppData():
@@ -635,6 +644,13 @@ final class _FetchOlder extends _Command {
 
   final int mailboxId;
   final int count;
+}
+
+final class _SearchServer extends _Command {
+  const _SearchServer(this.accountId, this.text);
+
+  final int accountId;
+  final String text;
 }
 
 final class _CreateFolder extends _Command {

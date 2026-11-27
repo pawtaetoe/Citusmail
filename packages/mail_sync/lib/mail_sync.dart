@@ -26,6 +26,7 @@ export 'src/receipt_collector.dart';
 export 'src/screener_archiver.dart';
 export 'src/sender_blocker.dart';
 export 'src/server_rules.dart';
+export 'src/server_search.dart';
 export 'src/snooze_waker.dart';
 export 'src/summary_mapper.dart';
 export 'src/sync_engine.dart';
