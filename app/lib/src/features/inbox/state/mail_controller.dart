@@ -6,220 +6,191 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:mail_compose/mail_compose.dart';
-import 'package:mail_protocol/mail_protocol.dart';
-import 'package:mail_sort/mail_sort.dart' show VerificationCodes;
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
-import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../../../background/background_mail.dart';
 import '../../../core/state/validation.dart';
 import '../../../services/app_services.dart';
+import '../../accounts/state/account_order.dart';
+import '../../accounts/state/own_addresses.dart';
 import '../../compose/state/compose_fields.dart';
-import '../../compose/state/send_later_times.dart';
-import '../../organise/state/follow_up_times.dart';
+import '../../compose/state/compose_starter.dart';
+import '../../compose/state/outbox_controller.dart';
+import '../../organise/state/blocking_controller.dart';
+import '../../organise/state/folder_controller.dart';
+import '../../organise/state/follow_up_controller.dart';
+import '../../organise/state/old_codes_controller.dart';
+import '../../organise/state/screener_controller.dart';
+import '../../organise/state/snooze_controller.dart';
+import '../../organise/state/unsubscribe_controller.dart';
+import '../../organise/state/wake_timer.dart';
 import '../../reader/state/invitation_answers.dart';
+import '../../reader/state/invitation_controller.dart';
+import '../../reader/state/reader_controller.dart';
+import '../../reader/state/reader_state.dart';
+import 'away_controller.dart';
 import 'inbox_summary.dart';
+import 'location_controller.dart';
+import 'mail_counts.dart';
 import 'mail_location.dart';
+import 'message_actions.dart';
 import 'message_list_model.dart';
-import 'new_since_away.dart';
-import 'store_changes.dart';
+import 'selection_controller.dart';
+import 'sync_status.dart';
 
-/// How a sender can be blocked.
-final class BlockChoice {
-  const BlockChoice({
-    required this.address,
-    required this.domain,
-    required this.fromAddress,
-    required this.fromDomain,
-  });
+export '../../organise/state/blocking_controller.dart' show BlockChoice;
+export '../../reader/state/reader_state.dart'
+    show ReaderEmpty, ReaderFailed, ReaderLoading, ReaderReady, ReaderState;
+export 'mail_counts.dart' show MailCounts;
+export 'sync_status.dart' show SyncIdle, SyncProblem, SyncRunning, SyncStatus;
 
-  final String address;
-
-  /// The sender's domain, or null when blocking it would make no sense (a
-  /// free mail service, or the user's own domain).
-  final String? domain;
-
-  /// Messages in the inboxes from the address, and from the domain.
-  final int fromAddress;
-  final int fromDomain;
-}
-
-/// What the reading pane shows.
-sealed class ReaderState {
-  const ReaderState();
-
-  StoredMessage? get message => null;
-}
-
-final class ReaderEmpty extends ReaderState {
-  const ReaderEmpty();
-}
-
-final class ReaderLoading extends ReaderState {
-  const ReaderLoading(this.message);
-
-  @override
-  final StoredMessage message;
-}
-
-final class ReaderReady extends ReaderState {
-  const ReaderReady(
-    this.message,
-    this.view, {
-    required this.to,
-    required this.cc,
-    required this.trust,
-    required this.unsubscribe,
-    this.unsubscribed,
-    this.imagesShown = false,
-  });
-
-  @override
-  final StoredMessage message;
-  final MessageView view;
-
-  /// What the message checks found (phishing signs, risky files).
-  final TrustReport trust;
-
-  /// How to unsubscribe from the message's list, if it has one.
-  final UnsubscribePlan unsubscribe;
-
-  /// When the user unsubscribed from this list, if they did.
-  final Unsubscription? unsubscribed;
-
-  /// Whether the message's remote images may load (the user asked, for
-  /// this message or for this verified sender).
-  final bool imagesShown;
-
-  /// Whether images may be loaded at all: never for mail that looks like
-  /// a scam.
-  bool get imagesAllowed => trust.level != TrustLevel.danger;
-
-  ReaderReady copyWith({
-    StoredMessage? message,
-    Unsubscription? unsubscribed,
-    bool? imagesShown,
-  }) => ReaderReady(
-    message ?? this.message,
-    view,
-    to: to,
-    cc: cc,
-    trust: trust,
-    unsubscribe: unsubscribe,
-    unsubscribed: unsubscribed ?? this.unsubscribed,
-    imagesShown: imagesShown ?? this.imagesShown,
-  );
-  final List<MailAddress> to;
-  final List<MailAddress> cc;
-}
-
-final class ReaderFailed extends ReaderState {
-  const ReaderFailed(this.message, this.reason);
-
-  @override
-  final StoredMessage message;
-  final String reason;
-}
-
-/// Counts for the sidebar and section headers, read together.
-final class MailCounts {
-  const MailCounts({
-    required this.sections,
-    required this.perAccountUnread,
-    required this.folderUnread,
-    required this.outbox,
-    this.snoozed = 0,
-    this.followUps = 0,
-  });
-
-  static const empty = MailCounts(
-    sections: {},
-    perAccountUnread: {},
-    folderUnread: {},
-    outbox: 0,
-  );
-
-  /// Messages snoozed in the inboxes.
-  final int snoozed;
-
-  /// Sent messages waiting for a reply ("Remind me if no reply"),
-  /// including those back with "No reply yet".
-  final int followUps;
-
-  final Map<SmartSection, SectionCount> sections;
-  final Map<int, int> perAccountUnread;
-  final Map<int, int> folderUnread;
-  final int outbox;
-
-  /// Unread mail in the Smart Inbox (mail waiting in the Screener isn't
-  /// counted until its sender is let in, nor snoozed mail until it comes
-  /// back).
-  int get inboxUnread => unreadIn(sections);
-
-  static int unreadIn(Map<SmartSection, SectionCount> sections) => [
-    for (final MapEntry(:key, :value) in sections.entries)
-      if (key != SmartSection.screener && key != SmartSection.snoozed)
-        value.unread,
-  ].fold(0, (sum, n) => sum + n);
-}
-
-/// How the accounts' sync is going, in one line for the list header.
-sealed class SyncStatus {
-  const SyncStatus();
-}
-
-final class SyncIdle extends SyncStatus {
-  const SyncIdle(this.lastSynced);
-
-  final DateTime? lastSynced;
-}
-
-final class SyncRunning extends SyncStatus {
-  const SyncRunning();
-}
-
-final class SyncProblem extends SyncStatus {
-  const SyncProblem(
-    this.kind,
-    this.account, {
-    this.accountId,
-    this.oauth = false,
-  });
-
-  final SyncFailureKind kind;
-  final String account;
-  final int? accountId;
-
-  /// The account signs in with OAuth: a refused login means its sign-in
-  /// ended, not a wrong password.
-  final bool oauth;
-}
-
-/// The mail screen's state, in separate pieces so each part of the screen
-/// rebuilds only when its own data changes:
+/// The mail screen's state, as one object for the screens to hold.
 ///
-/// - [location]: where the user is;
+/// It makes the focused controllers below, wires them together and keeps
+/// the screen's API by handing each call to the one whose job it is. Each
+/// part of the screen rebuilds only when its own data changes:
+///
+/// - [location]: where the user is ([locationController]);
 /// - [list]: what the list shows (paged; index reads only);
-/// - [counts]: sidebar and section counts;
-/// - [reader]: the open message;
-/// - [selection]: messages picked for a bulk action;
-/// - [status]: sync status.
+/// - [counts]: sidebar and section counts ([countsController]);
+/// - [reader]: the open message ([readerController]);
+/// - [selection]: messages picked for a bulk action
+///   ([selectionController]);
+/// - [status]: sync status ([syncStatusController]).
+///
+/// The controllers depend on each other one way only (see
+/// docs/architecture.md); what goes back up is a callback: [refresh] to
+/// re-read the screen, [onNotice] to tell the user something.
 final class MailController {
   MailController(this.services)
     : list = MessageListModel(services.store),
-      codeCleaner = CodeCleaner(services.store, services.actions) {
-    _events = services.worker.events.listen(_onSyncEvent);
+      followUps = FollowUpReminders(services.store),
+      syncStatusController = SyncStatusController(
+        services.store,
+        services.worker,
+      ) {
+    countsController = CountsController(_store, list, followUps);
+    composeStarter = ComposeStarter(
+      services,
+      accountInView: () => location.value.accountId,
+      notify: _notify,
+    );
+    readerController = ReaderController(
+      services,
+      list,
+      countsController,
+      composeStarter,
+      refresh: refresh,
+    );
+    selectionController = SelectionController(
+      _store,
+      list,
+      openMessage: () => readerController.selected,
+    );
+    locationController = LocationController(
+      _store,
+      services.worker,
+      list,
+      selectionController,
+      refresh: refresh,
+    );
+    messageActions = MessageActions(
+      services,
+      list,
+      locationController,
+      selectionController,
+      readerController,
+      refresh: refresh,
+      notify: _notify,
+    );
+    folderController = FolderController(
+      _store,
+      services.worker,
+      locationController,
+      countsController,
+    );
+    wakeTimer = WakeTimer(_store, followUps, onDue: _wakeDue);
+    snoozeController = SnoozeController(
+      services,
+      list,
+      locationController,
+      selectionController,
+      readerController,
+      messageActions,
+      wakeTimer,
+      refresh: refresh,
+      notify: _notify,
+    );
+    followUpController = FollowUpController(
+      _store,
+      followUps,
+      wakeTimer,
+      refresh: refresh,
+      notify: _notify,
+    );
+    awayController = AwayController(
+      services.worker,
+      list,
+      messageActions,
+      snoozeController,
+      followUpController,
+      refresh: refresh,
+      notify: _notify,
+    );
+    oldCodesController = OldCodesController(
+      CodeCleaner(_store, services.actions),
+      services.worker,
+      readerController,
+      selectionController,
+      refresh: refresh,
+      notify: _notify,
+    );
+    unsubscribeController = UnsubscribeController(
+      services,
+      readerController,
+      messageActions,
+      notify: _notify,
+    );
+    blockingController = BlockingController(
+      _store,
+      services.actions,
+      messageActions,
+      readerController,
+      notify: _notify,
+    );
+    screenerController = ScreenerController(
+      _store,
+      services.actions,
+      messageActions,
+      refresh: refresh,
+      notify: _notify,
+    );
+    invitationController = InvitationController(
+      services,
+      refresh: refresh,
+      notify: _notify,
+    );
+    outboxController = OutboxController(
+      services,
+      followUps,
+      composeStarter,
+      refresh: refresh,
+      notify: _notify,
+    );
+    accountOrder = AccountOrder(_store);
+    syncStatusController.onEvent = _onSyncEvent;
+
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
     // What arrived since the app was last used (closed, or in the
     // background) is "New since you were away".
     list.away.cameBack();
     list.show(location.value);
-    _refreshCounts();
-    _refreshCodesOffer();
+    countsController.refresh();
+    oldCodesController.refreshOffer();
     wakeSnoozes();
     checkFollowUps();
     // Android: a background check when the next scheduled message (or
@@ -229,375 +200,202 @@ final class MailController {
 
   final AppServices services;
   final MessageListModel list;
-  final location = ValueNotifier<MailLocation>(const InboxLocation());
-  final counts = ValueNotifier<MailCounts>(MailCounts.empty);
-  final reader = ValueNotifier<ReaderState>(const ReaderEmpty());
-  final selection = ValueNotifier<Set<int>>(const {});
-  final status = ValueNotifier<SyncStatus>(const SyncIdle(null));
+
+  /// "Remind me if no reply" on sent mail, kept on this device.
+  final FollowUpReminders followUps;
+
+  // The focused controllers, in the order they are made: each takes only
+  // those above it. The compose starter reads the location through a
+  // callback.
+
+  /// The sync worker's events and the status line.
+  final SyncStatusController syncStatusController;
+
+  /// Sidebar and section counts.
+  late final CountsController countsController;
+
+  /// New messages, replies, forwards and drafts in the compose window.
+  late final ComposeStarter composeStarter;
+
+  /// The open message, its images and read receipts.
+  late final ReaderController readerController;
+
+  /// Messages picked for a bulk action.
+  late final SelectionController selectionController;
+
+  /// Where the user is, and loading more of its list.
+  late final LocationController locationController;
+
+  /// Pin, read, archive, move and delete, with Undo.
+  late final MessageActions messageActions;
+
+  /// Creating folders, where mail can move, and folder rules.
+  late final FolderController folderController;
+
+  /// When snoozed mail and follow-ups are next due.
+  late final WakeTimer wakeTimer;
+
+  /// Snoozing mail and bringing it back.
+  late final SnoozeController snoozeController;
+
+  /// "Remind me if no reply".
+  late final FollowUpController followUpController;
+
+  /// Leaving the app and coming back ("New since you were away").
+  late final AwayController awayController;
+
+  /// Tidying up old verification codes.
+  late final OldCodesController oldCodesController;
+
+  /// Unsubscribing from mailing lists.
+  late final UnsubscribeController unsubscribeController;
+
+  /// Blocking senders.
+  late final BlockingController blockingController;
+
+  /// The Screener's first-time senders.
+  late final ScreenerController screenerController;
+
+  /// Answering calendar invitations.
+  late final InvitationController invitationController;
+
+  /// Failed and scheduled sends.
+  late final OutboxController outboxController;
+
+  /// The accounts' order.
+  late final AccountOrder accountOrder;
+
+  ValueNotifier<MailLocation> get location => locationController.location;
+  ValueNotifier<MailCounts> get counts => countsController.counts;
+  ValueNotifier<ReaderState> get reader => readerController.reader;
+  ValueNotifier<Set<int>> get selection => selectionController.selection;
+  ValueNotifier<SyncStatus> get status => syncStatusController.status;
 
   /// Moves old verification codes out of the inbox, once agreed.
-  final CodeCleaner codeCleaner;
+  CodeCleaner get codeCleaner => oldCodesController.codeCleaner;
 
   /// Whether the Verification section asks to tidy up old codes.
-  final codesOffer = ValueNotifier<bool>(false);
+  ValueNotifier<bool> get codesOffer => oldCodesController.codesOffer;
 
   /// The summary line at the top of the inbox (made when first shown).
   InboxSummary get summary => _summary ??= InboxSummary(services, list);
   InboxSummary? _summary;
 
-  late final StreamSubscription<SyncEvent> _events;
-  final Map<int, SyncEvent> _lastEvent = {};
   Timer? _refreshSoon;
   bool _disposed = false;
 
   MailStore get _store => services.store;
 
-  StoredMessage? get selected => reader.value.message;
+  StoredMessage? get selected => readerController.selected;
 
   /// Opens the compose window (set by the screen that can show it).
-  void Function(Draft draft)? onCompose;
+  void Function(Draft draft)? get onCompose => composeStarter.onCompose;
+  set onCompose(void Function(Draft draft)? value) =>
+      composeStarter.onCompose = value;
 
   /// Tells the user something; with [undo], offers to take it back.
   void Function(String message, {VoidCallback? undo})? onNotice;
 
+  /// What the focused controllers call to tell the user something.
+  void _notify(String message, {VoidCallback? undo}) =>
+      onNotice?.call(message, undo: undo);
+
   /// Asks for an account's new password or sign-in (set by the screen
   /// that can show it).
-  void Function(Account account)? onReconnect;
+  void Function(Account account)? get onReconnect =>
+      syncStatusController.onReconnect;
+  set onReconnect(void Function(Account account)? value) =>
+      syncStatusController.onReconnect = value;
 
   /// Announces snoozed mail that came back (set by the screen that can
   /// post notifications).
-  void Function(BackFromSnooze back)? onBackFromSnooze;
+  void Function(BackFromSnooze back)? get onBackFromSnooze =>
+      snoozeController.onBackFromSnooze;
+  set onBackFromSnooze(void Function(BackFromSnooze back)? value) =>
+      snoozeController.onBackFromSnooze = value;
 
   /// Announces sent mail back with "No reply yet" (set by the screen that
   /// can post notifications).
-  void Function()? onFollowUpsBack;
+  void Function()? get onFollowUpsBack => followUpController.onFollowUpsBack;
+  set onFollowUpsBack(void Function()? value) =>
+      followUpController.onFollowUpsBack = value;
 
   /// Fixes the login of the account in [status], if that is the problem.
-  void reconnect(SyncProblem problem) {
-    final account = problem.accountId == null
-        ? null
-        : _store.accounts.byId(problem.accountId!);
-    if (account != null) onReconnect?.call(account);
-  }
+  void reconnect(SyncProblem problem) =>
+      syncStatusController.reconnect(problem);
 
   // ------------------------------------------------------------ location
 
-  void goTo(MailLocation target) {
-    clearSelection();
-    location.value = target;
-    list.show(target);
-    // Views like Gmail's Starred are not synced in the background.
-    if (target case FolderLocation(:final mailboxId)
-        when _store.mailboxes.byId(mailboxId)?.isView ?? false) {
-      unawaited(
-        services.worker
-            .syncFolder(mailboxId)
-            .then((_) => refresh())
-            .catchError((Object _) {}),
-      );
-    }
-  }
+  void goTo(MailLocation target) => locationController.goTo(target);
 
-  void search(String text) {
-    final trimmed = text.trim();
-    goTo(trimmed.isEmpty ? const InboxLocation() : SearchLocation(trimmed));
-  }
+  void search(String text) => locationController.search(text);
 
   /// Searches for exactly what was typed, without correcting typos.
-  void searchExactly(String text) {
-    final trimmed = text.trim();
-    goTo(
-      trimmed.isEmpty
-          ? const InboxLocation()
-          : SearchLocation(trimmed, exact: true),
-    );
-  }
+  void searchExactly(String text) => locationController.searchExactly(text);
 
   // --------------------------------------------------------------- lists
 
   /// Shows more of a flat list: stored messages first, then older mail
   /// from the server.
-  Future<void> loadMore() async {
-    if (list.loadMoreStored() || list.loadingOlder || list.reachedEnd) return;
-    final folders = _foldersToExtend(location.value);
-    if (folders.isEmpty) {
-      list.setLoadingOlder(false, reachedEnd: true);
-      return;
-    }
-    list.setLoadingOlder(true);
-    var added = 0;
-    try {
-      for (final mailboxId in folders) {
-        added += await services.worker.fetchOlder(mailboxId);
-      }
-    } on SyncWorkerException {
-      // Offline: try again on the next scroll.
-    }
-    if (_disposed) return;
-    list.setLoadingOlder(false, reachedEnd: added == 0);
-    list.loadMoreStored();
-  }
-
-  List<int> _foldersToExtend(MailLocation at) => switch (at) {
-    FolderLocation(:final mailboxId) => [mailboxId],
-    InboxLocation(:final accountId) ||
-    SectionLocation(:final accountId) => _store.messages.inboxIds(
-      accountIds: accountId == null ? null : [accountId],
-    ),
-    _ => const [],
-  };
+  Future<void> loadMore() => locationController.loadMore();
 
   /// Re-reads the list, the counts and the open message.
   void refresh() {
     if (_disposed) return;
     list.refresh();
-    _refreshCounts();
-    _refreshSelected();
-    _refreshCodesOffer();
-    _scheduleWake();
-  }
-
-  /// Counts are read again only when something in the store changed.
-  late final _changes = StoreChanges(_store);
-  (int, int)? _countsStamp;
-
-  void _refreshCounts() {
-    final stamp = _changes.stamp;
-    if (stamp == _countsStamp) return;
-    _countsStamp = stamp;
-    final accounts = _store.accounts.all();
-    final sections = list.sectionCounts();
-    counts.value = MailCounts(
-      sections: sections,
-      perAccountUnread: {
-        for (final a in accounts)
-          a.id: MailCounts.unreadIn(
-            accounts.length == 1
-                ? sections
-                : list.sectionCounts(accountId: a.id),
-          ),
-      },
-      folderUnread: _store.messages.unreadCounts(),
-      outbox: _store.outbox.sends().length,
-      snoozed: _store.snoozes.count(),
-      followUps: followUps.all().length,
-    );
+    countsController.refresh();
+    readerController.refreshOpen();
+    oldCodesController.refreshOffer();
+    wakeTimer.schedule();
   }
 
   // ---------------------------------------------------------- old codes
 
-  void _refreshCodesOffer() =>
-      codesOffer.value = codeCleaner.shouldAsk(DateTime.now().toUtc());
-
   /// After a sync: moves old codes out of the inbox (at most once an hour,
   /// once the user agreed), and says so with Undo. The open message and
   /// selected ones stay.
-  void tidyCodes([DateTime? now]) {
-    if (_disposed) return;
-    final done = codeCleaner.run(
-      now ?? DateTime.now().toUtc(),
-      except: {?selected?.id, ...selection.value},
-    );
-    if (done == null) {
-      _refreshCodesOffer();
-      return;
-    }
-    for (final receipt in done.receipts) {
-      for (final id in receipt.accountIds) {
-        services.worker.syncAt(id, receipt.undoUntil);
-      }
-    }
-    refresh();
-    onNotice?.call(
-      done.count == 1
-          ? 'Tidied up 1 old code'
-          : 'Tidied up ${done.count} old codes',
-      undo: () {
-        final undone = codeCleaner.undo(done);
-        refresh();
-        if (!undone) {
-          onNotice?.call('Too late to undo: the change reached the server.');
-        }
-      },
-    );
-  }
+  void tidyCodes([DateTime? now]) => oldCodesController.tidy(now);
 
   /// "Turn on" in the Verification section: agrees, and tidies up now.
-  void agreeToTidyCodes() {
-    codeCleaner.settings.agree();
-    codesOffer.value = false;
-    tidyCodes();
-  }
+  void agreeToTidyCodes() => oldCodesController.agree();
 
   /// "Not now": asked again in a month.
-  void declineTidyCodes() {
-    codeCleaner.settings.decline(DateTime.now().toUtc());
-    codesOffer.value = false;
-  }
+  void declineTidyCodes() => oldCodesController.decline();
 
   // -------------------------------------------------------------- reader
 
   /// Opens [message]: marks it read and shows it, downloading it first if
   /// needed. Drafts open in the compose window instead.
-  Future<void> open(StoredMessage message) async {
-    if (_isDraft(message)) return _editDraft(message);
-    if (!message.flags.seen) {
-      services.actions.markRead([message]);
-      services.worker.requestSync(message.accountId);
-      message = _store.messages.byId(message.id) ?? message;
-      list.refresh();
-      _refreshCounts();
-    }
-    reader.value = ReaderLoading(message);
-    try {
-      final ready = await readerFor(message);
-      if (_disposed || selected?.id != message.id) return;
-      reader.value = ready;
-    } on BodyUnavailableException catch (e) {
-      if (_disposed || selected?.id != message.id) return;
-      reader.value = ReaderFailed(message, switch (e.problem) {
-        BodyProblem.tooLarge => 'This message is too large to show.',
-        BodyProblem.gone => 'This message is no longer on the server.',
-        BodyProblem.folderChanged =>
-          'The folder changed on the server. Try again after the next sync.',
-      });
-    } on SyncWorkerException catch (e) {
-      if (_disposed || selected?.id != message.id) return;
-      reader.value = ReaderFailed(message, switch (e.failure.kind) {
-        SyncFailureKind.network =>
-          'Can\'t reach the server. The message opens once you\'re online.',
-        SyncFailureKind.authentication =>
-          _store.accounts.byId(message.accountId)?.usesOAuth ?? false
-              ? 'The sign-in has ended. Sign in again from the account menu.'
-              : 'The server didn\'t accept your password.',
-        SyncFailureKind.security =>
-          'The connection was refused for security reasons.',
-        SyncFailureKind.server =>
-          'The server had a problem: ${e.failure.message}',
-      });
-    }
-  }
+  Future<void> open(StoredMessage message) => readerController.open(message);
 
   /// [message] read and checked, as the reading pane shows it, without
   /// opening it (it stays unread): downloads it first if needed. Throws
   /// [BodyUnavailableException] or [SyncWorkerException].
-  Future<ReaderReady> readerFor(StoredMessage message) async {
-    if (_store.messages.body(message.id) == null) {
-      await services.worker.loadBody(message.id);
-    }
-    final raw = _store.messages.body(message.id);
-    if (raw == null) throw const BodyUnavailableException(BodyProblem.gone);
-    // Parsing and checking a large message must not block the UI.
-    final (view, trust, plan) = await compute(_parseAndCheck, (
-      raw,
-      _trustContext(message),
-    ));
-    _findCode(message, view);
-    return ReaderReady(
-      _store.messages.byId(message.id) ?? message,
-      view,
-      to: _store.messages.addresses(message.id, 'to'),
-      cc: _store.messages.addresses(message.id, 'cc'),
-      trust: trust,
-      unsubscribe: plan,
-      unsubscribed: _unsubscription(message),
-      imagesShown:
-          trust.level != TrustLevel.danger &&
-          trust.verified &&
-          _store.imageSenders.isAllowed(message.from?.address),
-    );
-  }
-
-  /// A verification email opened before its code was found (older mail
-  /// the code reader hasn't reached): the code is read now, so the list
-  /// shows it from here on.
-  void _findCode(StoredMessage message, MessageView view) {
-    if (message.category != MessageCategory.codes) return;
-    if (message.code?.isNotEmpty ?? false) return;
-    final code = VerificationCodes.inMessage(
-      message.subject,
-      view.body.plainText,
-    );
-    if (code == null) return;
-    _store.messages.setCode(message.id, code);
-    refresh();
-  }
+  Future<ReaderReady> readerFor(StoredMessage message) =>
+      readerController.readerFor(message);
 
   /// When the user unsubscribed from [message]'s list, if they did.
   Unsubscription? unsubscriptionFor(StoredMessage message) =>
-      _unsubscription(message);
+      readerController.unsubscriptionFor(message);
 
-  /// What the message checks need besides the message: which server's
-  /// verification results to believe, learned from the account's recent
-  /// inbox mail, and the user's own domains. Null for the user's own
-  /// mail (Sent, Drafts), which needs no checking.
-  TrustContext? _trustContext(StoredMessage message) {
-    final use = _store.mailboxes.byId(message.mailboxId)?.specialUse;
-    if (use == SpecialUse.sent || use == SpecialUse.drafts) return null;
-    final inbox = _store.mailboxes.inbox(message.accountId);
-    final account = _store.accounts.byId(message.accountId);
-    return TrustContext(
-      trustedAuthServId: inbox == null
-          ? null
-          : AuthServIds.learn(
-              _store.messages.firstHeaderValues(
-                inbox.id,
-                'authentication-results',
-              ),
-              serverHosts: {?account?.imap.host},
-            ),
-      ownDomains: {
-        for (final account in _store.accounts.all())
-          ?Domains.registrable(
-            account.email.substring(account.email.lastIndexOf('@') + 1),
-          ),
-      },
-    );
-  }
+  void closeMessage() => readerController.close();
 
-  void closeMessage() => reader.value = const ReaderEmpty();
+  /// Opens the message after (or before) the open one in the list.
+  void openNext({bool previous = false}) =>
+      readerController.openNext(previous: previous);
 
   // -------------------------------------------------------------- images
 
   /// Loads the open message's images; with [always], also for later mail
   /// from this sender (only offered when the server verified the sender).
-  void showImages(ReaderReady r, {bool always = false}) {
-    if (!r.imagesAllowed) return;
-    final from = r.message.from?.address;
-    if (always && r.trust.verified && from != null) {
-      try {
-        _store.imageSenders.allow(from);
-      } on ArgumentError {
-        // An address that can't be stored: load this time only.
-      }
-    }
-    if (reader.value case final ReaderReady open
-        when open.message.id == r.message.id) {
-      reader.value = open.copyWith(imagesShown: true);
-    }
-  }
+  void showImages(ReaderReady r, {bool always = false}) =>
+      readerController.showImages(r, always: always);
 
   // --------------------------------------------------------- unsubscribe
 
-  /// What identifies [message]'s list (List-Id, else the sender).
-  static String? _listKey(StoredMessage message) => Unsubscription.listKeyOf(
-    listId: message.listId,
-    fromAddress: message.from?.address,
-  );
-
-  Unsubscription? _unsubscription(StoredMessage message) {
-    final key = _listKey(message);
-    return key == null
-        ? null
-        : _store.unsubscriptions.find(message.accountId, key);
-  }
-
   /// Inbox mail from the same list as [r] (to offer archiving it).
-  List<StoredMessage> sameList(ReaderReady r) => _store.messages.inboxFromList(
-    r.message.accountId,
-    listId: r.message.listId,
-    fromAddress: r.message.listId == null ? r.message.from?.address : null,
-  );
+  List<StoredMessage> sameList(ReaderReady r) =>
+      unsubscribeController.sameList(r);
 
   /// Unsubscribes with [method]. One-click requests go out now; an email
   /// goes through the outbox (so it also works offline). For a web page
@@ -607,498 +405,102 @@ final class MailController {
     ReaderReady r,
     UnsubscribeMethod method, {
     bool archiveList = false,
-  }) async {
-    final problem = switch (method) {
-      OneClickMethod(:final url) => await _oneClick(url),
-      EmailMethod(:final request) => _unsubscribeEmail(r, request),
-      WebPageMethod() => null,
-    };
-    if (problem != null) return problem;
-    final kind = switch (method) {
-      OneClickMethod() => UnsubscribeKind.oneClick,
-      EmailMethod() => UnsubscribeKind.email,
-      WebPageMethod() => UnsubscribeKind.webPage,
-    };
-    final key = _listKey(r.message);
-    if (key != null) {
-      final record = _store.unsubscriptions.record(
-        accountId: r.message.accountId,
-        listKey: key,
-        listName: r.unsubscribe.listName,
-        kind: kind,
-      );
-      if (reader.value case final ReaderReady open
-          when open.message.id == r.message.id) {
-        reader.value = open.copyWith(unsubscribed: record);
-      }
-    }
-    final name = r.unsubscribe.listName;
-    final done = switch (kind) {
-      UnsubscribeKind.webPage => 'Opened the unsubscribe page for $name',
-      UnsubscribeKind.email => 'Unsubscribe email to $name is on its way',
-      UnsubscribeKind.oneClick => 'Unsubscribed from $name',
-    };
-    final earlier = archiveList ? sameList(r) : const <StoredMessage>[];
-    if (earlier.isNotEmpty) {
-      archive(earlier, done: '$done. Archived ${earlier.length}.');
-    } else {
-      onNotice?.call(done);
-    }
-    return null;
-  }
-
-  /// Null on success, or why it failed.
-  Future<String?> _oneClick(Uri url) async =>
-      switch (await services.oneClick.unsubscribe(url)) {
-        OneClickDone() => null,
-        OneClickFailed(:final reason) => reason,
-      };
-
-  /// Queues the email; null on success, or why it can't be sent.
-  String? _unsubscribeEmail(ReaderReady r, MailtoRequest request) {
-    final at = request.address.lastIndexOf('@');
-    try {
-      final pending = services.sender.send(
-        Draft(
-          accountId: r.message.accountId,
-          to: [
-            MailAddress(
-              localPart: request.address.substring(0, at),
-              domain: request.address.substring(at + 1),
-            ),
-          ],
-          subject: request.subject ?? 'unsubscribe',
-          body: request.body ?? 'unsubscribe',
-        ),
-      );
-      services.worker.syncAt(pending.accountId, pending.undoUntil);
-      return null;
-    } on ComposeException {
-      return 'Couldn\'t write the unsubscribe email: its address isn\'t usable.';
-    }
-  }
-
-  /// Opens the message after (or before) the open one in the list.
-  void openNext({bool previous = false}) {
-    final visible = list.visible;
-    if (visible.isEmpty) return;
-    final index = visible.indexWhere((m) => m.id == selected?.id);
-    final next = index < 0
-        ? 0
-        : (previous ? index - 1 : index + 1).clamp(0, visible.length - 1);
-    if (next != index) unawaited(open(visible[next]));
-  }
-
-  void _refreshSelected() {
-    final current = selected;
-    if (current == null) return;
-    final fresh = _store.messages.byId(current.id);
-    if (fresh == null) {
-      reader.value = const ReaderEmpty();
-      return;
-    }
-    reader.value = switch (reader.value) {
-      ReaderLoading() => ReaderLoading(fresh),
-      final ReaderReady ready => ready.copyWith(message: fresh),
-      ReaderFailed(:final reason) => ReaderFailed(fresh, reason),
-      ReaderEmpty() => const ReaderEmpty(),
-    };
-  }
+  }) => unsubscribeController.unsubscribe(r, method, archiveList: archiveList);
 
   // ----------------------------------------------------------- selection
 
-  bool get selecting => selection.value.isNotEmpty;
+  bool get selecting => selectionController.selecting;
 
-  void toggleSelected(StoredMessage m) {
-    final next = {...selection.value};
-    if (!next.remove(m.id)) next.add(m.id);
-    selection.value = next;
-  }
+  void toggleSelected(StoredMessage m) => selectionController.toggle(m);
 
   /// Selects from the last selected message to [m] (Shift-click).
-  void selectRange(StoredMessage m) {
-    final visible = list.visible;
-    final anchor = visible.lastIndexWhere(
-      (x) => selection.value.contains(x.id),
-    );
-    final end = visible.indexWhere((x) => x.id == m.id);
-    if (anchor < 0 || end < 0) return toggleSelected(m);
-    final (from, to) = anchor < end ? (anchor, end) : (end, anchor);
-    selection.value = {
-      ...selection.value,
-      for (var i = from; i <= to; i++) visible[i].id,
-    };
-  }
+  void selectRange(StoredMessage m) => selectionController.selectRange(m);
 
-  void selectAllVisible() =>
-      selection.value = {for (final m in list.visible) m.id};
+  void selectAllVisible() => selectionController.selectAllVisible();
 
-  void clearSelection() {
-    if (selection.value.isNotEmpty) selection.value = const {};
-  }
+  void clearSelection() => selectionController.clear();
 
   /// The selected messages, or else the open one.
-  List<StoredMessage> get targets {
-    if (selection.value.isNotEmpty) {
-      return [for (final id in selection.value) ?_store.messages.byId(id)];
-    }
-    return [?selected];
-  }
+  List<StoredMessage> get targets => selectionController.targets;
 
   // ------------------------------------------------------------- actions
 
-  void togglePin(List<StoredMessage> messages) {
-    if (messages.isEmpty) return;
-    final on = !messages.every((m) => m.flags.flagged);
-    final receipt = services.actions.markFlagged(messages, flagged: on);
-    _afterFlags(receipt, on ? 'Pinned' : 'Unpinned', messages.length);
-  }
+  void togglePin(List<StoredMessage> messages) =>
+      messageActions.togglePin(messages);
 
-  void toggleRead(List<StoredMessage> messages) {
-    if (messages.isEmpty) return;
-    final read = !messages.every((m) => m.flags.seen);
-    final receipt = services.actions.markRead(messages, read: read);
-    _afterFlags(
-      receipt,
-      read ? 'Marked as read' : 'Marked as unread',
-      messages.length,
-    );
-  }
+  void toggleRead(List<StoredMessage> messages) =>
+      messageActions.toggleRead(messages);
 
-  void markSectionRead(SmartSection section) {
-    final accountId = location.value.accountId;
-    final unread = [
-      for (final m in _store.messages.list(
-        MessageQuery(
-          inboxesOnly: true,
-          accountIds: accountId == null ? null : [accountId],
-          section: section,
-          unreadOnly: true,
-          limit: 500,
-        ),
-      ))
-        // Shown in "New since you were away" instead.
-        if (!list.isAway(m)) m,
-    ];
-    if (unread.isEmpty) return;
-    final receipt = services.actions.markRead(unread);
-    _afterFlags(receipt, 'Marked as read', unread.length, alwaysUndo: true);
-  }
-
-  void _afterFlags(
-    FlagReceipt receipt,
-    String done,
-    int count, {
-    bool alwaysUndo = false,
-  }) {
-    for (final id in receipt.accountIds) {
-      services.worker.requestSync(id);
-    }
-    clearSelection();
-    refresh();
-    if (count > 1 || alwaysUndo) {
-      onNotice?.call(
-        '$done ($count)',
-        undo: () {
-          services.actions.undo(receipt);
-          refresh();
-        },
-      );
-    }
-  }
+  void markSectionRead(SmartSection section) =>
+      messageActions.markSectionRead(section);
 
   /// The account's Archive folder, if it has one. On Gmail, archiving
   /// means moving to All Mail (the message leaves the inbox, nothing else).
-  StoredMailbox? archiveFor(StoredMessage m) => _archiveFolder(m.accountId);
+  StoredMailbox? archiveFor(StoredMessage m) => messageActions.archiveFor(m);
 
-  StoredMailbox? _archiveFolder(int accountId) =>
-      MailActions.archiveFolder(_store, accountId);
-
-  bool isInTrash(StoredMessage m) =>
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
+  bool isInTrash(StoredMessage m) => messageActions.isInTrash(m);
 
   /// Whether deleting [m] removes it for good: it is in Trash, or its
   /// account has no Trash folder (the server then deletes it at once).
-  bool deletesForever(StoredMessage m) =>
-      isInTrash(m) ||
-      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.trash) == null;
+  bool deletesForever(StoredMessage m) => messageActions.deletesForever(m);
 
-  bool isInJunk(StoredMessage m) =>
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.junk;
+  bool isInJunk(StoredMessage m) => messageActions.isInJunk(m);
 
   /// "Not spam": back to each account's inbox. Moving mail out of Spam is
   /// how Gmail and other providers learn it isn't spam.
-  void notSpam(List<StoredMessage> messages) {
-    final byAccount = <int, List<StoredMessage>>{};
-    for (final m in messages) {
-      if (isInJunk(m)) byAccount.putIfAbsent(m.accountId, () => []).add(m);
-    }
-    final moves = [
-      for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-        if (_store.mailboxes.inbox(accountId) case final inbox?)
-          () => services.actions.move(group, inbox),
-    ];
-    if (moves.isEmpty) return;
-    final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
-    _remove(
-      moves,
-      count == 1
-          ? 'Not spam. Moved to Inbox.'
-          : 'Not spam. Moved $count to Inbox.',
-    );
-  }
+  void notSpam(List<StoredMessage> messages) =>
+      messageActions.notSpam(messages);
 
   /// Archives into each account's Archive folder (skipping messages already
   /// there or in accounts without one).
-  void archive(List<StoredMessage> messages, {String? done}) {
-    final byAccount = <int, List<StoredMessage>>{};
-    for (final m in messages) {
-      final archive = archiveFor(m);
-      if (archive != null && archive.id != m.mailboxId) {
-        byAccount.putIfAbsent(m.accountId, () => []).add(m);
-      }
-    }
-    if (byAccount.isEmpty) {
-      onNotice?.call('There is no Archive folder for this account.');
-      return;
-    }
-    final count = byAccount.values.fold(0, (sum, g) => sum + g.length);
-    _remove([
-      for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-        () => services.actions.move(group, _archiveFolder(accountId)!),
-    ], done ?? (count == 1 ? 'Archived' : 'Archived $count'));
-  }
+  void archive(List<StoredMessage> messages, {String? done}) =>
+      messageActions.archive(messages, done: done);
 
-  void moveTo(List<StoredMessage> messages, StoredMailbox target) => _remove([
-    () => services.actions.move(messages, target),
-  ], 'Moved to ${_folderName(target)}');
+  void moveTo(List<StoredMessage> messages, StoredMailbox target) =>
+      messageActions.moveTo(messages, target);
 
   /// Moves to Trash (or deletes for good when already in Trash, or the
   /// account has none; the caller confirms that).
-  void delete(List<StoredMessage> messages) => _remove(
-    [() => services.actions.delete(messages)],
-    messages.every(deletesForever)
-        ? 'Deleted'
-        : (messages.length == 1
-              ? 'Moved to Trash'
-              : 'Moved ${messages.length} to Trash'),
-  );
+  void delete(List<StoredMessage> messages) => messageActions.delete(messages);
 
   /// "Always move mail from this sender here", then moves this message.
-  void moveAlways(StoredMessage message, StoredMailbox target) {
-    final from = message.from?.address;
-    if (from != null && canHaveRules(target)) {
-      try {
-        _store.folderRules.add(
-          accountId: target.accountId,
-          mailboxId: target.id,
-          field: RuleField.fromAddress,
-          value: from,
-        );
-      } on ArgumentError {
-        // An address a rule can't hold: just move this one.
-      }
-    }
-    moveTo([message], target);
-  }
-
-  /// Removes messages from the list with [changes], opens the next message
-  /// if the open one left, and offers Undo for a few seconds ([alsoUndo]
-  /// reverses anything else the action did).
-  void _remove(
-    List<RemovalReceipt Function()> changes,
-    String done, {
-    VoidCallback? alsoUndo,
-  }) {
-    final open = selected;
-    final visible = list.visible;
-    final receipts = [for (final change in changes) change()];
-    final removedIds = {
-      for (final r in receipts)
-        for (final row in r.snapshot.messages) row['id']! as int,
-    };
-    for (final receipt in receipts) {
-      for (final id in receipt.accountIds) {
-        services.worker.syncAt(id, receipt.undoUntil);
-      }
-    }
-    clearSelection();
-    _leaveList(open, visible, removedIds);
-    onNotice?.call(
-      done,
-      undo: () {
-        alsoUndo?.call();
-        final undone = receipts.every(services.actions.undo);
-        refresh();
-        if (!undone) {
-          onNotice?.call('Too late to undo: the change reached the server.');
-        }
-      },
-    );
-  }
-
-  /// After [removedIds] left the list: refreshes, and if [open] was one
-  /// of them, opens the next message (or the one before).
-  void _leaveList(
-    StoredMessage? open,
-    List<StoredMessage> visible,
-    Set<int> removedIds,
-  ) {
-    StoredMessage? next;
-    if (open != null && removedIds.contains(open.id)) {
-      final index = visible.indexWhere((m) => m.id == open.id);
-      next = [
-        ...visible.skip(index + 1),
-        ...visible.take(index < 0 ? 0 : index).toList().reversed,
-      ].where((m) => !removedIds.contains(m.id)).firstOrNull;
-      reader.value = const ReaderEmpty();
-    }
-    refresh();
-    if (next != null) unawaited(this.open(next));
-  }
+  void moveAlways(StoredMessage message, StoredMailbox target) =>
+      messageActions.moveAlways(message, target);
 
   // -------------------------------------------------------------- snooze
 
-  Timer? _wakeTimer;
-
   /// Whether [m] can be snoozed: inbox mail with a Message-ID (what keeps
   /// it the same message on every device).
-  bool canSnooze(StoredMessage m) =>
-      m.messageId != null &&
-      (_store.mailboxes.byId(m.mailboxId)?.isInbox ?? false);
+  bool canSnooze(StoredMessage m) => snoozeController.canSnooze(m);
 
   /// When [m] comes back, while it is snoozed.
-  DateTime? snoozedUntil(StoredMessage m) {
-    final id = m.messageId;
-    if (id == null || m.section != SmartSection.snoozed) return null;
-    return list.snoozedUntil[id] ?? _store.snoozes.find(id)?.until;
-  }
+  DateTime? snoozedUntil(StoredMessage m) => snoozeController.snoozedUntil(m);
 
   /// Snoozes [messages] until [until] (or changes when they come back),
   /// says [done], and offers Undo. They leave the inbox now; nothing
   /// changes on the mail server.
-  void snooze(List<StoredMessage> messages, DateTime until, String done) {
-    final targets = [
-      for (final m in messages)
-        if (canSnooze(m)) m,
-    ];
-    if (targets.isEmpty) {
-      onNotice?.call('This email can\'t be snoozed.');
-      return;
-    }
-    final ids = {for (final m in targets) m.messageId!};
-    final previous = {for (final id in ids) id: _store.snoozes.find(id)};
-    _store.transaction(() {
-      for (final id in ids) {
-        _store.snoozes.snooze(id, until);
-      }
-    });
-    final open = selected;
-    final visible = list.visible;
-    clearSelection();
-    if (location.value is SnoozedLocation) {
-      refresh();
-    } else {
-      _leaveList(open, visible, {for (final m in targets) m.id});
-    }
-    onNotice?.call(
-      done,
-      undo: () {
-        _store.transaction(() {
-          for (final MapEntry(key: id, value: before) in previous.entries) {
-            if (before == null) {
-              _store.snoozes.cancel(id);
-            } else {
-              _store.snoozes.snooze(id, before.until);
-            }
-          }
-        });
-        refresh();
-      },
-    );
-  }
+  void snooze(List<StoredMessage> messages, DateTime until, String done) =>
+      snoozeController.snooze(messages, until, done);
 
   /// Brings [messages] back now, where they were in the inbox (not as
   /// new), with Undo.
-  void unsnooze(List<StoredMessage> messages) {
-    final ended = <Snooze>[];
-    _store.transaction(() {
-      for (final m in messages) {
-        final id = m.messageId;
-        if (id == null) continue;
-        if (_store.snoozes.cancel(id) case final s?) ended.add(s);
-      }
-    });
-    if (ended.isEmpty) return;
-    final open = selected;
-    final visible = list.visible;
-    clearSelection();
-    if (location.value is SnoozedLocation) {
-      _leaveList(open, visible, {for (final m in messages) m.id});
-    } else {
-      refresh();
-    }
-    onNotice?.call(
-      ended.length == 1 ? 'Unsnoozed' : 'Unsnoozed ${ended.length}',
-      undo: () {
-        _store.transaction(() {
-          for (final s in ended) {
-            _store.snoozes.snooze(s.messageId, s.until);
-          }
-        });
-        refresh();
-      },
-    );
-  }
+  void unsnooze(List<StoredMessage> messages) =>
+      snoozeController.unsnooze(messages);
 
   /// Brings back snoozed mail whose time came (or that got a reply),
   /// marked unread, and announces it ([onBackFromSnooze]). Run after each
   /// sync, when the app comes to the foreground, and at the next due time.
-  void wakeSnoozes([DateTime? now]) {
-    if (_disposed) return;
-    try {
-      final back = SnoozeWaker(_store, services.actions).wake(now: now);
-      if (!back.isEmpty) {
-        for (final id in back.accountIds) {
-          services.worker.requestSync(id);
-        }
-        refresh();
-        onBackFromSnooze?.call(back);
-      }
-    } on Object catch (e) {
-      debugPrint('snooze: ${e.runtimeType}');
-    }
-    _scheduleWake();
-  }
-
-  /// When the app was last hidden (another app in front, or minimized).
-  DateTime? _hiddenAt;
+  void wakeSnoozes([DateTime? now]) => snoozeController.wake(now);
 
   /// The app went to the background (or is closing): remembered for "New
   /// since you were away", also if the app is then closed.
-  void onHide() {
-    _hiddenAt ??= DateTime.now();
-    list.away.wentAway();
-  }
+  void onHide() => awayController.onHide();
 
   /// Coming back to the app: a look for new mail at once (a sign-in code
   /// is often why someone switches back), then snoozed mail and
   /// follow-ups that are due. After a minute away the mail connections
   /// may have died quietly, so they are opened afresh.
-  void onResume() {
-    final hiddenAt = _hiddenAt;
-    _hiddenAt = null;
-    // After more than a minute away, a new "New since you were away".
-    if (list.away.cameBack()) list.refresh();
-    if (hiddenAt != null) {
-      if (DateTime.now().difference(hiddenAt) > awayBeforeReconnect) {
-        services.worker.reconnect();
-      } else {
-        services.worker.checkInboxes();
-      }
-    }
-    _wakeDue();
-  }
+  void onResume() => awayController.onResume();
 
   /// Snoozed mail and follow-ups whose time came.
   void _wakeDue() {
@@ -1107,166 +509,64 @@ final class MailController {
   }
 
   /// How long the app can be away before [onResume] reconnects.
-  static const awayBeforeReconnect = NewSinceAway.awayFor;
+  static const awayBeforeReconnect = AwayController.awayBeforeReconnect;
 
   // ------------------------------------------------ new since you were away
 
   /// "Done" on "New since you were away": its messages go back to their
   /// sections, still unread (only a view; nothing changes on the server).
-  void doneWithAway() {
-    final window = list.away.window;
-    if (window == null) return;
-    list.away.done();
-    refresh();
-    onNotice?.call(
-      'Back in their sections',
-      undo: () {
-        list.away.window = window;
-        refresh();
-      },
-    );
-  }
+  void doneWithAway() => awayController.doneWithAway();
 
   /// "Mark all as read" on "New since you were away".
-  void markAwayRead() {
-    final unread = [
-      for (final m in list.newSinceAway.messages)
-        if (!m.flags.seen) m,
-    ];
-    if (unread.isEmpty) return;
-    final receipt = services.actions.markRead(unread);
-    _afterFlags(receipt, 'Marked as read', unread.length, alwaysUndo: true);
-  }
-
-  /// A timer for the next snooze or follow-up due. Checked at least
-  /// hourly: timers may stop while the device sleeps (coming back to the
-  /// app checks too).
-  void _scheduleWake() {
-    _wakeTimer?.cancel();
-    _wakeTimer = null;
-    if (_disposed) return;
-    final next = [
-      ?_store.snoozes.nextDue(),
-      ?followUps.nextDue(),
-    ].fold<DateTime?>(null, (a, b) => a == null || b.isBefore(a) ? b : a);
-    if (next == null) return;
-    var delay = next.difference(DateTime.now());
-    if (delay > const Duration(hours: 1)) delay = const Duration(hours: 1);
-    if (delay < const Duration(seconds: 1)) delay = const Duration(seconds: 1);
-    _wakeTimer = Timer(delay, _wakeDue);
-  }
+  void markAwayRead() => awayController.markAwayRead();
 
   // ---------------------------------------------------------- follow-ups
 
-  /// "Remind me if no reply" on sent mail, kept on this device.
-  late final followUps = FollowUpReminders(_store);
-
   /// Whether [m] is mail the user sent (in Sent, or from one of their
   /// addresses) that can get a follow-up reminder.
-  bool canFollowUp(StoredMessage m) {
-    if (m.messageId == null) return false;
-    final use = _store.mailboxes.byId(m.mailboxId)?.specialUse;
-    if (use == SpecialUse.drafts || use == SpecialUse.trash) return false;
-    if (use == SpecialUse.sent) return true;
-    final from = m.from?.address.toLowerCase();
-    return from != null && ownAddresses.any((a) => a.toLowerCase() == from);
-  }
+  bool canFollowUp(StoredMessage m) => followUpController.canFollowUp(m);
 
   /// The follow-up of [m], if one is set.
-  FollowUp? followUpFor(StoredMessage m) {
-    final id = m.messageId;
-    return id == null ? null : followUps.find(id);
-  }
+  FollowUp? followUpFor(StoredMessage m) => followUpController.followUpFor(m);
 
   /// Sets (or changes) "Remind me if no reply" on [m], with Undo.
-  void remindIfNoReply(StoredMessage m, DateTime due, String done) {
-    if (!canFollowUp(m)) {
-      onNotice?.call('Only mail you sent can remind you.');
-      return;
-    }
-    final before = followUpFor(m);
-    followUps.remind(followUps.forMessage(m, due));
-    refresh();
-    // Android: a background check at that time.
-    unawaited(BackgroundMail.checkWhenDue(_store));
-    onNotice?.call(
-      done,
-      undo: () {
-        if (before == null) {
-          followUps.cancel(m.messageId!);
-        } else {
-          followUps.restore(before);
-        }
-        refresh();
-      },
-    );
-  }
+  void remindIfNoReply(StoredMessage m, DateTime due, String done) =>
+      followUpController.remindIfNoReply(m, due, done);
 
   /// Ends a follow-up: "Cancel" while waiting, "Done" once it came back.
   /// With Undo.
-  void endFollowUp(FollowUp f) {
-    final ended = followUps.cancel(f.messageId);
-    if (ended == null) return;
-    refresh();
-    onNotice?.call(
-      ended.returned ? 'Marked done' : 'Reminder cancelled',
-      undo: () {
-        followUps.restore(ended);
-        refresh();
-      },
-    );
-  }
+  void endFollowUp(FollowUp f) => followUpController.endFollowUp(f);
 
   /// Ends follow-ups that got a reply, and brings back those whose time
   /// came without one ("No reply yet", announced by [onFollowUpsBack]).
   /// Run after each sync, when the app comes to the foreground, and at
   /// the next due time.
-  void checkFollowUps([DateTime? now]) {
-    if (_disposed) return;
-    try {
-      final result = followUps.check(
-        now: (now ?? FollowUpTimes.clock()).toUtc(),
-      );
-      if (!result.isEmpty) refresh();
-      if (result.returned.isNotEmpty) onFollowUpsBack?.call();
-    } on Object catch (e) {
-      debugPrint('follow-ups: ${e.runtimeType}');
-    }
-    _scheduleWake();
-  }
+  void checkFollowUps([DateTime? now]) => followUpController.check(now);
 
   // ------------------------------------------------------------ accounts
 
   /// Changes when the accounts' order changes, so the sidebar follows.
-  final accountsChanged = ValueNotifier<int>(0);
+  ValueNotifier<int> get accountsChanged => accountOrder.changed;
 
   /// Puts the accounts in the order of [ids]: the sidebar, the From
   /// choice and new messages (from the top account) follow it.
-  void reorderAccounts(List<int> ids) {
-    _store.accounts.reorder(ids);
-    accountsChanged.value++;
-  }
+  void reorderAccounts(List<int> ids) => accountOrder.reorder(ids);
 
   // --------------------------------------------------------- invitations
 
   /// The user's answers to invitations, remembered on the device.
-  late final invitationAnswers = InvitationAnswers(_store);
+  InvitationAnswers get invitationAnswers => invitationController.answers;
 
   /// Changes when an answer is sent or undone, so the card updates.
-  final invitationsChanged = ValueNotifier<int>(0);
+  ValueNotifier<int> get invitationsChanged => invitationController.changed;
 
   /// Every address of the user's accounts.
-  List<String> get ownAddresses => [
-    for (final a in _store.accounts.all()) a.email,
-  ];
+  List<String> get ownAddresses => _store.ownAddresses;
 
   /// The user among [invite]'s guests: the account it came to first,
   /// else any of their addresses. Null if they aren't on the list.
-  CalendarPerson? ownAttendee(StoredMessage message, CalendarInvite invite) {
-    final account = _store.accounts.byId(message.accountId);
-    return (account == null ? null : invite.attendeeFor([account.email])) ??
-        invite.attendeeFor(ownAddresses);
-  }
+  CalendarPerson? ownAttendee(StoredMessage message, CalendarInvite invite) =>
+      invitationController.ownAttendee(message, invite);
 
   /// Sends the answer to the open invitation to its organizer (and no one
   /// else), through the outbox with Undo, and remembers it. Returns null
@@ -1275,301 +575,71 @@ final class MailController {
     ReaderReady r,
     CalendarAnswer answer, {
     String? note,
-  }) {
-    final invite = r.view.invite;
-    final account = _store.accounts.byId(r.message.accountId);
-    if (invite == null || account == null || !invite.answerable) {
-      return 'This invitation can\'t be answered.';
-    }
-    final attendee = ownAttendee(r.message, invite);
-    if (attendee == null) {
-      return 'You\'re not on this invitation\'s guest list, so there is '
-          'nothing to answer.';
-    }
-    final draft = InvitationReplies.draft(
-      message: r.message,
-      account: account,
-      invite: invite,
-      attendee: attendee,
-      answer: answer,
-      note: note,
-    );
-    if (draft == null) return 'This invitation can\'t be answered.';
-    final PendingSend pending;
-    try {
-      pending = services.sender.send(draft);
-    } on ComposeException {
-      return 'The organizer\'s address isn\'t usable, so no answer was sent.';
-    }
-    services.worker.syncAt(pending.accountId, pending.undoUntil);
-    final previous = invitationAnswers.of(invite);
-    invitationAnswers.remember(invite, answer);
-    invitationsChanged.value++;
-    refresh();
-    final organizer = invite.organizer!.label;
-    onNotice?.call(
-      switch (answer) {
-        CalendarAnswer.accepted => 'Accepted. Telling $organizer…',
-        CalendarAnswer.tentative => 'Answered maybe. Telling $organizer…',
-        _ => 'Declined. Telling $organizer…',
-      },
-      undo: () {
-        if (services.sender.cancel(pending)) {
-          invitationAnswers.forget(invite, previous: previous);
-          invitationsChanged.value++;
-          refresh();
-        } else {
-          onNotice?.call('Too late to undo: your answer is on its way.');
-        }
-      },
-    );
-    return null;
-  }
+  }) => invitationController.answer(r, answer, note: note);
 
   // -------------------------------------------------------- read receipts
 
   /// For the user's own mail that asked for read receipts: the receipts
   /// so far (maybe none). Null when it didn't ask.
-  List<ReadReceipt>? receiptsFor(StoredMessage message) {
-    final id = message.messageId;
-    if (id == null) return null;
-    final account = _store.accounts.byId(message.accountId);
-    final own =
-        account != null &&
-        message.from?.address.toLowerCase() == account.email.toLowerCase();
-    if (!own) return null;
-    final asked =
-        _store.receipts.wasRequested(message.accountId, id) ||
-        _store.messages
-            .headers(message.id)
-            .containsKey('disposition-notification-to');
-    if (!asked) return null;
-    return _store.receipts.forMessage(message.accountId, id);
-  }
+  List<ReadReceipt>? receiptsFor(StoredMessage message) =>
+      readerController.receiptsFor(message);
 
   // ------------------------------------------------------------ blocking
 
   /// The block that applies to [message]'s sender, if any.
   BlockedSender? blockFor(StoredMessage message) =>
-      _store.blocks.matching(message.from?.address);
+      blockingController.blockFor(message);
 
   /// Whether [message]'s sender can be blocked: it has one, and it isn't
   /// one of the user's own addresses. Cheap enough for a toolbar.
-  bool canBlock(StoredMessage message) {
-    final address = message.from?.address.toLowerCase();
-    if (address == null || !address.contains('@')) return false;
-    return !_store.accounts.all().any((a) => a.email.toLowerCase() == address);
-  }
+  bool canBlock(StoredMessage message) => blockingController.canBlock(message);
 
   /// How [message]'s sender can be blocked, with how much mail each
   /// choice would move; null if it can't be blocked.
-  BlockChoice? blockChoice(StoredMessage message) {
-    if (!canBlock(message)) return null;
-    final address = message.from!.address.toLowerCase();
-    final own = _store.accounts.all();
-    final domain = Domains.registrable(
-      address.substring(address.lastIndexOf('@') + 1),
-    );
-    final ownDomains = {
-      for (final a in own)
-        ?Domains.registrable(a.email.substring(a.email.lastIndexOf('@') + 1)),
-    };
-    final usableDomain =
-        domain != null &&
-        !FreeMail.isProvider(domain) &&
-        !ownDomains.contains(domain);
-    return BlockChoice(
-      address: address,
-      domain: usableDomain ? domain : null,
-      fromAddress: _inboxesFrom(BlockKind.address, address).length,
-      fromDomain: usableDomain
-          ? _inboxesFrom(BlockKind.domain, domain).length
-          : 0,
-    );
-  }
-
-  List<StoredMessage> _inboxesFrom(BlockKind kind, String value) => [
-    for (final account in _store.accounts.all())
-      ...switch (kind) {
-        BlockKind.address => _store.messages.inboxFromList(
-          account.id,
-          fromAddress: value,
-        ),
-        BlockKind.domain => _store.messages.inboxFromDomain(account.id, value),
-      },
-  ];
+  BlockChoice? blockChoice(StoredMessage message) =>
+      blockingController.blockChoice(message);
 
   /// Blocks [value]: new mail from it goes to Junk. With [moveExisting],
   /// its mail already in the inboxes goes too. Undo reverses both.
-  void block(BlockKind kind, String value, {bool moveExisting = true}) {
-    final existing = _store.blocks.all().any(
-      (b) => b.kind == kind && b.value == value.toLowerCase(),
-    );
-    final blocked = _store.blocks.block(kind, value);
-    void unblock() {
-      if (!existing) _store.blocks.unblock(blocked.id);
-      _refreshSelected();
-    }
+  void block(BlockKind kind, String value, {bool moveExisting = true}) =>
+      blockingController.block(kind, value, moveExisting: moveExisting);
 
-    final name = kind == BlockKind.domain
-        ? 'everyone at ${blocked.value}'
-        : blocked.value;
-    final byAccount = <int, List<StoredMessage>>{};
-    if (moveExisting) {
-      for (final m in _inboxesFrom(kind, blocked.value)) {
-        byAccount.putIfAbsent(m.accountId, () => []).add(m);
-      }
-    }
-    final moves = [
-      for (final MapEntry(key: accountId, value: messages) in byAccount.entries)
-        if (SenderBlocker.destination(_store, accountId) case final target?)
-          () => services.actions.move(messages, target),
-    ];
-    if (moves.isEmpty) {
-      _refreshSelected();
-      onNotice?.call('Blocked $name', undo: unblock);
-      return;
-    }
-    final count = byAccount.values.fold(0, (sum, l) => sum + l.length);
-    _remove(moves, 'Blocked $name. Moved $count to Junk.', alsoUndo: unblock);
-  }
-
-  void unblock(BlockedSender block) {
-    _store.blocks.unblock(block.id);
-    _refreshSelected();
-    onNotice?.call(
-      'Unblocked ${block.kind == BlockKind.domain ? 'everyone at ' : ''}${block.value}',
-    );
-  }
+  void unblock(BlockedSender block) => blockingController.unblock(block);
 
   // ------------------------------------------------------------ Screener
 
   /// First-time senders waiting in the Screener, in the inbox of
   /// [accountId] (or every inbox).
-  List<WaitingSender> waitingSenders({int? accountId}) => _store.screener
-      .waiting(accountIds: accountId == null ? null : [accountId]);
+  List<WaitingSender> waitingSenders({int? accountId}) =>
+      screenerController.waitingSenders(accountId: accountId);
 
   /// Whether [m] comes from someone the Screener would hold back if it
   /// were on: the only email on the device from them, someone the user
   /// never wrote to, and not one of the user's own addresses. False while
   /// the Screener is on (it decides then).
-  bool isFirstTimeSender(StoredMessage m) {
-    if (_store.screener.enabled) return false;
-    final from = m.from?.address.toLowerCase();
-    if (from == null || from.isEmpty) return false;
-    if (ownAddresses.any((a) => a.toLowerCase() == from)) return false;
-    return _store.messages.sortableFrom(from, limit: 2).length <= 1 &&
-        !_store.messages.hasWrittenTo(from);
-  }
+  bool isFirstTimeSender(StoredMessage m) =>
+      screenerController.isFirstTimeSender(m);
 
   /// The domain "everyone at …" choices offer for [address]: a company's
   /// own domain, never a free mail provider's or the user's own.
-  String? screenerDomain(String address) {
-    final lower = address.toLowerCase();
-    final domain = Domains.registrable(
-      lower.substring(lower.lastIndexOf('@') + 1),
-    );
-    if (domain == null || FreeMail.isProvider(domain)) return null;
-    final own = {
-      for (final a in _store.accounts.all())
-        ?Domains.registrable(a.email.substring(a.email.lastIndexOf('@') + 1)),
-    };
-    return own.contains(domain) ? null : domain;
-  }
+  String? screenerDomain(String address) =>
+      screenerController.screenerDomain(address);
 
   /// Lets [sender] in (or, with [wholeDomain], everyone at their domain):
   /// their mail goes to the Smart Inbox from now on. Offers Undo.
   void letIn(WaitingSender sender, {bool wholeDomain = false}) =>
-      _screen(sender, ScreenerDecision.letIn, wholeDomain: wholeDomain);
+      screenerController.letIn(sender, wholeDomain: wholeDomain);
 
   /// Screens [sender] out (or everyone at their domain): their mail goes
   /// where the user chose (Newsletters, Notifications or Archive), never
   /// deleted. Offers Undo.
   void screenOut(WaitingSender sender, {bool wholeDomain = false}) =>
-      _screen(sender, ScreenerDecision.screenOut, wholeDomain: wholeDomain);
-
-  void _screen(
-    WaitingSender sender,
-    ScreenerDecision decision, {
-    required bool wholeDomain,
-  }) {
-    final screener = _store.screener;
-    final domain = wholeDomain ? screenerDomain(sender.address) : null;
-    final kind = domain == null ? ScreenerKind.address : ScreenerKind.domain;
-    final value = domain ?? sender.address;
-    final previous = screener.find(kind, value);
-    final waiting = waitingSenders();
-    final decided = screener.decide(kind, value, decision);
-    void undo() => screener.restore(decided, previous);
-
-    final who = domain == null
-        ? (sender.name ?? sender.address)
-        : 'Everyone at $domain';
-    if (decision == ScreenerDecision.letIn) {
-      refresh();
-      onNotice?.call(
-        '$who can now reach your inbox',
-        undo: () {
-          undo();
-          refresh();
-        },
-      );
-      return;
-    }
-    final place = screener.outPlace;
-    if (place == ScreenOutPlace.archive) {
-      // Their waiting mail goes now; later mail with each sync.
-      final byAccount = <int, List<StoredMessage>>{};
-      for (final w in waiting) {
-        if (!decided.matches(w.address)) continue;
-        for (final m in w.messages) {
-          final archive = archiveFor(m);
-          if (archive != null && archive.id != m.mailboxId) {
-            byAccount.putIfAbsent(m.accountId, () => []).add(m);
-          }
-        }
-      }
-      final moves = [
-        for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-          () => services.actions.move(group, _archiveFolder(accountId)!),
-      ];
-      if (moves.isNotEmpty) {
-        _remove(moves, '$who screened out. Moved to Archive.', alsoUndo: undo);
-        return;
-      }
-    }
-    refresh();
-    final where = switch (place) {
-      ScreenOutPlace.newsletters => 'Newsletters',
-      ScreenOutPlace.notifications => 'Notifications',
-      ScreenOutPlace.archive => 'Archive',
-    };
-    onNotice?.call(
-      '$who screened out. Their mail goes to $where.',
-      undo: () {
-        undo();
-        refresh();
-      },
-    );
-  }
-
-  /// Folders a message can be moved to.
-  List<StoredMailbox> moveTargets(StoredMessage m) => [
-    for (final box in _store.mailboxes.forAccount(m.accountId))
-      if (box.selectable && box.id != m.mailboxId && !box.isAppData) box,
-  ];
-
-  static String _folderName(StoredMailbox m) =>
-      m.isInbox ? 'Inbox' : m.name.split(m.delimiter ?? '/').last;
+      screenerController.screenOut(sender, wholeDomain: wholeDomain);
 
   // ----------------------------------------------------------- composing
 
   /// A new message from the account being viewed (or the first account).
-  void compose() {
-    final accountId =
-        location.value.accountId ?? _store.accounts.all().firstOrNull?.id;
-    if (accountId != null) onCompose?.call(Draft(accountId: accountId));
-  }
+  void compose() => composeStarter.compose();
 
   /// A new message to a `mailto:` link's address (and subject, if given).
   void composeTo(Uri mailto) {
@@ -1586,83 +656,35 @@ final class MailController {
     }
   }
 
-  void reply(ReaderReady r) =>
-      onCompose?.call(services.replies.reply(r.message, r.view));
+  void reply(ReaderReady r) => composeStarter.reply(r);
 
-  void replyAll(ReaderReady r) =>
-      onCompose?.call(services.replies.replyAll(r.message, r.view));
+  void replyAll(ReaderReady r) => composeStarter.replyAll(r);
 
-  void forward(ReaderReady r) =>
-      onCompose?.call(services.replies.forward(r.message, r.view));
+  void forward(ReaderReady r) => composeStarter.forward(r);
 
   /// The open message exactly as the server sent it (stored when opened),
   /// or null if it is not on the device.
   Uint8List? rawMessage(StoredMessage message) =>
-      _store.messages.body(message.id);
+      composeStarter.rawMessage(message);
 
   /// Forward the whole message as an attached email.
-  void forwardAsAttachment(ReaderReady r) {
-    final raw = rawMessage(r.message);
-    if (raw == null) return;
-    onCompose?.call(services.replies.forwardAsAttachment(r.message, raw));
-  }
-
-  bool _isDraft(StoredMessage m) =>
-      m.flags.draft &&
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.drafts;
-
-  Future<void> _editDraft(StoredMessage message) async {
-    try {
-      if (_store.messages.body(message.id) == null) {
-        await services.worker.loadBody(message.id);
-      }
-      final raw = _store.messages.body(message.id);
-      if (raw == null || _disposed) return;
-      onCompose?.call(services.drafts.fromDraftsFolder(message, raw));
-    } on SyncWorkerException {
-      onNotice?.call('Can\'t open the draft while offline.');
-    } on BodyUnavailableException {
-      onNotice?.call('This draft is no longer on the server.');
-    }
-  }
+  void forwardAsAttachment(ReaderReady r) =>
+      composeStarter.forwardAsAttachment(r);
 
   // ------------------------------------------------------ custom folders
 
   /// Creates a folder on the server and opens it. Returns an error to
   /// show, or null on success.
-  Future<String?> createFolder(int accountId, String name) async {
-    try {
-      final id = await services.worker.createFolder(accountId, name);
-      if (!_disposed) {
-        _refreshCounts();
-        goTo(FolderLocation(id, accountId));
-      }
-      return null;
-    } on ArgumentError catch (e) {
-      return switch (e.message) {
-        final String message when message.contains('separator') =>
-          'Folder names can\'t contain "${message.split('"')[1]}" on this server.',
-        final String message when message.contains('INBOX') =>
-          'Inbox already exists.',
-        _ => 'That can\'t be a folder name.',
-      };
-    } on SyncWorkerException catch (e) {
-      return e.failure.kind == SyncFailureKind.network
-          ? 'Folders can only be created while online.'
-          : 'The server refused: ${e.failure.message}';
-    }
-  }
+  Future<String?> createFolder(int accountId, String name) =>
+      folderController.createFolder(accountId, name);
 
   /// Whether rules can move mail into [mailbox] (not the inbox, Drafts or
   /// Sent).
   bool canHaveRules(StoredMailbox mailbox) =>
-      !mailbox.isInbox &&
-      mailbox.selectable &&
-      mailbox.specialUse != SpecialUse.drafts &&
-      mailbox.specialUse != SpecialUse.sent;
+      FolderController.canHaveRules(mailbox);
 
   List<FolderRule> rulesFor(int mailboxId) =>
-      _store.folderRules.forMailbox(mailboxId);
+      folderController.rulesFor(mailboxId);
 
   /// Adds a rule; with [includeExisting] the inbox is filed with the next
   /// sync. Returns an error to show, or null.
@@ -1671,196 +693,58 @@ final class MailController {
     RuleField field,
     String value, {
     bool includeExisting = false,
-  }) {
-    try {
-      _store.folderRules.add(
-        accountId: mailbox.accountId,
-        mailboxId: mailbox.id,
-        field: field,
-        value: value,
-        includeExisting: includeExisting,
-      );
-    } on ArgumentError {
-      return switch (field) {
-        RuleField.fromAddress ||
-        RuleField.toAddress => 'Enter an email address.',
-        RuleField.fromDomain => 'Enter a domain, like example.com.',
-        RuleField.subject => 'Enter some text.',
-      };
-    }
-    if (includeExisting) services.worker.requestSync(mailbox.accountId);
-    return null;
-  }
+  }) => folderController.addRule(
+    mailbox,
+    field,
+    value,
+    includeExisting: includeExisting,
+  );
 
-  void removeRule(FolderRule rule) => _store.folderRules.remove(rule.id);
+  void removeRule(FolderRule rule) => folderController.removeRule(rule);
+
+  /// Folders a message can be moved to.
+  List<StoredMailbox> moveTargets(StoredMessage m) =>
+      folderController.moveTargets(m);
 
   // -------------------------------------------------------------- outbox
 
   /// Messages waiting to be sent or failed, oldest first.
-  List<OutboxEntry> get outbox => _store.outbox.sends();
+  List<OutboxEntry> get outbox => outboxController.outbox;
 
-  void retrySend(OutboxEntry entry) {
-    _store.outbox.retryFailed(entry.id);
-    services.worker.requestSync(entry.accountId);
-    refresh();
-  }
+  void retrySend(OutboxEntry entry) => outboxController.retrySend(entry);
 
-  void discardSend(OutboxEntry entry) {
-    _store.outbox.discardFailed(entry.id);
-    refresh();
-  }
+  void discardSend(OutboxEntry entry) => outboxController.discardSend(entry);
 
   // ---------------------------------------------------------- send later
 
   /// Messages scheduled with "Send later".
-  late final scheduledSends = ScheduledSends(_store, services.sender);
-
-  static const _tooLate =
-      'Too late to change: the message is already on its way.';
+  ScheduledSends get scheduledSends => outboxController.scheduledSends;
 
   /// Sends a scheduled message now (with Undo, which puts it back at its
   /// time).
-  void sendScheduledNow(ScheduledSend s) {
-    final now = SendLaterTimes.clock();
-    final pending = scheduledSends.sendNow(s, now: now);
-    if (pending != null) _followScheduled(s, pending, now);
-    refresh();
-    if (pending == null) {
-      onNotice?.call(_tooLate);
-      return;
-    }
-    services.worker.syncAt(pending.accountId, pending.undoUntil);
-    onNotice?.call(
-      'Sending…',
-      undo: () {
-        // Back to its time, unless it has started to go out.
-        final undone =
-            services.sender.cancel(pending, now: SendLaterTimes.clock()) &&
-            _rescheduleDraft(pending.draft, s.at, from: pending);
-        refresh();
-        if (!undone) onNotice?.call('Too late: the message is on its way.');
-      },
-    );
-  }
-
-  bool _rescheduleDraft(Draft draft, DateTime at, {PendingSend? from}) {
-    PendingSend pending;
-    try {
-      pending = services.sender.schedule(
-        draft,
-        at.toLocal(),
-        now: SendLaterTimes.clock(),
-      );
-      _armScheduled(pending);
-    } on ArgumentError {
-      // Its time has come meanwhile: send it.
-      pending = services.sender.send(draft, now: SendLaterTimes.clock());
-      services.worker.syncAt(pending.accountId, pending.undoUntil);
-    }
-    if (from != null) {
-      final sentAt = pending.scheduledFor ?? SendLaterTimes.clock();
-      final before = followUps.find(from.messageId)?.sentAt;
-      followUps.move(
-        from.messageId,
-        pending.messageId,
-        shift: before == null ? Duration.zero : sentAt.difference(before),
-      );
-    }
-    return true;
-  }
-
-  /// A scheduled message's follow-up goes with it when it goes out under
-  /// a new Message-ID ([pending], sent at its time or [now]), keeping the
-  /// time between sending and the reminder.
-  void _followScheduled(ScheduledSend s, PendingSend pending, DateTime now) {
-    final id = _scheduledId(s);
-    if (id == null) return;
-    final sentAt = pending.scheduledFor ?? now;
-    followUps.move(id, pending.messageId, shift: sentAt.difference(s.at));
-  }
-
-  /// The Message-ID a scheduled message was to go out with.
-  static String? _scheduledId(ScheduledSend s) {
-    final data = s.entry.data;
-    return data == null ? null : const MimeParser().parse(data).messageId;
-  }
+  void sendScheduledNow(ScheduledSend s) =>
+      outboxController.sendScheduledNow(s);
 
   /// Sends a scheduled message at [at] instead.
-  void rescheduleSend(ScheduledSend s, DateTime at, String done) {
-    final PendingSend? pending;
-    final now = SendLaterTimes.clock();
-    try {
-      pending = scheduledSends.reschedule(s, at, now: now);
-    } on ArgumentError {
-      sendScheduledNow(s);
-      return;
-    }
-    if (pending != null) _followScheduled(s, pending, now);
-    refresh();
-    if (pending == null) {
-      onNotice?.call(_tooLate);
-      return;
-    }
-    _armScheduled(pending);
-    onNotice?.call(done);
-  }
+  void rescheduleSend(ScheduledSend s, DateTime at, String done) =>
+      outboxController.rescheduleSend(s, at, done);
 
   /// Takes a scheduled message back to keep writing it (the schedule
   /// ends; closing the window keeps it as a draft).
-  void editScheduled(ScheduledSend s) {
-    final draft = scheduledSends.edit(s, now: SendLaterTimes.clock());
-    // Not sent: no reminder for it.
-    if (draft != null) followUps.cancel(_scheduledId(s) ?? '');
-    refresh();
-    if (draft == null) {
-      onNotice?.call(_tooLate);
-      return;
-    }
-    onCompose?.call(draft);
-  }
+  void editScheduled(ScheduledSend s) => outboxController.editScheduled(s);
 
   /// Doesn't send a scheduled message: it goes to Drafts instead.
-  void cancelScheduled(ScheduledSend s) {
-    final id = _scheduledId(s);
-    final outcome = scheduledSends.cancel(s, now: SendLaterTimes.clock());
-    if (outcome != null) followUps.cancel(id ?? '');
-    refresh();
-    if (outcome == null) {
-      onNotice?.call(_tooLate);
-      return;
-    }
-    services.worker.requestSync(s.entry.accountId);
-    onNotice?.call(
-      outcome == DraftOutcome.savedToServer
-          ? 'It won\'t be sent. It\'s in Drafts.'
-          : 'It won\'t be sent. It\'s kept as a draft on this device.',
-    );
-  }
-
-  /// A sync at the scheduled time (and on Android, a background check).
-  void _armScheduled(PendingSend pending) {
-    services.worker.syncAt(pending.accountId, pending.undoUntil);
-    if (pending.scheduledFor case final at?) {
-      services.worker.syncAt(pending.accountId, at);
-    }
-    unawaited(BackgroundMail.checkWhenDue(_store));
-  }
+  void cancelScheduled(ScheduledSend s) => outboxController.cancelScheduled(s);
 
   // ---------------------------------------------------------------- sync
 
-  SyncEvent? lastEvent(int accountId) => _lastEvent[accountId];
+  SyncEvent? lastEvent(int accountId) =>
+      syncStatusController.lastEvent(accountId);
 
-  Future<void> syncNow() async {
-    try {
-      await services.worker.syncNow();
-    } on SyncWorkerException {
-      // Shown through the account's failure event.
-    }
-  }
+  Future<void> syncNow() => syncStatusController.syncNow();
 
+  /// After each sync event (the status line is up to date by then).
   void _onSyncEvent(SyncEvent event) {
-    _lastEvent[event.accountId] = event;
-    status.value = _computeStatus();
     if (event is AccountSynced) {
       tidyCodes();
       wakeSnoozes();
@@ -1871,51 +755,26 @@ final class MailController {
     _refreshSoon = Timer(const Duration(milliseconds: 250), refresh);
   }
 
-  SyncStatus _computeStatus() {
-    if (_lastEvent.values.any((e) => e is AccountSyncStarted)) {
-      return const SyncRunning();
-    }
-    for (final MapEntry(key: accountId, value: event) in _lastEvent.entries) {
-      if (event is AccountSyncFailed) {
-        final account = _store.accounts.byId(accountId);
-        return SyncProblem(
-          event.failure.kind,
-          account?.email ?? '',
-          accountId: accountId,
-          oauth: account?.usesOAuth ?? false,
-        );
-      }
-    }
-    return SyncIdle(DateTime.now());
-  }
-
+  /// Stops what can still call in (timers, sync events, the sorter),
+  /// then disposes the controllers, those that use others first.
   void dispose() {
     _disposed = true;
     _refreshSoon?.cancel();
-    _wakeTimer?.cancel();
-    unawaited(_events.cancel());
+    wakeTimer.dispose();
+    syncStatusController.dispose();
     services.resorted.removeListener(refresh);
+    invitationController.dispose();
+    accountOrder.dispose();
+    oldCodesController.dispose();
+    followUpController.dispose();
+    snoozeController.dispose();
+    folderController.dispose();
+    locationController.dispose();
+    selectionController.dispose();
+    readerController.dispose();
+    composeStarter.dispose();
+    countsController.dispose();
     _summary?.dispose();
     list.dispose();
-    location.dispose();
-    counts.dispose();
-    reader.dispose();
-    selection.dispose();
-    invitationsChanged.dispose();
-    accountsChanged.dispose();
-    status.dispose();
-    codesOffer.dispose();
   }
-}
-
-/// Top level, so [compute] sends only the bytes to the helper isolate.
-(MessageView, TrustReport, UnsubscribePlan) _parseAndCheck(
-  (Uint8List, TrustContext?) input,
-) {
-  final (raw, context) = input;
-  final view = MessageView.parse(raw);
-  final trust = context == null
-      ? TrustReport.empty
-      : const TrustChecker().check(view, context);
-  return (view, trust, UnsubscribePlanner.plan(view.message, trust));
 }
