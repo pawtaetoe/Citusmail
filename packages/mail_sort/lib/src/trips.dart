@@ -1432,17 +1432,22 @@ abstract final class TripFinder {
     );
   }
 
-  /// The city of [place]: an airport's, its town, or a city its name or
-  /// address names.
+  /// The city of [place]: an airport's, its town when the app knows it,
+  /// a city its name or address names (an airport hotel in Hounslow
+  /// named "London Heathrow" is in London), else its town.
   static String? cityOf(ReservationPlace? place) {
     if (place == null) return null;
     if (place.code case final c?) {
       if (TravelPlaces.cityOfAirport(c) case final city?) return city;
     }
-    if (place.locality case final l? when l.trim().isNotEmpty) {
-      return TravelPlaces.cityIn(l) ?? l.trim();
+    final town = place.locality?.trim() ?? '';
+    if (town.isNotEmpty) {
+      if (TravelPlaces.cityIn(town) case final city?) return city;
     }
-    return TravelPlaces.cityIn([place.name, place.address].nonNulls.join(' '));
+    final named = TravelPlaces.cityIn(
+      [place.name, place.address].nonNulls.join(' '),
+    );
+    return named ?? (town.isEmpty ? null : town);
   }
 
   /// What makes a booking the same in another email: its kind, its

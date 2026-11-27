@@ -1103,6 +1103,50 @@ New: Depart 02:15   Arrive 09:50
       );
     });
 
+    test('a hotel named for the city, in a town beside it: that city', () {
+      // An airport hotel: London in its name, Hounslow as its town.
+      final found = trips([
+        mail(
+          'Your redemption booking confirmation KQ7T4P',
+          sender: 'singaporeair.com',
+          text: _sqRedemptionReal,
+          daysAgo: 238,
+        ),
+        mail(
+          'Confirmation of your reservation: Airport Inn London Heathrow',
+          sender: 'airportinn.example',
+          daysAgo: 184,
+          html: '''
+<script type="application/ld+json">
+{"@context": "http://schema.org", "@type": "LodgingReservation",
+ "reservationNumber": "QWXRTPLM",
+ "reservationStatus": "http://schema.org/ReservationConfirmed",
+ "reservationFor": {"@type": "LodgingBusiness",
+   "name": "Airport Inn London Heathrow",
+   "address": {"@type": "PostalAddress", "streetAddress": "1 Bath Road",
+     "addressLocality": "HOUNSLOW", "addressCountry": "GB"}},
+ "checkinDate": "2026-07-13", "checkoutDate": "2026-07-15"}
+</script>''',
+        ),
+      ]);
+      final trip = found.single;
+      expect(trip.destinations, ['London']);
+      expect(trip.bookings, hasLength(2));
+      // A town the app knows comes first; one it does not, as written.
+      expect(
+        TripFinder.cityOf(
+          const ReservationPlace(name: 'Paris Hotel', locality: 'Las Vegas'),
+        ),
+        'Las Vegas',
+      );
+      expect(
+        TripFinder.cityOf(
+          const ReservationPlace(name: 'Hotel Adler', locality: 'Ortisei'),
+        ),
+        'Ortisei',
+      );
+    });
+
     test('a trip through two cities: by train from Tokyo to Kyoto', () {
       final found = trips([
         mail(
@@ -1381,6 +1425,40 @@ New: Depart 02:15   Arrive 09:50
         ]),
         isEmpty,
       );
+    });
+
+    test('a flight and two trains: London, Bolzano, then London again', () {
+      final found = trips([
+        mail(
+          'Your redemption booking confirmation KQ7T4P',
+          sender: 'singaporeair.com',
+          text: _sqRedemptionReal,
+          daysAgo: 238,
+        ),
+        mail(
+          'ÖBB ticket – 0428 3315 6092 7781 – Aug 20 2026',
+          sender: 'oebb.at',
+          text: _oebbReal,
+          daysAgo: 163,
+        ),
+        mail(
+          'Your Booking Confirmation: 30482716',
+          sender: 'avantiwestcoast.co.uk',
+          name: 'Avanti West Coast',
+          text: _avantiReal,
+          daysAgo: 134,
+        ),
+      ]);
+      expect(found.map((t) => t.destinations), [
+        ['London'],
+        ['Bolzano'],
+        ['London'],
+      ]);
+      expect(found.map((t) => t.start.day), [
+        DateTime(2026, 7, 13),
+        DateTime(2026, 8, 20),
+        DateTime(2026, 8, 29),
+      ]);
     });
 
     test('a coach, and a train booked through a travel site', () {
