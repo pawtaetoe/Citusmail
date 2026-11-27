@@ -886,7 +886,7 @@ abstract final class DeliveryFinder {
             !_arrivedStatus(_latestStatus(list))) {
           addTo(recent!, r);
         } else {
-          addTo('m:${r.email.messageId}', r);
+          addTo('m:${r.email.messageId.value}', r);
         }
       }
     }

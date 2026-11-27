@@ -397,7 +397,7 @@ abstract final class ReturnWindows {
       final delivery =
           deliveryOf[r.email.messageId] ??
           (orderGroup == null ? null : deliveryOfOrder[orderGroup]);
-      final key = delivery?.key ?? orderGroup ?? 'm:${r.email.messageId}';
+      final key = delivery?.key ?? orderGroup ?? 'm:${r.email.messageId.value}';
       if (delivery != null) deliveryFor[key] = delivery;
       groups.putIfAbsent(key, () => []).add(r);
     }
