@@ -135,6 +135,39 @@ the controllers, those that use others first.
 Each controller has its own tests that build it without the facade or
 a widget (`app/test/support/controllers.dart` wires them by hand).
 
+## Keeping the screen responsive
+
+The UI reads the encrypted store directly: lists, counts and the open
+message are index reads of a few milliseconds. What takes longer runs
+elsewhere, so a tap shows at once and scrolling stays smooth:
+
+- **Long reads** go through `AppServices.reads` (`StoreReader`,
+  `services/store_reader.dart`): one long-lived helper isolate with its
+  own read connection to the database, like the sync worker's. The
+  "Found in your mail" finders, the summary line's look at today,
+  reading ahead (`AutoReader`), Clean up's totals, the Privacy report and
+  Files use it. A task is a `StoreTask` made by a top-level function
+  that captures only plain values (a date, a set of ids) and returns
+  plain data; a page keeps only the newest result (`PageModel`). Without
+  a database file or key (most tests), tasks run on the calling isolate.
+- **Parsing and checks** (MIME, HTML, the trust checks, the privacy
+  counts) run in `compute`.
+- **After a sync** the mail screen reads the list, the counts and the open
+  message again (`MailController.refresh`, at most one refresh per 250
+  ms of events, none when a sync starts), and each tells its listeners
+  only when what it shows changed: an idle app checking five accounts
+  every minute builds nothing but the status line.
+- **Counts** read indexes only (`sectionCountsByInbox`).
+- **Rows** look up folders once per build, not once per row
+  (`MessageActions`), and the spinners shown while mail is checked
+  repaint on their own (`RepaintBoundary`).
+
+`app/test/responsiveness_test.dart` measures all of this on a store of
+32,000 emails in five accounts (`test/support/big_mailbox.dart`) and
+prints a table of the longest slice each interaction keeps the UI
+isolate busy; its assertions count work done (statements, refreshes,
+rebuilds), with generous time bounds only.
+
 ## Gmail's All Mail and search on the server
 
 Gmail's All Mail, Starred and Important repeat the mail of other folders

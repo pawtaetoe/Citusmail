@@ -65,11 +65,18 @@ void main() {
   /// Times [action] [runs] times ([before] each, untimed) and keeps the
   /// run with the median longest slice: single runs on a test machine
   /// vary with garbage collection and compilation.
+  ///
+  /// The checks are loose: a slow machine must not fail them, a return
+  /// of what was fixed must. [statements] bounds the work done on the
+  /// UI's connection; every slice stays under [ms] (a quarter of a
+  /// second by default, where it took up to 850 ms before).
   Future<UiWork> measure(
     String name,
     Future<void> Function() action, {
     int runs = 1,
     void Function()? before,
+    int? statements,
+    int ms = 250,
   }) async {
     final all = <UiWork>[];
     for (var i = 0; i < runs; i++) {
@@ -79,6 +86,10 @@ void main() {
     all.sort((a, b) => a.longest.compareTo(b.longest));
     final work = all[all.length ~/ 2];
     results.add(work);
+    expect(work.longest.inMilliseconds, lessThan(ms), reason: name);
+    if (statements != null) {
+      expect(work.statements, lessThanOrEqualTo(statements), reason: name);
+    }
     return work;
   }
 
@@ -104,9 +115,11 @@ void main() {
   }
 
   test('opening the mail screen', () async {
+    // Once, at start-up, with the code compiling as it runs: timed, but
+    // only checked for the worst.
     await measure('open the mail screen (controller)', () async {
       controller = MailController(app.services);
-    });
+    }, ms: 2000);
   });
 
   test('after a sync event', () async {
@@ -116,6 +129,7 @@ void main() {
       () async => controller.refresh(),
       runs: 5,
       before: () => arrive(account++ % 5),
+      statements: 120,
     );
     await measure(
       'refresh, nothing changed',
@@ -268,27 +282,55 @@ void main() {
       model.dispose();
     }
 
-    await measure('Deliveries', () => page(DeliveriesModel(services)));
-    await measure('Subscriptions', () => page(SubscriptionsModel(services)));
-    await measure('Trips', () => page(TripsModel(services)));
-    await measure('Appointments', () => page(AppointmentsModel(services)));
-    await measure('Online accounts', () => page(AccountsModel(services)));
-    await measure('Deliveries again', () => page(DeliveriesModel(services)));
-    await measure('Clean up', () => page(SenderCleanupModel(controller)));
-    await measure('Privacy report', () => page(PrivacyReportModel(services)));
+    await measure(
+      'Deliveries',
+      () => page(DeliveriesModel(services)),
+      statements: 100,
+    );
+    await measure(
+      'Subscriptions',
+      () => page(SubscriptionsModel(services)),
+      statements: 40,
+    );
+    await measure('Trips', () => page(TripsModel(services)), statements: 40);
+    await measure(
+      'Appointments',
+      () => page(AppointmentsModel(services)),
+      statements: 40,
+    );
+    await measure(
+      'Online accounts',
+      () => page(AccountsModel(services)),
+      statements: 40,
+    );
+    await measure(
+      'Deliveries again',
+      () => page(DeliveriesModel(services)),
+      statements: 40,
+    );
+    await measure(
+      'Clean up',
+      () => page(SenderCleanupModel(controller)),
+      statements: 20,
+    );
+    await measure(
+      'Privacy report',
+      () => page(PrivacyReportModel(services)),
+      statements: 40,
+    );
     await measure('Files', () async {
       final files = AttachmentsModel(services);
       await files.load();
       files.dispose();
-    });
+    }, statements: 40);
     final summary = controller.summary..watch();
     await measure('summary line: today', () async {
       await summary.debugRead();
-    });
+    }, statements: 40);
     summary.unwatch();
     await measure('reading ahead: what to read', () async {
       await services.autoRead.debugWanted();
-    });
+    }, statements: 40);
   });
 
   testWidgets('the mail screen on a phone: scrolling and opening', (

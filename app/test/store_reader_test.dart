@@ -74,9 +74,9 @@ void main() {
     expect(done, isTrue);
   });
 
-  test('stopped: the isolate ends', () async {
+  test('a database it cannot open: on this isolate instead', () async {
     final reads = StoreReader.isolate(
-      app.directory.path + '/mail.db',
+      '${app.directory.path}/mail.db',
       DatabaseKey.generate(),
       fallback: app.store,
     );
