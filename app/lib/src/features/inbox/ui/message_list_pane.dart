@@ -192,13 +192,36 @@ final class _TopBar extends StatefulWidget {
   State<_TopBar> createState() => _TopBarState();
 }
 
-final class _TopBarState extends State<_TopBar> {
+final class _TopBarState extends State<_TopBar> with WidgetsBindingObserver {
   final _search = TextEditingController();
+
+  /// Whether the on-screen keyboard was showing at the last change.
+  bool _keyboardShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
     super.dispose();
+  }
+
+  /// The keyboard closed (Android's back button) while the search box had
+  /// focus: let go of it too, so no cursor is left blinking.
+  @override
+  void didChangeMetrics() {
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    if (views.isEmpty) return;
+    final shown = views.first.viewInsets.bottom > 0;
+    if (_keyboardShown && !shown && widget.searchFocus.hasFocus) {
+      widget.searchFocus.unfocus();
+    }
+    _keyboardShown = shown;
   }
 
   /// Attachments from all your mail, with their own search.
@@ -237,6 +260,9 @@ final class _TopBarState extends State<_TopBar> {
                 child: TextField(
                   controller: _search,
                   focusNode: widget.searchFocus,
+                  // A tap anywhere else lets go of the search box, on touch
+                  // too (Flutter keeps focus on touch by default).
+                  onTapOutside: (_) => widget.searchFocus.unfocus(),
                   textInputAction: TextInputAction.search,
                   inputFormatters: [
                     LengthLimitingTextInputFormatter(
@@ -479,9 +505,13 @@ final class _StatusLine extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (status is SyncRunning)
-                  const SizedBox.square(
-                    dimension: 12,
-                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  // Turns every frame while mail is checked: only this
+                  // little square is painted again, not the list header.
+                  const RepaintBoundary(
+                    child: SizedBox.square(
+                      dimension: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    ),
                   )
                 else if (icon != null)
                   Icon(icon, size: 14, color: color),
@@ -691,6 +721,26 @@ final class _MessagesState extends State<_Messages> {
       }
     });
     _c.location.addListener(_toTop);
+    _c.status.addListener(_statusChanged);
+    _statusChanged();
+    _c.reader.addListener(_readerChanged);
+  }
+
+  /// The message open in the reading pane: the list is built again when
+  /// another one opens, not each time the open one loads or changes.
+  late final _openId = ValueNotifier<MessageId?>(_c.selected?.id);
+
+  void _readerChanged() => _openId.value = _c.selected?.id;
+
+  /// The first check for mail is under way: rows on their way, not
+  /// "empty". Follows the sync status, so the list is built again only
+  /// when this changes, not on every sync.
+  final _arriving = ValueNotifier<bool>(false);
+
+  void _statusChanged() {
+    final status = _c.status.value;
+    if (status is SyncIdle && status.lastSynced != null) _checked = true;
+    _arriving.value = !_checked && status is SyncRunning;
   }
 
   void _toTop() {
@@ -700,6 +750,10 @@ final class _MessagesState extends State<_Messages> {
   @override
   void dispose() {
     _c.location.removeListener(_toTop);
+    _c.status.removeListener(_statusChanged);
+    _c.reader.removeListener(_readerChanged);
+    _arriving.dispose();
+    _openId.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -717,7 +771,7 @@ final class _MessagesState extends State<_Messages> {
       key: ValueKey(m.id.value),
       message: m,
       controller: _c,
-      open: _c.selected?.id == m.id,
+      open: _openId.value == m.id,
       checked: selection.contains(m.id),
       selecting: selection.isNotEmpty,
     );
@@ -728,17 +782,15 @@ final class _MessagesState extends State<_Messages> {
     listenable: Listenable.merge([
       _c.list,
       _c.selection,
-      _c.reader,
+      _openId,
       _c.codesOffer,
-      _c.status,
+      _arriving,
     ]),
     builder: (context, _) {
       final list = _c.list;
-      final status = _c.status.value;
-      if (status is SyncIdle && status.lastSynced != null) _checked = true;
       // The first check for mail: rows on their way, not "empty".
       const arriving = SkeletonRows(label: 'Checking for mail…');
-      final firstCheck = !_checked && status is SyncRunning;
+      final firstCheck = _arriving.value;
       // Asks once, in the Verification section, before tidying up codes.
       final codesOffer = _c.codesOffer.value
           ? SliverToBoxAdapter(child: CodeCleanupBanner(controller: _c))

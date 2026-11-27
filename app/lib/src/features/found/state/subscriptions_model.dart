@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 
 import '../../../services/reminders.dart';
+import '../../../services/store_reader.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
 import 'found_model.dart';
@@ -209,6 +210,19 @@ typedef SubscriptionsPage = ({
 /// the preview, or the whole message once downloaded. [readEmails]
 /// downloads the receipts and bills that are not on the device yet, only
 /// when the user asks.
+/// [findSubscriptions] as a [StoreTask], off the UI isolate.
+StoreTask<SubscriptionsFound> _subscriptionsTask(
+  DateTime now,
+  Set<MessageId> skip,
+  bool monthlyRenewals,
+) =>
+    (store) => findSubscriptions(
+      store,
+      now,
+      monthlyRenewals: monthlyRenewals,
+      skip: skip,
+    );
+
 final class SubscriptionsModel
     extends FoundModel<Subscription, SubscriptionsPage> {
   SubscriptionsModel(super.services, {super.now})
@@ -232,11 +246,8 @@ final class SubscriptionsModel
 
   @override
   Future<SubscriptionsPage> find(DateTime now, Set<MessageId> skip) async {
-    final found = await findSubscriptions(
-      store,
-      now,
-      monthlyRenewals: services.settings.monthlyRenewals,
-      skip: skip,
+    final found = await services.reads.run(
+      _subscriptionsTask(now, skip, services.settings.monthlyRenewals),
     );
     final dismissed = ReminderState(store).dismissed;
     return (

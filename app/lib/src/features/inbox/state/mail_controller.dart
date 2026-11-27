@@ -286,6 +286,15 @@ final class MailController {
   Timer? _refreshSoon;
   bool _disposed = false;
 
+  /// How many times the screen was read again ([refresh]), for tests that
+  /// check an idle app stays quiet.
+  @visibleForTesting
+  int refreshes = 0;
+
+  /// Sync events close together are read in one refresh, this long after
+  /// the first.
+  static const refreshDelay = Duration(milliseconds: 250);
+
   MailStore get _store => services.store;
 
   StoredMessage? get selected => readerController.selected;
@@ -346,12 +355,17 @@ final class MailController {
   /// from the server.
   Future<void> loadMore() => locationController.loadMore();
 
-  /// Re-reads the list, the counts and the open message.
-  void refresh() {
+  /// Re-reads the list, the counts and the open message. The list, the
+  /// counts and the summary line tell their listeners only when what they
+  /// show changed; the open message too when [quiet] (after a sync).
+  void refresh({bool quiet = false}) {
     if (_disposed) return;
+    refreshes++;
     list.refresh();
+    // A setting the line follows may have changed without the list.
+    _summary?.update();
     countsController.refresh();
-    readerController.refreshOpen();
+    readerController.refreshOpen(quiet: quiet);
     oldCodesController.refreshOffer();
     wakeTimer.schedule();
   }
@@ -757,9 +771,15 @@ final class MailController {
       wakeSnoozes();
       checkFollowUps();
     }
-    // Several events arrive close together: refresh once.
-    _refreshSoon?.cancel();
-    _refreshSoon = Timer(const Duration(milliseconds: 250), refresh);
+    // A sync starting changes nothing stored yet.
+    if (event is AccountSyncStarted) return;
+    // Several events arrive close together: refresh once, a little after
+    // the first (later ones don't push it back, so a busy sync still
+    // shows new mail).
+    _refreshSoon ??= Timer(refreshDelay, () {
+      _refreshSoon = null;
+      refresh(quiet: true);
+    });
   }
 
   /// Stops what can still call in (timers, sync events, the sorter),

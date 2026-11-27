@@ -8,6 +8,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 
 import '../../../core/state/page_model.dart';
+import '../../../services/store_reader.dart';
 import '../../inbox/state/mail_controller.dart';
 
 /// The Clean up page's senders: those listed ([groups], most mail
@@ -70,19 +71,8 @@ final class SenderCleanupModel extends PageModel<SenderCleanupData> {
   @override
   Future<SenderCleanupData> fetch() async {
     final kept = {...keptSetting.read(_store.settings)};
-    // The store adds the mail up per sender; grouping senders by company
-    // happens off the UI thread.
-    final senders = _store.messages.senderStats(since);
-    final all = await compute(_group, (
-      senders,
-      {for (final a in _store.accounts.all()) a.email.toLowerCase()},
-      _store.messages.writtenTo(),
-    ));
-    // Blocked senders' mail already goes to Junk.
-    final listed = [
-      for (final g in all)
-        if (!g.addresses.any((a) => _store.blocks.matching(a) != null)) g,
-    ];
+    // Off the UI isolate: adding up three months of mail takes a while.
+    final listed = await controller.services.reads.run(_sendersTask(since));
     return _split(listed, kept);
   }
 
@@ -164,6 +154,24 @@ final class SenderCleanupModel extends PageModel<SenderCleanupData> {
     return m == null ? null : controller.unsubscriptionFor(m);
   }
 }
+
+/// The senders since [since], grouped by company, those blocked aside, as
+/// a [StoreTask] (it holds only the date).
+StoreTask<List<SenderGroup>> _sendersTask(DateTime since) => (store) async {
+  // The store adds the mail up per sender; grouping senders by company
+  // happens off the store's isolate.
+  final senders = store.messages.senderStats(since);
+  final all = await compute(_group, (
+    senders,
+    {for (final a in store.accounts.all()) a.email.toLowerCase()},
+    store.messages.writtenTo(),
+  ));
+  // Blocked senders' mail already goes to Junk.
+  return [
+    for (final g in all)
+      if (!g.addresses.any((a) => store.blocks.matching(a) != null)) g,
+  ];
+};
 
 /// Top level, for [compute].
 List<SenderGroup> _group((List<SenderStats>, Set<String>, Set<String>) input) {

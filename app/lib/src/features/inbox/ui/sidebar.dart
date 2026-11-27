@@ -221,11 +221,15 @@ final class Sidebar extends StatelessWidget {
                           tooltip: 'Check for new mail',
                           onPressed: syncing ? null : controller.syncNow,
                           icon: syncing
-                              ? SizedBox.square(
-                                  dimension: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: colors.muted,
+                              // Turns every frame while mail is checked:
+                              // only this is painted again.
+                              ? RepaintBoundary(
+                                  child: SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: colors.muted,
+                                    ),
                                   ),
                                 )
                               : Icon(AppIcons.sync, color: colors.muted),

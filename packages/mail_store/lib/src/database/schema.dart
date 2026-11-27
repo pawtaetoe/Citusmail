@@ -544,4 +544,13 @@ const List<Migration> schemaMigrations = [
     'CREATE INDEX message_addresses_by_address_kind ON message_addresses (address COLLATE NOCASE, kind)',
     'DROP INDEX message_addresses_by_address',
   ]),
+
+  // Speed: the Smart Inbox's counts leave read receipts out, which read
+  // every inbox row and its Content-Type (about 15 ms for 18,000 inbox
+  // emails, after every sync). With the receipts' headers in an index of
+  // their own (a handful of rows), the counts read only indexes. Stores
+  // nothing new.
+  Migration(19, [
+    'CREATE INDEX message_headers_reports ON message_headers (message_id) WHERE ${SectionSql.reportHeader}',
+  ]),
 ];

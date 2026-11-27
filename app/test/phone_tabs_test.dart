@@ -263,6 +263,29 @@ void main() {
     expect(find.text('Lunch?'), findsOneWidget);
   });
 
+  testWidgets('a tap elsewhere lets go of the search box', (tester) async {
+    await show(tester);
+    await tester.tap(searchField());
+    await tester.pump();
+    expect(searchFocused(tester), isTrue);
+    // A tap on the list below.
+    await tester.tap(find.text('Lunch?'));
+    await tester.pump();
+    expect(searchFocused(tester), isFalse);
+  });
+
+  testWidgets('closing the keyboard lets go of the search box', (tester) async {
+    await show(tester);
+    await tester.tap(searchField());
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pump();
+    expect(searchFocused(tester), isTrue);
+    // Android's back button closes the keyboard.
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pump();
+    expect(searchFocused(tester), isFalse);
+  });
+
   testWidgets('pulling down at the top of the list focuses search', (
     tester,
   ) async {

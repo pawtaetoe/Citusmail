@@ -198,20 +198,51 @@ final class MessageActions {
   StoredMailbox? archiveFor(StoredMessage m) => archiveFolder(m.accountId);
 
   /// The Archive folder of [accountId], if it has one.
-  StoredMailbox? archiveFolder(AccountId accountId) =>
-      MailActions.archiveFolder(_store, accountId);
+  StoredMailbox? archiveFolder(AccountId accountId) => _folder((
+    'archive',
+    accountId,
+  ), () => MailActions.archiveFolder(_store, accountId));
 
   bool isInTrash(StoredMessage m) =>
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.trash;
+      _mailbox(m.mailboxId)?.specialUse == SpecialUse.trash;
 
   /// Whether deleting [m] removes it for good: it is in Trash, or its
   /// account has no Trash folder (the server then deletes it at once).
   bool deletesForever(StoredMessage m) =>
       isInTrash(m) ||
-      _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.trash) == null;
+      _folder(
+            ('trash', m.accountId),
+            () => _store.mailboxes.bySpecialUse(m.accountId, SpecialUse.trash),
+          ) ==
+          null;
 
   bool isInJunk(StoredMessage m) =>
-      _store.mailboxes.byId(m.mailboxId)?.specialUse == SpecialUse.junk;
+      _mailbox(m.mailboxId)?.specialUse == SpecialUse.junk;
+
+  /// The folder [m] is in (rows ask as they are built).
+  StoredMailbox? folderOf(StoredMessage m) => _mailbox(m.mailboxId);
+
+  StoredMailbox? _mailbox(MailboxId id) =>
+      _folder(id, () => _store.mailboxes.byId(id));
+
+  /// Folders looked up while the list is built: every row asks which
+  /// folder it is in and where it would be archived, so each is read
+  /// once for all the rows built together, not once per row. Forgotten as
+  /// soon as that work is done (the sync worker commits only between), or
+  /// as soon as anything is written here.
+  Map<Object, StoredMailbox?>? _folders;
+  int _foldersAt = -1;
+
+  StoredMailbox? _folder(Object key, StoredMailbox? Function() read) {
+    final writes = _store.database.writeCount;
+    if (writes != _foldersAt) _folders = null;
+    _foldersAt = writes;
+    final folders = _folders ??= () {
+      scheduleMicrotask(() => _folders = null);
+      return <Object, StoredMailbox?>{};
+    }();
+    return folders.containsKey(key) ? folders[key] : (folders[key] = read());
+  }
 
   /// "Not spam": back to each account's inbox. Moving mail out of Spam is
   /// how Gmail and other providers learn it isn't spam.

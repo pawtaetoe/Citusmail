@@ -1520,31 +1520,96 @@ final class MessageRepository {
   /// Totals and unread counts of every Smart Inbox section, across the
   /// inboxes of [accountIds] (or all accounts). Reads the section index
   /// (and, for Notifications and the Screener, leaves read receipts out).
-  Map<SmartSection, SectionCount> sectionCounts({List<AccountId>? accountIds}) {
+  Map<SmartSection, SectionCount> sectionCounts({
+    List<AccountId>? accountIds,
+  }) => addSectionCounts(sectionCountsByInbox(accountIds: accountIds).values);
+
+  /// [sectionCounts] of each inbox of [accountIds] (or every account), in
+  /// one pass over the section index: the counts of any set of accounts
+  /// are the sum of their inboxes' ([addSectionCounts]).
+  Map<MailboxId, Map<SmartSection, SectionCount>> sectionCountsByInbox({
+    List<AccountId>? accountIds,
+  }) {
     final inboxes = inboxIds(accountIds: accountIds);
+    final byInbox = {
+      for (final id in inboxes)
+        id: {for (final s in SmartSection.values) s: SectionCount.empty},
+    };
+    if (inboxes.isEmpty) return byInbox;
+    final args = [for (final id in inboxes) id.value];
+    final [totals, unread, receipts] = [
+      for (final sql in _sectionCountSql(inboxes.length)) _db.select(sql, args),
+    ];
+    void add(
+      ResultSet rows,
+      int Function(Row) total,
+      int Function(Row) unread,
+    ) {
+      for (final row in rows) {
+        final counts = byInbox[MailboxId(row['mailbox_id'] as int)]!;
+        final section = SmartSection.values.byName(row['section'] as String);
+        final was = counts[section]!;
+        counts[section] = SectionCount(
+          was.total + total(row),
+          was.unread + unread(row),
+        );
+      }
+    }
+
+    add(totals, (r) => r['n'] as int, (_) => 0);
+    add(unread, (_) => 0, (r) => r['n'] as int);
+    add(receipts, (r) => -(r['n'] as int), (r) => -(r['unread'] as int));
+    return byInbox;
+  }
+
+  /// The queries of [sectionCountsByInbox] for [folders] inboxes: every
+  /// row, then those unread, each read from an index alone (grouped in
+  /// its order, so SQLite counts as it reads); then the read receipts to
+  /// leave out, found through the index of report headers.
+  static List<String> _sectionCountSql(int folders) {
+    final ids = _placeholders(folders);
+    final hidden = SectionSql.receiptFreeSections.map((s) => "'$s'").join(', ');
+    const grouped = 'GROUP BY mailbox_id, section ORDER BY mailbox_id, section';
+    final totals =
+        'SELECT mailbox_id, section, count(*) AS n FROM messages '
+        'WHERE mailbox_id IN ($ids) $grouped';
+    final unread =
+        'SELECT mailbox_id, section, count(*) AS n FROM messages '
+        'WHERE mailbox_id IN ($ids) AND (flags & 1) = 0 $grouped';
+    // From the few receipts to their rows (not through the inbox).
+    final receipts =
+        'SELECT mailbox_id, section, count(*) AS n, '
+        'sum((flags & 1) = 0) AS unread FROM messages '
+        'WHERE id IN (${SectionSql.readReceiptIds}) '
+        'AND +mailbox_id IN ($ids) AND +section IN ($hidden) '
+        "AND +category = 'notifications' GROUP BY mailbox_id, section";
+    return [totals, unread, receipts];
+  }
+
+  /// How SQLite runs the queries of [sectionCountsByInbox] (for tests that
+  /// make sure counting stays index reads).
+  List<String> debugSectionCountPlan() {
+    final inboxes = inboxIds();
+    return [
+      for (final sql in _sectionCountSql(inboxes.length))
+        for (final row in _db.select('EXPLAIN QUERY PLAN $sql', [
+          for (final id in inboxes) id.value,
+        ]))
+          row['detail'] as String,
+    ];
+  }
+
+  /// The section counts of several inboxes together.
+  static Map<SmartSection, SectionCount> addSectionCounts(
+    Iterable<Map<SmartSection, SectionCount>> inboxes,
+  ) {
     final totals = {for (final s in SmartSection.values) s: 0};
     final unread = {for (final s in SmartSection.values) s: 0};
-    if (inboxes.isEmpty) {
-      return {for (final s in SmartSection.values) s: SectionCount.empty};
-    }
-    final args = [for (final id in inboxes) id.value];
-    final hidden = SectionSql.receiptFreeSections.map((s) => "'$s'").join(', ');
-    final where =
-        'mailbox_id IN (${_placeholders(inboxes.length)}) '
-        'AND NOT (section IN ($hidden) AND ${SectionSql.readReceipt('messages')})';
-    for (final row in _db.select(
-      'SELECT section, count(*) AS n FROM messages WHERE $where GROUP BY section',
-      args,
-    )) {
-      totals[SmartSection.values.byName(row['section'] as String)] =
-          row['n'] as int;
-    }
-    for (final row in _db.select(
-      'SELECT section, count(*) AS n FROM messages WHERE $where AND (flags & 1) = 0 GROUP BY section',
-      args,
-    )) {
-      unread[SmartSection.values.byName(row['section'] as String)] =
-          row['n'] as int;
+    for (final counts in inboxes) {
+      for (final MapEntry(key: s, value: c) in counts.entries) {
+        totals[s] = totals[s]! + c.total;
+        unread[s] = unread[s]! + c.unread;
+      }
     }
     return {
       for (final s in SmartSection.values)

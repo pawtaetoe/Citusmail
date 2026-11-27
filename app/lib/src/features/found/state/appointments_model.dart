@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 import 'package:mail_trust/mail_trust.dart';
 import 'package:mail_view/mail_view.dart';
 
+import '../../../services/store_reader.dart';
 import '../../inbox/state/corrections.dart';
 import '../../inbox/state/message_reads.dart';
 import 'found_model.dart';
@@ -159,6 +160,13 @@ List<MailSample> appointmentSamples(
 /// are read whole, with the schema.org data and calendar file in them;
 /// the others by their preview. [readEmails] downloads booking emails
 /// that are not on the device yet, only when the user asks.
+/// [findAppointments] as a [StoreTask], off the UI isolate.
+StoreTask<AppointmentsFound> _appointmentsTask(
+  DateTime now,
+  Set<MessageId> skip,
+) =>
+    (store) => findAppointments(store, now, skip: skip);
+
 final class AppointmentsModel
     extends FoundModel<Appointment, AppointmentsFound> {
   AppointmentsModel(super.services, {super.now})
@@ -179,7 +187,7 @@ final class AppointmentsModel
 
   @override
   Future<AppointmentsFound> find(DateTime now, Set<MessageId> skip) =>
-      findAppointments(store, now, skip: skip);
+      services.reads.run(_appointmentsTask(now, skip));
 
   @override
   Finds<Appointment> findsOf(AppointmentsFound found) => found;

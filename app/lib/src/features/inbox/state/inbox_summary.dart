@@ -11,11 +11,13 @@ import 'package:mail_store/mail_store.dart';
 
 import '../../../services/app_services.dart';
 import '../../../services/reminders.dart' show ReminderState;
+import '../../../services/store_reader.dart';
 import '../../found/state/appointments_model.dart';
 import '../../found/state/deliveries_model.dart';
 import '../../found/state/subscriptions_model.dart';
 import '../../found/state/trips_model.dart';
 import 'message_list_model.dart';
+import 'same_content.dart';
 import 'store_changes.dart';
 
 /// One piece of the summary line at the top of the inbox.
@@ -152,6 +154,10 @@ Future<FoundToday> findToday(
   );
 }
 
+/// [findToday] as a [StoreTask] (it holds only [now] and the setting).
+StoreTask<FoundToday> _todayTask(DateTime now, bool monthlyRenewals) =>
+    (store) => findToday(store, now, monthlyRenewals: monthlyRenewals);
+
 /// The summary line at the top of the inbox, e.g. "3 new · Code from
 /// Northwind · Parcel arriving today · Dentist at 3:00 PM": built on the
 /// device from what the app already has. Nothing leaves the device.
@@ -233,8 +239,11 @@ final class InboxSummary extends ChangeNotifier {
   /// Builds the pieces again (the list changed, a setting changed).
   void update() {
     if (_disposed) return;
-    pieces = _compute();
-    notifyListeners();
+    final next = _compute();
+    if (!samePieces(next, pieces)) {
+      pieces = next;
+      notifyListeners();
+    }
     if (_watchers > 0) {
       _scheduleTick();
       _maybeLoad();
@@ -271,6 +280,41 @@ final class InboxSummary extends ChangeNotifier {
       bills: settings.reminders,
       now: now,
     );
+  }
+
+  /// Whether [a] and [b] show the same line (today's findings by the
+  /// very same reading).
+  static bool samePieces(List<SummaryPiece> a, List<SummaryPiece> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final same = switch ((a[i], b[i])) {
+        (final NewMailPiece x, final NewMailPiece y) =>
+          x.count == y.count && sameMessage(x.first, y.first),
+        (final CodePiece x, final CodePiece y) => sameMessage(
+          x.message,
+          y.message,
+        ),
+        (final DeliveriesPiece x, final DeliveriesPiece y) => listEquals(
+          x.deliveries,
+          y.deliveries,
+        ),
+        (final AppointmentPiece x, final AppointmentPiece y) => identical(
+          x.appointment,
+          y.appointment,
+        ),
+        (final BookingPiece x, final BookingPiece y) => identical(
+          x.booking,
+          y.booking,
+        ),
+        (final BillPiece x, final BillPiece y) => identical(
+          x.reminder,
+          y.reminder,
+        ),
+        _ => false,
+      };
+      if (!same) return false;
+    }
+    return true;
   }
 
   static bool _fresh(StoredMessage m, DateTime now) =>
@@ -370,16 +414,22 @@ final class InboxSummary extends ChangeNotifier {
     });
   }
 
+  /// Reads today's findings now, while watched (tests).
+  @visibleForTesting
+  Future<void> debugRead() => _read();
+
   Future<void> _read() async {
     if (_disposed || _watchers == 0) return;
     _loading = true;
     final now = clock();
     try {
-      final found = await find(
-        _store,
-        now,
-        monthlyRenewals: _services.settings.monthlyRenewals,
-      );
+      final monthly = _services.settings.monthlyRenewals;
+      final find = InboxSummary.find;
+      // Off the UI isolate (the finders take long on a big mailbox),
+      // unless a test put its own in.
+      final found = identical(find, findToday)
+          ? await _services.reads.run(_todayTask(now, monthly))
+          : await find(_store, now, monthlyRenewals: monthly);
       if (_disposed) return;
       _found = found;
       _foundDay = _day(now);

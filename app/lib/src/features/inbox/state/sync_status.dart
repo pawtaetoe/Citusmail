@@ -80,11 +80,24 @@ final class SyncStatusController {
     if (account != null) onReconnect?.call(account);
   }
 
+  /// As if the sync worker sent [event] (tests).
+  @visibleForTesting
+  void debugEvent(SyncEvent event) => _record(event);
+
   void _record(SyncEvent event) {
     _lastEvent[event.accountId] = event;
-    status.value = _computeStatus();
+    final next = _computeStatus();
+    // "Updated 10:42" again within the same minute: the line is the same,
+    // so the screen isn't told (it would build again for nothing).
+    if (!_sameLine(status.value, next)) status.value = next;
     onEvent?.call(event);
   }
+
+  static bool _sameLine(SyncStatus a, SyncStatus b) => switch ((a, b)) {
+    (SyncIdle(lastSynced: final x?), SyncIdle(lastSynced: final y?)) =>
+      x.difference(y).inMinutes == 0 && x.minute == y.minute,
+    _ => false,
+  };
 
   SyncStatus _computeStatus() {
     if (_lastEvent.values.any((e) => e is AccountSyncStarted)) {

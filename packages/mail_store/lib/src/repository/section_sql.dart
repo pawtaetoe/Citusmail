@@ -107,6 +107,19 @@ abstract final class SectionSql {
       "AND lower(rh.value) LIKE '%multipart/report%' "
       "AND lower(rh.value) LIKE '%disposition-notification%'))";
 
+  /// A stored Content-Type header of a report: the rows of
+  /// `message_headers` the index `message_headers_reports` holds (part of
+  /// a released migration; never change it). A query names these very
+  /// terms to read that index.
+  static const reportHeader =
+      "name = 'content-type' AND lower(value) LIKE '%multipart/report%'";
+
+  /// The ids of read receipts' messages, by their header ([readReceipt]
+  /// without the category), read from the index of report headers.
+  static const readReceiptIds =
+      'SELECT message_id FROM message_headers WHERE $reportHeader '
+      "AND lower(value) LIKE '%disposition-notification%'";
+
   /// The sections read receipts would otherwise be in (pinned or snoozed
   /// ones stay where the user put them).
   static const receiptFreeSections = {'notifications', 'screener'};

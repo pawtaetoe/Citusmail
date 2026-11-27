@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/discover/state/feature_id.dart';
 import 'package:citusmail/src/features/discover/ui/features.dart';
 import 'package:citusmail/src/features/discover/ui/whats_new.dart';
 import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
@@ -99,6 +100,14 @@ void main() {
       );
       await tester.pump();
     }
+
+    test('a feature named by several versions since shows once', () {
+      // Trips is in the notes of 0.6.3 and 0.6.4.
+      app.store.settings.write(WhatsNew.seenSetting.key, '0.6.2');
+      final pending = [for (final f in WhatsNew(app.store).pending) f.id];
+      expect(pending, contains(FeatureId.trips));
+      expect(pending.toSet().length, pending.length);
+    });
 
     testWidgets('"Show me" opens the feature; then it is gone', (tester) async {
       // The newest version's first feature leads the card.

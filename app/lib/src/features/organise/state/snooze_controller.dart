@@ -53,8 +53,7 @@ final class SnoozeController {
   /// Whether [m] can be snoozed: inbox mail with a Message-ID (what keeps
   /// it the same message on every device).
   bool canSnooze(StoredMessage m) =>
-      m.messageId != null &&
-      (_store.mailboxes.byId(m.mailboxId)?.isInbox ?? false);
+      m.messageId != null && (_actions.folderOf(m)?.isInbox ?? false);
 
   /// When [m] comes back, while it is snoozed.
   DateTime? snoozedUntil(StoredMessage m) {

@@ -9,6 +9,7 @@ import 'package:mail_view/mail_view.dart';
 
 import '../../../core/state/page_model.dart';
 import '../../../services/app_services.dart';
+import '../../../services/store_reader.dart';
 
 /// The periods the report covers.
 enum PrivacyPeriod {
@@ -76,71 +77,34 @@ final class PrivacyReportModel extends PageModel<PrivacyReports> {
   Future<PrivacyReports> fetch() async {
     final now = _now();
     DateTime since(PrivacyPeriod p) => now.subtract(Duration(days: p.days));
-    final longest = PrivacyPeriod.values.last;
-    final found = _store.messages.downloadedSince(
-      since(longest),
-      limit: maxMessages,
+    // Counting a month of mail takes a while: off the UI isolate.
+    final (found, received) = await _services.reads.run(
+      _countTask({for (final p in PrivacyPeriod.values) p: since(p)}),
     );
-    final received = {
-      for (final p in PrivacyPeriod.values)
-        p: p == longest
-            ? found.received
-            : _store.messages.downloadedSince(since(p), limit: 1).received,
-    };
+    if (isDisposed) return _none;
 
-    // What the reader would know besides each message: the account's
-    // trusted verification server and the user's domains, and whether the
-    // sender's images are always loaded.
+    // What the reader would know besides each message (the account's
+    // trusted verification server and the user's domains, and whether
+    // the sender's images are always loaded) is looked up with the
+    // message's body where the bodies are read: off the UI isolate.
     final ownDomains = {
       for (final account in _store.accounts.all())
         ?Domains.registrable(
           account.email.substring(account.email.lastIndexOf('@') + 1),
         ),
     };
-    final contexts = <AccountId, TrustContext>{};
-    TrustContext context(AccountId accountId) =>
-        contexts.putIfAbsent(accountId, () {
-          final inbox = _store.mailboxes.inbox(accountId);
-          final account = _store.accounts.byId(accountId);
-          return TrustContext(
-            trustedAuthServId: inbox == null
-                ? null
-                : AuthServIds.learn(
-                    _store.messages.firstHeaderValues(
-                      inbox.id,
-                      'authentication-results',
-                    ),
-                    serverHosts: {?account?.imap.host},
-                  ),
-            ownDomains: ownDomains,
-          );
-        });
-    final allowed = <String, bool>{};
-    bool imagesAllowed(String? address) => address == null
-        ? false
-        : allowed.putIfAbsent(
-            address.toLowerCase(),
-            () => _store.imageSenders.isAllowed(address),
-          );
-
     final messages = found.downloaded;
     final emails = <PrivacyEmail>[];
     progress = (done: 0, total: messages.length);
     notify();
     for (var start = 0; start < messages.length; start += _batch) {
       final batch = messages.skip(start).take(_batch).toList();
-      final inputs = <_Input>[];
-      final kept = <StoredMessage>[];
-      for (final m in batch) {
-        final raw = _store.messages.body(m.id);
-        if (raw == null) continue; // removed meanwhile
-        kept.add(m);
-        inputs.add((raw, context(m.accountId), imagesAllowed(m.from?.address)));
-      }
-      final results = await compute(_count, inputs);
+      final results = await _services.reads.run(
+        _batchTask([for (final m in batch) m.id], ownDomains),
+      );
       // Gone: what was counted is dropped.
       if (isDisposed) return _none;
-      for (final (i, m) in kept.indexed) {
+      for (final (i, m) in batch.indexed) {
         if (results[i] case final privacy?) {
           emails.add(
             PrivacyEmail(
@@ -177,6 +141,79 @@ final class PrivacyReportModel extends PageModel<PrivacyReports> {
     capped: <PrivacyPeriod>{},
   );
 }
+
+/// The mail received since each period's start, and the newest
+/// downloaded messages of the longest, as a [StoreTask] (it holds only
+/// the dates).
+StoreTask<
+  (({int received, List<StoredMessage> downloaded}), Map<PrivacyPeriod, int>)
+>
+_countTask(Map<PrivacyPeriod, DateTime> since) => (store) {
+  final longest = PrivacyPeriod.values.last;
+  final found = store.messages.downloadedSince(
+    since[longest]!,
+    limit: PrivacyReportModel.maxMessages,
+  );
+  return (
+    found,
+    {
+      for (final p in PrivacyPeriod.values)
+        p: p == longest
+            ? found.received
+            : store.messages.downloadedSince(since[p]!, limit: 1).received,
+    },
+  );
+};
+
+/// What [ids] keep from their senders (null for one that is gone or
+/// couldn't be read), as a [StoreTask]: their bodies and what the reader
+/// would know besides are read from the store it runs with, then counted
+/// off the store's isolate.
+StoreTask<List<MessagePrivacy?>> _batchTask(
+  List<MessageId> ids,
+  Set<String> ownDomains,
+) => (store) async {
+  final contexts = <AccountId, TrustContext>{};
+  TrustContext context(AccountId accountId) =>
+      contexts.putIfAbsent(accountId, () {
+        final inbox = store.mailboxes.inbox(accountId);
+        final account = store.accounts.byId(accountId);
+        return TrustContext(
+          trustedAuthServId: inbox == null
+              ? null
+              : AuthServIds.learn(
+                  store.messages.firstHeaderValues(
+                    inbox.id,
+                    'authentication-results',
+                  ),
+                  serverHosts: {?account?.imap.host},
+                ),
+          ownDomains: ownDomains,
+        );
+      });
+  final allowed = <String, bool>{};
+  bool imagesAllowed(String? address) => address == null
+      ? false
+      : allowed.putIfAbsent(
+          address.toLowerCase(),
+          () => store.imageSenders.isAllowed(address),
+        );
+  final inputs = <_Input>[];
+  final kept = <int>[];
+  for (final (i, id) in ids.indexed) {
+    final m = store.messages.byId(id);
+    final raw = m == null ? null : store.messages.body(id);
+    if (m == null || raw == null) continue; // removed meanwhile
+    kept.add(i);
+    inputs.add((raw, context(m.accountId), imagesAllowed(m.from?.address)));
+  }
+  final counted = await compute(_count, inputs);
+  final results = List<MessagePrivacy?>.filled(ids.length, null);
+  for (final (j, i) in kept.indexed) {
+    results[i] = counted[j];
+  }
+  return results;
+};
 
 typedef _Input = (Uint8List raw, TrustContext context, bool imagesAllowed);
 
