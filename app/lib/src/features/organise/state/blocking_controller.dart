@@ -35,7 +35,6 @@ final class BlockChoice {
 final class BlockingController {
   BlockingController(
     this._store,
-    this._mailActions,
     this._actions,
     this._reader, {
     required this._notify,
@@ -43,8 +42,6 @@ final class BlockingController {
 
   final MailStore _store;
 
-  /// Moves mail, local first and queued for the server.
-  final MailActions _mailActions;
   final MessageActions _actions;
   final ReaderController _reader;
   final ShowNotice _notify;
@@ -120,10 +117,10 @@ final class BlockingController {
         byAccount.putIfAbsent(m.accountId, () => []).add(m);
       }
     }
-    final moves = [
+    final moves = <Removal>[
       for (final MapEntry(key: accountId, value: messages) in byAccount.entries)
         if (SenderBlocker.destination(_store, accountId) case final target?)
-          () => _mailActions.move(messages, target),
+          (messages: messages, target: target),
     ];
     if (moves.isEmpty) {
       _reader.refreshOpen();
@@ -135,6 +132,7 @@ final class BlockingController {
       moves,
       'Blocked $name. Moved $count to Junk.',
       alsoUndo: unblock,
+      doing: 'Moving to Junk',
     );
   }
 

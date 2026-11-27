@@ -146,14 +146,12 @@ final class Controllers {
   );
   late final BlockingController blocking = BlockingController(
     store,
-    app.services.actions,
     actions,
     reader,
     notify: notify,
   );
   late final ScreenerController screener = ScreenerController(
     store,
-    app.services.actions,
     actions,
     refresh: refresh,
     notify: notify,
