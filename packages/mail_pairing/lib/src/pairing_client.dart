@@ -169,7 +169,9 @@ final class PairingConnection {
         PairingMessage.results,
         await _channel.next(timeout),
       );
-      if (answer is! List) throw const PairingFormatException('bad results');
+      if (answer is! List || answer.length > AccountTransfer.maxAccounts) {
+        throw const PairingFormatException('bad results');
+      }
       return [for (final r in answer) TransferResult.fromJson(r)];
     } on PairingFormatException {
       throw const PairingException(PairingProblem.connectionLost);

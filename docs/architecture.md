@@ -23,7 +23,8 @@ app/lib/src/
     widgets/      small shared widgets (avatar, badge, empty state, page
                   scaffold, confirm dialogs, …)
     text/         wording shared across features (mail_text)
-    state/        shared state types (LoadState, base view models)
+    state/        shared state types (LoadState, base view models) and
+                  the validation toolkit (validation.dart)
   services/       app-wide services: settings, notifications, the AI
                   assistant, device sync, secrets (data layer)
   features/
@@ -147,7 +148,8 @@ a widget (`app/test/support/controllers.dart` wires them by hand).
   outside (addresses, host names and ports, URLs, numbers, folder names,
   pairing and import files, mailto links, AI answers) goes through a
   validator that returns a typed value or a reason, before the rest of
-  the code sees it. Inside, values are trusted.
+  the code sees it. Inside, values are trusted. See
+  [Validation at the edges](#validation-at-the-edges).
 - **Shared behaviour in base classes, not copies.** Inheritance only where
   the "is a" holds; otherwise composition. The bases:
   - `LoadState<T>` (`core/state/load_state.dart`): sealed `Loading`,
@@ -188,3 +190,69 @@ a widget (`app/test/support/controllers.dart` wires them by hand).
   code in the facade.
 - **No behaviour change in a move.** Moving and renaming land on their
   own, with the full test suite passing, before any logic changes.
+
+## Validation at the edges
+
+The toolkit is `app/lib/src/core/state/validation.dart` (no widgets). A
+check gives a sealed `Validated<T>`: `Valid(value)` or `Invalid(reason)`,
+where the reason is a short sentence for the user ("Enter a port
+number"). Validators are small classes called like functions, and
+`.field` adapts one to a form field's `validator:`:
+
+| Validator | Gives | Rules |
+| --- | --- | --- |
+| `TextInput` | `String` | trimmed, one line unless `multiline`, no control characters, at most `maxLength` |
+| `WholeNumber`, `Port` | `int` | plain digits in a range (1 to 65535) |
+| `Amount` | `double` | `5`, `0.25`, `0,25`, `$5`; never NaN, infinite or an exponent |
+| `EmailAddress` | `MailAddress` | the mail parser (`AddressParser`), and with `sendable` the message builder's own check (`HeaderEncoder.validateAddress`) |
+| `HostName` | `String` | ASCII letters, digits and hyphens in two or more parts, lower case |
+| `WebAddress` | `Uri` | https, or http to a host that may be on the user's network; no other scheme, no user name in it |
+| `FolderName` | `String` | the sync layer's rules (`FolderNames.problemWith`) |
+| `SearchText`, `ApiKey`, `ModelId`, `MatchingText` | `String` | lengths, no spaces or control characters, a known shape |
+
+Where a package already checks something correctly, the validator calls
+it rather than repeating it (the address parser, the message builder,
+`AccountDiscovery.supportsAddress`, `FolderNames.problemWith`,
+`OAuthRegistration.problemFor`, `PublicAddressPolicy`). A feature's own
+combinations live in its `state/`: `AccountFields` (setup and pairing),
+`ComposeFields` and `MailtoLink` (compose).
+
+In a form, the reason shows under the field as it is typed (nothing
+while a field is still empty), Save stays off until every field is
+valid, and the checked value, not the raw text, goes on to controllers
+and services. What is already stored is never checked again in a way
+that loses it: a stored value that can't be read reads as its default
+and stays as it is until the next write.
+
+The edges:
+
+- **Account setup** (`features/accounts`): the address, the name, the
+  server names, ports and user name (`AccountFields`), the password (not
+  empty, otherwise taken as typed), the own OAuth client ID
+  (`OAuthRegistration.problemFor`).
+- **Pairing and import** (`mail_pairing`, `account_import.dart`): the
+  transfer's reader bounds every text, count and port (`TransferLimits`);
+  the computer then checks each account with `AccountFields` before
+  signing in to anything. Files are size-checked before they are read.
+- **Compose**: typed and pasted recipients (`RecipientList.check`: the
+  parser, then the builder's check, at most 500), the subject (one line),
+  picked files (size before reading, a clean name). Headers are also
+  made safe by the message builder itself.
+- **Links**: `mailto:` (`MailtoLink.parse`), notification payloads and
+  Copy code ids (`MailNotices.messageIdOf`, `CopyCodeAction.parse`),
+  command bar ids (`CommandId.parse`), OAuth redirects (state and
+  address checked by `mail_oauth`), pairing QR codes
+  (`PairingOffer.decode`).
+- **Folders**: new folder names (`FolderName`); folder rule values are
+  checked by the store.
+- **Search**: the search field and the command bar (`SearchText`).
+- **AI settings**: keys (`ApiKey`), the custom endpoint (`WebAddress`),
+  model names (`ModelId`), the monthly limit and prices (`Amount`; the
+  ledger also refuses a limit that isn't finite). Per-sync counts and
+  other numbers in Settings are chosen from lists; their stored values are
+  read within range (`IntSetting`).
+- **Other settings**: sign-offs (`TextInput`), the VirusTotal and Safe
+  Browsing keys (`MatchingText`, shared with the services), the sync
+  code (`SyncCode.parse`).
+- **Stored settings**: every `Setting<T>` decoder reads a value it can't
+  use as its default, never throws.

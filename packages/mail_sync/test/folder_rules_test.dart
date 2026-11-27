@@ -249,6 +249,50 @@ void main() {
         );
       }
     });
+
+    test('each unusable name has its reason', () {
+      final cpanel = layout([
+        folder('INBOX', delimiter: '.'),
+        folder('INBOX.Sent', delimiter: '.'),
+      ]);
+      FolderNameProblem? problem(String name) =>
+          FolderNames.problemWith(cpanel, name);
+      expect(problem('Receipts'), isNull);
+      expect(problem('Projects/2026'), isNull);
+      expect(problem('Café & co'), isNull);
+      expect(problem(''), FolderNameProblem.empty);
+      expect(problem('a/ /b'), FolderNameProblem.empty);
+      expect(problem('x' * 101), FolderNameProblem.tooLong);
+      expect(problem(List.filled(30, 'abcdefghi').join('/')), isNotNull);
+      expect(problem('line\r\nbreak'), FolderNameProblem.invalidCharacter);
+      expect(problem('next\u0085line'), FolderNameProblem.invalidCharacter);
+      expect(problem('quo"te'), FolderNameProblem.invalidCharacter);
+      expect(problem(r'back\slash'), FolderNameProblem.invalidCharacter);
+      expect(problem('INBOX'), FolderNameProblem.reserved);
+      expect(problem('a/..'), FolderNameProblem.reserved);
+      expect(problem('with.dot'), FolderNameProblem.separator);
+      expect(FolderNames.separatorOf(cpanel), '.');
+      expect(
+        () => FolderNames.newFolder(cpanel, 'with.dot'),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            contains('separator "."'),
+          ),
+        ),
+      );
+      expect(
+        () => FolderNames.newFolder(cpanel, 'inbox'),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            contains('INBOX'),
+          ),
+        ),
+      );
+    });
   });
 
   test('a pass looks only at mail that arrived since the last one', () {

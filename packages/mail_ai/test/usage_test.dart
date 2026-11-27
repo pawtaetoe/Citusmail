@@ -151,6 +151,17 @@ void main() {
       expect(store.values.containsKey('ai.cap'), isFalse);
     });
 
+    test('a limit that is not a finite amount is refused', () {
+      // NaN is never reached: as a limit it would mean no limit at all.
+      for (final bad in [double.nan, double.infinity]) {
+        expect(() => ledger.monthlyCap = bad, throwsArgumentError);
+      }
+      expect(store.values.containsKey('ai.cap'), isFalse);
+      // One stored by an older version reads as no limit, as it did.
+      store.values['ai.cap'] = 'NaN';
+      expect(ledger.monthlyCap, isNull);
+    });
+
     test('calls to models without a price do not count to the limit', () {
       ledger.monthlyCap = 0.01;
       ledger.record(

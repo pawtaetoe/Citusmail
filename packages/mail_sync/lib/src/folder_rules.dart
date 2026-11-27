@@ -235,32 +235,94 @@ abstract final class RuleMatcher {
   }
 }
 
+/// Why a name can't be a new folder ([FolderNames.problemWith]).
+enum FolderNameProblem {
+  /// Nothing, or nothing between two "/".
+  empty,
+
+  /// A part longer than [FolderNames.maxPartLength], or the whole name
+  /// longer than [FolderNames.maxLength].
+  tooLong,
+
+  /// Control characters, or `%`, `*`, `"` or a backslash (IMAP wildcards
+  /// and quoting).
+  invalidCharacter,
+
+  /// The server's folder separator inside a part
+  /// ([FolderNames.separatorOf]).
+  separator,
+
+  /// INBOX (it always exists), or a part that is "." or "..".
+  reserved,
+}
+
 /// Makes the server name for a new folder the user named, following the
 /// account's layout: the folder separator, and the "INBOX." prefix that
 /// cPanel-style servers require for every folder.
 abstract final class FolderNames {
-  /// The encoded name for [name] ("Projects/2026" makes a subfolder), or
-  /// throws [ArgumentError] if it cannot be a folder name.
-  static String newFolder(List<StoredMailbox> existing, String name) {
+  /// The longest part between two "/".
+  static const maxPartLength = 100;
+
+  /// The longest whole name, as typed.
+  static const maxLength = 250;
+
+  static final _invalid = RegExp(r'[\x00-\x1F\x7F-\x9F%*"\\]');
+
+  /// The folder separator of an account with [existing] folders.
+  static String separatorOf(List<StoredMailbox> existing) =>
+      existing.where((m) => m.isInbox).firstOrNull?.delimiter ??
+      existing.map((m) => m.delimiter).nonNulls.firstOrNull ??
+      '/';
+
+  /// Why [name] can't be a new folder of an account with [existing]
+  /// folders, or null if it can.
+  static FolderNameProblem? problemWith(
+    List<StoredMailbox> existing,
+    String name,
+  ) {
     final parts = name.split('/').map((p) => p.trim()).toList();
-    if (parts.any((p) => p.isEmpty || p.length > 100) ||
-        parts.any((p) => p.contains(RegExp(r'[\x00-\x1F\x7F%*"\\]')))) {
-      throw ArgumentError.value(name, 'name', 'not a usable folder name');
+    if (parts.any((p) => p.isEmpty)) return FolderNameProblem.empty;
+    if (name.length > maxLength || parts.any((p) => p.length > maxPartLength)) {
+      return FolderNameProblem.tooLong;
     }
-    if (parts.length == 1 && parts.single.toUpperCase() == 'INBOX') {
-      throw ArgumentError.value(name, 'name', 'INBOX already exists');
+    if (parts.any(_invalid.hasMatch)) {
+      return FolderNameProblem.invalidCharacter;
     }
-    final inbox = existing.where((m) => m.isInbox).firstOrNull;
-    final delimiter =
-        inbox?.delimiter ??
-        existing.map((m) => m.delimiter).nonNulls.firstOrNull ??
-        '/';
+    if ((parts.length == 1 && parts.single.toUpperCase() == 'INBOX') ||
+        parts.any((p) => p == '.' || p == '..')) {
+      return FolderNameProblem.reserved;
+    }
+    final delimiter = separatorOf(existing);
     if (parts.any((p) => p.contains(delimiter))) {
-      throw ArgumentError.value(
-        name,
-        'name',
-        'contains the folder separator "$delimiter"',
-      );
+      return FolderNameProblem.separator;
+    }
+    return null;
+  }
+
+  /// The encoded name for [name] ("Projects/2026" makes a subfolder), or
+  /// throws [ArgumentError] if it cannot be a folder name
+  /// ([problemWith]).
+  static String newFolder(List<StoredMailbox> existing, String name) {
+    final delimiter = separatorOf(existing);
+    final parts = name.split('/').map((p) => p.trim()).toList();
+    switch (problemWith(existing, name)) {
+      case null:
+        break;
+      case FolderNameProblem.separator:
+        throw ArgumentError.value(
+          name,
+          'name',
+          'contains the folder separator "$delimiter"',
+        );
+      case FolderNameProblem.reserved
+          when parts.length == 1 && parts.single.toUpperCase() == 'INBOX':
+        throw ArgumentError.value(name, 'name', 'INBOX already exists');
+      case final problem:
+        throw ArgumentError.value(
+          name,
+          'name',
+          'not a usable folder name (${problem.name})',
+        );
     }
     // Everything already lives under INBOX: new folders must too.
     final others = existing.where((m) => !m.isInbox).toList();

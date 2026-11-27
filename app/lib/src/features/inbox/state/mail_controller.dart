@@ -6,16 +6,17 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:mail_compose/mail_compose.dart';
-import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_sync/mail_sync.dart';
 import 'package:mail_unsubscribe/mail_unsubscribe.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../../../background/background_mail.dart';
+import '../../../core/state/validation.dart';
 import '../../../services/app_services.dart';
 import '../../accounts/state/account_order.dart';
 import '../../accounts/state/own_addresses.dart';
+import '../../compose/state/compose_fields.dart';
 import '../../compose/state/compose_starter.dart';
 import '../../compose/state/outbox_controller.dart';
 import '../../organise/state/blocking_controller.dart';
@@ -645,16 +646,14 @@ final class MailController {
     final accountId =
         selected?.accountId ?? _store.accounts.all().firstOrNull?.id;
     if (accountId == null) return;
-    final parsed = const AddressParser().parse(
-      Uri.decodeComponent(mailto.path),
-    );
-    onCompose?.call(
-      Draft(
-        accountId: accountId,
-        to: parsed.mailboxes,
-        subject: mailto.queryParameters['subject'] ?? '',
-      ),
-    );
+    switch (MailtoLink.parse(mailto)) {
+      case Valid(value: final link):
+        onCompose?.call(
+          Draft(accountId: accountId, to: link.to, subject: link.subject),
+        );
+      case Invalid(:final reason):
+        onNotice?.call(reason);
+    }
   }
 
   void reply(ReaderReady r) => composeStarter.reply(r);

@@ -272,9 +272,12 @@ abstract final class MailNotices {
 
   /// The message id in a tapped notification's payload.
   static int? messageIdOf(String? payload) {
-    if (payload == null || !payload.startsWith('message:')) return null;
-    return int.tryParse(payload.substring('message:'.length));
+    final match = _messagePayload.firstMatch(payload ?? '');
+    return match == null ? null : int.parse(match[1]!);
   }
+
+  /// A payload comes back from the system: only plain digits are read.
+  static final _messagePayload = RegExp(r'^message:([0-9]{1,15})$');
 }
 
 /// The Copy code button: copies the code without opening the app, and
@@ -291,15 +294,14 @@ abstract final class CopyCodeAction {
 
   /// The message and code of a Copy code button, or null for anything else.
   static ({int messageId, String code})? parse(String? id) {
-    if (id == null || !id.startsWith('copy:')) return null;
-    final rest = id.substring('copy:'.length);
-    final colon = rest.indexOf(':');
-    if (colon <= 0) return null;
-    final messageId = int.tryParse(rest.substring(0, colon));
-    final code = rest.substring(colon + 1);
-    if (messageId == null || code.isEmpty) return null;
-    return (messageId: messageId, code: code);
+    final match = _action.firstMatch(id ?? '');
+    if (match == null) return null;
+    return (messageId: int.parse(match[1]!), code: match[2]!);
   }
+
+  /// An action id comes back from the system: plain digits, then a short
+  /// code of printable characters (nothing else reaches the clipboard).
+  static final _action = RegExp(r'^copy:([0-9]{1,15}):([\x20-\x7E]{1,64})$');
 
   /// Handles a notification response if it is a Copy code button: copies
   /// the code with [copy] and removes that message's notification with

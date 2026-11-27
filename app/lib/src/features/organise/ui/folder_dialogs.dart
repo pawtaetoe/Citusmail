@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../../../core/state/validation.dart';
 import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../inbox/state/mail_controller.dart';
@@ -33,8 +34,21 @@ final class _NewFolder extends StatefulWidget {
 
 final class _NewFolderState extends State<_NewFolder> {
   final _name = TextEditingController();
+
+  /// What the server said, until the name changes.
   String? _error;
   bool _busy = false;
+
+  /// The account's folders: the name follows their separator.
+  late final _rule = FolderName(
+    widget.controller.services.store.mailboxes.forAccount(widget.accountId),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _name.addListener(() => setState(() => _error = null));
+  }
 
   @override
   void dispose() {
@@ -42,15 +56,17 @@ final class _NewFolderState extends State<_NewFolder> {
     super.dispose();
   }
 
+  /// The name as typed, checked.
+  Validated<String> get _checked => _rule(_name.text);
+
   Future<void> _create() async {
+    final name = _checked.valueOrNull;
+    if (name == null || _busy) return;
     setState(() {
       _busy = true;
       _error = null;
     });
-    final error = await widget.controller.createFolder(
-      widget.accountId,
-      _name.text,
-    );
+    final error = await widget.controller.createFolder(widget.accountId, name);
     if (!mounted) return;
     if (error == null) {
       Navigator.pop(context);
@@ -73,7 +89,9 @@ final class _NewFolderState extends State<_NewFolder> {
       decoration: InputDecoration(
         labelText: 'Name',
         helperText: 'Use / for a folder inside another, like Projects/2026.',
-        errorText: _error,
+        // Nothing typed yet is not a mistake yet.
+        errorText: _error ?? (_name.text.isEmpty ? null : _checked.reason),
+        errorMaxLines: 2,
       ),
     ),
     actions: [
@@ -82,7 +100,7 @@ final class _NewFolderState extends State<_NewFolder> {
         child: const Text('Cancel'),
       ),
       FilledButton(
-        onPressed: _busy ? null : _create,
+        onPressed: _busy || !_checked.isValid ? null : _create,
         child: _busy
             ? const SizedBox.square(
                 dimension: 16,

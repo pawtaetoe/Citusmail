@@ -475,6 +475,27 @@ void main() {
       expect(CopyCodeAction.parse(null), isNull);
     });
 
+    test('a payload from outside is read strictly', () {
+      // Only plain digits for the message.
+      for (final bad in [
+        'message:-4',
+        'message:+4',
+        'message:0x10',
+        'message: 4',
+      ]) {
+        expect(MailNotices.messageIdOf(bad), isNull, reason: bad);
+      }
+      expect(MailNotices.messageIdOf('message:${'9' * 30}'), isNull);
+      expect(CopyCodeAction.parse('copy:-4:123456'), isNull);
+      expect(CopyCodeAction.parse('copy:0x2A:123456'), isNull);
+      // A code is short and one line: nothing else goes to the clipboard.
+      expect(CopyCodeAction.parse('copy:42:${'1' * 65}'), isNull);
+      expect(CopyCodeAction.parse('copy:42:123\nrm -rf ~'), isNull);
+      expect(CopyCodeAction.parse('copy:42:12\u000034'), isNull);
+      expect(CopyCodeAction.parse('copy:42:${'1' * 64}')?.code, '1' * 64);
+      expect(CopyCodeAction.parse('copy:42:123 456')?.code, '123 456');
+    });
+
     test('copies the code and dismisses that message only', () async {
       final copied = <String>[];
       final dismissed = <int>[];

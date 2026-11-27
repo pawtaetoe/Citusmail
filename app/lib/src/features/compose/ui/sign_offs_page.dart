@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
+import '../../../core/state/validation.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -62,6 +63,23 @@ final class _SignOffEditorState extends State<SignOffEditor> {
   late bool _separator = widget.initial?.separator ?? false;
   bool _save = true;
 
+  /// A sign-off's name: short, one line, may be left empty.
+  static const _nameRule = TextInput(maxLength: 60);
+
+  /// Its text: plain text on a few lines, its indent kept.
+  static const _textRule = TextInput(
+    empty: 'Write the sign-off.',
+    maxLength: 2000,
+    multiline: true,
+    keepIndent: true,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _name.addListener(() => setState(() {}));
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -69,13 +87,17 @@ final class _SignOffEditorState extends State<SignOffEditor> {
     super.dispose();
   }
 
-  bool get _ready => _text.text.trim().isNotEmpty;
+  Validated<String> get _checkedName => _nameRule(_name.text);
+  Validated<String> get _checkedText => _textRule(_text.text);
+
+  bool get _ready => _checkedName.isValid && _checkedText.isValid;
 
   void _done() {
-    if (!_ready) return;
+    final (name, text) = (_checkedName.valueOrNull, _checkedText.valueOrNull);
+    if (name == null || text == null) return;
     Navigator.pop<WrittenSignOff>(context, (
-      name: _name.text.trim(),
-      text: _text.text.trimRight(),
+      name: name,
+      text: text,
       separator: _separator,
       save: _save,
     ));
@@ -100,9 +122,10 @@ final class _SignOffEditorState extends State<SignOffEditor> {
                 controller: _name,
                 autofocus: !editing,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Name',
                   hintText: 'Work, Casual…',
+                  errorText: _checkedName.reason,
                 ),
               ),
               const SizedBox(height: CitusSpace.m),
@@ -116,10 +139,15 @@ final class _SignOffEditorState extends State<SignOffEditor> {
               keyboardType: TextInputType.multiline,
               textCapitalization: TextCapitalization.sentences,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Sign-off',
                 hintText: 'Best regards,\nYour name',
                 helperText: 'Plain text, like a signature',
+                // An empty one only turns Add off: nothing typed yet is
+                // not a mistake.
+                errorText: _text.text.trim().isEmpty
+                    ? null
+                    : _checkedText.reason,
                 alignLabelWithHint: true,
               ),
             ),

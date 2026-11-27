@@ -245,6 +245,17 @@ void main() {
       settings().write('test.at', 'soon');
       expect(at.read(settings()), isNull);
     });
+
+    test('a moment out of range reads as null instead of throwing', () {
+      // DateTime ends 8.64e15 ms either side of 1970; a damaged or synced
+      // value beyond that used to throw a RangeError.
+      settings().write('test.at', '9000000000000000');
+      expect(at.read(settings()), isNull);
+      settings().write('test.at', '-9000000000000000');
+      expect(at.readOrNull(settings()), isNull);
+      settings().write('test.at', '8640000000000000');
+      expect(at.read(settings()), isNotNull);
+    });
   });
 
   group('StringListSetting', () {

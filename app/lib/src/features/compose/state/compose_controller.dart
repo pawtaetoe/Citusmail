@@ -13,9 +13,11 @@ import 'package:mail_sync/mail_sync.dart';
 import 'package:mail_view/mail_view.dart';
 
 import '../../../background/background_mail.dart';
+import '../../../core/state/validation.dart';
 import '../../../services/app_services.dart';
 import '../../organise/state/follow_up_times.dart';
 import 'address_book.dart';
+import 'compose_fields.dart';
 import 'send_later_times.dart';
 import 'writing_help.dart';
 import 'writing_hints.dart';
@@ -34,9 +36,13 @@ final class RecipientList extends ChangeNotifier {
   /// Text that could not be read as an address, shown as an error.
   String? invalid;
 
+  /// Why [invalid] can't be used, in words for the user.
+  String? problem;
+
   set pending(String text) {
     _pending = text;
     invalid = null;
+    problem = null;
   }
 
   void add(MailAddress address) {
@@ -70,23 +76,51 @@ final class RecipientList extends ChangeNotifier {
   }
 
   /// Turns typed text into addresses (`Bob <bob@x.example>, carol@y`).
-  /// Returns false (and keeps the text) if some of it is not an address.
+  /// Returns false (and keeps the text, with the [problem]) if some of it
+  /// is not an address mail can be sent to.
   bool commit() {
     final text = _pending.trim();
     if (text.isEmpty) return true;
-    final found = addressesIn(text);
-    if (found == null) {
-      invalid = text;
-      notifyListeners();
-      return false;
-    }
-    for (final address in found) {
-      add(address);
+    switch (check(text, already: _addresses.length)) {
+      case Invalid(:final reason):
+        invalid = text;
+        problem = reason;
+        notifyListeners();
+        return false;
+      case Valid(value: final found):
+        for (final address in found) {
+          add(address);
+        }
     }
     _pending = '';
     invalid = null;
+    problem = null;
     notifyListeners();
     return true;
+  }
+
+  /// The addresses in typed or pasted [text] ([addressesIn]), each one
+  /// mail can be sent to ([EmailAddress.sendProblem]), at most
+  /// [ComposeFields.maxRecipients] with the [already] there; or why not.
+  static Validated<List<MailAddress>> check(String text, {int already = 0}) {
+    if (text.length > ComposeFields.maxPastedLength) {
+      return const Invalid('That is more text than a list of addresses.');
+    }
+    final found = addressesIn(text);
+    if (found == null) return const Invalid('Not an email address');
+    if (already + found.length > ComposeFields.maxRecipients) {
+      return const Invalid(
+        'At most ${ComposeFields.maxRecipients} addresses in one field.',
+      );
+    }
+    for (final address in found) {
+      if (EmailAddress.sendProblem(address) case final problem?) {
+        return Invalid(
+          found.length == 1 ? problem : '${address.address}: $problem',
+        );
+      }
+    }
+    return Valid(found);
   }
 
   /// The addresses in typed or pasted [text], separated by commas or
@@ -314,7 +348,9 @@ final class ComposeController extends ChangeNotifier {
     );
   }
 
-  void setSubject(String subject) => _update(_draft.copyWith(subject: subject));
+  /// The subject stays one line, whatever is pasted into it.
+  void setSubject(String subject) =>
+      _update(_draft.copyWith(subject: ComposeFields.subject(subject)));
 
   /// "Remind me if no reply": when, or null for no reminder.
   FollowUpPick? get followUp => _followUp;

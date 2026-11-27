@@ -7,9 +7,11 @@
 
 import 'dart:async';
 
+import 'package:citusmail/src/core/state/validation.dart';
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
 import 'package:citusmail/src/features/inbox/state/mail_location.dart';
 import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
+import 'package:citusmail/src/features/inbox/ui/message_list_pane.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -111,6 +113,22 @@ void main() {
     expect(
       const SearchLocation('parcle', exact: true),
       isNot(const SearchLocation('parcle')),
+    );
+  });
+
+  testWidgets('pasted text is searched as one line, at most 200 characters', (
+    tester,
+  ) async {
+    await show(tester);
+    await search(tester, 'parcel\r\u0000update');
+    final controller = tester
+        .widget<MessageListPane>(find.byType(MessageListPane))
+        .controller;
+    expect(controller.location.value, const SearchLocation('parcel  update'));
+    await search(tester, 'x' * 5000);
+    expect(
+      (controller.location.value as SearchLocation).text,
+      hasLength(SearchText.defaultMaxLength),
     );
   });
 }

@@ -119,7 +119,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('New folder'));
     await tester.pumpAndSettle();
+    FilledButton create() => tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Create'),
+    );
+    expect(create().onPressed, isNull, reason: 'no name yet');
     await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Receipts');
+    await tester.pump();
     await tester.tap(find.text('Create'));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 500)),
@@ -130,13 +135,52 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.enterText(find.widgetWithText(TextField, 'Name'), 'star*');
+    // Names the server would refuse are pointed out as they are typed,
+    // and Create stays off.
+    for (final (name, reason) in [
+      ('star*', 'Folder names can\'t contain %, *, ", \\ or line breaks.'),
+      ('Inbox', 'Inbox already exists.'),
+      ('a//b', 'Give each folder between two / a name.'),
+      ('x' * 101, 'Use at most 100 characters for each folder.'),
+      (
+        'Line\rbreak',
+        'Folder names can\'t contain %, *, ", \\ or line breaks.',
+      ),
+    ]) {
+      await tester.enterText(find.widgetWithText(TextField, 'Name'), name);
+      await tester.pumpAndSettle();
+      expect(find.text(reason), findsOneWidget, reason: name);
+      expect(create().onPressed, isNull, reason: name);
+    }
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a good name with spaces around it goes on to the server', (
+    tester,
+  ) async {
+    await show(tester);
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New folder'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Name'),
+      '  Trips / 2026  ',
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('can\'t'), findsNothing);
     await tester.tap(find.text('Create'));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 500)),
     );
     await tester.pump();
-    expect(find.text('That can\'t be a folder name.'), findsOneWidget);
+    // Offline in tests: the server is never reached, but the name was
+    // accepted here.
+    expect(
+      find.text('Folders can only be created while online.'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
   });
