@@ -21,7 +21,12 @@ const appVersion = '0.6.3';
 const releaseNotes = <({String version, List<FeatureId> features})>[
   (
     version: '0.6.3',
-    features: [FeatureId.trips, FeatureId.subscriptions, FeatureId.pins],
+    features: [
+      FeatureId.trips,
+      FeatureId.subscriptions,
+      FeatureId.pins,
+      FeatureId.cleanUp,
+    ],
   ),
   (
     version: '0.6.2',
