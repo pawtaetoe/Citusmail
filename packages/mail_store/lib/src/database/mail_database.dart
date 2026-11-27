@@ -29,6 +29,12 @@ final class MailDatabase {
   int _savepointDepth = 0;
   bool _closed = false;
 
+  /// Statements run on this connection so far (queries and writes; a
+  /// batch of [executeMany] counts once per row). For tests and
+  /// measurements that check how much work a screen does.
+  int get statementCount => _statements;
+  int _statements = 0;
+
   /// The plain-SQLite file signature; an encrypted file must never start
   /// with it.
   static const _plainHeader = 'SQLite format 3\u0000';
@@ -112,12 +118,14 @@ final class MailDatabase {
   /// never spliced into SQL text.
   void execute(String sql, [List<Object?> parameters = const []]) {
     _checkOpen();
+    _statements++;
     _db.execute(sql, parameters);
   }
 
   /// Runs a query with bound parameters.
   ResultSet select(String sql, [List<Object?> parameters = const []]) {
     _checkOpen();
+    _statements++;
     return _db.select(sql, parameters);
   }
 
@@ -127,6 +135,7 @@ final class MailDatabase {
     final statement = _db.prepare(sql);
     try {
       for (final row in rows) {
+        _statements++;
         statement.execute(row);
       }
     } finally {
