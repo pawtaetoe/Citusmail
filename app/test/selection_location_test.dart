@@ -71,6 +71,27 @@ void main() {
       expect(selection.selecting, isFalse);
     });
 
+    test('Shift-click ranges from the message clicked last', () {
+      final visible = list.visible;
+      selection.toggle(visible[3]);
+      selection.toggle(visible[0]);
+      // From visible[0] (clicked last), not visible[3] (lowest selected).
+      selection.selectRange(visible[1]);
+      expect(selection.selection.value, {
+        visible[0].id,
+        visible[1].id,
+        visible[3].id,
+      });
+      // Unselecting the anchor falls back to the lowest selected message.
+      selection.toggle(visible[1]);
+      selection.selectRange(visible[4]);
+      expect(selection.selection.value, {
+        visible[0].id,
+        visible[3].id,
+        visible[4].id,
+      });
+    });
+
     test('a range with nothing selected picks just the one', () {
       final visible = list.visible;
       selection.selectRange(visible[2]);
@@ -120,10 +141,11 @@ void main() {
       expect(location.location.value, const InboxLocation());
     });
 
-    test('loading more offline keeps the list', () async {
+    test('loading more offline keeps the list and tries again', () async {
       await location.loadMore();
       expect(list.loadingOlder, isFalse);
       expect(list.visible.length, 5);
+      expect(list.reachedEnd, isFalse, reason: 'offline is not the end');
     });
 
     test('a search has no older mail to fetch', () async {
