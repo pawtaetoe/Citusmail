@@ -14,9 +14,10 @@ import 'package:mail_view/mail_view.dart';
 
 import '../../../background/background_mail.dart';
 import '../../../services/app_services.dart';
+import '../../accounts/state/account_order.dart';
 import '../../accounts/state/own_addresses.dart';
 import '../../compose/state/compose_starter.dart';
-import '../../compose/state/send_later_times.dart';
+import '../../compose/state/outbox_controller.dart';
 import '../../organise/state/blocking_controller.dart';
 import '../../organise/state/folder_controller.dart';
 import '../../organise/state/follow_up_controller.dart';
@@ -26,6 +27,7 @@ import '../../organise/state/snooze_controller.dart';
 import '../../organise/state/unsubscribe_controller.dart';
 import '../../organise/state/wake_timer.dart';
 import '../../reader/state/invitation_answers.dart';
+import '../../reader/state/invitation_controller.dart';
 import '../../reader/state/reader_controller.dart';
 import '../../reader/state/reader_state.dart';
 import 'away_controller.dart';
@@ -154,6 +156,19 @@ final class MailController {
       refresh: refresh,
       notify: _notify,
     );
+    accountOrder = AccountOrder(_store);
+    invitationController = InvitationController(
+      services,
+      refresh: refresh,
+      notify: _notify,
+    );
+    outboxController = OutboxController(
+      services,
+      followUps,
+      composeStarter,
+      refresh: refresh,
+      notify: _notify,
+    );
     syncStatus.onEvent = _onSyncEvent;
     // Stored mail sorted again after start-up: sections change.
     services.resorted.addListener(refresh);
@@ -217,6 +232,15 @@ final class MailController {
 
   /// The Screener's first-time senders.
   late final ScreenerController screenerController;
+
+  /// The accounts' order.
+  late final AccountOrder accountOrder;
+
+  /// Answering calendar invitations.
+  late final InvitationController invitationController;
+
+  /// Failed and scheduled sends.
+  late final OutboxController outboxController;
 
   /// Messages picked for a bulk action.
   late final SelectionController selectionController;
@@ -508,33 +532,27 @@ final class MailController {
   // ------------------------------------------------------------ accounts
 
   /// Changes when the accounts' order changes, so the sidebar follows.
-  final accountsChanged = ValueNotifier<int>(0);
+  ValueNotifier<int> get accountsChanged => accountOrder.changed;
 
   /// Puts the accounts in the order of [ids]: the sidebar, the From
   /// choice and new messages (from the top account) follow it.
-  void reorderAccounts(List<int> ids) {
-    _store.accounts.reorder(ids);
-    accountsChanged.value++;
-  }
+  void reorderAccounts(List<int> ids) => accountOrder.reorder(ids);
 
   // --------------------------------------------------------- invitations
 
   /// The user's answers to invitations, remembered on the device.
-  late final invitationAnswers = InvitationAnswers(_store);
+  InvitationAnswers get invitationAnswers => invitationController.answers;
 
   /// Changes when an answer is sent or undone, so the card updates.
-  final invitationsChanged = ValueNotifier<int>(0);
+  ValueNotifier<int> get invitationsChanged => invitationController.changed;
 
   /// Every address of the user's accounts.
   List<String> get ownAddresses => _store.ownAddresses;
 
   /// The user among [invite]'s guests: the account it came to first,
   /// else any of their addresses. Null if they aren't on the list.
-  CalendarPerson? ownAttendee(StoredMessage message, CalendarInvite invite) {
-    final account = _store.accounts.byId(message.accountId);
-    return (account == null ? null : invite.attendeeFor([account.email])) ??
-        invite.attendeeFor(ownAddresses);
-  }
+  CalendarPerson? ownAttendee(StoredMessage message, CalendarInvite invite) =>
+      invitationController.ownAttendee(message, invite);
 
   /// Sends the answer to the open invitation to its organizer (and no one
   /// else), through the outbox with Undo, and remembers it. Returns null
@@ -543,56 +561,7 @@ final class MailController {
     ReaderReady r,
     CalendarAnswer answer, {
     String? note,
-  }) {
-    final invite = r.view.invite;
-    final account = _store.accounts.byId(r.message.accountId);
-    if (invite == null || account == null || !invite.answerable) {
-      return 'This invitation can\'t be answered.';
-    }
-    final attendee = ownAttendee(r.message, invite);
-    if (attendee == null) {
-      return 'You\'re not on this invitation\'s guest list, so there is '
-          'nothing to answer.';
-    }
-    final draft = InvitationReplies.draft(
-      message: r.message,
-      account: account,
-      invite: invite,
-      attendee: attendee,
-      answer: answer,
-      note: note,
-    );
-    if (draft == null) return 'This invitation can\'t be answered.';
-    final PendingSend pending;
-    try {
-      pending = services.sender.send(draft);
-    } on ComposeException {
-      return 'The organizer\'s address isn\'t usable, so no answer was sent.';
-    }
-    services.worker.syncAt(pending.accountId, pending.undoUntil);
-    final previous = invitationAnswers.of(invite);
-    invitationAnswers.remember(invite, answer);
-    invitationsChanged.value++;
-    refresh();
-    final organizer = invite.organizer!.label;
-    onNotice?.call(
-      switch (answer) {
-        CalendarAnswer.accepted => 'Accepted. Telling $organizer…',
-        CalendarAnswer.tentative => 'Answered maybe. Telling $organizer…',
-        _ => 'Declined. Telling $organizer…',
-      },
-      undo: () {
-        if (services.sender.cancel(pending)) {
-          invitationAnswers.forget(invite, previous: previous);
-          invitationsChanged.value++;
-          refresh();
-        } else {
-          onNotice?.call('Too late to undo: your answer is on its way.');
-        }
-      },
-    );
-    return null;
-  }
+  }) => invitationController.answer(r, answer, note: note);
 
   // -------------------------------------------------------- read receipts
 
@@ -730,154 +699,32 @@ final class MailController {
   // -------------------------------------------------------------- outbox
 
   /// Messages waiting to be sent or failed, oldest first.
-  List<OutboxEntry> get outbox => _store.outbox.sends();
+  List<OutboxEntry> get outbox => outboxController.outbox;
 
-  void retrySend(OutboxEntry entry) {
-    _store.outbox.retryFailed(entry.id);
-    services.worker.requestSync(entry.accountId);
-    refresh();
-  }
+  void retrySend(OutboxEntry entry) => outboxController.retrySend(entry);
 
-  void discardSend(OutboxEntry entry) {
-    _store.outbox.discardFailed(entry.id);
-    refresh();
-  }
+  void discardSend(OutboxEntry entry) => outboxController.discardSend(entry);
 
   // ---------------------------------------------------------- send later
 
   /// Messages scheduled with "Send later".
-  late final scheduledSends = ScheduledSends(_store, services.sender);
-
-  static const _tooLate =
-      'Too late to change: the message is already on its way.';
+  ScheduledSends get scheduledSends => outboxController.scheduledSends;
 
   /// Sends a scheduled message now (with Undo, which puts it back at its
   /// time).
-  void sendScheduledNow(ScheduledSend s) {
-    final now = SendLaterTimes.clock();
-    final pending = scheduledSends.sendNow(s, now: now);
-    if (pending != null) _followScheduled(s, pending, now);
-    refresh();
-    if (pending == null) {
-      onNotice?.call(_tooLate);
-      return;
-    }
-    services.worker.syncAt(pending.accountId, pending.undoUntil);
-    onNotice?.call(
-      'Sending…',
-      undo: () {
-        // Back to its time, unless it has started to go out.
-        final undone =
-            services.sender.cancel(pending, now: SendLaterTimes.clock()) &&
-            _rescheduleDraft(pending.draft, s.at, from: pending);
-        refresh();
-        if (!undone) onNotice?.call('Too late: the message is on its way.');
-      },
-    );
-  }
-
-  bool _rescheduleDraft(Draft draft, DateTime at, {PendingSend? from}) {
-    PendingSend pending;
-    try {
-      pending = services.sender.schedule(
-        draft,
-        at.toLocal(),
-        now: SendLaterTimes.clock(),
-      );
-      _armScheduled(pending);
-    } on ArgumentError {
-      // Its time has come meanwhile: send it.
-      pending = services.sender.send(draft, now: SendLaterTimes.clock());
-      services.worker.syncAt(pending.accountId, pending.undoUntil);
-    }
-    if (from != null) {
-      final sentAt = pending.scheduledFor ?? SendLaterTimes.clock();
-      final before = followUps.find(from.messageId)?.sentAt;
-      followUps.move(
-        from.messageId,
-        pending.messageId,
-        shift: before == null ? Duration.zero : sentAt.difference(before),
-      );
-    }
-    return true;
-  }
-
-  /// A scheduled message's follow-up goes with it when it goes out under
-  /// a new Message-ID ([pending], sent at its time or [now]), keeping the
-  /// time between sending and the reminder.
-  void _followScheduled(ScheduledSend s, PendingSend pending, DateTime now) {
-    final id = _scheduledId(s);
-    if (id == null) return;
-    final sentAt = pending.scheduledFor ?? now;
-    followUps.move(id, pending.messageId, shift: sentAt.difference(s.at));
-  }
-
-  /// The Message-ID a scheduled message was to go out with.
-  static String? _scheduledId(ScheduledSend s) {
-    final data = s.entry.data;
-    return data == null ? null : const MimeParser().parse(data).messageId;
-  }
+  void sendScheduledNow(ScheduledSend s) =>
+      outboxController.sendScheduledNow(s);
 
   /// Sends a scheduled message at [at] instead.
-  void rescheduleSend(ScheduledSend s, DateTime at, String done) {
-    final PendingSend? pending;
-    final now = SendLaterTimes.clock();
-    try {
-      pending = scheduledSends.reschedule(s, at, now: now);
-    } on ArgumentError {
-      sendScheduledNow(s);
-      return;
-    }
-    if (pending != null) _followScheduled(s, pending, now);
-    refresh();
-    if (pending == null) {
-      onNotice?.call(_tooLate);
-      return;
-    }
-    _armScheduled(pending);
-    onNotice?.call(done);
-  }
+  void rescheduleSend(ScheduledSend s, DateTime at, String done) =>
+      outboxController.rescheduleSend(s, at, done);
 
   /// Takes a scheduled message back to keep writing it (the schedule
   /// ends; closing the window keeps it as a draft).
-  void editScheduled(ScheduledSend s) {
-    final draft = scheduledSends.edit(s, now: SendLaterTimes.clock());
-    // Not sent: no reminder for it.
-    if (draft != null) followUps.cancel(_scheduledId(s) ?? '');
-    refresh();
-    if (draft == null) {
-      onNotice?.call(_tooLate);
-      return;
-    }
-    onCompose?.call(draft);
-  }
+  void editScheduled(ScheduledSend s) => outboxController.editScheduled(s);
 
   /// Doesn't send a scheduled message: it goes to Drafts instead.
-  void cancelScheduled(ScheduledSend s) {
-    final id = _scheduledId(s);
-    final outcome = scheduledSends.cancel(s, now: SendLaterTimes.clock());
-    if (outcome != null) followUps.cancel(id ?? '');
-    refresh();
-    if (outcome == null) {
-      onNotice?.call(_tooLate);
-      return;
-    }
-    services.worker.requestSync(s.entry.accountId);
-    onNotice?.call(
-      outcome == DraftOutcome.savedToServer
-          ? 'It won\'t be sent. It\'s in Drafts.'
-          : 'It won\'t be sent. It\'s kept as a draft on this device.',
-    );
-  }
-
-  /// A sync at the scheduled time (and on Android, a background check).
-  void _armScheduled(PendingSend pending) {
-    services.worker.syncAt(pending.accountId, pending.undoUntil);
-    if (pending.scheduledFor case final at?) {
-      services.worker.syncAt(pending.accountId, at);
-    }
-    unawaited(BackgroundMail.checkWhenDue(_store));
-  }
+  void cancelScheduled(ScheduledSend s) => outboxController.cancelScheduled(s);
 
   // ---------------------------------------------------------------- sync
 
@@ -913,8 +760,8 @@ final class MailController {
     composeStarter.dispose();
     folderController.dispose();
     selectionController.dispose();
-    invitationsChanged.dispose();
-    accountsChanged.dispose();
+    invitationController.dispose();
+    accountOrder.dispose();
     oldCodesController.dispose();
   }
 }
