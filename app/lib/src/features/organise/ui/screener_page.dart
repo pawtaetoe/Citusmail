@@ -11,9 +11,9 @@ import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/widgets/avatar.dart';
 import '../../../core/widgets/page_scaffold.dart';
 import '../../../services/app_services.dart';
-import '../../found/ui/subscription_detail_page.dart' show EmailPage;
 import '../../inbox/state/mail_controller.dart';
 import '../../inbox/ui/mail_shell.dart';
+import '../../reader/ui/email_page.dart';
 import '../../settings/ui/feature_settings.dart';
 
 /// What happens to screened-out mail, in words.

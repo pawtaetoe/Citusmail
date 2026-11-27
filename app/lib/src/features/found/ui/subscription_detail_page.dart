@@ -8,8 +8,9 @@ import 'package:mail_store/mail_store.dart';
 
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/avatar.dart';
+import '../../../core/widgets/detail_scaffold.dart';
 import '../../inbox/state/mail_controller.dart';
-import '../../reader/ui/reader_pane.dart';
+import '../../reader/ui/email_page.dart';
 import '../state/prices.dart';
 
 /// One subscription: what it costs now, what it cost over time, and every
@@ -35,8 +36,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     final s = subscription;
     final material = MaterialLocalizations.of(context);
     String date(DateTime d) => material.formatMediumDate(d.toLocal());
@@ -71,154 +71,94 @@ final class SubscriptionDetailPage extends StatelessWidget {
       byYear.putIfAbsent(r.email.at.toLocal().year, () => []).add(r);
     }
 
-    return Scaffold(
-      appBar: AppBar(title: Text(s.name)),
-      body: SafeArea(
-        top: false,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Avatar(name: s.name, address: s.company, size: 44),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    s.amount == null
-                                        ? 'Price unknown'
-                                        : '${s.variable ? 'About ' : ''}'
-                                              '${Prices.format(s.amount!)} · '
-                                              '${Prices.cadence(s.cadence).toLowerCase()}',
-                                    style: theme.textTheme.titleLarge,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    status,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 28),
-                        _Fact(
-                          label: 'Charged',
-                          value: charges.isEmpty
-                              ? 'No receipts found'
-                              : '${charges.length} time${charges.length == 1 ? '' : 's'}'
-                                    '${firstCharge == null ? '' : ' since ${date(firstCharge)}'}',
-                        ),
-                        if (totals.isNotEmpty)
-                          _Fact(
-                            label: 'In total',
-                            value:
-                                '${totals.entries.map((e) => Prices.format(Money(e.value, e.key))).join(' + ')}'
-                                '${totals.length == 1 && charges.any((r) => r.amount == null) ? ' (some receipts without a price)' : ''}',
-                          ),
-                        if (s.spentLastYear case final y?)
-                          _Fact(
-                            label: 'Last year',
-                            value: '${Prices.format(y)} in the last 12 months',
-                          ),
-                        if (s.variable)
-                          const _Fact(
-                            label: 'Price',
-                            value:
-                                'Varies from charge to charge: the average of '
-                                'the last ones.',
-                          ),
-                        _Fact(label: 'From', value: s.company),
-                      ],
-                    ),
-                  ),
-                ),
-                for (final change in changes.take(3))
-                  Card(
-                    color: colors.surfaceContainerHigh,
-                    child: ListTile(
-                      leading: Icon(
-                        change.up ? AppIcons.priceUp : AppIcons.priceDown,
-                      ),
-                      title: Text(
-                        'Price went ${change.up ? 'up' : 'down'} from '
-                        '${Prices.format(change.from)} to ${Prices.format(change.to)}',
-                      ),
-                      subtitle: Text('Receipt of ${date(change.at)}'),
-                    ),
-                  ),
-                for (final MapEntry(key: year, value: records)
-                    in byYear.entries) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
-                    child: Text(
-                      '$year',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: [
-                        for (final (i, r) in records.indexed) ...[
-                          if (i > 0) const Divider(height: 1, indent: 56),
-                          ListTile(
-                            key: ValueKey('receipt-${r.email.messageId}'),
-                            leading: Icon(_icon(r.event)),
-                            title: Text(
-                              r.amount != null
-                                  ? Prices.format(r.amount!)
-                                  : _label(r.event),
-                              style: const TextStyle(
-                                fontFeatures: [FontFeature.tabularFigures()],
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${date(r.email.at)} · '
-                              '${r.email.subject.isEmpty ? '(no subject)' : r.email.subject}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: const Icon(AppIcons.chevron),
-                            onTap: () =>
-                                _openReceipt(context, r.email.messageId),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => Navigator.pop(context, true),
-                    icon: const Icon(AppIcons.hide, size: 18),
-                    label: const Text('Not a subscription'),
-                  ),
-                ),
-              ],
+    return DetailScaffold(
+      title: s.name,
+      header: DetailHeader(
+        leading: Avatar(name: s.name, address: s.company, size: 44),
+        title: s.amount == null
+            ? 'Price unknown'
+            : '${s.variable ? 'About ' : ''}'
+                  '${Prices.format(s.amount!)} · '
+                  '${Prices.cadence(s.cadence).toLowerCase()}',
+        subtitle: status,
+        facts: [
+          DetailFact(
+            label: 'Charged',
+            value: charges.isEmpty
+                ? 'No receipts found'
+                : '${charges.length} time${charges.length == 1 ? '' : 's'}'
+                      '${firstCharge == null ? '' : ' since ${date(firstCharge)}'}',
+          ),
+          if (totals.isNotEmpty)
+            DetailFact(
+              label: 'In total',
+              value:
+                  '${totals.entries.map((e) => Prices.format(Money(e.value, e.key))).join(' + ')}'
+                  '${totals.length == 1 && charges.any((r) => r.amount == null) ? ' (some receipts without a price)' : ''}',
+            ),
+          if (s.spentLastYear case final y?)
+            DetailFact(
+              label: 'Last year',
+              value: '${Prices.format(y)} in the last 12 months',
+            ),
+          if (s.variable)
+            const DetailFact(
+              label: 'Price',
+              value:
+                  'Varies from charge to charge: the average of the last '
+                  'ones.',
+            ),
+          DetailFact(label: 'From', value: s.company),
+        ],
+      ),
+      actions: [
+        TextButton.icon(
+          onPressed: () => Navigator.pop(context, true),
+          icon: const Icon(AppIcons.hide, size: 18),
+          label: const Text('Not a subscription'),
+        ),
+      ],
+      children: [
+        for (final change in changes.take(3))
+          Card(
+            color: colors.surfaceContainerHigh,
+            child: ListTile(
+              leading: Icon(change.up ? AppIcons.priceUp : AppIcons.priceDown),
+              title: Text(
+                'Price went ${change.up ? 'up' : 'down'} from '
+                '${Prices.format(change.from)} to ${Prices.format(change.to)}',
+              ),
+              subtitle: Text('Receipt of ${date(change.at)}'),
             ),
           ),
-        ),
-      ),
+        for (final MapEntry(key: year, value: records) in byYear.entries)
+          DetailSection(
+            title: '$year',
+            children: [
+              for (final r in records)
+                ListTile(
+                  key: ValueKey('receipt-${r.email.messageId}'),
+                  leading: Icon(_icon(r.event)),
+                  title: Text(
+                    r.amount != null
+                        ? Prices.format(r.amount!)
+                        : _label(r.event),
+                    style: const TextStyle(
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${date(r.email.at)} · '
+                    '${r.email.subject.isEmpty ? '(no subject)' : r.email.subject}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: const Icon(AppIcons.chevron),
+                  onTap: () => _openReceipt(context, r.email.messageId),
+                ),
+            ],
+          ),
+      ],
     );
   }
 
@@ -259,101 +199,4 @@ final class SubscriptionDetailPage extends StatelessWidget {
     SubscriptionEvent.cancelled => 'Cancelled',
     SubscriptionEvent.notice => 'Notice',
   };
-}
-
-final class _Fact extends StatelessWidget {
-  const _Fact({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 84,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-        ],
-      ),
-    );
-  }
-}
-
-/// A receipt or a bill, read in place: Back returns to where it was
-/// opened from.
-final class EmailPage extends StatefulWidget {
-  const EmailPage({
-    super.key,
-    required this.controller,
-    this.title = 'Receipt',
-  });
-
-  final MailController controller;
-  final String title;
-
-  /// Opens [message] on its own page; when it closes, the mail screen
-  /// behind shows no message.
-  static Future<void> open(
-    BuildContext context,
-    MailController controller,
-    StoredMessage message, {
-    String title = 'Receipt',
-  }) async {
-    await controller.open(message);
-    if (!context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => EmailPage(controller: controller, title: title),
-      ),
-    );
-    controller.closeMessage();
-  }
-
-  @override
-  State<EmailPage> createState() => _EmailPageState();
-}
-
-final class _EmailPageState extends State<EmailPage> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.reader.addListener(_closedElsewhere);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.reader.removeListener(_closedElsewhere);
-    super.dispose();
-  }
-
-  /// Archived, deleted or closed from its own actions: back to the list.
-  void _closedElsewhere() {
-    // Only while this page is on top: going back closes the message too.
-    if (widget.controller.reader.value.message == null &&
-        mounted &&
-        (ModalRoute.of(context)?.isCurrent ?? false)) {
-      Navigator.of(context).maybePop();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.title)),
-    body: SafeArea(
-      top: false,
-      child: ReaderPane(controller: widget.controller, toolbarAtBottom: true),
-    ),
-  );
 }

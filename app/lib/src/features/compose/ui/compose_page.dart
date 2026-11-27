@@ -13,6 +13,7 @@ import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../ai/ui/ai_confirm_dialog.dart';
 import '../../inbox/ui/mail_shell.dart';
 import '../../organise/ui/follow_up_sheet.dart';
@@ -191,21 +192,11 @@ final class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _discard() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Discard this draft?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Discard this draft?',
+      cancel: 'Keep',
+      confirm: 'Discard',
     );
     if (confirmed == true && mounted) Navigator.of(context).pop(_c.discard());
   }

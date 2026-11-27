@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_trust/mail_trust.dart';
 
 import '../../../app/app.dart' show appName;
+import '../../../core/state/load_state.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/widgets/avatar.dart';
@@ -99,49 +100,51 @@ final class _PrivacyReportPageState extends State<PrivacyReportPage> {
         bottom: !phone,
         child: ListenableBuilder(
           listenable: _model,
-          builder: (context, _) {
-            if (_model.loading) return _Counting(progress: _model.progress);
-            final report = _model.report;
-            return Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  children: [
-                    if (!phone)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: periods,
-                        ),
-                      ),
-                    _Headline(report: report, period: _model.period),
-                    if (report.messages > 0) ...[
-                      _Stats(report: report),
-                      if (report.topTrackers.isNotEmpty) ...[
-                        const _SectionTitle('Senders that track you most'),
-                        for (final s in report.topTrackers)
-                          _SenderTile(
-                            sender: s,
-                            onTap: widget.onShowMail == null
-                                ? null
-                                : () => _showMail(s.address),
-                          ),
-                      ],
-                    ],
-                    _SmallPrint(
-                      counted: report.messages,
-                      received: _model.received,
-                      period: _model.period,
-                      capped: _model.capped,
-                    ),
-                  ],
-                ),
-              ),
-            );
+          builder: (context, _) => switch (_model.state) {
+            // As before, a first load that failed leaves the page counting.
+            Loading() || LoadFailed() => _Counting(progress: _model.progress),
+            Loaded() => _report(phone: phone, periods: periods),
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _report({required bool phone, required Widget periods}) {
+    final report = _model.report;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            if (!phone)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Align(alignment: Alignment.centerLeft, child: periods),
+              ),
+            _Headline(report: report, period: _model.period),
+            if (report.messages > 0) ...[
+              _Stats(report: report),
+              if (report.topTrackers.isNotEmpty) ...[
+                const _SectionTitle('Senders that track you most'),
+                for (final s in report.topTrackers)
+                  _SenderTile(
+                    sender: s,
+                    onTap: widget.onShowMail == null
+                        ? null
+                        : () => _showMail(s.address),
+                  ),
+              ],
+            ],
+            _SmallPrint(
+              counted: report.messages,
+              received: _model.received,
+              period: _model.period,
+              capped: _model.capped,
+            ),
+          ],
         ),
       ),
     );

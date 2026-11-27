@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_sort/mail_sort.dart';
 
+import '../../../core/state/load_state.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
@@ -18,6 +19,7 @@ import '../../settings/ui/read_ahead.dart';
 import '../state/appointments_model.dart';
 import 'appointment_detail_page.dart';
 import 'appointment_text.dart';
+import 'found_parts.dart';
 
 /// Appointments found in booking mail: a dentist, a salon, a car service,
 /// an interview, a class. What is coming up, then the past year, folded.
@@ -105,114 +107,107 @@ final class _AppointmentsPageState extends State<AppointmentsPage>
       top: false,
       child: ListenableBuilder(
         listenable: _model,
-        builder: (context, _) {
-          if (_model.loading) {
-            return const SkeletonRows(
-              label: 'Finding appointments…',
-              maxWidth: PageScaffold.width,
-            );
-          }
-          final upcoming = _model.upcoming;
-          final past = _model.past;
-          final now = (widget.now ?? DateTime.now)();
-          Widget tile(Appointment a, {bool over = false}) => AppointmentTile(
-            appointment: a,
-            now: now,
-            over: over,
-            onSelect: () => _select(a),
-          );
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                children: [
-                  if (upcoming.isEmpty && past.isEmpty)
-                    const _Empty()
-                  else
-                    _Overview(comingUp: _model.comingUp, now: now),
-                  if (_model.reading case final r?)
-                    _Reading(
-                      done: r.done,
-                      total: r.total,
-                      onStop: _model.stopReading,
-                    )
-                  else if (_model.toRead.isNotEmpty && !readsAhead)
-                    _ReadOffer(
-                      count: _model.toRead.length,
-                      onRead: _model.readEmails,
-                    )
-                  else if (_model.toRead.isNotEmpty && readingAhead)
-                    ReadingQuietly(
-                      'Reading ${_model.toRead.length} booking email'
-                      '${_model.toRead.length == 1 ? '' : 's'}…',
-                    ),
-                  if (upcoming.isNotEmpty) ...[
-                    const _SectionTitle('Upcoming'),
-                    for (final a in upcoming) tile(a),
-                  ],
-                  if (past.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () => setState(() => _showPast = !_showPast),
-                        child: Text(
-                          _showPast
-                              ? 'Hide past appointments'
-                              : 'Show ${past.length} past '
-                                    'appointment${past.length == 1 ? '' : 's'}',
-                        ),
-                      ),
-                    ),
-                    if (_showPast) ...[
-                      const _SectionTitle('Past'),
-                      for (final a in past) tile(a, over: true),
-                    ],
-                  ],
-                  if (_model.hiddenOnes.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () =>
-                            setState(() => _showHidden = !_showHidden),
-                        child: Text(
-                          _showHidden
-                              ? 'Hide the ones marked "not an appointment"'
-                              : 'Show ${_model.hiddenOnes.length} marked '
-                                    '"not an appointment"',
-                        ),
-                      ),
-                    ),
-                    if (_showHidden)
-                      for (final a in _model.hiddenOnes)
-                        ListTile(
-                          leading: Icon(AppointmentWords.icon(a.kind)),
-                          title: Text(a.title),
-                          subtitle: Text(
-                            _model.learned.contains(a.key)
-                                ? 'Left out: like ones you said aren\'t '
-                                      'appointments'
-                                : a.latest.email.subject,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: TextButton(
-                            onPressed: () => _model.unhide(a.key),
-                            child: const Text('List again'),
-                          ),
-                        ),
-                  ],
-                ],
-              ),
-            ),
-          );
+        builder: (context, _) => switch (_model.state) {
+          // As before, a first load that failed leaves the page looking.
+          Loading() || LoadFailed() => const SkeletonRows(
+            label: 'Finding appointments…',
+            maxWidth: PageScaffold.width,
+          ),
+          Loaded() => _list(context),
         },
       ),
     ),
   );
+
+  Widget _list(BuildContext context) {
+    final upcoming = _model.upcoming;
+    final past = _model.past;
+    final now = (widget.now ?? DateTime.now)();
+    Widget tile(Appointment a, {bool over = false}) => AppointmentTile(
+      appointment: a,
+      now: now,
+      over: over,
+      onSelect: () => _select(a),
+    );
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            if (upcoming.isEmpty && past.isEmpty)
+              const _Empty()
+            else
+              _Overview(comingUp: _model.comingUp, now: now),
+            if (_model.reading case final r?)
+              ReadingEmails(
+                what: 'booking emails',
+                done: r.done,
+                total: r.total,
+                onStop: _model.stopReading,
+              )
+            else if (_model.toRead.isNotEmpty && !readsAhead)
+              ReadEmailsOffer(
+                icon: AppIcons.event,
+                text:
+                    'Some appointments may be missing. They can be found in '
+                    '${_model.toRead.length} booking email${_model.toRead.length == 1 ? '' : 's'} not on '
+                    'this device yet, downloaded from your mail server '
+                    '(they stay unread).',
+                button: 'Read booking emails',
+                onRead: _model.readEmails,
+              )
+            else if (_model.toRead.isNotEmpty && readingAhead)
+              ReadingQuietly(
+                'Reading ${_model.toRead.length} booking email'
+                '${_model.toRead.length == 1 ? '' : 's'}…',
+              ),
+            if (upcoming.isNotEmpty) ...[
+              const FoundSectionTitle('Upcoming'),
+              for (final a in upcoming) tile(a),
+            ],
+            if (past.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _showPast = !_showPast),
+                  child: Text(
+                    _showPast
+                        ? 'Hide past appointments'
+                        : 'Show ${past.length} past '
+                              'appointment${past.length == 1 ? '' : 's'}',
+                  ),
+                ),
+              ),
+              if (_showPast) ...[
+                const FoundSectionTitle('Past'),
+                for (final a in past) tile(a, over: true),
+              ],
+            ],
+            if (_model.hiddenOnes.isNotEmpty)
+              LeftOutList(
+                marked: 'not an appointment',
+                plural: 'appointments',
+                open: _showHidden,
+                onToggle: () => setState(() => _showHidden = !_showHidden),
+                items: [
+                  for (final a in _model.hiddenOnes)
+                    (
+                      leading: Icon(AppointmentWords.icon(a.kind)),
+                      title: a.title,
+                      about: a.latest.email.subject,
+                      learned: _model.learned.contains(a.key),
+                      onListAgain: () => _model.unhide(a.key),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// How many appointments are coming up, and the next one.
@@ -416,107 +411,6 @@ final class _DayChip extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Offers to download booking emails not on the device yet.
-final class _ReadOffer extends StatelessWidget {
-  const _ReadOffer({required this.count, required this.onRead});
-
-  final int count;
-  final VoidCallback onRead;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      color: theme.colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(AppIcons.event),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Some appointments may be missing. They can be found in '
-                    '$count booking email${count == 1 ? '' : 's'} not on '
-                    'this device yet, downloaded from your mail server '
-                    '(they stay unread).',
-                  ),
-                ),
-              ],
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: onRead,
-                child: const Text('Read booking emails'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _Reading extends StatelessWidget {
-  const _Reading({
-    required this.done,
-    required this.total,
-    required this.onStop,
-  });
-
-  final int done;
-  final int total;
-  final VoidCallback onStop;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Reading booking emails: $done of $total'),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: total == 0 ? null : done / total,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          TextButton(onPressed: onStop, child: const Text('Stop')),
-        ],
-      ),
-    ),
-  );
-}
-
-final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall
-          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-    ),
-  );
 }
 
 final class _Empty extends StatelessWidget {
