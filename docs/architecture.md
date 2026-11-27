@@ -138,7 +138,18 @@ a widget (`app/test/support/controllers.dart` wires them by hand).
 ## Conventions
 
 - **Types over strings.** Ids are extension types (`MessageId`,
-  `AccountId`, `MailboxId`), not bare `int`s. Settings are typed
+  `AccountId`, `MailboxId`), not bare `int`s: passing an account id where
+  a message id is expected doesn't compile. They are defined in
+  `mail_protocol` (`lib/src/ids.dart`), the lowest package everything
+  that deals in them shares (`mail_ai` ranks messages by id without the
+  store), and `mail_store` exports them. At run time each is its `int`,
+  so the database and everything stored are unchanged. Code converts
+  (`MessageId(n)`, `.value`) only at the edges: SQL row mapping and query
+  parameters in the repositories; serialisation (outbox actions, drafts,
+  follow-ups, AI sorting log, stored setting keys and values, notification
+  payloads, command bar ids, cache keys); platform channel and
+  notification ids; and widget keys. Other ids (IMAP UIDs, outbox entry,
+  draft, rule and notification ids) stay `int`s. Settings are typed
   `Setting<T>` values with a key, a default and a codec, not strings read
   as `'on'`/`'off'`. Feature and command ids are enums or constants, never
   free text at call sites.

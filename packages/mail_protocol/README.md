@@ -14,6 +14,7 @@ this package must follow.
 | `lib/src/net/` | Connections: TLS 1.2+ with full certificate checks, STARTTLS with injection protection, timeouts, size limits (`MailSocket`) |
 | `lib/src/imap/` | IMAP client (`ImapClient`): login, folders with special use, SELECT with CONDSTORE/QRESYNC, FETCH, SEARCH, STORE with UNCHANGEDSINCE, MOVE, APPEND, IDLE |
 | `lib/src/smtp/` | SMTP submission client (`SmtpClient`): implicit TLS or required STARTTLS, AUTH, dot-stuffing |
+| `lib/src/ids.dart` | The typed ids of stored rows (`MessageId`, `AccountId`, `MailboxId`), shared by every package that deals in them; `mail_store` exports them too |
 
 ## Guarantees
 
