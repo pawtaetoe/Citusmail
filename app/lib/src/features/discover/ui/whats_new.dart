@@ -14,11 +14,12 @@ import '../state/feature_id.dart';
 import 'features.dart';
 
 /// The app's version, as in app/pubspec.yaml (a test checks they agree).
-const appVersion = '0.6.3';
+const appVersion = '0.6.4';
 
 /// What a version brought that people can see, newest first: feature ids
 /// from [Features]. Only features that shipped.
 const releaseNotes = <({String version, List<FeatureId> features})>[
+  (version: '0.6.4', features: [FeatureId.trips, FeatureId.subscriptions]),
   (
     version: '0.6.3',
     features: [
@@ -87,11 +88,13 @@ final class WhatsNew {
   List<Feature> get pending {
     final seen = seenVersion;
     if (seen == appVersion) return const [];
-    return [
+    // A feature named by several versions since (improved again) shows
+    // once.
+    final ids = <FeatureId>{
       for (final r in releaseNotes)
-        if (seen == null || _newer(r.version, seen))
-          for (final id in r.features) ?Features.availableById(id),
-    ];
+        if (seen == null || _newer(r.version, seen)) ...r.features,
+    };
+    return [for (final id in ids) ?Features.availableById(id)];
   }
 
   /// This version's features (Settings, "What's new").
