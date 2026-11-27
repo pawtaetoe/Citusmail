@@ -91,6 +91,7 @@ final class _MailShellState extends State<MailShell> {
       ).then((_) => _controller.refresh()),
     );
     _controller.onNotice = _notice;
+    _controller.working.addListener(_working);
     _controller.onReconnect = (account) => unawaited(_reconnect(account));
     _controller.onBackFromSnooze = (back) => _announcer?.backFromSnooze(back);
     _controller.onFollowUpsBack = () => _announcer?.followUpsBack();
@@ -117,6 +118,7 @@ final class _MailShellState extends State<MailShell> {
   @override
   void dispose() {
     unawaited(_announcer?.dispose());
+    _controller.working.removeListener(_working);
     _lifecycle.dispose();
     widget.services.linkSafety.stop();
     widget.services.autoRead.stop();
@@ -125,6 +127,37 @@ final class _MailShellState extends State<MailShell> {
     _searchFocus.dispose();
     _shellFocus.dispose();
     super.dispose();
+  }
+
+  /// The notice of an action on thousands of messages while it runs.
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _workNotice;
+  String _workText = '';
+
+  /// An action on thousands of messages runs in steps: one notice says
+  /// how far it got ("Moving to Trash… 2,400 of 7,080"), updated in
+  /// place, until the action's own notice (with Undo) replaces it.
+  void _working() {
+    if (!mounted) return;
+    final text = _controller.working.value;
+    if (text == null) {
+      // Also when it is still waiting for the notice before it to go.
+      if (_workNotice != null) ScaffoldMessenger.of(context).clearSnackBars();
+      _workNotice = null;
+      return;
+    }
+    _workText = text;
+    if (_workNotice != null) return;
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    _workNotice = messenger.showSnackBar(
+      SnackBar(
+        content: ValueListenableBuilder(
+          valueListenable: _controller.working,
+          builder: (context, text, _) => Text(text ?? _workText),
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(minutes: 10),
+      ),
+    );
   }
 
   /// A short notice at the bottom; with [undo], an Undo button.

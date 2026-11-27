@@ -7,6 +7,7 @@ import 'package:mail_trust/mail_trust.dart';
 
 import '../../../app/app.dart' show appName;
 import '../../../core/state/load_state.dart';
+import '../../../core/text/numbers.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/widgets/avatar.dart';
@@ -167,7 +168,7 @@ final class _Counting extends StatelessWidget {
           const CircularProgressIndicator(),
           if (p != null && p.total > 0) ...[
             const SizedBox(height: 16),
-            Text('Counting… ${_number(p.done)} of ${_number(p.total)} emails'),
+            Text('Counting… ${grouped(p.done)} of ${grouped(p.total)} emails'),
           ],
         ],
       ),
@@ -189,12 +190,12 @@ final class _Headline extends StatelessWidget {
     final empty = report.messages == 0;
     final title = empty
         ? 'Nothing to count yet'
-        : '$appName blocked ${_number(report.trackers)} '
+        : '$appName blocked ${grouped(report.trackers)} '
               '${report.trackers == 1 ? 'tracker' : 'trackers'} ${period.phrase}';
     final line = empty
         ? 'None of the emails you received ${period.phrase} are on this '
               'device yet. They are counted once you open them.'
-        : 'In ${_number(report.messages)} '
+        : 'In ${grouped(report.messages)} '
               '${report.messages == 1 ? 'email' : 'emails'} on this device.';
     // The app's promise at work, so it gets the brand's colour (as the
     // reader's privacy notice).
@@ -363,7 +364,7 @@ final class _Stat extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final number = Text(
-      _number(value),
+      grouped(value),
       style:
           (inline
                   ? theme.textTheme.headlineMedium
@@ -446,7 +447,7 @@ final class _SenderTile extends StatelessWidget {
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         '$perText ${per == 1 ? 'tracker' : 'trackers'} per email · '
-        '${_number(s.trackers)} in ${_number(s.emails)} '
+        '${grouped(s.trackers)} in ${grouped(s.emails)} '
         '${s.emails == 1 ? 'email' : 'emails'}',
       ),
       trailing: onTap == null ? null : const Icon(AppIcons.chevron),
@@ -495,11 +496,11 @@ final class _SmallPrint extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Counted from the ${_number(counted)} of ${_number(received)} '
+            'Counted from the ${grouped(counted)} of ${grouped(received)} '
             '${received == 1 ? 'email' : 'emails'} received ${period.phrase} '
             'whose content is on this device, mostly the ones you opened. '
             'Nothing is downloaded for this report.'
-            '${capped ? ' Only the newest ${_number(PrivacyReportModel.maxMessages)} '
+            '${capped ? ' Only the newest ${grouped(PrivacyReportModel.maxMessages)} '
                       'emails are counted.' : ''}',
             style: muted,
           ),
@@ -507,15 +508,4 @@ final class _SmallPrint extends StatelessWidget {
       ),
     );
   }
-}
-
-/// 1234 as "1,234".
-String _number(int n) {
-  final digits = n.abs().toString();
-  final out = StringBuffer(n < 0 ? '-' : '');
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
-    out.write(digits[i]);
-  }
-  return out.toString();
 }

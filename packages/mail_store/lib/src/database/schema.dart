@@ -532,4 +532,16 @@ const List<Migration> schemaMigrations = [
         ON CONFLICT (word) DO UPDATE SET count = count + 1;
     END''',
   ]),
+
+  // Speed: "has the user written to this sender" (the Important section,
+  // the Screener) looks up the sender's address among the To, Cc and Bcc
+  // of sent mail. By address alone, the index also holds the From row of
+  // every message from that sender, all read and skipped for each
+  // message: with thousands of emails from one sender, marking them read
+  // or putting them back took seconds per hundred. With the kind in the
+  // index, the From rows are skipped by the index itself.
+  Migration(18, [
+    'CREATE INDEX message_addresses_by_address_kind ON message_addresses (address COLLATE NOCASE, kind)',
+    'DROP INDEX message_addresses_by_address',
+  ]),
 ];

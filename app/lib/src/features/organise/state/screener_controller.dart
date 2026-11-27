@@ -16,7 +16,6 @@ import '../../inbox/state/message_actions.dart';
 final class ScreenerController {
   ScreenerController(
     this._store,
-    this._mailActions,
     this._actions, {
     required this._refresh,
     required this._notify,
@@ -24,8 +23,6 @@ final class ScreenerController {
 
   final MailStore _store;
 
-  /// Moves mail, local first and queued for the server.
-  final MailActions _mailActions;
   final MessageActions _actions;
 
   /// Re-reads the mail screen after a change.
@@ -117,15 +114,16 @@ final class ScreenerController {
           }
         }
       }
-      final moves = [
+      final moves = <Removal>[
         for (final MapEntry(key: accountId, value: group) in byAccount.entries)
-          () => _mailActions.move(group, _actions.archiveFolder(accountId)!),
+          (messages: group, target: _actions.archiveFolder(accountId)!),
       ];
       if (moves.isNotEmpty) {
         _actions.remove(
           moves,
           '$who screened out. Moved to Archive.',
           alsoUndo: undo,
+          doing: 'Archiving',
         );
         return;
       }

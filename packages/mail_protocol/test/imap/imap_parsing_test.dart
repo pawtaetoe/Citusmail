@@ -392,6 +392,22 @@ void main() {
       expect(set.contains(4000000000), isTrue);
       expect(() => set.toList(), throwsStateError);
     });
+
+    test('splits into parts of bounded length, never inside a range', () {
+      final set = SequenceSet.of([
+        for (var i = 1; i <= 100; i++) 1000 + 2 * i,
+        for (var i = 5000; i <= 6000; i++) i,
+      ]);
+      final parts = set.split(maxLength: 50);
+      for (final p in parts) {
+        expect(p.toString().length, lessThanOrEqualTo(50));
+      }
+      expect(parts.last.toString(), endsWith('5000:6000'));
+      expect([for (final p in parts) ...p.toList()], set.toList());
+      expect(SequenceSet.of([1, 2, 3]).split(), hasLength(1));
+      expect(SequenceSet.range(7).split().single.toString(), '7:*');
+      expect(() => set.split(maxLength: 10), throwsArgumentError);
+    });
   });
 
   group('ImapCommand', () {

@@ -255,14 +255,25 @@ final class MessageRepository {
   });
 
   /// Removes messages by UID (with addresses, headers, body and index).
-  void removeUids(MailboxId mailboxId, Iterable<int> uids) => _db.transaction(
-    () => _db.executeMany(
-      'DELETE FROM messages WHERE mailbox_id = ? AND uid = ?',
-      [
-        for (final uid in uids) [mailboxId.value, uid],
-      ],
-    ),
-  );
+  ///
+  /// One statement per 500 messages, not one per message: each statement
+  /// that fires the delete triggers runs in a statement savepoint, and at
+  /// each one the full-text indexes write out what they have pending, so
+  /// thousands of one-row statements left thousands of tiny index
+  /// segments to merge and took seconds per thousand messages.
+  void removeUids(MailboxId mailboxId, Iterable<int> uids) {
+    final list = uids.toList(growable: false);
+    if (list.isEmpty) return;
+    _db.transaction(() {
+      for (final chunk in _chunks(list, 500)) {
+        _db.execute(
+          'DELETE FROM messages WHERE mailbox_id = ? '
+          'AND uid IN (${_placeholders(chunk.length)})',
+          [mailboxId.value, ...chunk],
+        );
+      }
+    });
+  }
 
   /// All cached UIDs of a folder, ascending.
   List<int> uids(MailboxId mailboxId) => _db
@@ -1148,62 +1159,121 @@ final class MessageRepository {
   /// Puts back messages from a [snapshot]. A message whose folder is gone,
   /// or that is already back (its UID is in the folder again), is skipped.
   /// Returns the ids the messages have now (they may get new ids).
+  ///
+  /// Set-based, like [removeUids]: the checks read 500 messages per
+  /// query, and each table is written with one prepared statement.
   Map<MessageId, MessageId> restore(
     MessageSnapshot snapshot,
   ) => _db.transaction(() {
     final newIds = <int, int>{};
+    if (snapshot.messages.isEmpty) return const {};
+    // Which folders still exist, which UIDs are back already, and which
+    // ids are taken.
+    List<int> found(String sql, List<Object?> before, List<int> keys) => [
+      for (final chunk in _chunks(keys, 500))
+        for (final r in _db.select('$sql (${_placeholders(chunk.length)})', [
+          ...before,
+          ...chunk,
+        ]))
+          r.columnAt(0) as int,
+    ];
+    final uidsByMailbox = <int, List<int>>{};
+    for (final row in snapshot.messages) {
+      uidsByMailbox
+          .putIfAbsent(row['mailbox_id']! as int, () => [])
+          .add(row['uid']! as int);
+    }
+    final folders = found(
+      'SELECT id FROM mailboxes WHERE id IN',
+      const [],
+      uidsByMailbox.keys.toList(),
+    ).toSet();
+    final present = <(int, int)>{
+      for (final MapEntry(key: mailboxId, value: uids) in uidsByMailbox.entries)
+        for (final uid in found(
+          'SELECT uid FROM messages WHERE mailbox_id = ? AND uid IN',
+          [mailboxId],
+          uids,
+        ))
+          (mailboxId, uid),
+    };
+    final taken = found('SELECT id FROM messages WHERE id IN', const [], [
+      for (final row in snapshot.messages) row['id']! as int,
+    ]).toSet();
+    // Back with their own ids (one prepared statement), or, rarely, with
+    // a new one when theirs was taken meanwhile.
+    final columns = snapshot.messages.first.keys.toList();
+    final sameIds = <Map<String, Object?>>[];
     for (final row in snapshot.messages) {
       final oldId = row['id']! as int;
-      final present = _db.select(
-        'SELECT 1 FROM messages WHERE mailbox_id = ? AND uid = ?',
-        [row['mailbox_id'], row['uid']],
-      );
-      final folder = _db.select('SELECT 1 FROM mailboxes WHERE id = ?', [
-        row['mailbox_id'],
-      ]);
-      if (present.isNotEmpty || folder.isEmpty) continue;
-      final idFree = _db.select('SELECT 1 FROM messages WHERE id = ?', [
-        oldId,
-      ]).isEmpty;
-      final columns = [
-        for (final c in row.keys)
-          if (c != 'id' || idFree) c,
-      ];
-      _db.execute(
-        'INSERT INTO messages (${columns.join(', ')}) VALUES (${_placeholders(columns.length)})',
-        [for (final c in columns) row[c]],
-      );
-      final newId = idFree ? oldId : _db.lastInsertRowId;
-      newIds[oldId] = newId;
-      _replaceReferences(
-        MessageId(newId),
-        ((row['thread_references'] as String?) ?? '').split(' '),
-      );
-    }
-    void copy(String table, List<Map<String, Object?>> rows) {
-      for (final row in rows) {
-        final id = newIds[row['message_id']];
-        if (id == null) continue;
-        final columns = row.keys.toList();
-        _db.execute(
-          'INSERT OR REPLACE INTO $table (${columns.join(', ')}) VALUES (${_placeholders(columns.length)})',
-          [for (final c in columns) c == 'message_id' ? id : row[c]],
-        );
+      final mailboxId = row['mailbox_id']! as int;
+      if (!folders.contains(mailboxId) ||
+          present.contains((mailboxId, row['uid']! as int))) {
+        continue;
       }
+      if (taken.contains(oldId)) {
+        final without = [
+          for (final c in row.keys)
+            if (c != 'id') c,
+        ];
+        _db.execute(
+          'INSERT INTO messages (${without.join(', ')}) VALUES (${_placeholders(without.length)})',
+          [for (final c in without) row[c]],
+        );
+        newIds[oldId] = _db.lastInsertRowId;
+      } else {
+        sameIds.add(row);
+        newIds[oldId] = oldId;
+      }
+    }
+    _db.executeMany(
+      'INSERT INTO messages (${columns.join(', ')}) VALUES (${_placeholders(columns.length)})',
+      [
+        for (final row in sameIds) [for (final c in columns) row[c]],
+      ],
+    );
+    _db.executeMany(
+      'INSERT OR IGNORE INTO message_references (message_id, ref) VALUES (?, ?)',
+      [
+        for (final row in snapshot.messages)
+          if (newIds[row['id']] case final id?)
+            for (final ref in {
+              ...((row['thread_references'] as String?) ?? '').split(' '),
+            })
+              if (ref.isNotEmpty) [id, ref],
+      ],
+    );
+    void copy(String table, List<Map<String, Object?>> rows) {
+      if (rows.isEmpty) return;
+      final columns = rows.first.keys.toList();
+      _db.executeMany(
+        'INSERT OR REPLACE INTO $table (${columns.join(', ')}) VALUES (${_placeholders(columns.length)})',
+        [
+          for (final row in rows)
+            if (newIds[row['message_id']] case final id?)
+              [for (final c in columns) c == 'message_id' ? id : row[c]],
+        ],
+      );
     }
 
     copy('message_addresses', snapshot.addresses);
     copy('message_headers', snapshot.headers);
     copy('message_bodies', snapshot.bodies);
-    for (final row in snapshot.search) {
-      final id = newIds[row['id']];
-      if (id == null) continue;
-      _db.execute('DELETE FROM message_search WHERE rowid = ?', [id]);
+    final search = [
+      for (final row in snapshot.search)
+        if (newIds[row['id']] case final id?)
+          [id, row['subject'], row['participants'], row['body']],
+    ];
+    for (final chunk in _chunks(search, 500)) {
       _db.execute(
-        'INSERT INTO message_search (rowid, subject, participants, body) VALUES (?, ?, ?, ?)',
-        [id, row['subject'], row['participants'], row['body']],
+        'DELETE FROM message_search WHERE rowid IN (${_placeholders(chunk.length)})',
+        [for (final row in chunk) row.first],
       );
     }
+    _db.executeMany(
+      'INSERT INTO message_search (rowid, subject, participants, body) VALUES (?, ?, ?, ?)',
+      search,
+    );
     _words.addNew();
     SectionSql.refreshIds(_db, [for (final id in newIds.values) MessageId(id)]);
     return {
@@ -1745,6 +1815,69 @@ final class MessageSnapshot {
   final int bodiesLeftOut;
 
   bool get isEmpty => messages.isEmpty;
+
+  /// Bytes of the downloaded bodies kept.
+  int get bodyBytes => bodies.fold(
+    0,
+    (sum, row) => sum + ((row['raw'] as Uint8List?)?.length ?? 0),
+  );
+
+  /// Several snapshots as one: a removal done in steps keeps one per
+  /// step, and is undone as a whole.
+  factory MessageSnapshot.join(Iterable<MessageSnapshot> parts) {
+    final list = parts.toList(growable: false);
+    if (list.length == 1) return list.single;
+    return MessageSnapshot._(
+      messages: [for (final p in list) ...p.messages],
+      addresses: [for (final p in list) ...p.addresses],
+      headers: [for (final p in list) ...p.headers],
+      bodies: [for (final p in list) ...p.bodies],
+      search: [for (final p in list) ...p.search],
+      bodiesLeftOut: list.fold(0, (sum, p) => sum + p.bodiesLeftOut),
+    );
+  }
+
+  /// This snapshot in parts of at most [size] messages, in order, each
+  /// with its own messages' addresses, headers, body and search text: to
+  /// put thousands of messages back a part at a time.
+  List<MessageSnapshot> split(int size) {
+    if (size < 1) throw ArgumentError.value(size, 'size');
+    if (messages.length <= size) return [this];
+    final part = <int, int>{
+      for (final (i, row) in messages.indexed) row['id']! as int: i ~/ size,
+    };
+    final count = (messages.length + size - 1) ~/ size;
+    List<List<Map<String, Object?>>> byPart(
+      List<Map<String, Object?>> rows,
+      String key,
+    ) {
+      final parts = [for (var i = 0; i < count; i++) <Map<String, Object?>>[]];
+      for (final row in rows) {
+        if (part[row[key]] case final i?) parts[i].add(row);
+      }
+      return parts;
+    }
+
+    final addresses = byPart(this.addresses, 'message_id');
+    final headers = byPart(this.headers, 'message_id');
+    final bodies = byPart(this.bodies, 'message_id');
+    final search = byPart(this.search, 'id');
+    return [
+      for (var i = 0; i < count; i++)
+        MessageSnapshot._(
+          messages: messages.sublist(
+            i * size,
+            (i + 1) * size > messages.length ? messages.length : (i + 1) * size,
+          ),
+          addresses: addresses[i],
+          headers: headers[i],
+          bodies: bodies[i],
+          search: search[i],
+          // Counted once, with the first part.
+          bodiesLeftOut: i == 0 ? bodiesLeftOut : 0,
+        ),
+    ];
+  }
 }
 
 /// What a search found ([MessageRepository.searchForgiving]).

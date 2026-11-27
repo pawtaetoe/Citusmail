@@ -4,18 +4,21 @@
 
 import 'package:flutter/material.dart';
 
+import '../text/numbers.dart';
 import 'confirm_dialog.dart';
 
 /// Asks before deleting [count] messages for good (in Trash, or on an
 /// account with no Trash folder, where the server deletes at once).
-Future<bool> confirmDeleteForever(BuildContext context, {int count = 1}) =>
-    confirmDialog(
-      context,
-      title: 'Delete forever?',
-      message: count == 1
-          ? 'This message will be deleted from the server and can\'t be '
-                'recovered.'
-          : 'These $count messages will be deleted from the server and '
-                'can\'t be recovered.',
-      confirm: 'Delete',
-    );
+Future<bool> confirmDeleteForever(
+  BuildContext context, {
+  int count = 1,
+}) => confirmDialog(
+  context,
+  title: 'Delete forever?',
+  message: count == 1
+      ? 'This message will be deleted from the server and can\'t be '
+            'recovered.'
+      : 'These ${grouped(count)} messages will be deleted from the server and '
+            'can\'t be recovered.',
+  confirm: 'Delete',
+);
