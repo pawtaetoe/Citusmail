@@ -185,7 +185,7 @@ final class _Live {
 
   /// Credentials only look at whether the account signs in with OAuth.
   late final Account _placeholderAccount = Account(
-    id: 0,
+    id: AccountId(0),
     email: s.email,
     username: s.email,
     imap: account.imap,
