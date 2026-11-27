@@ -51,6 +51,25 @@ enum Cadence {
   };
 
   Duration get period => Duration(days: days);
+
+  /// [n] periods after [from], on the calendar: a bill on the 29th comes
+  /// again on the 29th (or the month's last day), not 30 days later.
+  DateTime after(DateTime from, [int n = 1]) {
+    if (this == weekly) return from.add(Duration(days: 7 * n));
+    final months = switch (this) {
+      quarterly => 3 * n,
+      yearly => 12 * n,
+      _ => n,
+    };
+    final first = from.isUtc
+        ? DateTime.utc(from.year, from.month + months)
+        : DateTime(from.year, from.month + months);
+    final last = DateTime.utc(first.year, first.month + 1, 0).day;
+    final day = from.day > last ? last : from.day;
+    return from.isUtc
+        ? DateTime.utc(first.year, first.month, day, from.hour, from.minute)
+        : DateTime(first.year, first.month, day, from.hour, from.minute);
+  }
 }
 
 /// A price: [minor] units (cents) of [currency] (`SGD`, `USD`... or the
@@ -595,6 +614,7 @@ abstract final class SubscriptionFinder {
           charges = own;
         }
       }
+      charges = _oneChargePerBill(charges, records);
       final cadence =
           _cadenceFromDates([for (final r in charges) r.email.at]) ??
           _cadenceFromWords([for (final r in records) r.email]);
@@ -633,15 +653,21 @@ abstract final class SubscriptionFinder {
           lastCharge != null &&
           cadence != null) {
         // Each charge of the last period comes again (several domains
-        // renewing on their own dates): the soonest of them.
+        // renewing on their own dates): the soonest of them. A charge due
+        // today is still to come until the day ends.
+        final today = DateTime.utc(now.year, now.month, now.day);
+        bool due(DateTime d) =>
+            !DateTime.utc(d.year, d.month, d.day).isBefore(today);
         final again = [
           for (final r in charges)
-            if (r.email.at.add(cadence.period).isAfter(now))
-              r.email.at.add(cadence.period),
+            if (due(cadence.after(r.email.at))) cadence.after(r.email.at),
         ]..sort();
-        next = again.firstOrNull ?? lastCharge.add(cadence.period);
-        while (next!.isBefore(now)) {
-          next = next.add(cadence.period);
+        next = again.firstOrNull;
+        if (next == null) {
+          var n = 1;
+          do {
+            next = cadence.after(lastCharge, n++);
+          } while (!due(next));
         }
       }
       found.add(
@@ -665,6 +691,42 @@ abstract final class SubscriptionFinder {
       return b.records.first.email.at.compareTo(at);
     });
     return found;
+  }
+
+  /// Charges this close together are one bill sent twice (the bill, then
+  /// the payment; or a copy without the amount).
+  static const sameBill = Duration(days: 3);
+
+  /// [charges] (newest first) with each receipt that has no price and
+  /// comes within [sameBill] of another charge counted as a notice about
+  /// it, not a charge of its own. [records] is updated to match.
+  static List<SubscriptionRecord> _oneChargePerBill(
+    List<SubscriptionRecord> charges,
+    List<SubscriptionRecord> records,
+  ) {
+    final kept = [
+      for (final r in charges)
+        if (r.amount != null) r,
+    ];
+    for (final r in charges.reversed) {
+      if (r.amount != null) continue;
+      final twin = kept.any(
+        (k) => k.email.at.difference(r.email.at).abs() <= sameBill,
+      );
+      if (!twin) {
+        kept.add(r);
+        continue;
+      }
+      final i = records.indexOf(r);
+      if (i >= 0) {
+        records[i] = SubscriptionRecord(
+          r.email,
+          SubscriptionEvent.notice,
+          null,
+        );
+      }
+    }
+    return kept..sort((a, b) => b.email.at.compareTo(a.email.at));
   }
 
   /// What [charges] (newest first) add up to over the last 12 months,

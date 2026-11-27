@@ -135,8 +135,55 @@ void main() {
       expect(s.cadence, Cadence.monthly);
       expect(s.amount, const Money(1798, 'SGD'));
       expect(s.status, SubscriptionStatus.active);
-      expect(s.nextCharge, day(11, 13));
+      // Billed on the 14th: next on the 14th, not 30 days later.
+      expect(s.nextCharge, day(11, 14));
       expect(s.monthly, const Money(1798, 'SGD'));
+    });
+
+    test('a bill sent twice is one charge, due on the same day next month', () {
+      // MyRepublic: the e-Bill with the amount, then a second email about
+      // the same bill a day later without it.
+      List<Subscription> find(DateTime at) => SubscriptionFinder.find([
+        mail(
+          'myrepublic.net',
+          'Your MyRepublic e-Bill is ready',
+          DateTime.utc(2026, 10, 29, 9),
+          name: 'MyRepublic',
+          text: 'Your monthly bill. Amount due S\$6.00',
+        ),
+        mail(
+          'myrepublic.net',
+          'Your MyRepublic e-Bill',
+          DateTime.utc(2026, 10, 30, 9),
+          name: 'MyRepublic',
+          text: 'Your monthly e-Bill is attached.',
+        ),
+      ], now: at);
+      final s = find(DateTime.utc(2026, 11, 27, 12)).single;
+      expect(
+        s.records.where((r) => r.event == SubscriptionEvent.charge),
+        hasLength(1),
+      );
+      expect(s.amount, const Money(600, 'SGD'));
+      expect(s.nextCharge, DateTime.utc(2026, 11, 29, 9));
+      // On the day it is due it is still due, all day; it does not move
+      // on to another "tomorrow".
+      expect(
+        find(DateTime.utc(2026, 11, 29, 20)).single.nextCharge,
+        DateTime.utc(2026, 11, 29, 9),
+      );
+      expect(
+        find(DateTime.utc(2026, 11, 30, 8)).single.nextCharge,
+        DateTime.utc(2026, 12, 29, 9),
+      );
+    });
+
+    test('the 31st comes again on the month\'s last day', () {
+      expect(Cadence.monthly.after(day(1, 31)), day(2, 28));
+      expect(Cadence.monthly.after(day(1, 31), 3), day(4, 30));
+      expect(Cadence.yearly.after(day(2, 29, 2028)), day(2, 28, 2029));
+      expect(Cadence.quarterly.after(day(11, 30)), day(2, 28, 2027));
+      expect(Cadence.weekly.after(day(11, 30)), day(12, 7));
     });
 
     test('one yearly receipt: cadence from the wording', () {
