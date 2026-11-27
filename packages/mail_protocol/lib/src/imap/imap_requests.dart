@@ -170,29 +170,24 @@ final class SearchCriteria {
 
   /// Either [a] or [b].
   static SearchCriteria or(SearchCriteria a, SearchCriteria b) =>
-      SearchCriteria._(
-        (c) {
-          c
-            ..atom('OR')
-            ..openList();
-          a._apply(c);
-          c
-            ..closeList()
-            ..openList();
-          b._apply(c);
-          c.closeList();
-        },
-        needsUtf8: a.needsUtf8 || b.needsUtf8,
-      );
+      SearchCriteria._((c) {
+        c
+          ..atom('OR')
+          ..openList();
+        a._apply(c);
+        c
+          ..closeList()
+          ..openList();
+        b._apply(c);
+        c.closeList();
+      }, needsUtf8: a.needsUtf8 || b.needsUtf8);
 
-  static SearchCriteria and(List<SearchCriteria> criteria) => SearchCriteria._(
-    (c) {
-      for (final criterion in criteria) {
-        criterion._apply(c);
-      }
-    },
-    needsUtf8: criteria.any((c) => c.needsUtf8),
-  );
+  static SearchCriteria and(List<SearchCriteria> criteria) =>
+      SearchCriteria._((c) {
+        for (final criterion in criteria) {
+          criterion._apply(c);
+        }
+      }, needsUtf8: criteria.any((c) => c.needsUtf8));
 
   static SearchCriteria _keyed(String key, String value) => SearchCriteria._(
     (c) => c
