@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import '../ids.dart';
+
 /// What a folder rule looks at.
 enum RuleField {
   /// The sender's address, exactly (ignoring case).
@@ -30,10 +32,10 @@ final class FolderRule {
   });
 
   final int id;
-  final int accountId;
+  final AccountId accountId;
 
   /// The folder mail is moved to.
-  final int mailboxId;
+  final MailboxId mailboxId;
   final RuleField field;
 
   /// Stored trimmed and in lower case.

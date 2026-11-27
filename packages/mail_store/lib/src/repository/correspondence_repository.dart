@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:mail_protocol/mail_protocol.dart';
 
 import '../database/mail_database.dart';
+import '../ids.dart';
 
 /// What the stored mail says about writing to one address: when that
 /// person's mail was dated, how quickly they answered, whether the user
@@ -46,7 +47,8 @@ final class CorrespondenceRepository {
     for (final row in rows) {
       final mid = row['mid'] as String?;
       if (mid != null && !seen.add(mid)) continue;
-      final value = row['date'] as String? ?? _dateInBody(row['id'] as int);
+      final value =
+          row['date'] as String? ?? _dateInBody(MessageId(row['id'] as int));
       final date = value == null ? null : const MailDateParser().parse(value);
       if (date != null) dates.add(date);
       if (dates.length == limit) break;
@@ -55,10 +57,10 @@ final class CorrespondenceRepository {
   }
 
   /// The Date header of a downloaded message, read from its start.
-  String? _dateInBody(int messageId) {
+  String? _dateInBody(MessageId messageId) {
     final rows = _db.select(
       'SELECT substr(raw, 1, ?) FROM message_bodies WHERE message_id = ?',
-      [_headBytes, messageId],
+      [_headBytes, messageId.value],
     );
     if (rows.isEmpty) return null;
     final head = rows.first.columnAt(0);

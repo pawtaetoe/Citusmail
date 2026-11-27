@@ -5,6 +5,7 @@
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
+import '../ids.dart';
 import 'setting.dart';
 import 'settings_repository.dart';
 
@@ -45,20 +46,20 @@ final class ReceiptRepository {
 
   /// Remembers that the message [messageId] (without brackets) asked for
   /// read receipts.
-  void requested(int accountId, String messageId, {DateTime? at}) =>
+  void requested(AccountId accountId, String messageId, {DateTime? at}) =>
       _db.execute(
         'INSERT OR IGNORE INTO receipt_requests (account_id, message_id_header, requested_at) '
         'VALUES (?, ?, ?)',
         [
-          accountId,
+          accountId.value,
           messageId,
           (at ?? DateTime.now()).toUtc().millisecondsSinceEpoch,
         ],
       );
 
-  bool wasRequested(int accountId, String messageId) => _db.select(
+  bool wasRequested(AccountId accountId, String messageId) => _db.select(
     'SELECT 1 FROM receipt_requests WHERE account_id = ? AND message_id_header = ?',
-    [accountId, messageId],
+    [accountId.value, messageId],
   ).isNotEmpty;
 
   /// Records a receipt for a message that asked for one; a later receipt
@@ -66,7 +67,7 @@ final class ReceiptRepository {
   /// after it, does not). Returns false (and stores nothing) when the
   /// message never asked.
   bool record(
-    int accountId,
+    AccountId accountId,
     String messageId, {
     required String recipient,
     required String disposition,
@@ -80,7 +81,7 @@ final class ReceiptRepository {
       'disposition = excluded.disposition, at = excluded.at '
       'WHERE excluded.at >= read_receipts.at',
       [
-        accountId,
+        accountId.value,
         messageId,
         recipient.toLowerCase(),
         disposition,
@@ -91,18 +92,18 @@ final class ReceiptRepository {
   }
 
   /// The receipts for one sent message, oldest first.
-  List<ReadReceipt> forMessage(int accountId, String messageId) => [
+  List<ReadReceipt> forMessage(AccountId accountId, String messageId) => [
     for (final row in _db.select(
       'SELECT recipient, disposition, at FROM read_receipts '
       'WHERE account_id = ? AND message_id_header = ? ORDER BY at, recipient',
-      [accountId, messageId],
+      [accountId.value, messageId],
     ))
       _fromRow(row),
   ];
 
   /// Ids of stored messages in [mailboxId] that look like read receipts
   /// (from their Content-Type) and haven't been read for one yet.
-  List<int> unreadReports(int mailboxId, {int limit = 50}) => [
+  List<MessageId> unreadReports(MailboxId mailboxId, {int limit = 50}) => [
     for (final row in _db.select(
       'SELECT m.id FROM messages m JOIN message_headers h ON h.message_id = m.id '
       "WHERE m.mailbox_id = ? AND h.name = 'content-type' "
@@ -110,35 +111,35 @@ final class ReceiptRepository {
       "AND lower(h.value) LIKE '%disposition-notification%' "
       'AND NOT EXISTS (SELECT 1 FROM processed_reports p WHERE p.message_id = m.id) '
       'ORDER BY m.received_at DESC LIMIT ?',
-      [mailboxId, limit.clamp(1, 500)],
+      [mailboxId.value, limit.clamp(1, 500)],
     ))
-      row['id'] as int,
+      MessageId(row['id'] as int),
   ];
 
-  void markReportRead(int messageId) => _db.execute(
+  void markReportRead(MessageId messageId) => _db.execute(
     'INSERT OR IGNORE INTO processed_reports (message_id) VALUES (?)',
-    [messageId],
+    [messageId.value],
   );
 
   /// Reads every report of [mailboxId] again on the next pass (after the
   /// way they are matched improved).
-  void rereadReports(int mailboxId) => _db.execute(
+  void rereadReports(MailboxId mailboxId) => _db.execute(
     'DELETE FROM processed_reports WHERE message_id IN '
     '(SELECT id FROM messages WHERE mailbox_id = ?)',
-    [mailboxId],
+    [mailboxId.value],
   );
 
   /// Remembers that [recipient]'s receipt for [messageId] is the stored
   /// message [reportId], so it can be opened from the sent message.
   void linkReport(
-    int accountId,
+    AccountId accountId,
     String messageId, {
     required String recipient,
-    required int reportId,
+    required MessageId reportId,
   }) {
     final links = _links(accountId)
       ..remove(_linkKey(messageId, recipient))
-      ..[_linkKey(messageId, recipient)] = reportId;
+      ..[_linkKey(messageId, recipient)] = reportId.value;
     while (links.length > maxLinks) {
       links.remove(links.keys.first);
     }
@@ -146,16 +147,24 @@ final class ReceiptRepository {
   }
 
   /// The stored id of [recipient]'s receipt for [messageId], if known.
-  int? reportFor(int accountId, String messageId, String recipient) =>
-      _links(accountId)[_linkKey(messageId, recipient.toLowerCase())];
+  MessageId? reportFor(
+    AccountId accountId,
+    String messageId,
+    String recipient,
+  ) =>
+      switch (_links(accountId)[_linkKey(messageId, recipient.toLowerCase())]) {
+        final id? => MessageId(id),
+        null => null,
+      };
 
   /// One account's links, as a JSON object: [_linkKey] to report id.
-  static JsonSetting<Map<String, int>> _linksFor(int accountId) => JsonSetting(
-    'receipts.reports.$accountId',
-    fallback: const {},
-    fromJson: _linksFromJson,
-    toJson: _linksToJson,
-  );
+  static JsonSetting<Map<String, int>> _linksFor(AccountId accountId) =>
+      JsonSetting(
+        'receipts.reports.${accountId.value}',
+        fallback: const {},
+        fromJson: _linksFromJson,
+        toJson: _linksToJson,
+      );
 
   static Map<String, int>? _linksFromJson(Object? json) =>
       json is Map<String, Object?>
@@ -170,7 +179,7 @@ final class ReceiptRepository {
   static String _linkKey(String messageId, String recipient) =>
       '$messageId ${recipient.toLowerCase()}';
 
-  Map<String, int> _links(int accountId) => {
+  Map<String, int> _links(AccountId accountId) => {
     ..._linksFor(accountId).read(_settings),
   };
 

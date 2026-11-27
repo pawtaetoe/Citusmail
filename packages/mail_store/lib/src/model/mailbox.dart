@@ -4,6 +4,8 @@
 
 import 'package:mail_protocol/mail_protocol.dart';
 
+import '../ids.dart';
+
 /// What the sync engine remembers about a folder between syncs.
 final class MailboxSyncState {
   const MailboxSyncState({
@@ -37,8 +39,8 @@ final class StoredMailbox {
     this.specialUse,
   });
 
-  final int id;
-  final int accountId;
+  final MailboxId id;
+  final AccountId accountId;
 
   /// Name as the server knows it (use in IMAP commands).
   final String encodedName;

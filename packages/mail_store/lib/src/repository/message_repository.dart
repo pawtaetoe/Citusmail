@@ -8,6 +8,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
+import '../ids.dart';
 import '../model/mailbox.dart';
 import '../model/message.dart';
 import 'search_query.dart';
@@ -51,8 +52,8 @@ final class MessageQuery {
       unreadOnly = false,
       flaggedOnly = false;
 
-  final List<int>? mailboxIds;
-  final List<int>? accountIds;
+  final List<MailboxId>? mailboxIds;
+  final List<AccountId>? accountIds;
 
   /// Only messages in each account's INBOX.
   final bool inboxesOnly;
@@ -124,11 +125,11 @@ final class MessageRepository {
   }();
 
   /// Inserts or updates summaries by UID, in one transaction.
-  void upsertSummaries(int mailboxId, List<MessageSummary> summaries) =>
+  void upsertSummaries(MailboxId mailboxId, List<MessageSummary> summaries) =>
       _db.transaction(() {
-        final ids = <int>[];
+        final ids = <MessageId>[];
         for (final s in summaries) {
-          final id =
+          final rowId =
               _db
                       .select(
                         'INSERT INTO messages (mailbox_id, uid, message_id_header, in_reply_to, thread_references, '
@@ -153,7 +154,7 @@ final class MessageRepository {
                         'ELSE excluded.received_at END '
                         'RETURNING id',
                         [
-                          mailboxId,
+                          mailboxId.value,
                           s.uid,
                           s.messageId,
                           s.inReplyTo,
@@ -180,6 +181,7 @@ final class MessageRepository {
                       .first
                       .columnAt(0)
                   as int;
+          final id = MessageId(rowId);
           _replaceAddresses(id, s);
           _replaceHeaders(id, s.headers);
           _replaceReferences(id, s.references);
@@ -194,9 +196,9 @@ final class MessageRepository {
   /// Mail in Sent or the Important folder changes the section of other
   /// messages: those from the people written to, replies to the sent
   /// messages, or the same message in the inbox.
-  void _refreshRelated(int mailboxId, List<MessageSummary> summaries) {
+  void _refreshRelated(MailboxId mailboxId, List<MessageSummary> summaries) {
     final use = _db.select('SELECT special_use FROM mailboxes WHERE id = ?', [
-      mailboxId,
+      mailboxId.value,
     ]).firstOrNull?['special_use'];
     if (use == 'sent') {
       final recipients = {
@@ -217,7 +219,7 @@ final class MessageRepository {
         SectionSql.refresh(
           _db,
           "mailbox_id IN (${_placeholders(inboxes.length)}) AND section = 'screener'",
-          inboxes,
+          [for (final id in inboxes) id.value],
         );
       }
     } else if (use == 'important') {
@@ -231,7 +233,7 @@ final class MessageRepository {
 
   /// Updates flags (and mod-sequences) of messages by UID.
   void updateFlags(
-    int mailboxId,
+    MailboxId mailboxId,
     List<({int uid, MessageFlags flags, int? modSeq})> changes,
   ) => _db.transaction(() {
     _db.executeMany(
@@ -243,7 +245,7 @@ final class MessageRepository {
             c.flags.bits,
             c.flags.keywords.join(' '),
             c.modSeq,
-            mailboxId,
+            mailboxId.value,
             c.uid,
           ],
       ],
@@ -254,38 +256,38 @@ final class MessageRepository {
   });
 
   /// Removes messages by UID (with addresses, headers, body and index).
-  void removeUids(int mailboxId, Iterable<int> uids) => _db.transaction(
+  void removeUids(MailboxId mailboxId, Iterable<int> uids) => _db.transaction(
     () => _db.executeMany(
       'DELETE FROM messages WHERE mailbox_id = ? AND uid = ?',
       [
-        for (final uid in uids) [mailboxId, uid],
+        for (final uid in uids) [mailboxId.value, uid],
       ],
     ),
   );
 
   /// All cached UIDs of a folder, ascending.
-  List<int> uids(int mailboxId) => _db
+  List<int> uids(MailboxId mailboxId) => _db
       .select('SELECT uid FROM messages WHERE mailbox_id = ? ORDER BY uid', [
-        mailboxId,
+        mailboxId.value,
       ])
       .map((r) => r.columnAt(0) as int)
       .toList(growable: false);
 
   /// Cached UIDs of a folder above [uid], ascending: what arrived since a
   /// UID was seen.
-  List<int> uidsAbove(int mailboxId, int uid) => _db
+  List<int> uidsAbove(MailboxId mailboxId, int uid) => _db
       .select(
         'SELECT uid FROM messages WHERE mailbox_id = ? AND uid > ? ORDER BY uid',
-        [mailboxId, uid],
+        [mailboxId.value, uid],
       )
       .map((r) => r.columnAt(0) as int)
       .toList(growable: false);
 
   /// Cached flags of every message in a folder, by UID.
-  Map<int, MessageFlags> flagsByUid(int mailboxId) => {
+  Map<int, MessageFlags> flagsByUid(MailboxId mailboxId) => {
     for (final row in _db.select(
       'SELECT uid, flags, keywords FROM messages WHERE mailbox_id = ?',
-      [mailboxId],
+      [mailboxId.value],
     ))
       row['uid'] as int: MessageFlags(
         row['flags'] as int,
@@ -295,33 +297,35 @@ final class MessageRepository {
       ),
   };
 
-  int? lowestUid(int mailboxId) =>
+  int? lowestUid(MailboxId mailboxId) =>
       _db
               .select('SELECT min(uid) FROM messages WHERE mailbox_id = ?', [
-                mailboxId,
+                mailboxId.value,
               ])
               .first
               .columnAt(0)
           as int?;
 
-  int? highestUid(int mailboxId) =>
+  int? highestUid(MailboxId mailboxId) =>
       _db
               .select('SELECT max(uid) FROM messages WHERE mailbox_id = ?', [
-                mailboxId,
+                mailboxId.value,
               ])
               .first
               .columnAt(0)
           as int?;
 
-  StoredMessage? byId(int id) {
-    final rows = _db.select('SELECT $_columns $_from WHERE m.id = ?', [id]);
+  StoredMessage? byId(MessageId id) {
+    final rows = _db.select('SELECT $_columns $_from WHERE m.id = ?', [
+      id.value,
+    ]);
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
 
-  StoredMessage? byUid(int mailboxId, int uid) {
+  StoredMessage? byUid(MailboxId mailboxId, int uid) {
     final rows = _db.select(
       'SELECT $_columns $_from WHERE m.mailbox_id = ? AND m.uid = ?',
-      [mailboxId, uid],
+      [mailboxId.value, uid],
     );
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
@@ -334,7 +338,7 @@ final class MessageRepository {
   /// merged.
   List<StoredMessage> list(MessageQuery query) {
     final limit = query.limit.clamp(1, 500);
-    List<int>? folders = query.mailboxIds;
+    List<MailboxId>? folders = query.mailboxIds;
     if (query.inboxesOnly) {
       final inboxes = inboxIds(accountIds: query.accountIds);
       folders = folders == null
@@ -353,24 +357,24 @@ final class MessageRepository {
 
   static int _newestFirst(StoredMessage a, StoredMessage b) {
     final byDate = b.listedAt.compareTo(a.listedAt);
-    return byDate != 0 ? byDate : b.id.compareTo(a.id);
+    return byDate != 0 ? byDate : b.id.value.compareTo(a.id.value);
   }
 
   /// The SQL and arguments of one page (in one folder, or all).
   (String, List<Object?>) _pageSql(
     MessageQuery query,
-    int? mailboxId,
+    MailboxId? mailboxId,
     int limit,
   ) {
     final where = <String>[];
     final args = <Object?>[];
     if (mailboxId != null) {
       where.add('m.mailbox_id = ?');
-      args.add(mailboxId);
+      args.add(mailboxId.value);
     }
     if (query.accountIds case final ids? when mailboxId == null) {
       where.add('b.account_id IN (${_placeholders(ids.length)})');
-      args.addAll(ids);
+      args.addAll([for (final id in ids) id.value]);
     }
     if (mailboxId == null) where.add(_notACopy);
     if (query.section case final section?) {
@@ -393,7 +397,7 @@ final class MessageRepository {
     if (query.before case final before?) {
       where.add('(m.listed_at < ? OR (m.listed_at = ? AND m.id < ?))');
       final at = before.listedAt.millisecondsSinceEpoch;
-      args.addAll([at, at, before.id]);
+      args.addAll([at, at, before.id.value]);
     }
     final sql = StringBuffer('SELECT $_columns $_from');
     if (where.isNotEmpty) sql.write(' WHERE ${where.join(' AND ')}');
@@ -403,14 +407,18 @@ final class MessageRepository {
     return (sql.toString(), args);
   }
 
-  List<StoredMessage> _listPage(MessageQuery query, int? mailboxId, int limit) {
+  List<StoredMessage> _listPage(
+    MessageQuery query,
+    MailboxId? mailboxId,
+    int limit,
+  ) {
     final (sql, args) = _pageSql(query, mailboxId, limit);
     return _db.select(sql, args).map(_fromRow).toList(growable: false);
   }
 
   /// How SQLite runs one page of [query] (for tests that make sure lists
   /// stay index reads).
-  List<String> debugQueryPlan(MessageQuery query, {int? mailboxId}) {
+  List<String> debugQueryPlan(MessageQuery query, {MailboxId? mailboxId}) {
     final (sql, args) = _pageSql(query, mailboxId, query.limit);
     return [
       for (final row in _db.select('EXPLAIN QUERY PLAN $sql', args))
@@ -419,12 +427,12 @@ final class MessageRepository {
   }
 
   /// Unread messages in a folder (snoozed mail isn't counted).
-  int unreadCount(int mailboxId) =>
+  int unreadCount(MailboxId mailboxId) =>
       _db
               .select(
                 'SELECT count(*) FROM messages WHERE mailbox_id = ? AND (flags & 1) = 0 '
                 "AND section != 'snoozed'",
-                [mailboxId],
+                [mailboxId.value],
               )
               .first
               .columnAt(0)
@@ -514,10 +522,10 @@ final class MessageRepository {
   }
 
   /// Addresses of one kind (from, to, cc...), in order.
-  List<MailAddress> addresses(int messageId, String kind) => _db
+  List<MailAddress> addresses(MessageId messageId, String kind) => _db
       .select(
         'SELECT name, address FROM message_addresses WHERE message_id = ? AND kind = ? ORDER BY position',
-        [messageId, kind],
+        [messageId.value, kind],
       )
       .map((r) => _address(r['name'] as String?, r['address'] as String)!)
       .toList(growable: false);
@@ -583,7 +591,7 @@ final class MessageRepository {
   /// mail without one, from one sender: what "archive earlier mail" acts
   /// on after unsubscribing. Newest first, at most [limit].
   List<StoredMessage> inboxFromList(
-    int accountId, {
+    AccountId accountId, {
     String? listId,
     String? fromAddress,
     int limit = 2000,
@@ -600,7 +608,7 @@ final class MessageRepository {
           'SELECT $_columns $_from WHERE m.mailbox_id = ? AND $match '
           'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
           [
-            inbox.first,
+            inbox.first.value,
             listId?.toLowerCase() ?? fromAddress,
             limit.clamp(1, 5000),
           ],
@@ -612,7 +620,7 @@ final class MessageRepository {
   /// Inbox messages of [accountId] from [domain] or its subdomains, newest
   /// first, at most [limit] (what "block everyone at" moves).
   List<StoredMessage> inboxFromDomain(
-    int accountId,
+    AccountId accountId,
     String domain, {
     int limit = 2000,
   }) {
@@ -626,7 +634,7 @@ final class MessageRepository {
           'SELECT $_columns $_from WHERE m.mailbox_id = ? '
           'AND (lower(m.from_address) LIKE ? OR lower(m.from_address) LIKE ?) '
           'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
-          [inbox.first, '%@$d', '%.$d', limit.clamp(1, 5000)],
+          [inbox.first.value, '%@$d', '%.$d', limit.clamp(1, 5000)],
         )
         .map(_fromRow)
         .toList(growable: false);
@@ -634,10 +642,10 @@ final class MessageRepository {
 
   /// Messages in [mailboxId] with Message-ID [messageId]
   /// (without brackets).
-  List<StoredMessage> byMessageId(int mailboxId, String messageId) => _db
+  List<StoredMessage> byMessageId(MailboxId mailboxId, String messageId) => _db
       .select(
         'SELECT $_columns $_from WHERE m.mailbox_id = ? AND m.message_id_header = ?',
-        [mailboxId, messageId],
+        [mailboxId.value, messageId],
       )
       .map(_fromRow)
       .toList(growable: false);
@@ -647,7 +655,7 @@ final class MessageRepository {
   /// reply to mail the user sent. Reads the folder's list index (a message
   /// is never listed before it was received).
   List<StoredMessage> threadedSince(
-    int mailboxId,
+    MailboxId mailboxId,
     DateTime since, {
     int limit = 2000,
   }) {
@@ -658,7 +666,7 @@ final class MessageRepository {
           'AND m.received_at > ? '
           "AND (m.in_reply_to IS NOT NULL OR coalesce(m.thread_references, '') != '') "
           'ORDER BY m.listed_at DESC, m.id DESC LIMIT ?',
-          [mailboxId, ms, ms, limit.clamp(1, 10000)],
+          [mailboxId.value, ms, ms, limit.clamp(1, 10000)],
         )
         .map(_fromRow)
         .toList(growable: false);
@@ -684,9 +692,9 @@ final class MessageRepository {
       'OR m.id IN (SELECT message_id FROM message_references WHERE ref IN ($marks))) '
       'ORDER BY coalesce(m.sent_at, m.received_at) DESC, m.id DESC LIMIT ?',
       [
-        message.accountId,
-        message.id,
-        message.id,
+        message.accountId.value,
+        message.id.value,
+        message.id.value,
         ...ids,
         ...ids,
         ...ids,
@@ -719,17 +727,17 @@ final class MessageRepository {
     DateTime at(StoredMessage m) => m.sentAt ?? m.receivedAt;
     newest.sort((a, b) {
       final byTime = at(a).compareTo(at(b));
-      return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      return byTime != 0 ? byTime : a.id.value.compareTo(b.id.value);
     });
     return newest;
   }
 
   /// Stored headers of a message: lower-case name -> values.
-  Map<String, List<String>> headers(int messageId) {
+  Map<String, List<String>> headers(MessageId messageId) {
     final result = <String, List<String>>{};
     for (final row in _db.select(
       'SELECT name, value FROM message_headers WHERE message_id = ? ORDER BY name, position',
-      [messageId],
+      [messageId.value],
     )) {
       result
           .putIfAbsent(row['name'] as String, () => [])
@@ -742,7 +750,7 @@ final class MessageRepository {
   /// newest messages of [mailboxId], newest first; null for a message
   /// without one. Used to learn which server writes a header.
   List<String?> firstHeaderValues(
-    int mailboxId,
+    MailboxId mailboxId,
     String name, {
     int limit = 100,
   }) => [
@@ -751,25 +759,25 @@ final class MessageRepository {
       '        WHERE h.message_id = m.id AND h.name = ? AND h.position = 0) AS value '
       'FROM messages m WHERE m.mailbox_id = ? '
       'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
-      [name.toLowerCase(), mailboxId, limit.clamp(1, 500)],
+      [name.toLowerCase(), mailboxId.value, limit.clamp(1, 500)],
     ))
       row['value'] as String?,
   ];
 
   /// Stores the full raw message and indexes its text for search.
   void saveBody(
-    int messageId,
+    MessageId messageId,
     Uint8List raw, {
     required String searchableText,
   }) => _db.transaction(() {
     _db.execute(
       'INSERT INTO message_bodies (message_id, raw, fetched_at) VALUES (?, ?, ?) '
       'ON CONFLICT (message_id) DO UPDATE SET raw = excluded.raw, fetched_at = excluded.fetched_at',
-      [messageId, raw, DateTime.now().toUtc().millisecondsSinceEpoch],
+      [messageId.value, raw, DateTime.now().toUtc().millisecondsSinceEpoch],
     );
     final existing = _db.select(
       'SELECT subject, participants FROM message_search WHERE rowid = ?',
-      [messageId],
+      [messageId.value],
     );
     final subject = existing.isEmpty
         ? ''
@@ -777,30 +785,35 @@ final class MessageRepository {
     final participants = existing.isEmpty
         ? ''
         : existing.first['participants'] as String? ?? '';
-    _db.execute('DELETE FROM message_search WHERE rowid = ?', [messageId]);
+    _db.execute('DELETE FROM message_search WHERE rowid = ?', [
+      messageId.value,
+    ]);
     _db.execute(
       'INSERT INTO message_search (rowid, subject, participants, body) VALUES (?, ?, ?, ?)',
-      [messageId, subject, participants, searchableText],
+      [messageId.value, subject, participants, searchableText],
     );
   });
 
   /// The full raw message, if downloaded.
-  Uint8List? body(int messageId) {
+  Uint8List? body(MessageId messageId) {
     final rows = _db.select(
       'SELECT raw FROM message_bodies WHERE message_id = ?',
-      [messageId],
+      [messageId.value],
     );
     return rows.isEmpty ? null : rows.first.columnAt(0) as Uint8List;
   }
 
   /// Up to [limit] messages with an id above [afterId], in id order, with
   /// what sorting needs. For re-sorting stored mail without downloading.
-  List<SortableMessage> sortable({int afterId = 0, int limit = 500}) {
+  List<SortableMessage> sortable({
+    MessageId afterId = const MessageId(0),
+    int limit = 500,
+  }) {
     final rows = _db.select(
       'SELECT m.id, m.from_name, m.from_address, m.subject, m.snippet, m.code, b.special_use '
       'FROM messages m JOIN mailboxes b ON b.id = m.mailbox_id '
       'WHERE m.id > ? ORDER BY m.id LIMIT ?',
-      [afterId, limit.clamp(1, 5000)],
+      [afterId.value, limit.clamp(1, 5000)],
     );
     if (rows.isEmpty) return const [];
     final ids = [for (final r in rows) r['id'] as int];
@@ -912,7 +925,7 @@ final class MessageRepository {
   /// (else a stale copy would stand in for the message that left).
   List<StoredMessage> copiesOf(Iterable<StoredMessage> messages) {
     final ids = {for (final m in messages) m.id};
-    final byAccount = <int, Set<String>>{};
+    final byAccount = <AccountId, Set<String>>{};
     for (final m in messages) {
       if (m.messageId case final header?) {
         byAccount.putIfAbsent(m.accountId, () => {}).add(header);
@@ -926,7 +939,7 @@ final class MessageRepository {
             'SELECT $_columns $_from WHERE b.account_id = ? '
             'AND b.special_use IN ($uses) '
             'AND m.message_id_header IN (${_placeholders(chunk.length)})',
-            [accountId, ...chunk],
+            [accountId.value, ...chunk],
           ))
             if (_fromRow(row) case final copy when !ids.contains(copy.id)) copy,
     ];
@@ -973,7 +986,10 @@ final class MessageRepository {
         'GROUP BY lower(m.from_address)',
         [at],
       ))
-        row['address'] as String: (row['newest_id'] as int, row['last'] as int),
+        row['address'] as String: (
+          MessageId(row['newest_id'] as int),
+          row['last'] as int,
+        ),
     };
     final byAddress = <String, _SenderTotals>{};
     for (final row in rows) {
@@ -989,7 +1005,7 @@ final class MessageRepository {
       totals.notifications += row['notifications'] as int;
       if (last > totals.last) {
         totals.last = last;
-        totals.newestId = row['newest_id'] as int;
+        totals.newestId = MessageId(row['newest_id'] as int);
         totals.spelled = row['spelled'] as String;
       }
       final name = (row['name'] as String?)?.trim();
@@ -1037,7 +1053,7 @@ final class MessageRepository {
     return [
       for (final row in rows)
         SortableMessage(
-          id: row['id'] as int,
+          id: MessageId(row['id'] as int),
           from: _address(
             row['from_name'] as String?,
             row['from_address'] as String?,
@@ -1067,9 +1083,10 @@ final class MessageRepository {
   /// fetched again when opened), so undoing a move of thousands of
   /// messages never holds their bodies in memory.
   MessageSnapshot snapshot(
-    List<int> ids, {
+    List<MessageId> messageIds, {
     int bodyBytes = defaultSnapshotBodyBytes,
   }) {
+    final ids = [for (final id in messageIds) id.value];
     List<Map<String, Object?>> rows(
       String table,
       String key,
@@ -1132,7 +1149,9 @@ final class MessageRepository {
   /// Puts back messages from a [snapshot]. A message whose folder is gone,
   /// or that is already back (its UID is in the folder again), is skipped.
   /// Returns the ids the messages have now (they may get new ids).
-  Map<int, int> restore(MessageSnapshot snapshot) => _db.transaction(() {
+  Map<MessageId, MessageId> restore(
+    MessageSnapshot snapshot,
+  ) => _db.transaction(() {
     final newIds = <int, int>{};
     for (final row in snapshot.messages) {
       final oldId = row['id']! as int;
@@ -1158,7 +1177,7 @@ final class MessageRepository {
       final newId = idFree ? oldId : _db.lastInsertRowId;
       newIds[oldId] = newId;
       _replaceReferences(
-        newId,
+        MessageId(newId),
         ((row['thread_references'] as String?) ?? '').split(' '),
       );
     }
@@ -1187,8 +1206,11 @@ final class MessageRepository {
       );
     }
     _words.addNew();
-    SectionSql.refreshIds(_db, newIds.values.toList());
-    return newIds;
+    SectionSql.refreshIds(_db, [for (final id in newIds.values) MessageId(id)]);
+    return {
+      for (final MapEntry(key: old, value: now) in newIds.entries)
+        MessageId(old): MessageId(now),
+    };
   });
 
   /// Stores new sorting decisions (e.g. after the rules changed).
@@ -1294,7 +1316,7 @@ final class MessageRepository {
     if (before != null) {
       where.add('(m.received_at < ? OR (m.received_at = ? AND m.id < ?))');
       final at = before.receivedAt.millisecondsSinceEpoch;
-      args.addAll([at, at, before.id]);
+      args.addAll([at, at, before.id.value]);
     }
     final messages = _db
         .select(
@@ -1336,37 +1358,37 @@ final class MessageRepository {
   /// [messageId] (none removes it). For what the app learns about a
   /// message later, such as the files found in it.
   void setHeader(
-    int messageId,
+    MessageId messageId,
     String name,
     List<String> values,
   ) => _db.transaction(() {
     _db.execute(
       'DELETE FROM message_headers WHERE message_id = ? AND name = ?',
-      [messageId, name.toLowerCase()],
+      [messageId.value, name.toLowerCase()],
     );
     _db.executeMany(
       'INSERT INTO message_headers (message_id, name, position, value) '
       'SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM messages WHERE id = ?)',
       [
         for (var i = 0; i < values.length; i++)
-          [messageId, name.toLowerCase(), i, values[i], messageId],
+          [messageId.value, name.toLowerCase(), i, values[i], messageId.value],
       ],
     );
   });
 
   /// Values of header [name] of [ids], by message, in order.
-  Map<int, List<String>> _headerValues(List<int> ids, String name) {
-    final result = <int, List<String>>{};
+  Map<MessageId, List<String>> _headerValues(List<MessageId> ids, String name) {
+    final result = <MessageId, List<String>>{};
     for (var i = 0; i < ids.length; i += 500) {
       final chunk = ids.sublist(i, (i + 500).clamp(0, ids.length));
       for (final row in _db.select(
         'SELECT message_id, value FROM message_headers '
         'WHERE name = ? AND message_id IN (${_placeholders(chunk.length)}) '
         'ORDER BY message_id, position',
-        [name.toLowerCase(), ...chunk],
+        [name.toLowerCase(), for (final id in chunk) id.value],
       )) {
         result
-            .putIfAbsent(row['message_id'] as int, () => [])
+            .putIfAbsent(MessageId(row['message_id'] as int), () => [])
             .add(row['value'] as String);
       }
     }
@@ -1381,7 +1403,7 @@ final class MessageRepository {
   /// Code mail in [mailboxId] received since [since] whose body was not
   /// looked at for a code yet, at most [maxSize] bytes, newest first.
   List<StoredMessage> codesToRead(
-    int mailboxId, {
+    MailboxId mailboxId, {
     required DateTime since,
     required int maxSize,
     int limit = 20,
@@ -1391,7 +1413,7 @@ final class MessageRepository {
       'AND m.code IS NULL AND m.received_at >= ? AND m.size <= ? '
       'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
       [
-        mailboxId,
+        mailboxId.value,
         MessageCategory.codes.storageName,
         since.toUtc().millisecondsSinceEpoch,
         maxSize,
@@ -1402,8 +1424,10 @@ final class MessageRepository {
   ];
 
   /// Records the code found in message [id] ('' for none).
-  void setCode(int id, String code) =>
-      _db.execute('UPDATE messages SET code = ? WHERE id = ?', [code, id]);
+  void setCode(MessageId id, String code) => _db.execute(
+    'UPDATE messages SET code = ? WHERE id = ?',
+    [code, id.value],
+  );
 
   void updateCategories(List<CategoryDecision> decisions) =>
       _db.transaction(() {
@@ -1417,7 +1441,7 @@ final class MessageRepository {
                 d.source.name,
                 d.listId,
                 d.code,
-                d.messageId,
+                d.messageId.value,
               ],
           ],
         );
@@ -1427,27 +1451,28 @@ final class MessageRepository {
   /// Totals and unread counts of every Smart Inbox section, across the
   /// inboxes of [accountIds] (or all accounts). Reads the section index
   /// (and, for Notifications and the Screener, leaves read receipts out).
-  Map<SmartSection, SectionCount> sectionCounts({List<int>? accountIds}) {
+  Map<SmartSection, SectionCount> sectionCounts({List<AccountId>? accountIds}) {
     final inboxes = inboxIds(accountIds: accountIds);
     final totals = {for (final s in SmartSection.values) s: 0};
     final unread = {for (final s in SmartSection.values) s: 0};
     if (inboxes.isEmpty) {
       return {for (final s in SmartSection.values) s: SectionCount.empty};
     }
+    final args = [for (final id in inboxes) id.value];
     final hidden = SectionSql.receiptFreeSections.map((s) => "'$s'").join(', ');
     final where =
         'mailbox_id IN (${_placeholders(inboxes.length)}) '
         'AND NOT (section IN ($hidden) AND ${SectionSql.readReceipt('messages')})';
     for (final row in _db.select(
       'SELECT section, count(*) AS n FROM messages WHERE $where GROUP BY section',
-      inboxes,
+      args,
     )) {
       totals[SmartSection.values.byName(row['section'] as String)] =
           row['n'] as int;
     }
     for (final row in _db.select(
       'SELECT section, count(*) AS n FROM messages WHERE $where AND (flags & 1) = 0 GROUP BY section',
-      inboxes,
+      args,
     )) {
       unread[SmartSection.values.byName(row['section'] as String)] =
           row['n'] as int;
@@ -1460,33 +1485,40 @@ final class MessageRepository {
 
   /// Unread messages per folder, for every folder at once (snoozed mail
   /// isn't counted).
-  Map<int, int> unreadCounts() => {
+  Map<MailboxId, int> unreadCounts() => {
     for (final row in _db.select(
       'SELECT mailbox_id, count(*) AS n FROM messages WHERE (flags & 1) = 0 '
       "AND section != 'snoozed' GROUP BY mailbox_id",
     ))
-      row['mailbox_id'] as int: row['n'] as int,
+      MailboxId(row['mailbox_id'] as int): row['n'] as int,
   };
 
   /// The INBOX folder ids of [accountIds] (or every account).
-  List<int> inboxIds({List<int>? accountIds}) => [
+  List<MailboxId> inboxIds({List<AccountId>? accountIds}) => [
     for (final row in _db.select(
       "SELECT id, account_id FROM mailboxes WHERE upper(encoded_name) = 'INBOX'",
     ))
-      if (accountIds == null || accountIds.contains(row['account_id']))
-        row['id'] as int,
+      if (accountIds == null ||
+          accountIds.contains(AccountId(row['account_id'] as int)))
+        MailboxId(row['id'] as int),
   ];
 
   // ---------------------------------------------------------------------
 
-  void _replaceAddresses(int messageId, MessageSummary s) {
+  void _replaceAddresses(MessageId messageId, MessageSummary s) {
     _db.execute('DELETE FROM message_addresses WHERE message_id = ?', [
-      messageId,
+      messageId.value,
     ]);
     final rows = <List<Object?>>[];
     void add(String kind, List<MailAddress> list) {
       for (var i = 0; i < list.length; i++) {
-        rows.add([messageId, kind, i, list[i].displayName, list[i].address]);
+        rows.add([
+          messageId.value,
+          kind,
+          i,
+          list[i].displayName,
+          list[i].address,
+        ]);
       }
     }
 
@@ -1502,16 +1534,16 @@ final class MessageRepository {
     );
   }
 
-  void _replaceHeaders(int messageId, Map<String, List<String>> headers) {
+  void _replaceHeaders(MessageId messageId, Map<String, List<String>> headers) {
     _db.execute('DELETE FROM message_headers WHERE message_id = ?', [
-      messageId,
+      messageId.value,
     ]);
     _db.executeMany(
       'INSERT INTO message_headers (message_id, name, position, value) VALUES (?, ?, ?, ?)',
       [
         for (final MapEntry(key: name, value: values) in headers.entries)
           for (var i = 0; i < values.length; i++)
-            [messageId, name.toLowerCase(), i, values[i]],
+            [messageId.value, name.toLowerCase(), i, values[i]],
       ],
     );
   }
@@ -1519,15 +1551,15 @@ final class MessageRepository {
   /// Stores the message's References one per row (`message_references`),
   /// so that "is this a reply to something the user sent" is an index
   /// lookup. The joined list stays in `messages.thread_references`.
-  void _replaceReferences(int messageId, Iterable<String> references) {
+  void _replaceReferences(MessageId messageId, Iterable<String> references) {
     _db.execute('DELETE FROM message_references WHERE message_id = ?', [
-      messageId,
+      messageId.value,
     ]);
     _db.executeMany(
       'INSERT OR IGNORE INTO message_references (message_id, ref) VALUES (?, ?)',
       [
         for (final ref in references.toSet())
-          if (ref.isNotEmpty) [messageId, ref],
+          if (ref.isNotEmpty) [messageId.value, ref],
       ],
     );
   }
@@ -1541,10 +1573,10 @@ final class MessageRepository {
 
   /// Indexes subject and participants, keeping any body text already
   /// indexed for this message.
-  void _indexSummary(int messageId, MessageSummary s) {
+  void _indexSummary(MessageId messageId, MessageSummary s) {
     final existing = _db.select(
       'SELECT body FROM message_search WHERE rowid = ?',
-      [messageId],
+      [messageId.value],
     );
     final body = existing.isEmpty
         ? ''
@@ -1554,10 +1586,12 @@ final class MessageRepository {
       ...s.to,
       ...s.cc,
     ].map((a) => '${a.displayName ?? ''} ${a.address}').join(' ');
-    _db.execute('DELETE FROM message_search WHERE rowid = ?', [messageId]);
+    _db.execute('DELETE FROM message_search WHERE rowid = ?', [
+      messageId.value,
+    ]);
     _db.execute(
       'INSERT INTO message_search (rowid, subject, participants, body) VALUES (?, ?, ?, ?)',
-      [messageId, s.subject ?? '', participants, body],
+      [messageId.value, s.subject ?? '', participants, body],
     );
   }
 
@@ -1592,9 +1626,9 @@ final class MessageRepository {
         .where((k) => k.isNotEmpty)
         .toSet();
     return StoredMessage(
-      id: row['id'] as int,
-      mailboxId: row['mailbox_id'] as int,
-      accountId: row['account_id'] as int,
+      id: MessageId(row['id'] as int),
+      mailboxId: MailboxId(row['mailbox_id'] as int),
+      accountId: AccountId(row['account_id'] as int),
       uid: row['uid'] as int,
       messageId: row['message_id_header'] as String?,
       inReplyTo: row['in_reply_to'] as String?,
@@ -1657,11 +1691,11 @@ final class SenderStats {
 
   /// When the newest came, and its stored id.
   final DateTime last;
-  final int newestId;
+  final MessageId newestId;
 
   /// The newest message with a `List-Unsubscribe` header, if any, and
   /// when it came.
-  final int? unsubscribeId;
+  final MessageId? unsubscribeId;
   final DateTime? unsubscribeAt;
 }
 
@@ -1670,7 +1704,7 @@ final class SenderStats {
 final class _SenderTotals {
   int count = 0, opened = 0, newsletters = 0, notifications = 0;
   int last = -1;
-  int newestId = 0;
+  MessageId newestId = const MessageId(0);
   String spelled = '';
   final names = <String, int>{};
 

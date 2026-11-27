@@ -5,6 +5,7 @@
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
+import '../ids.dart';
 import '../model/blocked_sender.dart';
 import '../model/message.dart';
 import 'app_data_sync_repository.dart';
@@ -282,7 +283,7 @@ final class ScreenerRepository {
 
   /// The senders waiting in the inboxes of [accountIds] (or every
   /// account), the one who wrote most recently first.
-  List<WaitingSender> waiting({List<int>? accountIds}) {
+  List<WaitingSender> waiting({List<AccountId>? accountIds}) {
     final messages = MessageRepository(_db).list(
       MessageQuery.smart(
         SmartSection.screener,
@@ -306,7 +307,7 @@ final class ScreenerRepository {
 
   /// How many senders are waiting (in the inboxes of [accountIds], or
   /// every account). Reads the section index.
-  int waitingCount({List<int>? accountIds}) {
+  int waitingCount({List<AccountId>? accountIds}) {
     final inboxes = MessageRepository(_db).inboxIds(accountIds: accountIds);
     if (inboxes.isEmpty) return 0;
     return _db
@@ -314,7 +315,7 @@ final class ScreenerRepository {
               'SELECT count(DISTINCT lower(from_address)) FROM messages '
               'WHERE mailbox_id IN (${List.filled(inboxes.length, '?').join(', ')}) '
               "AND section = 'screener'",
-              inboxes,
+              [for (final id in inboxes) id.value],
             )
             .first
             .columnAt(0)
@@ -324,18 +325,18 @@ final class ScreenerRepository {
   /// Ids of inbox messages of [mailboxId], received at or after [since],
   /// that the Screener sends elsewhere (screened out), newest first. Used
   /// to move them to Archive.
-  List<int> screenedOutIds(int mailboxId, DateTime since) => [
+  List<MessageId> screenedOutIds(MailboxId mailboxId, DateTime since) => [
     for (final row in _db.select(
       'SELECT id FROM messages WHERE mailbox_id = ? AND received_at >= ? '
       'AND (flags & 4) = 0 AND category != ? AND ${SectionSql.screenedOut} '
       'ORDER BY received_at DESC, id DESC',
       [
-        mailboxId,
+        mailboxId.value,
         since.toUtc().millisecondsSinceEpoch,
         MessageCategory.codes.storageName,
       ],
     ))
-      row['id'] as int,
+      MessageId(row['id'] as int),
   ];
 
   // ---------------------------------------------------------------------

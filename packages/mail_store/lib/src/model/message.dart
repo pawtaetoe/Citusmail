@@ -4,6 +4,8 @@
 
 import 'package:mail_protocol/mail_protocol.dart';
 
+import '../ids.dart';
+
 /// What automatic sorting decided a message is. Sorting is always automatic;
 /// users group mail their own way with custom folders.
 enum MessageCategory {
@@ -222,9 +224,9 @@ final class StoredMessage {
     DateTime? listedAt,
   }) : listedAt = listedAt ?? receivedAt;
 
-  final int id;
-  final int mailboxId;
-  final int accountId;
+  final MessageId id;
+  final MailboxId mailboxId;
+  final AccountId accountId;
   final int uid;
   final String? messageId;
   final String? inReplyTo;
@@ -279,7 +281,7 @@ final class SortableMessage {
     this.code,
   });
 
-  final int id;
+  final MessageId id;
   final MailAddress? from;
   final String? subject;
   final String? snippet;
@@ -302,7 +304,7 @@ final class CategoryDecision {
     this.code,
   });
 
-  final int messageId;
+  final MessageId messageId;
   final MessageCategory category;
   final CategorySource source;
   final String? listId;

@@ -5,6 +5,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../ids.dart';
+
 /// An action done locally that the server must also get. Every action is
 /// idempotent: replaying it after a crash or after another device's changes
 /// is harmless (a message already gone counts as done).
@@ -30,29 +32,29 @@ sealed class OutboxAction {
     try {
       return switch (json['type']) {
         'setFlags' => SetFlagsAction(
-          mailboxId: _int(json, 'mailboxId'),
+          mailboxId: _mailbox(json, 'mailboxId'),
           uidValidity: _int(json, 'uidValidity'),
           uids: _uids(json),
           add: _strings(json, 'add'),
           remove: _strings(json, 'remove'),
         ),
         'move' => MoveAction(
-          mailboxId: _int(json, 'mailboxId'),
+          mailboxId: _mailbox(json, 'mailboxId'),
           uidValidity: _int(json, 'uidValidity'),
           uids: _uids(json),
-          targetMailboxId: _int(json, 'targetMailboxId'),
+          targetMailboxId: _mailbox(json, 'targetMailboxId'),
         ),
         'delete' => DeleteAction(
-          mailboxId: _int(json, 'mailboxId'),
+          mailboxId: _mailbox(json, 'mailboxId'),
           uidValidity: _int(json, 'uidValidity'),
           uids: _uids(json),
         ),
         'append' => AppendAction(
-          mailboxId: _int(json, 'mailboxId'),
+          mailboxId: _mailbox(json, 'mailboxId'),
           flags: _strings(json, 'flags'),
         ),
         'removeDraft' => RemoveDraftAction(
-          mailboxId: _int(json, 'mailboxId'),
+          mailboxId: _mailbox(json, 'mailboxId'),
           messageId: _string(json, 'messageId'),
         ),
         'send' => SendAction(
@@ -60,7 +62,7 @@ sealed class OutboxAction {
           recipients: _strings(json, 'recipients'),
           sentMailboxId: json['sentMailboxId'] == null
               ? null
-              : _int(json, 'sentMailboxId'),
+              : _mailbox(json, 'sentMailboxId'),
           smtpAccepted: json['smtpAccepted'] == true,
           schedule: json['schedule'] == null
               ? null
@@ -79,6 +81,9 @@ sealed class OutboxAction {
     if (value is! int) throw FormatException('$key must be an integer');
     return value;
   }
+
+  static MailboxId _mailbox(Map<String, Object?> json, String key) =>
+      MailboxId(_int(json, key));
 
   static String _string(Map<String, Object?> json, String key) {
     final value = json[key];
@@ -120,12 +125,12 @@ sealed class UidAction extends OutboxAction {
     if (uidValidity < 1) throw ArgumentError('UIDVALIDITY must be at least 1');
   }
 
-  final int mailboxId;
+  final MailboxId mailboxId;
   final int uidValidity;
   final List<int> uids;
 
   Map<String, Object?> get _common => {
-    'mailboxId': mailboxId,
+    'mailboxId': mailboxId.value,
     'uidValidity': uidValidity,
     'uids': uids,
   };
@@ -169,13 +174,13 @@ final class MoveAction extends UidAction {
     }
   }
 
-  final int targetMailboxId;
+  final MailboxId targetMailboxId;
 
   @override
   Map<String, Object?> toJson() => {
     'type': 'move',
     ..._common,
-    'targetMailboxId': targetMailboxId,
+    'targetMailboxId': targetMailboxId.value,
   };
 }
 
@@ -198,13 +203,13 @@ final class AppendAction extends OutboxAction {
   AppendAction({required this.mailboxId, List<String> flags = const []})
     : flags = List.unmodifiable(flags);
 
-  final int mailboxId;
+  final MailboxId mailboxId;
   final List<String> flags;
 
   @override
   Map<String, Object?> toJson() => {
     'type': 'append',
-    'mailboxId': mailboxId,
+    'mailboxId': mailboxId.value,
     'flags': flags,
   };
 }
@@ -221,7 +226,7 @@ final class RemoveDraftAction extends OutboxAction {
     }
   }
 
-  final int mailboxId;
+  final MailboxId mailboxId;
 
   /// Without angle brackets.
   final String messageId;
@@ -229,7 +234,7 @@ final class RemoveDraftAction extends OutboxAction {
   @override
   Map<String, Object?> toJson() => {
     'type': 'removeDraft',
-    'mailboxId': mailboxId,
+    'mailboxId': mailboxId.value,
     'messageId': messageId,
   };
 }
@@ -251,7 +256,7 @@ final class SendAction extends OutboxAction {
 
   /// Envelope recipient addresses (To, Cc and Bcc).
   final List<String> recipients;
-  final int? sentMailboxId;
+  final MailboxId? sentMailboxId;
 
   /// Set as soon as the SMTP server accepted the message, before saving to
   /// Sent, so a crash in between never sends the message twice.
@@ -278,7 +283,7 @@ final class SendAction extends OutboxAction {
     'type': 'send',
     'from': from,
     'recipients': recipients,
-    'sentMailboxId': sentMailboxId,
+    'sentMailboxId': sentMailboxId?.value,
     'smtpAccepted': smtpAccepted,
     if (schedule case final s?) 'schedule': s._toJson(),
   };
@@ -377,7 +382,7 @@ final class OutboxEntry {
   });
 
   final int id;
-  final int accountId;
+  final AccountId accountId;
   final OutboxAction action;
 
   /// Raw message bytes for append and send.

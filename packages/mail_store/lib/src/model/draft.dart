@@ -4,6 +4,8 @@
 
 import 'dart:typed_data';
 
+import '../ids.dart';
+
 /// A draft as stored. The store does not interpret [content] (the compose
 /// package owns its format); attachments are kept as separate rows.
 final class StoredDraft {
@@ -16,7 +18,7 @@ final class StoredDraft {
   });
 
   final int id;
-  final int accountId;
+  final AccountId accountId;
   final String content;
 
   /// Message-ID of the copy in the server's Drafts folder, if any.

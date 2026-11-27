@@ -6,6 +6,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../database/mail_database.dart';
+import '../ids.dart';
 import '../model/mailbox.dart';
 import 'section_sql.dart';
 
@@ -19,35 +20,35 @@ final class MailboxRepository {
       'id, account_id, encoded_name, name, delimiter, special_use, selectable, '
       'uid_validity, uid_next, highest_mod_seq, last_sync_at';
 
-  List<StoredMailbox> forAccount(int accountId) => _db
+  List<StoredMailbox> forAccount(AccountId accountId) => _db
       .select(
         'SELECT $_columns FROM mailboxes WHERE account_id = ? ORDER BY name',
-        [accountId],
+        [accountId.value],
       )
       .map(_fromRow)
       .toList(growable: false);
 
-  StoredMailbox? byId(int id) {
+  StoredMailbox? byId(MailboxId id) {
     final rows = _db.select('SELECT $_columns FROM mailboxes WHERE id = ?', [
-      id,
+      id.value,
     ]);
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
 
-  StoredMailbox? inbox(int accountId) {
+  StoredMailbox? inbox(AccountId accountId) {
     final rows = _db.select(
       "SELECT $_columns FROM mailboxes WHERE account_id = ? AND upper(encoded_name) = 'INBOX'",
-      [accountId],
+      [accountId.value],
     );
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
 
   /// The folder with a special use (Sent, Trash, Junk...). Chosen by the
   /// server's flag, never by name.
-  StoredMailbox? bySpecialUse(int accountId, SpecialUse use) {
+  StoredMailbox? bySpecialUse(AccountId accountId, SpecialUse use) {
     final rows = _db.select(
       'SELECT $_columns FROM mailboxes WHERE account_id = ? AND special_use = ? ORDER BY id LIMIT 1',
-      [accountId, use.name],
+      [accountId.value, use.name],
     );
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
@@ -56,13 +57,13 @@ final class MailboxRepository {
   /// added, existing ones updated (sync state kept), and folders gone from
   /// the server are removed together with their cached messages.
   List<StoredMailbox> replaceAll(
-    int accountId,
+    AccountId accountId,
     List<ImapMailboxInfo> serverFolders,
   ) => _db.transaction(() {
     String uses() => _db
         .select(
           'SELECT encoded_name, special_use FROM mailboxes WHERE account_id = ? ORDER BY encoded_name',
-          [accountId],
+          [accountId.value],
         )
         .map((r) => '${r['encoded_name']}=${r['special_use']}')
         .join(';');
@@ -77,7 +78,7 @@ final class MailboxRepository {
         'name = excluded.name, delimiter = excluded.delimiter, '
         'special_use = excluded.special_use, selectable = excluded.selectable',
         [
-          accountId,
+          accountId.value,
           folder.encodedName,
           folder.name,
           folder.delimiter,
@@ -88,7 +89,7 @@ final class MailboxRepository {
     }
     final existing = _db.select(
       'SELECT id, encoded_name FROM mailboxes WHERE account_id = ?',
-      [accountId],
+      [accountId.value],
     );
     for (final row in existing) {
       if (!seen.contains(row['encoded_name'])) {
@@ -101,7 +102,7 @@ final class MailboxRepository {
     return forAccount(accountId);
   });
 
-  void saveSyncState(int mailboxId, MailboxSyncState state) {
+  void saveSyncState(MailboxId mailboxId, MailboxSyncState state) {
     _db.execute(
       'UPDATE mailboxes SET uid_validity = ?, uid_next = ?, highest_mod_seq = ?, last_sync_at = ? WHERE id = ?',
       [
@@ -109,7 +110,7 @@ final class MailboxRepository {
         state.uidNext,
         state.highestModSeq,
         state.lastSyncAt?.toUtc().millisecondsSinceEpoch,
-        mailboxId,
+        mailboxId.value,
       ],
     );
   }
@@ -117,13 +118,15 @@ final class MailboxRepository {
   /// The server's UIDVALIDITY changed, so every cached UID for this folder
   /// is meaningless (RFC 9051 2.3.1.1). Drops the folder's cached messages
   /// and starts its sync state over, atomically.
-  void resetForUidValidity(int mailboxId, int uidValidity) =>
+  void resetForUidValidity(MailboxId mailboxId, int uidValidity) =>
       _db.transaction(() {
-        _db.execute('DELETE FROM messages WHERE mailbox_id = ?', [mailboxId]);
+        _db.execute('DELETE FROM messages WHERE mailbox_id = ?', [
+          mailboxId.value,
+        ]);
         _db.execute(
           'UPDATE mailboxes SET uid_validity = ?, uid_next = NULL, highest_mod_seq = NULL, last_sync_at = NULL '
           'WHERE id = ?',
-          [uidValidity, mailboxId],
+          [uidValidity, mailboxId.value],
         );
       });
 
@@ -131,8 +134,8 @@ final class MailboxRepository {
     final lastSync = row['last_sync_at'] as int?;
     final use = row['special_use'] as String?;
     return StoredMailbox(
-      id: row['id'] as int,
-      accountId: row['account_id'] as int,
+      id: MailboxId(row['id'] as int),
+      accountId: AccountId(row['account_id'] as int),
       encodedName: row['encoded_name'] as String,
       name: row['name'] as String,
       delimiter: row['delimiter'] as String?,

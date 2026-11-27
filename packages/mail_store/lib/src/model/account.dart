@@ -4,6 +4,8 @@
 
 import 'package:mail_protocol/mail_protocol.dart';
 
+import '../ids.dart';
+
 /// Where and how to reach one server. Validated on construction.
 final class ServerSettings {
   ServerSettings({
@@ -86,7 +88,7 @@ final class Account {
     this.oauthProvider,
   });
 
-  final int id;
+  final AccountId id;
   final String email;
   final String? displayName;
   final String username;
@@ -103,7 +105,7 @@ final class Account {
 
   /// Name of this account's keychain entry: its password, or its OAuth
   /// tokens.
-  String get keychainKey => 'account-$id';
+  String get keychainKey => 'account-${id.value}';
 
   @override
   String toString() => 'Account($id, $email)';

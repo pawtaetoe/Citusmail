@@ -10,6 +10,7 @@ export 'src/database/database_key.dart';
 export 'src/database/mail_database.dart';
 export 'src/database/schema.dart';
 export 'src/database/store_exception.dart';
+export 'src/ids.dart';
 export 'src/mail_store.dart';
 export 'src/model/account.dart';
 export 'src/model/blocked_sender.dart';

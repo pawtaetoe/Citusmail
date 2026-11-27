@@ -180,7 +180,12 @@ void main() {
       expect(waiting.single.messages, hasLength(2));
       expect(waiting.single.unread, 2);
       expect(store.screener.waitingCount(), 1);
-      expect(store.screener.waitingCount(accountIds: [alice.id + 1]), 0);
+      expect(
+        store.screener.waitingCount(
+          accountIds: [AccountId(alice.id.value + 1)],
+        ),
+        0,
+      );
     });
 
     test('the most recent sender is listed first', () {
