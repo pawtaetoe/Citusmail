@@ -148,6 +148,23 @@ void main() {
       expect(list.reachedEnd, isFalse, reason: 'offline is not the end');
     });
 
+    test('older mail still loading for a place left behind does not show, '
+        'nor end, the list of the next', () async {
+      final loading = location.loadMore();
+      expect(list.loadingOlder, isTrue);
+      final inbox = app.store.mailboxes.inbox(
+        app.store.accounts.all().single.id,
+      )!;
+      final sent = app.store.mailboxes
+          .forAccount(inbox.accountId)
+          .firstWhere((m) => m.id != inbox.id);
+      location.goTo(FolderLocation(sent.id, sent.accountId));
+      expect(list.loadingOlder, isFalse, reason: 'nothing loads here');
+      await loading;
+      expect(list.loadingOlder, isFalse);
+      expect(list.reachedEnd, isFalse);
+    });
+
     test('a search has no older mail to fetch', () async {
       location.search('lunch');
       await location.loadMore();
