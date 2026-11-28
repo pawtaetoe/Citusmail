@@ -421,6 +421,21 @@ void main() {
       }
       expect(store.outbox.all(account.id), isEmpty);
     });
+
+    test('offline, the user\'s replay leaves the message as it was, for the '
+        'sync that follows', () async {
+      await start();
+      final e = engine();
+      expect(await e.syncAccount(account.id), isNotNull);
+      queueSend('offline@citusmail.test');
+      final before = store.outbox.all(account.id).single;
+      await server.close(); // the network is gone
+      await e.replayNow(account.id);
+      final after = store.outbox.all(account.id).single;
+      expect(after.attempts, 0, reason: 'not counted as a try');
+      expect(after.notBefore, before.notBefore, reason: 'no back-off');
+      expect(after.state, OutboxState.pending);
+    });
   });
 
   group('priorities', () {

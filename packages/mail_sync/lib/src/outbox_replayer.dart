@@ -124,7 +124,9 @@ final class OutboxReplayer {
   /// Messages due go to the SMTP server first, on its own connection;
   /// then what is due is replayed in order on the IMAP connection
   /// [withImap] gives, if anything is due (it takes one only then).
-  /// Failures are handled as in [replay].
+  /// Failures are handled as in [replay], except that a connection that
+  /// fails (offline, a timeout) leaves the entry as it was, not tried:
+  /// the sync that follows tries again, and backs off if it must.
   ///
   /// The IMAP connection is not held for long: it is given back before a
   /// message that has not been sent yet (it goes to the SMTP server
@@ -161,7 +163,12 @@ final class OutboxReplayer {
         waited();
         var result = const ReplayResult();
         while (true) {
-          result += await _replay(account, smtp: smtp, now: now);
+          result += await _replay(
+            account,
+            smtp: smtp,
+            now: now,
+            backOff: false,
+          );
           final due = _store.outbox.due(id, now: now);
           if (due.isEmpty) return result;
           // Queued meanwhile: to the SMTP server first.
@@ -174,6 +181,7 @@ final class OutboxReplayer {
               smtp: smtp,
               now: now,
               imap: () async => imap,
+              backOff: false,
               stop: (entry) => stopped =
                   switch (entry.action) {
                     SendAction(smtpAccepted: false) => true,
@@ -221,6 +229,7 @@ final class OutboxReplayer {
     Future<ImapClient> Function()? imap,
     void Function()? done,
     bool Function(OutboxEntry entry)? stop,
+    bool backOff = true,
   }) async {
     var completed = 0, failed = 0, deferred = 0;
     SmtpClient? smtpClient;
@@ -233,14 +242,14 @@ final class OutboxReplayer {
         final _Outcome outcome;
         if (imap == null) {
           if (action is! SendAction || action.smtpAccepted) continue;
-          outcome = await _attempt(entry, () async {
+          outcome = await _attempt(entry, backOff: backOff, () async {
             await _sendOnce(entry, action, smtpOnce);
             // Without a Sent folder, it is done.
             return _sentFolder(action) == null;
           });
         } else {
           final client = await imap();
-          outcome = await _attempt(entry, () async {
+          outcome = await _attempt(entry, backOff: backOff, () async {
             await _apply(client, account, entry, smtpOnce);
             return true;
           });
@@ -269,11 +278,12 @@ final class OutboxReplayer {
 
   /// Runs [work] for [entry], which returns whether the entry is done
   /// (it is then removed from the queue). Connection-level failures are
-  /// rethrown, after the entry was set to be retried later.
+  /// rethrown, after the entry was set to be retried later if [backOff].
   Future<_Outcome> _attempt(
     OutboxEntry entry,
-    Future<bool> Function() work,
-  ) async {
+    Future<bool> Function() work, {
+    required bool backOff,
+  }) async {
     try {
       if (!await work()) return _Outcome.later;
       _store.outbox.complete(entry.id);
@@ -312,7 +322,7 @@ final class OutboxReplayer {
       _retryLater(entry, e.message);
       return _Outcome.deferred;
     } on MailException catch (e) {
-      _retryLater(entry, e.message); // offline, timeout...
+      if (backOff) _retryLater(entry, e.message); // offline, timeout...
       rethrow;
     }
   }
