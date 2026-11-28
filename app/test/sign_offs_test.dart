@@ -25,7 +25,7 @@ const _bob = MailAddress(
 void main() {
   late TestApp app;
   late Account alice;
-  late Account tommy;
+  late Account robin;
   late SignOff work;
   late SignOff casual;
   late SignOff short;
@@ -35,11 +35,11 @@ void main() {
   setUp(() async {
     app = await TestApp.create();
     alice = app.store.accounts.all().single;
-    tommy = app.store.accounts.add(
+    robin = app.store.accounts.add(
       NewAccount(
-        email: 'tommy@fluminaris.example',
+        email: 'robin@fluminaris.example',
         displayName: 'Robin Vale',
-        username: 'tommy',
+        username: 'robin',
         imap: ServerSettings(
           host: 'mail.fluminaris.example',
           port: 993,
@@ -56,10 +56,10 @@ void main() {
       name: 'Work',
       text: 'Best regards,\nRobin Vale\nFluminaris',
     );
-    casual = signOffs().add(name: 'Casual', text: 'Cheers,\nTommy');
+    casual = signOffs().add(name: 'Casual', text: 'Cheers,\nRobin');
     short = signOffs().add(name: 'Short', text: '– T');
     signOffs().setDefaults(
-      tommy.email,
+      robin.email,
       SignOffDefaults(
         newMail: work.id,
         repliesSameAsNew: false,
@@ -75,7 +75,7 @@ void main() {
   tearDown(() => app.dispose());
 
   Draft reply() => Draft(
-    accountId: tommy.id,
+    accountId: robin.id,
     to: const [_bob],
     subject: 'Re: Dock schedule',
     inReplyTo: 'dock-1@harbour.example',
@@ -93,7 +93,7 @@ void main() {
 
   group('while writing', () {
     test('a new message starts with the account\'s sign-off', () {
-      final c = ComposeController(app.services, Draft(accountId: tommy.id));
+      final c = ComposeController(app.services, Draft(accountId: robin.id));
       addTearDown(c.dispose);
       expect(c.signOff, work);
       expect(c.signOffChosen, isFalse);
@@ -138,7 +138,7 @@ void main() {
         'Thursday works.\n\nBest regards,\nRobin Vale\nFluminaris',
         reason: 'what was typed is never touched, even when it looks alike',
       );
-      expect(c.draft.text, contains('Fluminaris\n\nCheers,\nTommy\n\nOn Mon'));
+      expect(c.draft.text, contains('Fluminaris\n\nCheers,\nRobin\n\nOn Mon'));
       c.chooseSignOff(null);
       expect(c.signOff, isNull);
       expect(c.draft.text, isNot(contains('Cheers')));
@@ -146,13 +146,13 @@ void main() {
     });
 
     test('another From account brings its sign-off, unless one was chosen', () {
-      final c = ComposeController(app.services, Draft(accountId: tommy.id));
+      final c = ComposeController(app.services, Draft(accountId: robin.id));
       addTearDown(c.dispose);
       expect(c.signOff, work);
       c.setAccount(alice.id);
       expect(c.signOff, casual);
       c.chooseSignOff(short);
-      c.setAccount(tommy.id);
+      c.setAccount(robin.id);
       expect(c.signOff, short, reason: 'chosen by hand');
     });
 
@@ -168,10 +168,10 @@ void main() {
     });
 
     test('a new sign-off is saved for later, or used once', () {
-      final c = ComposeController(app.services, Draft(accountId: tommy.id));
+      final c = ComposeController(app.services, Draft(accountId: robin.id));
       addTearDown(c.dispose);
       final saved = c.writeSignOff(
-        text: 'Warmly,\nTommy',
+        text: 'Warmly,\nRobin',
         name: 'Warm',
         separator: true,
       );
@@ -182,7 +182,7 @@ void main() {
         'Short',
         'Warm',
       ]);
-      expect(c.draft.text, '-- \nWarmly,\nTommy');
+      expect(c.draft.text, '-- \nWarmly,\nRobin');
 
       final once = c.writeSignOff(
         text: 'Thanks for the quick fix!\nT',
@@ -203,7 +203,7 @@ void main() {
     });
 
     test('the sent message carries it', () {
-      final c = ComposeController(app.services, Draft(accountId: tommy.id));
+      final c = ComposeController(app.services, Draft(accountId: robin.id));
       addTearDown(c.dispose);
       c.to.add(_bob);
       c.setSubject('Invoice');
@@ -220,7 +220,7 @@ void main() {
       final now = DateTime.now();
       final sent = c.send(at: now.add(const Duration(days: 1)))! as ComposeSent;
       expect(sent.pending.scheduledFor, isNotNull);
-      expect(sentText(), startsWith('Thursday works.\n\nCheers,\nTommy\n\nOn'));
+      expect(sentText(), startsWith('Thursday works.\n\nCheers,\nRobin\n\nOn'));
       final scheduled = ScheduledSends(app.store, app.services.sender);
       final back = scheduled.edit(scheduled.all().single)!;
       final again = ComposeController(app.services, back);
@@ -275,16 +275,16 @@ void main() {
     });
 
     test('after managing, the sign-off in use follows its edits', () {
-      final c = ComposeController(app.services, Draft(accountId: tommy.id));
+      final c = ComposeController(app.services, Draft(accountId: robin.id));
       addTearDown(c.dispose);
-      signOffs().update(work.copyWith(text: 'Kind regards,\nTommy'));
+      signOffs().update(work.copyWith(text: 'Kind regards,\nRobin'));
       c.signOffsChanged();
-      expect(c.signOff!.text, 'Kind regards,\nTommy');
+      expect(c.signOff!.text, 'Kind regards,\nRobin');
       // Deleted: stays in this message as it was.
       signOffs().remove(work.id);
       c.signOffsChanged();
       expect(c.signOff!.isSaved, isFalse);
-      expect(c.draft.text, 'Kind regards,\nTommy');
+      expect(c.draft.text, 'Kind regards,\nRobin');
     });
   });
 
@@ -348,7 +348,7 @@ void main() {
     });
 
     testWidgets('"Write a new sign-off" for this email only', (tester) async {
-      final c = await open(tester, Draft(accountId: tommy.id));
+      final c = await open(tester, Draft(accountId: robin.id));
       await tester.tap(chip);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Write a new sign-off…'));
@@ -360,13 +360,13 @@ void main() {
       expect(find.byKey(const ValueKey('sign-off-name')), findsNothing);
       await tester.enterText(
         find.byKey(const ValueKey('sign-off-text')),
-        'Talk soon,\nTommy',
+        'Talk soon,\nRobin',
       );
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Use'));
       await tester.pumpAndSettle();
       expect(find.text('Sign-off: this email only'), findsOneWidget);
-      expect(c.draft.text, 'Talk soon,\nTommy');
+      expect(c.draft.text, 'Talk soon,\nRobin');
       expect(signOffs().all(), hasLength(3));
 
       // Saved for later: in the list, with its name.
@@ -380,7 +380,7 @@ void main() {
       );
       await tester.enterText(
         find.byKey(const ValueKey('sign-off-text')),
-        'Hugs,\nTommy',
+        'Hugs,\nRobin',
       );
       await tester.tap(find.byKey(const ValueKey('sign-off-separator')));
       await tester.pump();
@@ -388,7 +388,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Sign-off: Friends'), findsOneWidget);
       expect(signOffs().all().last.name, 'Friends');
-      expect(c.draft.text, '-- \nHugs,\nTommy');
+      expect(c.draft.text, '-- \nHugs,\nRobin');
       await tester.pump(const Duration(seconds: 3)); // autosave
     });
   });
@@ -443,7 +443,7 @@ void main() {
         SignOffDefaults(changedAt: DateTime.utc(2026, 11, 10)),
       );
       signOffs().setDefaults(
-        tommy.email,
+        robin.email,
         SignOffDefaults(changedAt: DateTime.utc(2026, 11, 10)),
       );
       await show(tester);
@@ -465,7 +465,7 @@ void main() {
       expect(find.text('Work'), findsWidgets);
       // The first one is every account's default.
       expect(signOffs().defaultFor(alice.email, reply: false), added);
-      expect(signOffs().defaultFor(tommy.email, reply: true), added);
+      expect(signOffs().defaultFor(robin.email, reply: true), added);
     });
 
     testWidgets('edit, delete with Undo, and each account\'s defaults', (
@@ -476,18 +476,18 @@ void main() {
         find.text('Best regards,\nRobin Vale\nFluminaris'),
         findsOneWidget,
       );
-      expect(find.text('Cheers,\nTommy'), findsOneWidget);
+      expect(find.text('Cheers,\nRobin'), findsOneWidget);
 
       // Edit.
-      await tester.tap(find.text('Cheers,\nTommy'));
+      await tester.tap(find.text('Cheers,\nRobin'));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('sign-off-text')),
-        'Cheers!\nTommy',
+        'Cheers!\nRobin',
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
-      expect(signOffs().byId(casual.id)!.text, 'Cheers!\nTommy');
+      expect(signOffs().byId(casual.id)!.text, 'Cheers!\nRobin');
 
       // Delete, then Undo.
       await tester.tap(find.byTooltip('More for Short'));
@@ -500,14 +500,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(signOffs().byId(short.id), isNotNull);
 
-      // Tommy's replies: same as new mail.
+      // Robin's replies: same as new mail.
       await tester.tap(
-        find.byKey(const ValueKey('sign-off-replies-tommy@fluminaris.example')),
+        find.byKey(const ValueKey('sign-off-replies-robin@fluminaris.example')),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Same as new mail').last);
       await tester.pumpAndSettle();
-      expect(signOffs().defaultFor(tommy.email, reply: true), work);
+      expect(signOffs().defaultFor(robin.email, reply: true), work);
 
       // Alice's new mail: none.
       await tester.tap(

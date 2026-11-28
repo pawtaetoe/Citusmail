@@ -135,7 +135,7 @@ void main() {
     test('but not two labels, the bare domain, or another domain', () {
       expect(CertificateNames.covers(wildcard, 'a.b.web-hosting.com'), isFalse);
       expect(CertificateNames.covers(wildcard, 'web-hosting.com'), isFalse);
-      expect(CertificateNames.covers(wildcard, 'mail.tommykung.cc'), isFalse);
+      expect(CertificateNames.covers(wildcard, 'mail.foglane.cc'), isFalse);
       expect(CertificateNames.covers(wildcard, 'evilweb-hosting.com'), isFalse);
       expect(
         CertificateNames.covers(wildcard, 'x.web-hosting.com.evil.example'),

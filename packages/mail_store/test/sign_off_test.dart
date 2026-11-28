@@ -17,7 +17,7 @@ void main() {
   test('starts with none', () {
     expect(signOffs().all(), isEmpty);
     expect(
-      signOffs().defaultFor('tommy@fluminaris.example', reply: false),
+      signOffs().defaultFor('robin@fluminaris.example', reply: false),
       isNull,
     );
   });
@@ -27,13 +27,13 @@ void main() {
       name: 'Work',
       text: 'Best regards,\nRobin Vale\nFluminaris\n\n',
     );
-    final casual = signOffs().add(name: ' Casual ', text: 'Cheers,\nTommy');
+    final casual = signOffs().add(name: ' Casual ', text: 'Cheers,\nRobin');
     expect(signOffs().all().map((s) => s.name), ['Work', 'Casual']);
     expect(work.text, 'Best regards,\nRobin Vale\nFluminaris');
     expect(work.id, isNot(casual.id));
 
-    signOffs().update(work.copyWith(text: 'Kind regards,\nTommy'));
-    expect(signOffs().byId(work.id)!.text, 'Kind regards,\nTommy');
+    signOffs().update(work.copyWith(text: 'Kind regards,\nRobin'));
+    expect(signOffs().byId(work.id)!.text, 'Kind regards,\nRobin');
     expect(signOffs().all().first.name, 'Work', reason: 'keeps its place');
 
     signOffs().reorder([casual.id, work.id]);
@@ -48,18 +48,18 @@ void main() {
   });
 
   test('the block starts with "-- " only when asked', () {
-    final plain = SignOff.oneOff(text: 'Cheers,\nTommy\n');
-    expect(plain.block, 'Cheers,\nTommy');
+    final plain = SignOff.oneOff(text: 'Cheers,\nRobin\n');
+    expect(plain.block, 'Cheers,\nRobin');
     expect(plain.isSaved, isFalse);
-    final standard = SignOff.oneOff(text: 'Tommy', separator: true);
-    expect(standard.block, '-- \nTommy');
+    final standard = SignOff.oneOff(text: 'Robin', separator: true);
+    expect(standard.block, '-- \nRobin');
   });
 
   test('each account has its own defaults, for new mail and replies', () {
-    final work = signOffs().add(name: 'Work', text: 'Best regards,\nTommy');
+    final work = signOffs().add(name: 'Work', text: 'Best regards,\nRobin');
     final short = signOffs().add(name: 'Short', text: '– T');
     signOffs().setDefaults(
-      'Tommy@Fluminaris.example',
+      'Robin@Fluminaris.example',
       SignOffDefaults(
         newMail: work.id,
         repliesSameAsNew: false,
@@ -68,35 +68,35 @@ void main() {
       ),
     );
     signOffs().setDefaults(
-      'tommy@home.example',
+      'robin@home.example',
       SignOffDefaults(newMail: short.id, changedAt: DateTime.utc(2026, 11, 10)),
     );
 
     expect(
-      signOffs().defaultFor('tommy@fluminaris.example', reply: false),
+      signOffs().defaultFor('robin@fluminaris.example', reply: false),
       work,
     );
     expect(
-      signOffs().defaultFor('tommy@fluminaris.example', reply: true),
+      signOffs().defaultFor('robin@fluminaris.example', reply: true),
       short,
     );
     // Same for replies.
-    expect(signOffs().defaultFor('tommy@home.example', reply: true), short);
+    expect(signOffs().defaultFor('robin@home.example', reply: true), short);
     expect(signOffs().defaultFor('other@x.example', reply: false), isNull);
 
     // A removed sign-off is no longer anyone's default.
     signOffs().remove(short.id);
     expect(
-      signOffs().defaultFor('tommy@fluminaris.example', reply: true),
+      signOffs().defaultFor('robin@fluminaris.example', reply: true),
       isNull,
     );
-    expect(signOffs().defaultFor('tommy@home.example', reply: false), isNull);
+    expect(signOffs().defaultFor('robin@home.example', reply: false), isNull);
   });
 
   test('"none" for replies differs from "same as new mail"', () {
     final work = signOffs().add(name: 'Work', text: 'Best regards');
     signOffs().setDefaults(
-      'tommy@fluminaris.example',
+      'robin@fluminaris.example',
       SignOffDefaults(
         newMail: work.id,
         repliesSameAsNew: false,
@@ -104,11 +104,11 @@ void main() {
       ),
     );
     expect(
-      signOffs().defaultFor('tommy@fluminaris.example', reply: true),
+      signOffs().defaultFor('robin@fluminaris.example', reply: true),
       isNull,
     );
     expect(
-      signOffs().defaultFor('tommy@fluminaris.example', reply: false),
+      signOffs().defaultFor('robin@fluminaris.example', reply: false),
       work,
     );
   });
@@ -120,7 +120,7 @@ void main() {
       separator: true,
     );
     signOffs().setDefaults(
-      'tommy@fluminaris.example',
+      'robin@fluminaris.example',
       SignOffDefaults(newMail: work.id, changedAt: DateTime.utc(2026)),
     );
     temp.reopen();
@@ -128,7 +128,7 @@ void main() {
     expect(again, work);
     expect(again.separator, isTrue);
     expect(
-      signOffs().defaultFor('tommy@fluminaris.example', reply: true),
+      signOffs().defaultFor('robin@fluminaris.example', reply: true),
       work,
     );
   });

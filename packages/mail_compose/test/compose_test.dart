@@ -946,8 +946,8 @@ void main() {
         'Best regards,\nRobin Vale\nFluminaris',
       );
       expect(
-        sent(SignOff.oneOff(text: 'Tommy', separator: true)),
-        'Attached are the numbers.\n\n-- \nTommy',
+        sent(SignOff.oneOff(text: 'Robin', separator: true)),
+        'Attached are the numbers.\n\n-- \nRobin',
       );
     });
 
@@ -1042,7 +1042,7 @@ void main() {
 
       test('one for this email only', () {
         final oneOff = SignOff.oneOff(
-          text: 'Thanks so much,\nTommy',
+          text: 'Thanks so much,\nRobin',
           separator: true,
         );
         final draft = reply(signOff: oneOff);
@@ -1067,7 +1067,7 @@ void main() {
 
       test('a saved one changed since stays as it was in the draft', () {
         final draft = reply(signOff: work);
-        store.signOffs.update(work.copyWith(text: 'Best,\nTommy'));
+        store.signOffs.update(work.copyWith(text: 'Best,\nRobin'));
         final reopened = roundTrip(draft);
         expect(reopened.body, 'Yes!');
         expect(reopened.signOff!.text, work.text);
