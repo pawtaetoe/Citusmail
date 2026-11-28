@@ -79,8 +79,13 @@ abstract final class CitusMotion {
   /// A section folding, its chevron turning.
   static const fold = Duration(milliseconds: 200);
 
-  /// A row growing into the open message (phones), and back.
+  /// A row growing into the open message (phones), and back; one tab
+  /// fading through to another.
   static const medium = Duration(milliseconds: 300);
+
+  /// One sweep of the light across rows still loading (it repeats while
+  /// they load).
+  static const shimmer = Duration(milliseconds: 1400);
 
   /// Material's standard easing, for things that move on screen.
   static const standard = Easing.standard;
