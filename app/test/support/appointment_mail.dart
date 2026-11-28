@@ -204,7 +204,7 @@ void seedAppointments(MailStore store, {required DateTime now}) {
     mail(
       'reservations@opentable.com',
       'OpenTable',
-      'Your reservation at Burnt Ends is confirmed',
+      'Your reservation at Ember Lane is confirmed',
       day * 2,
       snippet:
           'Your reservation is confirmed. Table for 4 on ${on(5)} at '

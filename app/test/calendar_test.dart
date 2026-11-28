@@ -74,9 +74,9 @@ void main() {
         titles,
         containsAll([
           'Flight to Tokyo',
-          'Park Hotel Shinjuku',
-          'Park Hotel Shinjuku out',
-          'Table at Burnt Ends',
+          'Hotel Kumo Shinjuku',
+          'Hotel Kumo Shinjuku out',
+          'Table at Ember Lane',
           'Bright Smile Dental',
           'Design review',
           'Guided Factory Tour',

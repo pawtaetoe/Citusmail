@@ -38,7 +38,7 @@ abstract final class BookingText {
     ReservationKind.event => AppIcons.ticket,
   };
 
-  /// "Flight to Tokyo", "Park Hotel Shinjuku", "Table at Burnt Ends".
+  /// "Flight to Tokyo", "Hotel Kumo Shinjuku", "Table at Ember Lane".
   static String title(Booking b) {
     final info = b.info;
     final to = b.city ?? info.to?.label;
@@ -65,7 +65,7 @@ abstract final class BookingText {
     [final a, final b, ...final rest] => '$a, $b and ${rest.length} more',
   };
 
-  /// "Singapore Changi (SIN)", "SIN", "Burnt Ends".
+  /// "Singapore Changi (SIN)", "SIN", "Ember Lane".
   static String place(ReservationPlace p) => switch ((p.name, p.code)) {
     (final n?, final c?) when n.toUpperCase() != c => '$n ($c)',
     (final n?, _) => n,

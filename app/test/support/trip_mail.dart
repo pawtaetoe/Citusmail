@@ -81,16 +81,16 @@ void seedTrips(MailStore store, {required DateTime now}) {
   final hotel = mail(
     'noreply@booking.com',
     'Booking.com',
-    'Your booking is confirmed at Park Hotel Shinjuku',
+    'Your booking is confirmed at Hotel Kumo Shinjuku',
     day * 19,
     snippet: 'Thanks, Alice! Your booking in Tokyo is confirmed.',
   );
   final dinner = mail(
     'reservations@opentable.com',
     'OpenTable',
-    'Your reservation at Burnt Ends is confirmed',
+    'Your reservation at Ember Lane is confirmed',
     day * 2,
-    snippet: 'Table for 4 at Burnt Ends.',
+    snippet: 'Table for 4 at Ember Lane.',
   );
   final concert = mail(
     'tickets@ticketmaster.sg',
@@ -223,7 +223,7 @@ $html
  "reservationStatus": "http://schema.org/ReservationConfirmed",
  "underName": {"@type": "Person", "name": "Alice Tan"},
  "broker": {"@type": "Organization", "name": "Booking.com"},
- "reservationFor": {"@type": "LodgingBusiness", "name": "Park Hotel Shinjuku",
+ "reservationFor": {"@type": "LodgingBusiness", "name": "Hotel Kumo Shinjuku",
    "address": {"@type": "PostalAddress", "streetAddress": "3-4-5 Nishi-Shinjuku",
      "addressLocality": "Tokyo", "postalCode": "160-0023", "addressCountry": "Japan"},
    "telephone": "+81 3 1234 5678"},
@@ -240,10 +240,10 @@ $html
  "provider": {"@type": "Organization", "name": "OpenTable"},
  "underName": {"@type": "Person", "name": "Alice Tan"},
  "startTime": "${d(10)}T19:30:00+08:00", "partySize": 4,
- "reservationFor": {"@type": "FoodEstablishment", "name": "Burnt Ends",
+ "reservationFor": {"@type": "FoodEstablishment", "name": "Ember Lane",
    "address": {"@type": "PostalAddress", "streetAddress": "7 Dempsey Road",
      "addressLocality": "Singapore", "addressCountry": "SG"}}}''',
-    'Table for 4 at Burnt Ends.',
+    'Table for 4 at Ember Lane.',
   );
   body(
     concert,

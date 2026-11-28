@@ -180,8 +180,8 @@ METHOD:REQUEST
 BEGIN:VEVENT
 UID:design-review@northwind.example
 DTSTAMP:${_icsDay(now, -1)}T090000Z
-DTSTART:${_icsDay(now, 1)}T020000Z
-DTEND:${_icsDay(now, 1)}T030000Z
+DTSTART:${_icsDay(now, 1)}T090000Z
+DTEND:${_icsDay(now, 1)}T100000Z
 SUMMARY:Design review
 LOCATION:https://northwind.zoom.us/j/81234567890
 ORGANIZER;CN=Dana Lee:mailto:dana@northwind.example
