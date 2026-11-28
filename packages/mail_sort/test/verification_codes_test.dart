@@ -281,7 +281,7 @@ void main() {
     expect(
       VerificationCodes.inMessage(
         'Your Uber account verification code',
-        'Your Uber verification code\nHi Chih Chia,\nTo finish logging in to '
+        'Your Uber verification code\nHi Robin,\nTo finish logging in to '
             'your Uber account, enter this verification code:\nDo not share '
             'this code with anyone. Uber staff will never ask you for this '
             'code.\n9514\nIf you didn\'t make this request or you need '
@@ -301,8 +301,8 @@ void main() {
     expect(
       VerificationCodes.inMessage(
         'Google Verification Code',
-        'Google Verification Code\nHi Tommy,\nWe received a request to '
-            'access your Google Account kungchihchia@gmail.com through your '
+        'Google Verification Code\nHi Robin,\nWe received a request to '
+            'access your Google Account robin.vale@example.com through your '
             'email address. Your Google verification code is:\n155031\nIf '
             'you did not request this code, it is possible that someone else '
             'is trying to access the Google Account.',
@@ -327,7 +327,7 @@ void main() {
         'Email verification',
         'Your sign-in link for Linear',
         'Your magic link',
-        'Kung, please verify your new device',
+        'Vale, please verify your new device',
         'Sign in to Slack',
         'Log in to Example',
         '[GitHub] Please verify your device',

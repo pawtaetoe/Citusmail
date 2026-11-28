@@ -25,11 +25,11 @@ void main() {
   test('adds, edits and removes sign-offs, in order', () {
     final work = signOffs().add(
       name: 'Work',
-      text: 'Best regards,\nTommy Kung\nFluminaris\n\n',
+      text: 'Best regards,\nRobin Vale\nFluminaris\n\n',
     );
     final casual = signOffs().add(name: ' Casual ', text: 'Cheers,\nTommy');
     expect(signOffs().all().map((s) => s.name), ['Work', 'Casual']);
-    expect(work.text, 'Best regards,\nTommy Kung\nFluminaris');
+    expect(work.text, 'Best regards,\nRobin Vale\nFluminaris');
     expect(work.id, isNot(casual.id));
 
     signOffs().update(work.copyWith(text: 'Kind regards,\nTommy'));
@@ -116,7 +116,7 @@ void main() {
   test('survives closing and opening the store', () {
     final work = signOffs().add(
       name: 'Work',
-      text: 'Best regards,\nTommy Kung\nFluminaris',
+      text: 'Best regards,\nRobin Vale\nFluminaris',
       separator: true,
     );
     signOffs().setDefaults(

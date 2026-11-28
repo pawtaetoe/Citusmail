@@ -11,10 +11,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 
 void main() {
-  const tommy = MailAddress(
-    localPart: 'tommykung4',
-    domain: 'gmail.com',
-    displayName: 'Tommy Kung',
+  const robin = MailAddress(
+    localPart: 'robin.vale',
+    domain: 'example.com',
+    displayName: 'Robin Vale',
   );
 
   var looked = <String>[];
@@ -34,10 +34,10 @@ void main() {
                 suggest: (text) {
                   looked.add(text);
                   return [
-                    if ('tommy kung tommykung4@gmail.com'.contains(
+                    if ('robin vale robin.vale@example.com'.contains(
                       text.toLowerCase(),
                     ))
-                      tommy,
+                      robin,
                   ];
                 },
               ),
@@ -56,22 +56,22 @@ void main() {
     (tester) async {
       final platform = defaultTargetPlatform;
       final list = await show(tester);
-      await tester.enterText(find.byType(TextField).first, 'tom');
+      await tester.enterText(find.byType(TextField).first, 'rob');
       await tester.pump(RecipientField.pause);
       await tester.pump();
-      expect(find.text('Tommy Kung'), findsOneWidget);
+      expect(find.text('Robin Vale'), findsOneWidget);
 
       final gesture = await tester.createGesture(
         kind: platform == TargetPlatform.linux
             ? PointerDeviceKind.mouse
             : PointerDeviceKind.touch,
       );
-      await gesture.down(tester.getCenter(find.text('Tommy Kung')));
+      await gesture.down(tester.getCenter(find.text('Robin Vale')));
       await tester.pump();
       await gesture.up();
       await tester.pumpAndSettle();
 
-      expect(list.addresses, [tommy]);
+      expect(list.addresses, [robin]);
       expect(list.invalid, isNull, reason: 'no "Not an email address"');
       expect(find.text('Not an email address'), findsNothing);
     },
@@ -85,15 +85,15 @@ void main() {
   testWidgets('suggestions are looked up once typing pauses', (tester) async {
     await show(tester);
     final field = find.byType(TextField).first;
-    for (final typed in ['to', 'tom', 'tomm', 'tommy']) {
+    for (final typed in ['ro', 'rob', 'robi', 'robin']) {
       await tester.enterText(field, typed);
       await tester.pump(const Duration(milliseconds: 40));
     }
     expect(looked, isEmpty, reason: 'nothing while typing');
     await tester.pump(RecipientField.pause);
     await tester.pump();
-    expect(looked, ['tommy']);
-    expect(find.text('Tommy Kung'), findsOneWidget);
+    expect(looked, ['robin']);
+    expect(find.text('Robin Vale'), findsOneWidget);
   });
 
   group('pasted lists', () {

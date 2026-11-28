@@ -251,12 +251,12 @@ Taxes and surcharges paid: SGD 642.30
 const _osakaBooked = '''
 Dear Alice Tan,
 
-Thank you for choosing Osaka View Hotel Honmachi. Your reservation has
+Thank you for choosing Harbour Lantern Hotel Kitahama. Your reservation has
 been booked as follows.
 
 Reservation number: 20261215-4471
-Hotel: Osaka View Hotel Honmachi
-Address: 2-3-10 Honmachi, Chuo-ku, Osaka 541-0053, Japan
+Hotel: Harbour Lantern Hotel Kitahama
+Address: 1-4-7 Kitahama, Chuo-ku, Osaka 541-0041, Japan
 
 Check-in: Tue, 15 Dec 2026 15:00
 Check-out: Mon, 21 Dec 2026 11:00
@@ -271,7 +271,7 @@ Free cancellation until 3 days before arrival.
 const _osakaChanged = '''
 Dear Alice Tan,
 
-Your reservation at Osaka View Hotel Honmachi has been changed. Please
+Your reservation at Harbour Lantern Hotel Kitahama has been changed. Please
 check the new dates below.
 
 Reservation number: 20261221-4583
@@ -287,19 +287,19 @@ Nights: 3
 Room: Superior Double, non-smoking
 Guests: 2 adults
 
-Address: 2-3-10 Honmachi, Chuo-ku, Osaka 541-0053, Japan
+Address: 1-4-7 Kitahama, Chuo-ku, Osaka 541-0041, Japan
 ''';
 
 /// Three more nights at the same hotel, booked separately.
 const _osakaMoreNights = '''
 Dear Alice Tan,
 
-Thank you for choosing Osaka View Hotel Honmachi again. Your
+Thank you for choosing Harbour Lantern Hotel Kitahama again. Your
 reservation has been booked as follows.
 
 Reservation number: 20261221-4583
-Hotel: Osaka View Hotel Honmachi
-Address: 2-3-10 Honmachi, Chuo-ku, Osaka 541-0053, Japan
+Hotel: Harbour Lantern Hotel Kitahama
+Address: 1-4-7 Kitahama, Chuo-ku, Osaka 541-0041, Japan
 
 Check-in: Mon, 21 Dec 2026 15:00
 Check-out: Thu, 24 Dec 2026 11:00
@@ -1672,52 +1672,54 @@ Coach 05, Seat 12F, 2nd class
         ),
       )?.hotel?.name;
       expect(
-        name('Osaka View Hotel Honmachi has been booked'),
-        'Osaka View Hotel Honmachi',
+        name('Harbour Lantern Hotel Kitahama has been booked'),
+        'Harbour Lantern Hotel Kitahama',
       );
       expect(
         name(
-          'Reservation confirmation: Osaka View Hotel Honmachi has been booked',
+          'Reservation confirmation: Harbour Lantern Hotel Kitahama has been booked',
         ),
-        'Osaka View Hotel Honmachi',
+        'Harbour Lantern Hotel Kitahama',
       );
       expect(
-        name('Confirmed: Osaka View Hotel Honmachi has been changed'),
-        'Osaka View Hotel Honmachi',
+        name('Confirmed: Harbour Lantern Hotel Kitahama has been changed'),
+        'Harbour Lantern Hotel Kitahama',
       );
       expect(
-        name('Booking confirmed at Osaka View Hotel Honmachi is confirmed'),
-        'Osaka View Hotel Honmachi',
+        name(
+          'Booking confirmed at Harbour Lantern Hotel Kitahama is confirmed',
+        ),
+        'Harbour Lantern Hotel Kitahama',
       );
       expect(
         name(
           'Your reservation has been confirmed',
-          sender: 'Osaka View Hotel Honmachi',
+          sender: 'Harbour Lantern Hotel Kitahama',
         ),
-        'Osaka View Hotel Honmachi',
+        'Harbour Lantern Hotel Kitahama',
       );
     });
 
     test('a stay changed to new dates shows once, with the new dates', () {
       final found = bookings([
         mail(
-          'Reservation confirmation: Osaka View Hotel Honmachi has been booked',
+          'Reservation confirmation: Harbour Lantern Hotel Kitahama has been booked',
           sender: 'osakaviewhotel.jp',
-          name: 'Osaka View Hotel Honmachi',
+          name: 'Harbour Lantern Hotel Kitahama',
           text: _osakaBooked,
           daysAgo: 40,
         ),
         mail(
-          'Reservation change: Osaka View Hotel Honmachi has been changed',
+          'Reservation change: Harbour Lantern Hotel Kitahama has been changed',
           sender: 'osakaviewhotel.jp',
-          name: 'Osaka View Hotel Honmachi',
+          name: 'Harbour Lantern Hotel Kitahama',
           text: _osakaChanged,
           daysAgo: 2,
         ),
       ]);
       final stay = found.single;
       final info = stay.info as LodgingReservationInfo;
-      expect(info.hotel?.name, 'Osaka View Hotel Honmachi');
+      expect(info.hotel?.name, 'Harbour Lantern Hotel Kitahama');
       expect(stay.start.wall, DateTime.utc(2026, 12, 21, 15));
       expect(stay.end?.wall, DateTime.utc(2026, 12, 24, 11));
       expect(stay.changed, isTrue);
@@ -1729,13 +1731,13 @@ Coach 05, Seat 12F, 2nd class
     test('two stays back to back, each booked: two stays', () {
       final found = bookings([
         mail(
-          'Osaka View Hotel Honmachi has been booked',
+          'Harbour Lantern Hotel Kitahama has been booked',
           sender: 'osakaviewhotel.jp',
           text: _osakaBooked,
           daysAgo: 40,
         ),
         mail(
-          'Osaka View Hotel Honmachi has been booked',
+          'Harbour Lantern Hotel Kitahama has been booked',
           sender: 'osakaviewhotel.jp',
           text: _osakaMoreNights,
           daysAgo: 2,
@@ -1743,8 +1745,8 @@ Coach 05, Seat 12F, 2nd class
       ]);
       expect(found, hasLength(2));
       expect(found.map((b) => (b.info as LodgingReservationInfo).hotel?.name), [
-        'Osaka View Hotel Honmachi',
-        'Osaka View Hotel Honmachi',
+        'Harbour Lantern Hotel Kitahama',
+        'Harbour Lantern Hotel Kitahama',
       ]);
       expect(found.map((b) => b.start.day), [
         DateTime(2026, 12, 15),
@@ -1754,13 +1756,13 @@ Coach 05, Seat 12F, 2nd class
       expect(
         trips([
           mail(
-            'Osaka View Hotel Honmachi has been booked',
+            'Harbour Lantern Hotel Kitahama has been booked',
             sender: 'osakaviewhotel.jp',
             text: _osakaBooked,
             daysAgo: 40,
           ),
           mail(
-            'Osaka View Hotel Honmachi has been booked',
+            'Harbour Lantern Hotel Kitahama has been booked',
             sender: 'osakaviewhotel.jp',
             text: _osakaMoreNights,
             daysAgo: 2,
@@ -1773,13 +1775,13 @@ Coach 05, Seat 12F, 2nd class
     test('a change elsewhere, or after a gap, is not this stay', () {
       final found = bookings([
         mail(
-          'Osaka View Hotel Honmachi has been booked',
+          'Harbour Lantern Hotel Kitahama has been booked',
           sender: 'osakaviewhotel.jp',
           text: _osakaBooked,
           daysAgo: 40,
         ),
         mail(
-          'Reservation change: Osaka View Hotel Honmachi has been changed',
+          'Reservation change: Harbour Lantern Hotel Kitahama has been changed',
           sender: 'osakaviewhotel.jp',
           text: _osakaChanged
               .replaceAll('21 Dec 2026 15:00', '28 Dec 2026 15:00')
@@ -2232,6 +2234,190 @@ Boarding time: 22:50
       // Across the date line it lands on the day it left.
       expect(f.end?.wall, DateTime.utc(2026, 12, 8, 19, 35));
       expect(b.city, 'San Francisco');
+    });
+
+    // An agency's confirmation: each leg's heading and departure come
+    // before its number, its arrival after it. The way out's window runs
+    // on into the way back's heading and departure.
+    String straddled({required bool codes}) {
+      String airport(String code, String name) => codes ? '$code $name' : name;
+      return '''
+Airline Booking Reference (PNR): QWE7RT
+You can use the airline booking reference to check in online.
+
+Departure: Singapore - Taipei | March 3, 2027
+* All departure/arrival times are in local time.
+07:10
+${airport('SIN', 'Singapore Changi Airport T3')}
+Scoot TR 868 | Economy | Airbus A320 | No meals
+11:55
+${airport('TPE', 'Taipei Taoyuan International Airport T1')}
+
+Return: Taipei - Singapore | March 9, 2027
+21:30
+${airport('TPE', 'Taipei Taoyuan International Airport T1')}
+Scoot TR 869 | Economy | Airbus A320 | No meals
+Mar 10
+02:05
+${airport('SIN', 'Singapore Changi Airport T3')}
+View policies and request cancellation & change
+
+ROBIN EXAMPLE
+Adult ticket | Date of birth: Jan 2, 1990
+''';
+    }
+
+    for (final codes in [true, false]) {
+      test('each leg\'s times from its own block '
+          '(${codes ? 'codes' : 'names only'})', () {
+        final found = bookings([
+          mail(
+            'Your flight booking has been confirmed',
+            sender: 'agency.example',
+            name: 'Example Agency',
+            daysAgo: 4,
+            text: straddled(codes: codes),
+          ),
+        ]);
+        expect(found.map((b) => b.key), [
+          'f:tr868:2027-03-03',
+          'f:tr869:2027-03-09',
+        ]);
+        final [out, back] = [
+          for (final b in found) b.info as FlightReservationInfo,
+        ];
+        expect(out.start?.wall, DateTime.utc(2027, 3, 3, 7, 10));
+        expect(out.end?.wall, DateTime.utc(2027, 3, 3, 11, 55));
+        expect(back.start?.wall, DateTime.utc(2027, 3, 9, 21, 30));
+        // Its own date, by its arrival time.
+        expect(back.end?.wall, DateTime.utc(2027, 3, 10, 2, 5));
+        expect(found[0].city, 'Taipei');
+        expect(found[1].city, 'Singapore');
+        if (codes) {
+          expect((out.from?.code, out.to?.code), ('SIN', 'TPE'));
+          expect(out.from?.name, 'Singapore Changi Airport');
+        }
+      });
+    }
+
+    String peach({required bool back}) =>
+        '''
+Thank you for your booking. Please confirm your reservation details.
+Airport Check-in
+QR code
+Booking Reference Number
+二次元バーコード
+QRT5KW
+Please scan your QR code or enter your reservation number at a self check-in kiosk to issue your boarding pass.
+Flight Information
+Booking date 2027/01/10 (Sun) 11:02
+Out bound
+MM215(A320)
+Departure
+Arrival
+Osaka (Kansai)
+2027/02/06 (Sat) 10:05
+Terminal 1
+
+Taipei
+2027/02/06 (Sat) 12:20
+Terminal 1
+Fare Type
+Standard
+${back ? '''
+Return
+MM216(A320)
+Departure
+Arrival
+Taipei
+2027/02/11 (Thu) 13:30
+Terminal 1
+
+Osaka (Kansai)
+2027/02/11 (Thu) 17:10
+Terminal 1
+Fare Type
+Standard
+''' : ''}Passenger
+DOE JANE (Adult)
+We look forward to seeing you onboard.
+''';
+
+    test('an airline\'s own layout: places over their times', () {
+      final found = bookings([
+        mail(
+          '【Peach】 Your Peach Reservation',
+          sender: 'flypeach.com',
+          name: 'Peach',
+          daysAgo: 2,
+          text: peach(back: false),
+        ),
+      ]);
+      final f = found.single.info as FlightReservationInfo;
+      expect(found.single.key, 'f:mm215:2027-02-06');
+      expect(f.reservationNumber, 'QRT5KW');
+      expect(f.provider, 'Peach');
+      expect(f.start?.wall, DateTime.utc(2027, 2, 6, 10, 5));
+      expect(f.end?.wall, DateTime.utc(2027, 2, 6, 12, 20));
+      expect(found.single.fromCity, 'Osaka');
+      expect(found.single.city, 'Taipei');
+    });
+
+    test('that layout out and back: each leg its own places', () {
+      final found = bookings([
+        mail(
+          '【Peach】 Your Peach Reservation',
+          sender: 'flypeach.com',
+          name: 'Peach',
+          daysAgo: 2,
+          text: peach(back: true),
+        ),
+      ]);
+      expect(found.map((b) => b.key), [
+        'f:mm215:2027-02-06',
+        'f:mm216:2027-02-11',
+      ]);
+      final back = found[1];
+      expect(back.fromCity, 'Taipei');
+      expect(back.city, 'Osaka');
+      expect(back.start.wall, DateTime.utc(2027, 2, 11, 13, 30));
+      expect(back.end?.wall, DateTime.utc(2027, 2, 11, 17, 10));
+      expect(back.reference, 'QRT5KW');
+    });
+
+    TripEmail flight(String day, String departs, String arrives) => mail(
+      'Your booking confirmation',
+      sender: 'jetstar.com',
+      name: 'Jetstar Asia',
+      daysAgo: 5,
+      text:
+          '''
+Booking reference: QWE7RT
+Flight 3K 521
+Singapore (SIN) to Taipei (TPE)
+Depart: $day, $departs
+Arrive: $arrives
+''',
+    );
+
+    test('a flight leaving when the same flight lands is a misread', () {
+      final found = bookings([
+        flight('3 Mar 2027', '07:10', '11:55'),
+        // Its arrival read as a departure, and the next leg's time.
+        flight('9 Mar 2027', '11:55', '21:30'),
+      ]);
+      expect(found.map((b) => b.key), ['f:3k521:2027-03-03']);
+    });
+
+    test('the same flight on other days at its own times is kept', () {
+      final found = bookings([
+        flight('3 Mar 2027', '07:10', '11:55'),
+        flight('9 Mar 2027', '07:10', '11:55'),
+      ]);
+      expect(found.map((b) => b.key), [
+        'f:3k521:2027-03-03',
+        'f:3k521:2027-03-09',
+      ]);
     });
   });
 

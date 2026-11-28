@@ -687,7 +687,7 @@ void main() {
       await tester.enterText(host, 'https://imap.tommykung.cc');
       await tester.pumpAndSettle();
       expect(find.textContaining('without http://'), findsOneWidget);
-      await tester.enterText(host, ' IMAP.TommyKung.cc ');
+      await tester.enterText(host, ' IMAP.RobinVale.cc ');
       await tester.enterText(port, '99999');
       await tester.pumpAndSettle();
       expect(find.text('Enter a port number'), findsOneWidget);
@@ -704,7 +704,7 @@ void main() {
       await tester.tap(find.text('Check and continue'));
       await tester.pump();
       final (settings, password) = s.verified.single;
-      expect(settings.imap.host, 'imap.tommykung.cc');
+      expect(settings.imap.host, 'imap.robinvale.cc');
       expect(settings.imap.port, 143);
       expect(settings.username, 'me');
       expect(password, 'pw');
