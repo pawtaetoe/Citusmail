@@ -198,12 +198,12 @@ void main() {
     });
 
     // The phone's tabs: the inbox with search on top and the navigation
-    // bar, what is found in your mail, and the folders.
+    // bar, what is found in your mail and the tools, and the folders.
     testWidgets('phone tabs$suffix', (tester) async {
       await show(tester, shell(), size: const Size(390, 844), dark: dark);
       await shoot(tester, 'phone_tabs_inbox$suffix');
-      await tester.tap(find.text('Found'));
-      await shoot(tester, 'phone_tabs_found$suffix');
+      await tester.tap(find.text('Tools'));
+      await shoot(tester, 'phone_tabs_tools$suffix');
       await tester.tap(find.text('Folders'));
       await shoot(tester, 'phone_tabs_folders$suffix');
       // Selecting: the actions take the bar's place.

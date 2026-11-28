@@ -501,6 +501,37 @@ void main() {
     expect(find.text('Pinned'), findsOneWidget);
   });
 
+  testWidgets('Pinned says how many more are pinned in other folders', (
+    tester,
+  ) async {
+    // The Inbox's Pinned section is the pinned mail still in the Inbox;
+    // Pins also lists what was pinned and then archived.
+    final account = store.accounts.all().single.id;
+    final archive = store.mailboxes
+        .forAccount(account)
+        .firstWhere((b) => b.encodedName == 'Archive');
+    store.messages.upsertSummaries(archive.id, [
+      for (var i = 0; i < 2; i++)
+        MessageSummary(
+          uid: 50 + i,
+          receivedAt: DateTime.utc(2026, 9, 1, i),
+          subject: 'Archived pin $i',
+          from: MailAddress(localPart: 'a$i', domain: 'x.example'),
+          flags: MessageFlags.fromImap([r'\Flagged']),
+        ),
+    ]);
+    await show(tester, const Size(1400, 900));
+    await tester.pump();
+    expect(find.text('2 more pinned elsewhere · See all pins'), findsOneWidget);
+    expect(find.text('Archived pin 0'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('see-all-pins')));
+    await tester.pumpAndSettle();
+    expect(find.text('Keep this'), findsOneWidget);
+    expect(find.text('Archived pin 0'), findsOneWidget);
+    expect(find.text('Archived pin 1'), findsOneWidget);
+  });
+
   testWidgets('narrow: one pane at a time, back returns to the list', (
     tester,
   ) async {
@@ -752,16 +783,22 @@ void main() {
   testWidgets('Tools: Clean up and the Privacy report open from the sidebar', (
     tester,
   ) async {
-    // Phones: on the Folders tab.
-    for (final (size, drawer) in [
+    // Phones: on the Tools tab.
+    for (final (size, phone) in [
       (const Size(1400, 900), false),
       (const Size(400, 860), true),
     ]) {
       await show(tester, size);
       Future<void> openTools() async {
-        if (drawer) {
-          await tester.tap(find.byTooltip('Folders'));
+        if (phone) {
+          await tester.tap(find.byTooltip('Found in your mail, and tools'));
           await tester.pumpAndSettle();
+          await tester.scrollUntilVisible(
+            find.text('Privacy report'),
+            120,
+            scrollable: find.byType(Scrollable).last,
+          );
+          return;
         }
         if (find.text('Clean up').evaluate().isEmpty) {
           await tester.tap(find.text('Tools'));

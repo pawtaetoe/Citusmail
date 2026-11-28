@@ -134,19 +134,20 @@ final class Sidebar extends StatelessWidget {
         },
       ),
       // Not inside a folded group, so everything the app does is one
-      // tap away.
-      _Entry(
-        icon: AppIcons.allFeatures,
-        label: 'All features',
-        onTap: () {
-          onNavigated?.call();
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => DiscoverPage(controller: controller),
-            ),
-          );
-        },
-      ),
+      // tap away (a phone's Tools tab lists it instead).
+      if (!asTab)
+        _Entry(
+          icon: AppIcons.allFeatures,
+          label: 'All features',
+          onTap: () {
+            onNavigated?.call();
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => DiscoverPage(controller: controller),
+              ),
+            );
+          },
+        ),
       _Entry(
         icon: AppIcons.addAccount,
         label: 'Add account',
@@ -381,7 +382,8 @@ final class Sidebar extends StatelessWidget {
                             memory: _OpenSet(store, _OpenSet.groups),
                             groups: [
                               for (final group in _featureGroups())
-                                if (!asTab || group.id != _foundGroup) group,
+                                if (!asTab || !_onToolsTab.contains(group.id))
+                                  group,
                             ],
                             onOpen: (page) {
                               onNavigated?.call();
@@ -404,11 +406,14 @@ final class Sidebar extends StatelessWidget {
     );
   }
 
-  /// The id of "Found in your mail" (a tab of its own on phones).
+  /// The id of "Found in your mail".
   static const _foundGroup = 'found';
 
+  /// The groups the phone shows on its Tools tab instead of here.
+  static const _onToolsTab = {_foundGroup, 'tools'};
+
   /// The pages below the accounts, in folding groups. Adding a page is
-  /// one line here (and one in features.dart, for the phone's Found tab).
+  /// one line here (and one in features.dart, for the phone's Tools tab).
   List<_FeatureGroup> _featureGroups() => [
     (
       id: _foundGroup,

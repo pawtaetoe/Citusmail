@@ -926,6 +926,15 @@ final class _MessagesState extends State<_Messages> {
                                 ),
                               ),
                             ),
+                          // Only what is still in the Inbox is here; mail
+                          // pinned elsewhere (archived, sent...) is in Pins.
+                          if (section.section == SmartSection.pinned)
+                            SliverToBoxAdapter(
+                              child: _PinsElsewhere(
+                                controller: _c,
+                                here: section.count.total,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -1035,6 +1044,42 @@ final class _MessagesState extends State<_Messages> {
       },
     );
   }
+}
+
+/// Under the Inbox's Pinned section: how many more are pinned in other
+/// folders, and a way to see them all (the Pins list).
+final class _PinsElsewhere extends StatelessWidget {
+  const _PinsElsewhere({required this.controller, required this.here});
+
+  final MailController controller;
+
+  /// Pinned mail in this Inbox's section.
+  final int here;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: controller.counts,
+    builder: (context, counts, _) {
+      final elsewhere = counts.pins - here;
+      if (elsewhere <= 0) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(58, 0, 16, 8),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const ValueKey('see-all-pins'),
+            onPressed: () => controller.goTo(const PinsLocation()),
+            icon: const Icon(AppIcons.pins, size: 18),
+            label: Text(
+              elsewhere == 1
+                  ? '1 more pinned elsewhere · See all pins'
+                  : '$elsewhere more pinned elsewhere · See all pins',
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 /// An accordion header that stays at the top while its section scrolls:

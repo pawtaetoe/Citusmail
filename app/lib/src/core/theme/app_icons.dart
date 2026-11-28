@@ -20,6 +20,10 @@ abstract final class AppIcons {
   static const inboxOn = Icons.inbox;
   static const found = Icons.category_outlined;
   static const foundOn = Icons.category;
+
+  /// The phone's Tools tab: what is found in your mail and the tools.
+  static const tools = Icons.home_repair_service_outlined;
+  static const toolsOn = Icons.home_repair_service;
   static const folders = Icons.folder_copy_outlined;
   static const foldersOn = Icons.folder_copy;
   static const outbox = Icons.outbox_outlined;

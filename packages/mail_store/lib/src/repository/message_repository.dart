@@ -448,6 +448,18 @@ final class MessageRepository {
               .columnAt(0)
           as int;
 
+  /// Pinned messages in every folder of every account, each once (what
+  /// the Pins list shows; snoozed mail isn't counted).
+  int pinnedCount() =>
+      _db
+              .select(
+                'SELECT count(*) $_from WHERE (m.flags & 4) != 0 '
+                "AND m.section != 'snoozed' AND $_notACopy",
+              )
+              .first
+              .columnAt(0)
+          as int;
+
   /// Searches subject, participants and downloaded bodies. Typed text is
   /// always literal (see [SearchQuery]). Newest first.
   List<StoredMessage> search(String text, {int limit = 100}) {
