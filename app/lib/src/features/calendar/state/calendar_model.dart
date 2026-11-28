@@ -12,10 +12,12 @@ import '../../../services/store_reader.dart';
 import '../../found/state/appointments_model.dart';
 import '../../found/state/events_model.dart';
 import '../../found/state/found_model.dart' show Finds;
+import '../../found/state/subscriptions_model.dart';
 import '../../found/state/trips_model.dart';
 
-/// Which page of "Found in your mail" an item on the calendar comes from.
-enum CalendarSource { trip, appointment, event }
+/// Which page of "Found in your mail" an item on the calendar comes from
+/// ([money]: Subscriptions' renewals, bills due and free trials ending).
+enum CalendarSource { trip, appointment, event, money }
 
 /// One dated thing on the calendar: a flight, a stay's check-in or
 /// check-out, an appointment, an event or a meeting.
@@ -37,7 +39,8 @@ final class CalendarItem {
   final String key;
   final CalendarSource source;
 
-  /// What it is: a [Booking], an [Appointment] or an [Event].
+  /// What it is: a [Booking], an [Appointment], an [Event] or a
+  /// [Reminder] (a renewal, a bill due, a free trial ending).
   final Object item;
 
   /// When it starts, as its page gives it.
@@ -75,11 +78,16 @@ typedef CalendarDay = ({DateTime day, List<CalendarItem> items});
 /// Everything dated that the "Found in your mail" pages found, as listed
 /// there (not what the user marked "Not a …"): each flight, train, bus,
 /// rental car, table and stay (its check-in and its check-out), every
-/// appointment, and every event, meeting and interview. Soonest first.
+/// appointment, every event, meeting and interview, and each active
+/// subscription's next charge, bill due and free trial ending. Soonest
+/// first.
 Future<List<CalendarItem>> findCalendar(MailStore store, DateTime now) async {
   final trips = await findTrips(store, now);
   final appointments = await findAppointments(store, now);
   final events = await findEvents(store, now);
+  // Every renewal, monthly ones too: the calendar is not a notification.
+  final money = await findSubscriptions(store, now, monthlyRenewals: true);
+  final moneyLeft = {...money.hidden, ...money.learned};
   bool listed(String key, Finds<Object?> found) =>
       !found.hidden.contains(key) && !found.learned.contains(key);
   DateTime dayOf(DateTime t) => DateTime(t.year, t.month, t.day);
@@ -133,6 +141,33 @@ Future<List<CalendarItem>> findCalendar(MailStore store, DateTime now) async {
           endsAt: e.endsAt,
           messageId: e.latest.email.messageId,
         ),
+    // Bills due and free trials ending, as Subscriptions lists them.
+    for (final r in money.reminders)
+      if (r.kind == ReminderKind.billDue || r.kind == ReminderKind.trialEnds)
+        if (!moneyLeft.contains(r.company)) _moneyItem(r),
+    // The next charge of each active subscription, however far.
+    for (final s in money.all)
+      if (s.nextCharge case final next?
+          when s.status == SubscriptionStatus.active &&
+              !s.variable &&
+              !moneyLeft.contains(s.company))
+        _moneyItem(
+          Reminder(
+            kind: ReminderKind.renewal,
+            company: s.company,
+            name: s.name,
+            date: DateTime.utc(next.year, next.month, next.day),
+            messageId:
+                (s.records
+                            .where((r) => r.event == SubscriptionEvent.charge)
+                            .firstOrNull ??
+                        s.records.first)
+                    .email
+                    .messageId,
+            amount: s.amount,
+            cadence: s.cadence,
+          ),
+        ),
   ];
   items.sort((a, b) {
     final byDay = a.day.compareTo(b.day);
@@ -142,6 +177,20 @@ Future<List<CalendarItem>> findCalendar(MailStore store, DateTime now) async {
     return a.start.compareTo(b.start);
   });
   return items;
+}
+
+/// [r] on its day, all day.
+CalendarItem _moneyItem(Reminder r) {
+  final day = DateTime(r.date.year, r.date.month, r.date.day);
+  return CalendarItem(
+    key: 'money:${r.kind.name}:${r.company}',
+    source: CalendarSource.money,
+    item: r,
+    start: PlaceTime(day.year, day.month, day.day, hasTime: false),
+    day: day,
+    endsAt: day.add(const Duration(days: 1)),
+    messageId: r.messageId,
+  );
 }
 
 /// [findCalendar] as a [StoreTask], off the UI isolate.

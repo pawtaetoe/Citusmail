@@ -13,6 +13,8 @@ import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/widgets/badge.dart';
 import '../../../core/widgets/page_scaffold.dart';
 import '../../../core/widgets/skeleton_rows.dart';
+import '../../../services/reminders.dart';
+import '../../found/state/prices.dart';
 import '../../found/ui/add_to_calendar.dart';
 import '../../found/ui/appointment_text.dart';
 import '../../found/ui/booking_text.dart';
@@ -339,6 +341,9 @@ final class _ItemTile extends StatelessWidget {
     final Booking b => BookingText.icon(b.kind),
     final Appointment a => AppointmentWords.icon(a.kind),
     final Event e => EventWords.icon(e.kind),
+    Reminder(kind: ReminderKind.billDue) => AppIcons.bill,
+    Reminder(kind: ReminderKind.trialEnds) => AppIcons.trial,
+    Reminder() => AppIcons.subscriptions,
     _ => AppIcons.event,
   };
 
@@ -347,6 +352,7 @@ final class _ItemTile extends StatelessWidget {
     final Booking b => BookingText.title(b),
     final Appointment a => a.title,
     final Event e => e.title,
+    final Reminder r => r.name,
     _ => '',
   };
 
@@ -373,6 +379,20 @@ final class _ItemTile extends StatelessWidget {
     final Booking b => BookingText.detail(context, b),
     final Appointment a => AppointmentWords.detail(a),
     final Event e => EventWords.detail(e),
+    final Reminder r => switch (r.kind) {
+      ReminderKind.billDue => [
+        'Bill due',
+        if (r.amount case final a?) Prices.format(a),
+      ].join(' · '),
+      ReminderKind.trialEnds => [
+        'Free trial ends',
+        if (r.amount case final a?) 'then ${ReminderWords.price(a, r.cadence)}',
+      ].join(' · '),
+      _ => [
+        'Renews',
+        if (r.amount case final a?) ReminderWords.price(a, r.cadence),
+      ].join(' · '),
+    },
     _ => '',
   };
 
@@ -436,7 +456,7 @@ final class _ItemTile extends StatelessWidget {
                 padding: EdgeInsets.only(right: 8),
                 child: AppBadge('Cancelled', tone: BadgeTone.danger),
               )
-            : CalendarFiles.canOpen && !over
+            : CalendarFiles.canOpen && !over && item.item is! Reminder
             ? IconButton(
                 tooltip: 'Add to calendar',
                 icon: const Icon(AppIcons.addToCalendar),

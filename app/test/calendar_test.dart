@@ -11,7 +11,9 @@ import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
 import 'package:citusmail/src/features/reader/ui/email_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
+import 'package:mail_store/mail_store.dart';
 
 import 'support/appointment_mail.dart';
 import 'support/event_mail.dart';
@@ -23,10 +25,32 @@ void main() {
   setUp(() async => app = await TestApp.create());
   tearDown(() => app.dispose());
 
+  /// Three monthly receipts: a subscription that renews next month.
+  void seedSubscription(DateTime now) {
+    final inbox = app.store.mailboxes.inbox(
+      app.store.accounts.all().single.id,
+    )!;
+    app.store.messages.upsertSummaries(inbox.id, [
+      for (final (i, daysAgo) in [5, 35, 65].indexed)
+        MessageSummary(
+          uid: 9900 + i,
+          receivedAt: now.subtract(Duration(days: daysAgo)),
+          subject: 'Your StreamFlix receipt',
+          from: const MailAddress(
+            displayName: 'StreamFlix',
+            localPart: 'info',
+            domain: 'mailer.streamflix.example',
+          ),
+          snippet: 'Your membership has been renewed. Total S\$17.98',
+        ),
+    ]);
+  }
+
   void seedAll(DateTime now) {
     seedTrips(app.store, now: now);
     seedAppointments(app.store, now: now);
     seedEvents(app.store, now: now);
+    seedSubscription(now);
   }
 
   group('the model', () {
@@ -41,6 +65,7 @@ void main() {
         final Booking b => '${BookingText.title(b)}${i.checkOut ? ' out' : ''}',
         final Appointment a => a.title,
         final Event e => e.title,
+        final Reminder r => '${r.name} ${r.kind.name}',
         _ => '',
       };
       final titles = [for (final i in model.items) title(i)];
@@ -55,7 +80,20 @@ void main() {
           'Design review',
           'Guided Factory Tour',
           'Coldplay: Music of the Spheres',
+          'StreamFlix renewal',
         ]),
+      );
+      // The renewal, all day, about a month after the last receipt.
+      final renewal = model.items.singleWhere(
+        (i) => i.source == CalendarSource.money,
+      );
+      expect(renewal.start.hasTime, isFalse);
+      final last = now.subtract(const Duration(days: 5));
+      expect(
+        renewal.day
+            .difference(DateTime(last.year, last.month, last.day))
+            .inDays,
+        inInclusiveRange(28, 31),
       );
       // Days in order, each day's items by time.
       final upcoming = model.upcoming;
