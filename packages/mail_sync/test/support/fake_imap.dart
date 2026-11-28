@@ -87,17 +87,23 @@ final class FakeFolder {
 /// MOVE, APPEND, CREATE), optionally with CONDSTORE. It records every
 /// command and counts logins, so tests can check how much a sync does.
 ///
+/// With [maxLoggedIn], it refuses a login like Gmail once that many
+/// connections are logged in ("Too many simultaneous connections"). With
+/// [idle], it has IDLE. [latency] delays every answer, so work on several
+/// connections overlaps as it does with a real server.
+///
 /// With [gmail], it says it has Gmail's extensions (`X-GM-EXT-1`) and
 /// answers `X-GM-RAW` searches: `in:inbox` (and sent, drafts, spam, trash)
 /// is true when that folder has a message with the same Message-ID,
 /// `is:starred` when it is flagged, other words when the message has them;
 /// a leading `-` turns any of them around.
 final class FakeImap {
-  FakeImap._(this._server, this.condstore, this.gmail);
+  FakeImap._(this._server, this.condstore, this.gmail, this.idle);
 
   static Future<FakeImap> start({
     bool condstore = false,
     bool gmail = false,
+    bool idle = false,
   }) async {
     final context = SecurityContext()
       ..useCertificateChain('${_certs.path}/mail.crt')
@@ -106,6 +112,7 @@ final class FakeImap {
       await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, context),
       condstore,
       gmail,
+      idle,
     );
     fake._server.listen(fake._session, onError: (Object _) {});
     return fake;
@@ -117,6 +124,18 @@ final class FakeImap {
   final SecureServerSocket _server;
   final bool condstore;
   final bool gmail;
+  final bool idle;
+
+  /// Logins refused once this many connections are logged in (Gmail
+  /// allows about 15 per account); null for no limit.
+  int? maxLoggedIn;
+
+  /// How long each answer takes.
+  Duration latency = Duration.zero;
+
+  /// When it returns true for a command, the server drops the connection
+  /// instead of answering (the network went away).
+  bool Function(String command)? dropOn;
 
   /// Whether SINCE compares dates (by default every date matches).
   bool filterDates = false;
@@ -131,6 +150,15 @@ final class FakeImap {
 
   /// Open connections.
   int open = 0;
+
+  /// Connections logged in and not yet logged out or closed.
+  int loggedIn = 0;
+
+  /// The most connections logged in at once.
+  int peakLoggedIn = 0;
+
+  /// Logins refused for [maxLoggedIn].
+  int refused = 0;
 
   /// Commands since [mark] whose name starts with [prefix].
   List<String> since(int mark, String prefix) => [
@@ -176,7 +204,7 @@ final class FakeImap {
   String get _capabilities =>
       'IMAP4rev1 AUTH=PLAIN SASL-IR LITERAL+ UIDPLUS MOVE SPECIAL-USE '
       'LIST-EXTENDED${condstore ? ' CONDSTORE' : ''}'
-      '${gmail ? ' X-GM-EXT-1' : ''}';
+      '${gmail ? ' X-GM-EXT-1' : ''}${idle ? ' IDLE' : ''}';
 
   void _session(Socket socket) {
     open++;
@@ -184,8 +212,40 @@ final class FakeImap {
     var buffer = <int>[];
     FakeFolder? selected;
     ({String tag, String line, int length})? literal;
+    var authenticated = false;
+    String? idling;
+    var answered = Future<void>.value();
 
-    void send(String text) => socket.add(latin1.encode(text));
+    void logOut() {
+      if (!authenticated) return;
+      authenticated = false;
+      loggedIn--;
+    }
+
+    var gone = false;
+    void ended() {
+      if (gone) return;
+      gone = true;
+      open--;
+      logOut();
+      socket.destroy();
+    }
+
+    void send(String text) {
+      void write() {
+        try {
+          socket.add(latin1.encode(text));
+        } on Object {
+          // The connection is gone.
+        }
+      }
+
+      if (latency == Duration.zero) {
+        write();
+      } else {
+        answered = answered.then((_) => Future<void>.delayed(latency, write));
+      }
+    }
 
     String reply(String tag, String line) {
       final words = _tokens(line);
@@ -198,8 +258,19 @@ final class FakeImap {
         case 'CAPABILITY':
           return '* CAPABILITY $_capabilities\r\n$tag OK done\r\n';
         case 'AUTHENTICATE' || 'LOGIN':
+          if (maxLoggedIn case final max? when loggedIn >= max) {
+            refused++;
+            return '$tag NO [ALERT] Too many simultaneous connections. '
+                '(Failure)\r\n';
+          }
           logins++;
+          authenticated = true;
+          loggedIn++;
+          if (loggedIn > peakLoggedIn) peakLoggedIn = loggedIn;
           return '$tag OK done\r\n';
+        case 'IDLE' when idle:
+          idling = tag;
+          return '+ idling\r\n';
         case 'NOOP' || 'ENABLE':
           return '$tag OK done\r\n';
         case 'LIST':
@@ -294,6 +365,7 @@ final class FakeImap {
               '${moving.map((m) => m.uid).join(',')} ${to.join(',')}] moved\r\n'
               '$tag OK done\r\n';
         case 'LOGOUT':
+          logOut();
           return '* BYE bye\r\n$tag OK done\r\n';
         default:
           return '$tag BAD unknown\r\n';
@@ -333,6 +405,15 @@ final class FakeImap {
           if (end < 0) return;
           final line = latin1.decode(buffer.sublist(0, end)).trimRight();
           buffer = buffer.sublist(end + 1);
+          if (idling case final tag? when line.toUpperCase() == 'DONE') {
+            idling = null;
+            send('$tag OK idle done\r\n');
+            continue;
+          }
+          if (dropOn?.call(line.substring(line.indexOf(' ') + 1)) ?? false) {
+            ended();
+            return;
+          }
           final space = line.indexOf(' ');
           if (space < 0) continue;
           final tag = line.substring(0, space);
@@ -351,10 +432,7 @@ final class FakeImap {
         }
       },
       onError: (_) {},
-      onDone: () {
-        open--;
-        socket.destroy();
-      },
+      onDone: ended,
     );
   }
 
