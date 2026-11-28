@@ -10,6 +10,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
 import '../../ai/ui/ask_mail_panel.dart';
+import '../../calendar/ui/calendar_view.dart';
 import '../../discover/ui/discover_page.dart';
 import '../../discover/ui/features.dart';
 import '../../reader/ui/reader_pane.dart';
@@ -18,15 +19,16 @@ import '../state/mail_location.dart';
 import 'message_list_pane.dart';
 
 /// The tabs of the phone layout, in the navigation bar's order.
-enum PhoneTab { inbox, pins, tools, folders }
+enum PhoneTab { inbox, pins, calendar, tools, folders }
 
 /// The phone layout: search at the top of the inbox, a navigation bar at
-/// the bottom (Inbox, Pins, Tools, Folders) and New message above it.
+/// the bottom (Inbox, Pins, Calendar, Tools, Folders) and New message
+/// above it.
 ///
 /// An open message, or a folder opened from the Folders tab, covers the
 /// tab, and pages opened from a tab are pushed on top as elsewhere: the
-/// bar shows on the four tabs only. Back closes what covers a tab, then
-/// goes from Pins, Tools or Folders to the Inbox.
+/// bar shows on the tabs only. Back closes what covers a tab, then goes
+/// from Pins, Calendar, Tools or Folders to the Inbox.
 final class PhoneHome extends StatefulWidget {
   const PhoneHome({
     super.key,
@@ -119,7 +121,9 @@ final class _PhoneHomeState extends State<PhoneHome>
     PhoneTab.inbox =>
       location == const InboxLocation() || location is SearchLocation,
     PhoneTab.pins => location is PinsLocation,
-    PhoneTab.tools || PhoneTab.folders => location == const InboxLocation(),
+    PhoneTab.calendar ||
+    PhoneTab.tools ||
+    PhoneTab.folders => location == const InboxLocation(),
   };
 
   void _select(PhoneTab tab) {
@@ -221,7 +225,9 @@ final class _PhoneHomeState extends State<PhoneHome>
         toolbarAtBottom: true,
         replyBar: false,
       );
-      final hub = atRoot && _tab == PhoneTab.tools
+      final hub = atRoot && _tab == PhoneTab.calendar
+          ? CalendarView(controller: _c)
+          : atRoot && _tab == PhoneTab.tools
           ? ToolsHub(controller: _c)
           : atRoot && _tab == PhoneTab.folders
           ? widget.folders
@@ -253,7 +259,10 @@ final class _PhoneHomeState extends State<PhoneHome>
       final compose =
           !open &&
           !selecting &&
-          !(atRoot && (_tab == PhoneTab.tools || _tab == PhoneTab.folders)) &&
+          !(atRoot &&
+              (_tab == PhoneTab.calendar ||
+                  _tab == PhoneTab.tools ||
+                  _tab == PhoneTab.folders)) &&
           !widget.searchFocus.hasFocus;
       return PopScope(
         canPop: !open && !selecting && atRoot && _tab == PhoneTab.inbox,
@@ -342,6 +351,12 @@ final class _PhoneHomeState extends State<PhoneHome>
             icon: Icon(AppIcons.pins),
             selectedIcon: Icon(AppIcons.pinOn),
             label: 'Pins',
+          ),
+          const NavigationDestination(
+            icon: Icon(AppIcons.calendar),
+            selectedIcon: Icon(AppIcons.calendarOn),
+            label: 'Calendar',
+            tooltip: 'Trips, appointments and events, by day',
           ),
           const NavigationDestination(
             icon: Icon(AppIcons.tools),

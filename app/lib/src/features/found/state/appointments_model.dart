@@ -278,8 +278,7 @@ _Read _preview(String? snippet) => (
   links: const <MailLink>[],
 );
 
-/// [invite] as the appointments finder reads it.
-@visibleForTesting
+/// [invite] as the appointments finder reads it (the events finder too).
 AppointmentInvite appointmentInvite(CalendarInvite invite) {
   PlaceTime? time(CalendarTime? t) {
     if (t == null) return null;
@@ -317,7 +316,6 @@ AppointmentInvite appointmentInvite(CalendarInvite invite) {
 
 /// The `https` links in [document], with their words (a link split
 /// across bold and plain text is one), at most 60.
-@visibleForTesting
 List<MailLink> linksIn(RichDocument document) {
   final found = <MailLink>[];
   void readInlines(List<Inline> list) {

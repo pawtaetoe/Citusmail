@@ -14,9 +14,11 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
 import '../../accounts/ui/accounts_page.dart';
+import '../../calendar/ui/calendar_view.dart';
 import '../../discover/ui/discover_page.dart';
 import '../../found/ui/appointments_page.dart';
 import '../../found/ui/deliveries_page.dart';
+import '../../found/ui/events_page.dart';
 import '../../found/ui/subscriptions_page.dart';
 import '../../found/ui/trips_page.dart';
 import '../../organise/ui/folder_dialogs.dart';
@@ -59,8 +61,9 @@ final class Sidebar extends StatelessWidget {
   final VoidCallback? onCompose;
 
   /// The Folders tab on phones: the list's colours, taller rows for the
-  /// thumb, and everything in one scrolling list. Inbox, Pins and "Found
-  /// in your mail" have tabs of their own there, so they are left out.
+  /// thumb, and everything in one scrolling list. Inbox, Pins, Calendar
+  /// and "Found in your mail" have tabs of their own there, so they are
+  /// left out.
   final bool asTab;
 
   @override
@@ -290,6 +293,20 @@ final class Sidebar extends StatelessWidget {
                               selected: here == const PinsLocation(),
                               onTap: () => go(const PinsLocation()),
                             ),
+                            // Everything dated in the mail, on its own page.
+                            _Entry(
+                              icon: AppIcons.calendar,
+                              label: 'Calendar',
+                              onTap: () {
+                                onNavigated?.call();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        CalendarPage(controller: controller),
+                                  ),
+                                );
+                              },
+                            ),
                           ],
                           if (counts.outbox > 0)
                             _Entry(
@@ -438,6 +455,11 @@ final class Sidebar extends StatelessWidget {
           icon: AppIcons.appointments,
           label: 'Appointments',
           page: (_) => AppointmentsPage(controller: controller),
+        ),
+        (
+          icon: AppIcons.events,
+          label: 'Events',
+          page: (_) => EventsPage(controller: controller),
         ),
         (
           icon: AppIcons.onlineAccounts,
