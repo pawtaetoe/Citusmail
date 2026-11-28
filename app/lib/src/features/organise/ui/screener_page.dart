@@ -95,7 +95,6 @@ final class _ScreenerPageState extends State<ScreenerPage> {
       ],
       body: SafeArea(
         top: false,
-        bottom: !phone,
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(

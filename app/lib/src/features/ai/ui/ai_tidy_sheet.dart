@@ -9,6 +9,7 @@ import '../../../app/app.dart' show appName;
 import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/motion.dart';
+import '../../../core/widgets/inset_sheet.dart';
 import '../../../services/ai_assistant.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../inbox/state/mail_location.dart';
@@ -77,21 +78,10 @@ abstract final class AiTidySheet {
     );
     final List<TidyStep>? steps;
     if (MediaQuery.sizeOf(context).width < SnoozeSheet.sheetWidth) {
-      steps = await showModalBottomSheet<List<TidyStep>>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (context) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.85,
-            ),
-            child: SafeArea(child: panel),
-          ),
-        ),
+      steps = await showInsetSheet<List<TidyStep>>(
+        context,
+        maxHeightFactor: 0.85,
+        builder: (_) => panel,
       );
     } else {
       steps = await showDialog<List<TidyStep>>(

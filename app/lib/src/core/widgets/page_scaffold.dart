@@ -17,6 +17,11 @@ typedef PageHelp = ({String tooltip, VoidCallback onPressed});
 /// [body] is laid out under the title. It centres its own content in a
 /// column of the same [maxWidth] so the two line up, or, with
 /// [boundBody], the page does it.
+///
+/// The page keeps clear of the system's bars at the bottom and sides
+/// (Android's navigation, a display cutout), by what they take on this
+/// phone: the end of a list stays above them. With a
+/// [bottomNavigationBar], that bar does (the body ends above it).
 final class PageScaffold extends StatelessWidget {
   const PageScaffold({
     super.key,
@@ -56,50 +61,53 @@ final class PageScaffold extends StatelessWidget {
     return Scaffold(
       appBar: appBar ?? AppBar(actions: actions),
       bottomNavigationBar: bottomNavigationBar,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          title,
-                          key: const ValueKey('page-title'),
-                          style: theme.textTheme.headlineSmall,
+      body: SafeArea(
+        top: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Semantics(
+                          header: true,
+                          child: Text(
+                            title,
+                            key: const ValueKey('page-title'),
+                            style: theme.textTheme.headlineSmall,
+                          ),
                         ),
                       ),
-                    ),
-                    if (help case final help?)
-                      IconButton(
-                        tooltip: help.tooltip,
-                        icon: const Icon(AppIcons.help),
-                        onPressed: help.onPressed,
-                      ),
-                  ],
+                      if (help case final help?)
+                        IconButton(
+                          tooltip: help.tooltip,
+                          icon: const Icon(AppIcons.help),
+                          onPressed: help.onPressed,
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            child: boundBody
-                ? Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: maxWidth),
-                      child: body,
-                    ),
-                  )
-                : body,
-          ),
-        ],
+            Expanded(
+              child: boundBody
+                  ? Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: maxWidth),
+                        child: body,
+                      ),
+                    )
+                  : body,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -16,7 +17,14 @@ export 'src/app/app.dart' show CitusmailApp, appName;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isAndroid) OAuthBrowser.listenForAndroidAnswers();
+  if (Platform.isAndroid) {
+    OAuthBrowser.listenForAndroidAnswers();
+    // Edge to edge on every Android version, as Android 15 and later
+    // require: the app draws under the system bars, and every screen
+    // keeps its content clear of them by the room they take on this
+    // phone (SafeArea, the sheets' insets), not by a fixed size.
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+  }
   LicenseRegistry.addLicense(_fontLicense);
   runApp(const CitusmailApp());
 }

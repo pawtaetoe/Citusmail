@@ -124,7 +124,11 @@ final class _DeviceSyncPageState extends State<DeviceSyncPage> {
       body: enabled == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              // The last button scrolls above the phone's navigation bar.
+              padding: EdgeInsets.only(
+                top: 8,
+                bottom: 8 + MediaQuery.paddingOf(context).bottom,
+              ),
               children: enabled ? _on(context) : _off(context),
             ),
     );

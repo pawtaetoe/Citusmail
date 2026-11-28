@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/inset_sheet.dart';
 import '../../organise/state/snooze_times.dart';
 import '../../organise/ui/snooze_sheet.dart';
 import '../state/send_later_times.dart';
@@ -45,11 +46,9 @@ abstract final class SendLaterSheet {
       suggested: suggested,
     );
     if (MediaQuery.sizeOf(context).width < SnoozeSheet.sheetWidth) {
-      return showModalBottomSheet<DateTime>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (_) => SafeArea(child: SingleChildScrollView(child: panel)),
+      return showInsetSheet<DateTime>(
+        context,
+        builder: (_) => SingleChildScrollView(child: panel),
       );
     }
     return showDialog<DateTime>(
