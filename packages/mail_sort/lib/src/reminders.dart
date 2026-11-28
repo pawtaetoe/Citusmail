@@ -170,7 +170,8 @@ abstract final class Reminders {
           s.status != SubscriptionStatus.active ||
           s.variable ||
           hidden.contains(s.company) ||
-          billed.contains(s.company)) {
+          billed.contains(s.company) ||
+          s.billers.any(billed.contains)) {
         continue;
       }
       if (!monthlyRenewals &&
@@ -213,7 +214,10 @@ abstract final class Reminders {
       if (!mayBeBill(bill) || !seen.add(bill.biller)) continue;
       if (today.difference(DueDates.dayOf(bill.at)).inDays > 90) continue;
       final text = '${bill.subject}\n${bill.text}';
-      if (_paidText.hasMatch(text)) continue;
+      // Paid, or a credit ("Total due: -$21.40"): nothing to pay.
+      if (_paidText.hasMatch(text) || SubscriptionFinder.owesNothing(text)) {
+        continue;
+      }
       final due = DueDates.dueDateIn(text, received: bill.at);
       if (due == null) continue;
       final days = due.difference(today).inDays;

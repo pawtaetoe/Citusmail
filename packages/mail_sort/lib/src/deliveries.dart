@@ -411,6 +411,7 @@ abstract final class DeliveryFinder {
         r'\b(?:has|have) picked up your\b|\bpicked up by (?!you\b)|'
         r'\bhas been sent\b|\bhanded (?:over )?to\b|'
         r'\bship(?:ping|ment) (?:confirmation|notification|update)\b|'
+        r'\bdispatch (?:confirmation|notification|notice)\b|'
         r'\bwill be delivered\b|\barriv(?:ing|es) (?:tomorrow|on|by|soon|\w+day)\b|'
         r'\bdelivery (?:update|scheduled)\b|\bscheduled for delivery\b|\bleft (?:our|the) (?:warehouse|facility)\b|'
         r'\btracking (?:number|information|details|update)\b',
@@ -446,7 +447,11 @@ abstract final class DeliveryFinder {
     (
       DeliveryStatus.delivered,
       _re(
-        r'\b(?:has|have) been (?:successfully )?delivered\b|\b(?:was|were) delivered\b',
+        r'\b(?:has|have) been (?:successfully )?delivered\b|\b(?:was|were) delivered\b|'
+        // A shop's survey after the parcel came: "You have recently
+        // received your Acme order".
+        r"\byou(?:'ve|’ve| have) (?:recently |now |just )?received your "
+        r"(?:[\w&'.-]+ ){0,2}(?:order|parcel|package|items?|delivery|purchase)s?\b",
       ),
     ),
     (
@@ -464,6 +469,9 @@ abstract final class DeliveryFinder {
       DeliveryStatus.shipped,
       _re(
         r'\b(?:has|have) (?:been )?(?:shipped|dispatched)\b|'
+        // "Acme US dispatched your item(s)".
+        r'\b(?:shipped|dispatched) your (?:[\w&-]+ ){0,2}'
+        r'(?:items?|orders?|parcels?|packages?)\b|\bdispatch confirmation\b|'
         r'\b(?:is|are) on (?:its|the|their) way\b|'
         r'\b(?:has|have) been handed (?:over )?to\b|\b(?:is|are) in transit\b|'
         r'\b(?:has|have) been picked up by (?!you\b)',
@@ -630,7 +638,7 @@ abstract final class DeliveryFinder {
   static final _amazonOrder = RegExp(r'\b\d{3}-\d{7}-\d{7}\b');
   static final _orderLabel = _re(
     r'\border\s*(?:no\.?|number|num|id|#)?\s*[:#]?\s*#?\s*'
-    r'((?=[A-Z-]*\d)[A-Z0-9][A-Z0-9-]{3,24})\b',
+    r'((?=[A-Z-]*\d)[A-Z0-9][A-Z0-9-]{2,23}[A-Z0-9])(?![-\w])',
   );
 
   /// The order number in [text] ("Order #123456", "Order ID:
@@ -1079,14 +1087,30 @@ abstract final class DeliveryFinder {
     );
   }
 
-  /// The sender name most used, else the domain.
+  /// The sender name most used, else the shop the mail greets from
+  /// ("Greetings from Acme!"), else the domain.
   static String _name(Iterable<DeliveryRecord> list) {
     final counts = <String, int>{};
     for (final r in list) {
       final n = SubscriptionFinder.companyName(r.email.senderName);
       if (n != null) counts[n] = (counts[n] ?? 0) + 1;
     }
-    if (counts.isEmpty) return list.last.email.shop;
+    if (counts.isEmpty) {
+      for (final r in list.toList().reversed) {
+        final words = '${r.email.subject}\n${r.email.text}';
+        final head = words.length > 2000 ? words.substring(0, 2000) : words;
+        if (_greetingShop.firstMatch(head) case final m?) return m[1]!;
+      }
+      return list.last.email.shop;
+    }
     return counts.entries.reduce((a, b) => b.value > a.value ? b : a).key;
   }
+
+  /// "Greetings from Acme", "Thank you for shopping with Acme": the shop,
+  /// capitalised as a name.
+  static final _greetingShop = RegExp(
+    r'\b(?:[Gg]reetings from|[Tt]hank(?:s| you) for shopping (?:with|at))\s+'
+    r"([A-Z0-9][\w&'’.-]*(?:\s+[A-Z0-9][\w&'’-]*){0,3}?)"
+    r'(?=\s*[!.,:;\n-]|\s+(?:[a-z]|$)|$)',
+  );
 }
