@@ -511,6 +511,46 @@ void main() {
     });
   });
 
+  group('forwarded mail', () {
+    test('a forwarded cancellation and a forwarded bill in credit', () {
+      SubscriptionEmail forward(String from, String subject, String body) =>
+          mail(
+            'freemail.example',
+            'Fwd: $subject',
+            day(11, 21),
+            name: 'Robin',
+            text:
+                '---------- Forwarded message ---------\n'
+                'From: $from\n'
+                'Date: Fri, 20 Nov 2026 at 10:00\n'
+                'Subject: $subject\n'
+                'To: <robin@freemail.example>\n\n'
+                '$body\n',
+          );
+      final cancelled = forward(
+        'ExampleStream <billing@examplestream.example>',
+        'Your ExampleStream Premium membership has been canceled',
+        'Your ExampleStream Premium membership has been canceled. You will '
+            'lose your membership benefits on May 9, 2027.',
+      );
+      final s = SubscriptionFinder.find([cancelled], now: day(11, 25)).single;
+      expect(s.company, 'examplestream.example');
+      expect(s.status, SubscriptionStatus.cancelled);
+      expect(s.endsOn, day(5, 9, 2027));
+
+      final credit = forward(
+        'ExampleTel <bills@telco.example>',
+        'Your latest bill for November 2026 is ready',
+        'The total due for this bill is -\$12.34. Due date: 10 Dec 2026.',
+      );
+      expect(Reminders.mayBeBill(credit), isTrue);
+      expect(
+        Reminders.find([credit], subscriptions: const [], now: day(11, 28)),
+        isEmpty,
+      );
+    });
+  });
+
   group('an app store', () {
     test('each app it charges for is its own subscription', () {
       SubscriptionEmail play(DateTime at, String subject, String text) =>
