@@ -30,8 +30,9 @@ final class SyncSettings {
 
   /// Connections per account during a sync: folders are synced side by
   /// side, the inbox first. Servers allow a handful per account (Gmail
-  /// 15, Outlook about 16); the app also keeps one for IDLE and one for
-  /// opening messages.
+  /// 15, Outlook about 16, shared by all devices), so the extra ones are
+  /// opened only while the account's `ConnectionBudget` has room (IDLE
+  /// and opening messages count in it too).
   final int connections;
 }
 

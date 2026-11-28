@@ -198,6 +198,55 @@ have their summaries stored like synced mail, so they open and pin like
 any other, and join the results. Offline, the results on the device stay
 and the row says so.
 
+## Connections
+
+A mail server allows only a few IMAP connections per account, shared by
+all the user's devices and mail apps (Gmail about 15), and refuses the
+next login with "Too many simultaneous connections". So every connection
+a `SyncEngine` opens counts in one `ConnectionBudget` per account
+(`mail_sync/lib/src/connection_budget.dart`): the syncs'
+(`SyncConnections`), opening messages and the other on-demand work
+(`OnDemandConnections`, the user's and the reading ahead's), and IDLE
+(`IdleWatcher`), in use and kept idle alike.
+
+- **The budget** is 4 per account, IDLE included. One sync connection
+  is kept between syncs (6 minutes), the on-demand ones 2 minutes; a
+  full sync opens up to `SyncSettings.connections` - 1 extra connections
+  only while the budget has room, and closes them when it is done. With
+  a full budget it syncs on its one connection.
+- **When it is full**, taking a connection reuses the owner's own kept
+  one, else another owner's kept one, else waits in a queue (at most 2
+  minutes) for one given back (handed over still logged in) or closed.
+- **Priorities.** The user's work (opening a message, searching the
+  server, loading older mail) goes ahead of everything else in the
+  queue. While it waits, a full sync hands its connection over between
+  folders and its extra connections stop; IDLE gives its connection up
+  whenever anything waits, and asks again 10 seconds later.
+- **When the server refuses anyway** (`ImapAuthenticationException.
+  temporary`: other devices hold the rest), the account's budget drops
+  to 2, coming back one connection at a time over 30 minutes; its kept
+  connections are closed, extra sync connections stop and IDLE gives
+  its connection up. The user's work tries again after 2 and 5 seconds
+  before it shows the error; periodic syncs and inbox checks of that
+  account back off (`Backoff`: 30 s, 1 min, 2 min ...) until a sync
+  works. It is a server problem, never a wrong password.
+- **One engine per process.** On Android the periodic check
+  (`BackgroundSyncWorker`) and Instant mail (`InstantMailService`) run
+  `BackgroundMail` in background Flutter engines of the app's own
+  process, each with a `SyncEngine` of its own. While the app's engine
+  syncs (from the mail screen on, until the activity is destroyed), the
+  app tells Android (`BackgroundDart.appSyncing`): the periodic check
+  asks the app's engine to check every account instead of connecting
+  itself, and Instant mail's engine stops (`DeferToApp`) and starts again
+  once the app's engine is gone. Without the app, the periodic check asks
+  Instant mail's engine to look at the inboxes, if it runs; only with
+  neither does it connect itself.
+
+Stopping an engine ends waits for a connection and waits for the IDLE
+connections to log out; `dispose` closes everything kept, and anything
+still in use is closed when it is given back. `connections_test.dart`
+checks the budget against a fake server that refuses logins like Gmail.
+
 ## Conventions
 
 - **Types over strings.** Ids are extension types (`MessageId`,
