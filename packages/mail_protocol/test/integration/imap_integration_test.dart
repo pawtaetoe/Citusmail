@@ -181,6 +181,24 @@ void main() {
       expect(status.uidValidity, inbox.uidValidity);
     });
 
+    test(
+      'the folders and their counters in one command (LIST-STATUS)',
+      () async {
+        final both = await client.listMailboxesWithStatus(highestModSeq: true);
+        expect(both, isNotNull, reason: 'Dovecot has LIST-STATUS');
+        expect(
+          both!.mailboxes.map((f) => f.name),
+          containsAll(['INBOX', 'Projects/2026', '日本語']),
+        );
+        final inbox = await client.status('INBOX', highestModSeq: true);
+        final listed = both.status['INBOX']!;
+        expect(listed.messages, 22);
+        expect(listed.uidNext, inbox.uidNext);
+        expect(listed.uidValidity, inbox.uidValidity);
+        expect(listed.highestModSeq, inbox.highestModSeq);
+      },
+    );
+
     test('summary fetch of every message', () async {
       await client.select('INBOX', readOnly: true);
       final result = await client.uidFetch(

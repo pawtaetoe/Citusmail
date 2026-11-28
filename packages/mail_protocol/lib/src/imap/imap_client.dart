@@ -357,6 +357,56 @@ final class ImapClient {
     return result;
   }
 
+  /// All folders, as [listMailboxes], and each one's counters, as
+  /// [status], in one command: on a server with LIST-STATUS (RFC 5819),
+  /// else null. [highestModSeq] asks for HIGHESTMODSEQ too (CONDSTORE).
+  /// A folder the server gives no counters for (one that can't be
+  /// selected) is left out of the counters.
+  Future<
+    ({List<ImapMailboxInfo> mailboxes, Map<String, MailboxStatus> status})?
+  >
+  listMailboxesWithStatus({bool highestModSeq = false}) async {
+    if (!_capabilities.has('LIST-STATUS')) return null;
+    final items = [
+      'MESSAGES',
+      'UIDNEXT',
+      'UIDVALIDITY',
+      if (highestModSeq) 'HIGHESTMODSEQ',
+    ];
+    final command = ImapCommand('LIST')
+      ..string('')
+      ..string('*');
+    final specialUse =
+        _capabilities.has('SPECIAL-USE') && _capabilities.has('LIST-EXTENDED');
+    command.raw(
+      'RETURN (${specialUse ? 'SPECIAL-USE ' : ''}'
+      'STATUS (${items.join(' ')}))',
+    );
+    final mailboxes = <ImapMailboxInfo>[];
+    final status = <String, MailboxStatus>{};
+    await _run(
+      command,
+      onData: (data) {
+        switch (data.keyword) {
+          case 'LIST':
+            final info = ImapMailboxInfo.fromResponse(data);
+            if (info != null) mailboxes.add(info);
+            return true;
+          case 'STATUS' when data.values.length >= 2:
+            final name = data.values[0].asText;
+            if (name != null) {
+              status[name] = MailboxStatus.fromValues(
+                data.values[1].asList ?? const [],
+              );
+            }
+            return true;
+        }
+        return false;
+      },
+    );
+    return (mailboxes: mailboxes, status: status);
+  }
+
   /// Folder counters without selecting it.
   Future<MailboxStatus> status(
     String encodedName, {
