@@ -31,7 +31,7 @@ void main() {
     mail: PromptMail(
       from: 'Booking.com <noreply@booking.example>',
       date: DateTime.utc(2026, 11, 3),
-      subject: 'Hotel Lisboa Plaza: your stay is confirmed',
+      subject: 'Hotel Tejo Garden Plaza: your stay is confirmed',
       body: 'Check-in Friday 20 November from 15:00.',
     ),
   );
@@ -174,7 +174,7 @@ void main() {
       expect(text, contains('<<<EMAIL 1 OF 2 n0nce>>>'));
       expect(text, contains('Subject: Your booking confirmation ABC123'));
       expect(text, contains('<<<EMAIL 2 OF 2 n0nce>>>'));
-      expect(text, contains('Hotel Lisboa Plaza'));
+      expect(text, contains('Hotel Tejo Garden Plaza'));
       expect(
         text,
         endsWith(
@@ -254,7 +254,7 @@ void main() {
       final answer = AskMail.parseAnswer(
         _reply(
           '{"found": true, "answer": "Your flight leaves Friday at 07:05 [1]; '
-          'you stay at Hotel Lisboa Plaza [2].", "emails": [2, 1]}',
+          'you stay at Hotel Tejo Garden Plaza [2].", "emails": [2, 1]}',
         ),
         sent: 2,
       );

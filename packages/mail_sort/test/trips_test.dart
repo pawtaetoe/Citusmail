@@ -824,13 +824,13 @@ Free cancellation until 11 December 2026.
     test('Agoda: the name from the subject, the city from the address', () {
       final b = bookings([
         mail(
-          'Agoda booking confirmation for Hotel Gracery Shinjuku '
+          'Agoda booking confirmation for Hotel Sakura Terrace Shinjuku '
           '(Booking ID 1234567890)',
           sender: 'agoda.com',
           name: 'Agoda',
           text: '''
 Booking ID: 1234567890
-Hotel Gracery Shinjuku
+Hotel Sakura Terrace Shinjuku
 Address: 1-19-1 Kabukicho, Shinjuku-ku, Tokyo 160-8466, Japan
 Check-in: Sun, 13 Dec 2026 (after 14:00)
 Check-out: Fri, 18 Dec 2026 (before 11:00)
@@ -838,7 +838,7 @@ Check-out: Fri, 18 Dec 2026 (before 11:00)
         ),
       ]).single;
       final stay = b.info as LodgingReservationInfo;
-      expect(stay.hotel?.name, 'Hotel Gracery Shinjuku');
+      expect(stay.hotel?.name, 'Hotel Sakura Terrace Shinjuku');
       expect(stay.checkin?.wall.hour, 14);
       expect(b.city, 'Tokyo');
     });
@@ -1909,12 +1909,12 @@ ticket office.
     test('a hotel near a station is a stay, not a train', () {
       final b = bookings([
         mail(
-          'Booking confirmation - Hotel Granvia Kyoto',
+          'Booking confirmation - Hotel Kamogawa Station Kyoto',
           sender: 'granviakyoto.com',
-          name: 'Hotel Granvia Kyoto',
+          name: 'Hotel Kamogawa Station Kyoto',
           text: '''
 Confirmation number: GV-88123
-Hotel Granvia Kyoto, directly above the JR train platforms.
+Hotel Kamogawa Station Kyoto, directly above the JR train platforms.
 Access: Kyoto Station to Osaka Station - 15 minutes by train.
 Check-in: Tue, 15 Dec 2026 15:00
 Check-out: Thu, 17 Dec 2026 12:00

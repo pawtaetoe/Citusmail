@@ -110,7 +110,7 @@ void main() {
       daysAgo: 5,
     );
     hotel = add(
-      'Booking confirmed: Hotel Lisboa',
+      'Booking confirmed: Hotel Tejo Garden',
       'Your stay in Lisbon from 3 to 7 December is confirmed. Check-in '
           'from 15:00.',
       from: 'stay@hotels.example',
@@ -188,7 +188,7 @@ void main() {
         // The answer: the matches, not the rest of the mailbox.
         final sent = _text(fake.requests.last);
         expect(sent, contains('TP1351'));
-        expect(sent, contains('Hotel Lisboa'));
+        expect(sent, contains('Hotel Tejo Garden'));
         expect(sent, isNot(contains('Carol')));
         expect(sent, isNot(contains('482913')));
         // Junk is never searched.

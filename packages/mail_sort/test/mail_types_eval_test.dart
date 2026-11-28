@@ -390,7 +390,7 @@ final List<_Mail> _sample = [
     _b,
     'noreply@booking.com',
     'Booking.com',
-    'Your booking is confirmed at Hotel Gracery Shinjuku',
+    'Your booking is confirmed at Hotel Sakura Terrace Shinjuku',
     'Check-in Sun 13 Dec 2026 from 14:00, check-out Thu 17 Dec 2026 '
         'until 11:00. Confirmation number 4412.553.901. 1 room, 2 adults.',
     _day(10, 21),
@@ -399,7 +399,7 @@ final List<_Mail> _sample = [
       '"checkinTime": "2026-12-13T14:00:00+09:00", '
       '"checkoutTime": "2026-12-17T11:00:00+09:00", '
       '"reservationFor": {"@type": "LodgingBusiness", '
-      '"name": "Hotel Gracery Shinjuku", "address": {"@type": '
+      '"name": "Hotel Sakura Terrace Shinjuku", "address": {"@type": '
       '"PostalAddress", "addressLocality": "Tokyo"}}}',
     ),
   ),
