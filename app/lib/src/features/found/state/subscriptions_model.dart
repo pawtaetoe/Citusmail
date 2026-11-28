@@ -169,12 +169,13 @@ List<MessageId> subscriptionMailToRead(
   final known = {for (final s in found) s.company};
   final unknown = [
     for (final e in mail.emails)
-      if (!known.contains(e.biller) &&
-          !left.contains(e.biller) &&
-          !SubscriptionFinder.isReplyOrForward(e.subject) &&
-          SubscriptionFinder.eventOf(e) == SubscriptionEvent.charge &&
-          wanted(e.messageId))
-        e,
+      // A forward as the email it forwards; not replies.
+      if (e.original case final o?)
+        if (!known.contains(o.biller) &&
+            !left.contains(o.biller) &&
+            SubscriptionFinder.eventOf(o) == SubscriptionEvent.charge &&
+            wanted(e.messageId))
+          e,
   ]..sort((a, b) => b.at.compareTo(a.at));
   return {
     // Only where something is missing: no price, or no "how often".

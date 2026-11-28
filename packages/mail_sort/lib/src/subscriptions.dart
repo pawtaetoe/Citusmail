@@ -5,6 +5,7 @@
 import 'package:mail_store/mail_store.dart';
 
 import 'due_dates.dart';
+import 'forwards.dart';
 
 /// One email that may be about a paid subscription: a receipt, a renewal
 /// notice, a cancellation.
@@ -32,6 +33,25 @@ final class SubscriptionEmail {
   /// message was downloaded. May be empty.
   final String text;
   final DateTime at;
+
+  /// This email as its first sender wrote it (see
+  /// [Forwards.originalOf]): itself, the email a forward forwards
+  /// (attributed to its first sender), or null for a reply or a forward
+  /// whose original cannot be read.
+  SubscriptionEmail? get original => Forwards.originalOf(
+    this,
+    subject: subject,
+    text: text,
+    at: at,
+    rebuild: (f, sent) => SubscriptionEmail(
+      messageId: messageId,
+      company: f.domain ?? company,
+      senderName: f.address == null ? f.senderName ?? senderName : f.senderName,
+      subject: f.subject,
+      text: f.text,
+      at: sent,
+    ),
+  );
 
   /// Who it is from, as a [Subscription] is keyed: [company], or the
   /// merchant for a payment service's mail (`Acme via stripe.com`).
@@ -952,10 +972,12 @@ abstract final class SubscriptionFinder {
   }) {
     final byCompany = <String, List<SubscriptionEmail>>{};
     for (final e in emails) {
-      // Replies and forwards (a discussion that mentions a receipt or a
-      // subscription) are not the company's own mail.
-      if (isReplyOrForward(e.subject)) continue;
-      byCompany.putIfAbsent(e.biller, () => []).add(e);
+      // Replies (a discussion that mentions a receipt or a
+      // subscription) are not the company's own mail; a forward is read
+      // as the email it forwards.
+      final o = e.original;
+      if (o == null) continue;
+      byCompany.putIfAbsent(o.biller, () => []).add(o);
     }
     final found = <Subscription>[];
     for (final MapEntry(key: company, value: list) in byCompany.entries) {

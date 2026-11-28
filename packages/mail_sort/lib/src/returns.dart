@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 
 import 'deliveries.dart';
 import 'due_dates.dart';
+import 'forwards.dart';
 import 'subscriptions.dart' show SubscriptionFinder;
 
 /// What a return deadline was counted from.
@@ -251,9 +252,10 @@ abstract final class ReturnWindows {
   );
 
   /// Whether [subject] reads like a receipt or an order confirmation.
+  /// A forward is judged by the subject it forwards.
   static bool looksLikeReceipt(String subject) =>
-      !SubscriptionFinder.isReplyOrForward(subject) &&
-      _receiptSubject.hasMatch(subject);
+      !Forwards.isReply(subject) &&
+      _receiptSubject.hasMatch(Forwards.withoutPrefix(subject));
 
   static int? _number(String word) =>
       int.tryParse(word) ?? _numberWords[word.toLowerCase()];
@@ -372,8 +374,7 @@ abstract final class ReturnWindows {
   }) {
     final records = [
       for (final e in emails)
-        if (!SubscriptionFinder.isReplyOrForward(e.subject))
-          DeliveryFinder.read(e),
+        if (e.original case final o?) DeliveryFinder.read(o),
     ]..sort((a, b) => a.email.at.compareTo(b.email.at));
 
     final deliveryOf = <MessageId, Delivery>{};
