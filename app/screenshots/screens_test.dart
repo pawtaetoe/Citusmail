@@ -384,6 +384,30 @@ void main() {
     await shoot(tester, 'readme_tools');
   });
 
+  // The Calendar on a computer: the month beside the days' plans.
+  readme('calendar desktop', (tester) async {
+    final now = DateTime.now().toUtc();
+    _seedReadmeInbox(app.store);
+    seedTrips(app.store, now: now);
+    seedAppointments(app.store, now: now);
+    seedEvents(app.store, now: now);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await online(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Sidebar),
+        matching: find.text('Calendar'),
+      ),
+    );
+    await settle(tester);
+    // The coming month, where most of the plans are.
+    if (DateTime.now().day > 20) {
+      await tester.tap(find.byTooltip('Next month'));
+      await settle(tester);
+    }
+    await shoot(tester, 'readme_calendar_desktop');
+  });
+
   // Found in your mail.
   readme('subscriptions', (tester) async {
     _seedSubscriptions(app.store);

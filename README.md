@@ -161,7 +161,8 @@ Put together from your emails, on your device:
 ### Calendar & tools
 
 - **Calendar**: trips, appointments, tickets and meetings from your mail,
-  by day, with a tap to add one to your calendar app.
+  by day (beside the month on a computer), with a tap to add one to your
+  calendar app.
 - **Meeting invitations** in your time zone, with Accept, Maybe and
   Decline.
 - **Tools** in their own tab on phones, and in the sidebar on computers:
@@ -181,6 +182,10 @@ Put together from your emails, on your device:
 <td align="center" width="33%"><img src="docs/screenshots/readme_tools.png" alt="The Tools tab: the end of Found in your mail (Events, Online accounts), then Tools: Clean up, Privacy report, Files, the command bar and the AI assistant"><br><sub>The Tools tab</sub></td>
 </tr>
 </table>
+
+<p align="center">
+  <img src="docs/screenshots/readme_calendar_desktop.png" alt="The Calendar on a computer: the month with each day's plans, and the coming days listed beside it" width="90%">
+</p>
 
 ### Writing, and AI only if you want it
 

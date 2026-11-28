@@ -263,6 +263,7 @@ p { margin: 0; }
 .gallery .phone { border-radius: 22px; margin-bottom: 20px; }
 .gallery h3 { margin-bottom: 4px; }
 .gallery p { color: var(--muted); font-size: 0.97rem; line-height: 1.5; }
+.feature .wide { width: 100%; margin-top: 64px; border-radius: 16px; }
 
 /* Privacy: a dark band */
 .privacy { background: var(--band-bg); color: var(--band-ink); padding: 104px 0; }
