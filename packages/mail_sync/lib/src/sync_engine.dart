@@ -105,7 +105,7 @@ final class SyncEngine {
       _store,
       _connector,
       _mailboxSync,
-      OutboxReplayer(_store),
+      _replayer,
       rules: FolderRuleApplier(_store),
       blocker: SenderBlocker(_store),
       screener: ScreenerArchiver(_store),
@@ -144,6 +144,13 @@ final class SyncEngine {
   /// not log in every time.
   late final SyncConnections _syncConnections;
   late final AccountSynchronizer _synchronizer;
+
+  /// The outbox's replays: the syncs' and the user's ([replayNow]), one
+  /// at a time per account.
+  late final OutboxReplayer _replayer = OutboxReplayer(_store);
+
+  /// The user's replays under way ([replayNow]).
+  final Set<Future<void>> _replaying = {};
 
   /// How often every folder is synced while running.
   final Duration fullSyncInterval;
@@ -261,20 +268,80 @@ final class SyncEngine {
 
   /// Asks for a sync soon (e.g. after the user acted on mail). Requests
   /// arriving within [changeDelay] of the first are merged into one.
-  void requestSync(AccountId accountId, {Set<MailboxId>? mailboxIds}) {
+  ///
+  /// With [replay] (the user just changed something), the queued changes
+  /// go to the server first as the user's work ([replayNow]), without
+  /// waiting for a sync under way.
+  void requestSync(
+    AccountId accountId, {
+    Set<MailboxId>? mailboxIds,
+    bool replay = false,
+  }) {
     final request = _SyncRequest(mailboxIds);
     if (_pendingRequests[accountId] case final pending?) {
       pending.request = pending.request.join(request);
+      pending.replay |= replay;
       return;
     }
-    final pending = _PendingRequest(request);
+    final pending = _PendingRequest(request)..replay = replay;
     pending.timer = Timer(changeDelay, () {
       if (_pendingRequests[accountId] == pending) {
         _pendingRequests.remove(accountId);
       }
-      unawaited(_sync(accountId, pending.request));
+      unawaited(() async {
+        if (pending.replay) await replayNow(accountId);
+        await _sync(accountId, pending.request);
+      }());
     });
     _pendingRequests[accountId] = pending;
+  }
+
+  /// Replays what is due in [accountId]'s outbox now, as the user's work,
+  /// outside the account's syncs (it waits neither for the one running
+  /// nor for the one waiting): a message whose undo delay is over goes to
+  /// the SMTP server at once, on its own connection, and its copy in
+  /// Sent, its \Answered flag and the old draft's removal follow on an
+  /// IMAP connection taken with [ConnectionPriority.send], ahead of
+  /// everything else; the user's other changes with
+  /// [ConnectionPriority.user]. A sync's replay under way stops before
+  /// its next entry and leaves the rest to this one, so nothing is
+  /// replayed twice ([OutboxReplayer]).
+  ///
+  /// Never throws: what fails is retried by the sync that follows, which
+  /// reports it.
+  Future<void> replayNow(AccountId accountId) async {
+    if (_stopping || _disposed) return;
+    final account = _store.accounts.byId(accountId);
+    if (account == null) return;
+    final done = () async {
+      try {
+        await _replayer.replayForUser(
+          account,
+          smtp: () => _connector.smtp(account),
+          withImap: (replay) {
+            final sending = _store.outbox
+                .due(accountId)
+                .any((e) => e.action is SendAction);
+            return _onDemand.run(
+              account,
+              replay,
+              priority: sending
+                  ? ConnectionPriority.send
+                  : ConnectionPriority.user,
+            );
+          },
+          othersWait: () => connections.contended(accountId),
+        );
+      } on Object {
+        // Retried by the sync that follows.
+      }
+    }();
+    _replaying.add(done);
+    try {
+      await done;
+    } finally {
+      _replaying.remove(done);
+    }
   }
 
   /// Starts syncing every account, watching each inbox with IDLE.
@@ -400,6 +467,7 @@ final class SyncEngine {
     try {
       await Future.wait([
         for (final syncs in [..._syncs.values]) ?syncs.done,
+        ..._replaying,
       ]);
       // IDLE connections are closed when their watchers end.
       await Future.wait([..._watching]);
@@ -433,10 +501,10 @@ final class SyncEngine {
     }
     final account = _accountOfMessage(messageId);
     try {
-      return await (background ? _background : _onDemand).run(
-        account,
-        (imap) => _loader.load(imap, messageId),
-      );
+      Future<Uint8List> load(ImapClient imap) => _loader.load(imap, messageId);
+      return await (background
+          ? _background.run(account, load)
+          : _onDemand.run(account, load, priority: ConnectionPriority.open));
     } on BodyUnavailableException catch (e) {
       // The cache is out of date: let a sync catch up.
       if (e.problem != BodyProblem.tooLarge) requestSync(account.id);
@@ -458,7 +526,11 @@ final class SyncEngine {
     for (final MapEntry(key: accountId, value: ids) in byAccount.entries) {
       final account = _store.accounts.byId(accountId);
       if (account == null) continue;
-      await _onDemand.run(account, (imap) => _files.lookUp(imap, ids));
+      await _onDemand.run(
+        account,
+        (imap) => _files.lookUp(imap, ids),
+        priority: ConnectionPriority.open,
+      );
     }
   }
 
@@ -489,13 +561,20 @@ final class SyncEngine {
     );
   }
 
-  /// Syncs [accountId] at [at] (when a delayed send becomes due), so the
-  /// message goes out then rather than at the next periodic sync.
+  /// Replays [accountId]'s outbox at [at] (when a send or another change
+  /// comes out of its undo delay, or a "Send later" message is due), as
+  /// the user's work ([replayNow]), then syncs it: the message goes out
+  /// then rather than at the next periodic sync, and without waiting for
+  /// a sync under way.
   void syncAt(AccountId accountId, DateTime at) {
     final delay = at.difference(DateTime.now());
     _scheduled.add(
       Timer(delay.isNegative ? Duration.zero : delay, () {
-        if (_stop != null) unawaited(syncAccount(accountId));
+        if (_stop == null) return;
+        unawaited(() async {
+          await replayNow(accountId);
+          await syncAccount(accountId);
+        }());
       }),
     );
     _scheduled.removeWhere((t) => !t.isActive);
@@ -618,5 +697,8 @@ final class _PendingRequest {
   _PendingRequest(this.request);
 
   _SyncRequest request;
+
+  /// Whether the queued changes go to the server first, as the user's.
+  bool replay = false;
   late final Timer timer;
 }
