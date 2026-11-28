@@ -19,7 +19,15 @@ const appVersion = '0.6.6';
 /// What a version brought that people can see, newest first: feature ids
 /// from [Features]. Only features that shipped.
 const releaseNotes = <({String version, List<FeatureId> features})>[
-  (version: '0.6.6', features: [FeatureId.cleanUp, FeatureId.privacyReport]),
+  (
+    version: '0.6.6',
+    features: [
+      FeatureId.calendar,
+      FeatureId.events,
+      FeatureId.cleanUp,
+      FeatureId.privacyReport,
+    ],
+  ),
   (version: '0.6.5', features: [FeatureId.pins]),
   (version: '0.6.4', features: [FeatureId.trips, FeatureId.subscriptions]),
   (
