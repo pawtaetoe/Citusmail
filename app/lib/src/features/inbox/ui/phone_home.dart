@@ -23,7 +23,7 @@ enum PhoneTab { inbox, pins, calendar, tools, folders }
 
 /// The phone layout: search at the top of the inbox, a navigation bar at
 /// the bottom (Inbox, Pins, Calendar, Tools, Folders) and New message
-/// above it.
+/// above it. Tabs change with a fade-through ([TabFadeThrough]).
 ///
 /// An open message, or a folder opened from the Folders tab, covers the
 /// tab, and pages opened from a tab are pushed on top as elsewhere: the
@@ -270,7 +270,11 @@ final class _PhoneHomeState extends State<PhoneHome>
           if (!didPop) _back();
         },
         child: Scaffold(
-          body: SafeArea(left: false, child: body),
+          // Every tab to every other: the same fade-through.
+          body: SafeArea(
+            left: false,
+            child: TabFadeThrough(tab: _tab, child: body),
+          ),
           bottomNavigationBar: bottom,
           floatingActionButton: compose ? _ComposeButton(_c.compose) : null,
         ),
