@@ -39,7 +39,13 @@ final class ConnectionBusyException extends MailException {
 /// 2. else, for [take], reuses another owner's kept one;
 /// 3. else waits in a queue, the user's work first, then in order of
 ///    arrival, until a connection is given back (handed over directly,
-///    still logged in) or closed, or [waitTimeout] passes.
+///    still logged in) or closed, or [waitTimeout] passes. Background
+///    work that has waited [ageAfter] is not overtaken any more, so the
+///    user's work can never starve it.
+///
+/// No one holds a connection while waiting for another (a sync hands its
+/// connection over before it queues for one again), so the queue always
+/// moves: at a budget of 1 everything still finishes, one after another.
 ///
 /// A login the server refuses for now ([ImapAuthenticationException.
 /// temporary]) lowers the account's budget to [whenRefused], back up to
@@ -53,6 +59,7 @@ final class ConnectionBudget {
     this.recovery = const Duration(minutes: 30),
     this.waitTimeout = const Duration(minutes: 2),
     this.checkAfter = const Duration(seconds: 20),
+    this.ageAfter = const Duration(seconds: 30),
     DateTime Function()? now,
   }) : assert(perAccount >= 1 && whenRefused >= 1),
        _now = now ?? DateTime.now;
@@ -76,6 +83,10 @@ final class ConnectionBudget {
   /// A kept connection of another owner unused for longer than this is
   /// asked a NOOP before it is reused.
   final Duration checkAfter;
+
+  /// Background work that has waited this long goes ahead of the user's
+  /// work that comes after it.
+  final Duration ageAfter;
 
   final DateTime Function() _now;
   final _accounts = <AccountId, _Slots>{};
@@ -218,11 +229,15 @@ final class ConnectionBudget {
     ConnectionPriority priority,
     Future<void>? until,
   ) {
-    final waiter = _Waiter(priority);
-    // The user's work goes after the user's work already waiting, ahead
-    // of everything else; the rest in order of arrival.
+    final now = _now();
+    final waiter = _Waiter(priority, now);
+    // The user's work goes after the user's work already waiting, and
+    // after background work that has waited [ageAfter], ahead of the rest;
+    // the rest in order of arrival.
     final at = priority == ConnectionPriority.user
-        ? slots.waiters.indexWhere((w) => w.priority != priority)
+        ? slots.waiters.indexWhere(
+            (w) => w.priority != priority && now.difference(w.since) < ageAfter,
+          )
         : -1;
     if (at < 0) {
       slots.waiters.add(waiter);
@@ -240,7 +255,12 @@ final class ConnectionBudget {
       waitTimeout,
       () => giveUp('no free connection to the server; try again'),
     );
-    unawaited(until?.then((_) => giveUp('stopped')));
+    unawaited(
+      until?.then(
+        (_) => giveUp('stopped'),
+        onError: (Object _) => giveUp('stopped'),
+      ),
+    );
     // The budget may have grown back since the last slot was given.
     _grant(slots);
     if (!waiter.done.isCompleted) slots.wake();
@@ -329,11 +349,14 @@ final class ConnectionBudget {
     ]);
   }
 
-  /// After an account was removed or its settings changed: closes its
-  /// kept connections, and those in use once they are given back.
+  /// After an account was removed or its settings changed: ends the
+  /// waits for its connections (they would log in with what it was),
+  /// closes its kept connections, and those in use once they are given
+  /// back.
   Future<void> forget(AccountId accountId) async {
     final slots = _accounts[accountId];
     if (slots == null) return;
+    _endWaits(slots, 'the account changed; try again');
     slots.retired.addAll(slots.inUse);
     await closeKept(accountId);
   }
@@ -345,13 +368,18 @@ final class ConnectionBudget {
   /// (the engine is stopping: nothing should start now).
   void cancelWaits() {
     for (final slots in _accounts.values) {
-      for (final waiter in [...slots.waiters]) {
-        waiter.timer?.cancel();
-        waiter.done.completeError(const ConnectionBusyException('stopped'));
-      }
-      slots.waiters.clear();
-      slots.wake();
+      _endWaits(slots, 'stopped');
     }
+  }
+
+  void _endWaits(_Slots slots, String why) {
+    final waiters = [...slots.waiters];
+    slots.waiters.clear();
+    for (final waiter in waiters) {
+      waiter.timer?.cancel();
+      waiter.done.completeError(ConnectionBusyException(why));
+    }
+    slots.wake();
   }
 
   /// Stops for good: closes every kept connection, ends every wait, and
@@ -481,9 +509,10 @@ final class _Kept {
 }
 
 final class _Waiter {
-  _Waiter(this.priority);
+  _Waiter(this.priority, this.since);
 
   final ConnectionPriority priority;
+  final DateTime since;
   final done = Completer<_Grant>();
   Timer? timer;
 }

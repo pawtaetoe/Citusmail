@@ -10,6 +10,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
@@ -76,8 +77,12 @@ void main() {
   }
 
   /// Waits until [done], at most a few seconds.
-  Future<void> until(bool Function() done, {String? reason}) async {
-    final end = DateTime.now().add(const Duration(seconds: 5));
+  Future<void> until(
+    bool Function() done, {
+    String? reason,
+    Duration within = const Duration(seconds: 5),
+  }) async {
+    final end = DateTime.now().add(within);
     while (!done()) {
       if (DateTime.now().isAfter(end)) fail('timed out: ${reason ?? ''}');
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -88,6 +93,7 @@ void main() {
   List<StoredMessage> inboxMessages() =>
       store.messages.list(MessageQuery(mailboxIds: [inbox().id]));
   bool idling() => server.commands.contains('IDLE');
+  bool idlingNow() => server.inIdle > 0;
 
   void addFolders(int count, {int messages = 3}) {
     for (var i = 0; i < messages; i++) {
@@ -291,6 +297,158 @@ void main() {
         expect(waited, lessThan(const Duration(seconds: 2)));
       },
     );
+  });
+
+  group('waits that end', () {
+    test('a wait for a removed account ends, and nothing logs in for it '
+        'later', () async {
+      await start();
+      final budget = ConnectionBudget(
+        server.connector(),
+        perAccount: 1,
+        waitTimeout: const Duration(seconds: 5),
+      );
+      addTearDown(budget.close);
+      final owner = Object();
+      final held = await budget.take(account, owner: owner);
+      final waiting = expectLater(
+        budget
+            .take(account, owner: Object())
+            .timeout(const Duration(seconds: 2)),
+        throwsA(isA<ConnectionBusyException>()),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await budget.forget(account.id);
+      await waiting;
+      await budget.give(account, held, owner: owner);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(server.logins, 1, reason: 'no login with what it was');
+      expect(budget.openFor(account.id), 0);
+    });
+
+    test('background work that has waited long is not overtaken by the '
+        'user\'s work any more', () async {
+      await start();
+      var now = DateTime.utc(2026, 11, 28, 9);
+      final budget = ConnectionBudget(
+        server.connector(),
+        perAccount: 1,
+        now: () => now,
+      );
+      addTearDown(budget.close);
+      final holder = Object();
+      final held = await budget.take(account, owner: holder);
+      final order = <String>[];
+      Future<void> queue(String name, ConnectionPriority priority) async {
+        final owner = Object();
+        final client = await budget.take(
+          account,
+          owner: owner,
+          priority: priority,
+        );
+        order.add(name);
+        await budget.give(account, client, owner: owner);
+      }
+
+      final sync = queue('sync', ConnectionPriority.background);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      now = now.add(budget.ageAfter);
+      final open = queue('open message', ConnectionPriority.user);
+      final readAhead = queue('read ahead', ConnectionPriority.background);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await budget.give(account, held, owner: holder);
+      await Future.wait([sync, open, readAhead]);
+      expect(order, ['sync', 'open message', 'read ahead']);
+    });
+
+    test('a full sync hands its connection to the user between the steps '
+        'after the folders too', () async {
+      await start(gmail: true);
+      server.folders['[Gmail]/All Mail'] = FakeFolder(specialUse: 'All');
+      addFolders(3);
+      for (var i = 0; i < 4; i++) {
+        server.folders['[Gmail]/All Mail']!.add(subject: 'archived $i');
+      }
+      final e = engine(perAccount: 1);
+      expect(await e.syncAccount(account.id), isNotNull);
+      final message = inboxMessages().first;
+      server.latency = const Duration(milliseconds: 5);
+      Future<Uint8List>? body;
+      // Once the sync is at its last folder, the user opens a message.
+      server.dropOn = (command) {
+        if (command.contains('Folder 2')) {
+          body ??= e.loadBody(message.id);
+        }
+        return false;
+      };
+      expect(await e.syncAccount(account.id), isNotNull);
+      expect(await body, isNotEmpty);
+      final opened = server.commands.indexWhere(
+        (c) => c.contains('BODY.PEEK[]'),
+      );
+      final backfill = server.commands.lastIndexWhere(
+        (c) => c.contains('[Gmail]/All Mail'),
+      );
+      expect(opened, greaterThan(0));
+      expect(
+        opened,
+        lessThan(backfill),
+        reason: 'the message did not wait for the archived mail',
+      );
+    });
+  });
+
+  group('no deadlock', () {
+    for (final perAccount in [1, 2]) {
+      test('a budget of $perAccount: a full sync, opening a message, a '
+          'search on the server, older mail, a new folder, reading ahead '
+          'and IDLE all finish', () async {
+        await start(idle: true, gmail: true);
+        server.folders['[Gmail]/All Mail'] = FakeFolder(specialUse: 'All');
+        addFolders(6, messages: 6);
+        for (var i = 0; i < 6; i++) {
+          server.folders['[Gmail]/All Mail']!.add(subject: 'archived $i');
+        }
+        server
+          ..maxLoggedIn = perAccount
+          ..latency = const Duration(milliseconds: 2);
+        final e = engine(
+          perAccount: perAccount,
+          waitTimeout: const Duration(seconds: 30),
+          settings: const SyncSettings(initialWindow: 3, backfillBatch: 2),
+          changeDelay: const Duration(hours: 1),
+        )..start();
+        await until(idling, reason: 'IDLE');
+        final messages = inboxMessages();
+        // A change for the server, replayed by the sync.
+        MailActions(store).markRead([messages.last]);
+        server.folders['INBOX']!.add(subject: 'new');
+
+        final work = await Future.wait<Object?>([
+          e.syncAccount(account.id),
+          e.loadBody(messages.first.id),
+          e.searchServer(account.id, 'archived'),
+          e.fetchOlder(inbox().id),
+          e.createFolder(account.id, 'Projects'),
+          e.loadBody(messages[1].id, background: true),
+          e.syncAccount(account.id, mailboxIds: {inbox().id}),
+        ]).timeout(const Duration(seconds: 60));
+
+        expect(work[0], isNotNull, reason: 'the full sync');
+        expect(work[1], isNotEmpty, reason: 'the message');
+        expect(work[2], isNotEmpty, reason: 'the search');
+        expect(work[6], isNotNull, reason: 'the inbox check');
+        expect(server.refused, 0);
+        expect(server.peakLoggedIn, lessThanOrEqualTo(perAccount));
+        // IDLE comes back once nothing waits.
+        final mark = server.commands.length;
+        await until(
+          () => server.since(mark, 'IDLE').isNotEmpty || idlingNow(),
+          reason: 'IDLE again',
+          within: const Duration(seconds: 20),
+        );
+      });
+    }
   });
 
   group('when the server refuses', () {

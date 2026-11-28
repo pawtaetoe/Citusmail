@@ -157,6 +157,9 @@ final class FakeImap {
   /// The most connections logged in at once.
   int peakLoggedIn = 0;
 
+  /// Connections in IDLE now.
+  int inIdle = 0;
+
   /// Logins refused for [maxLoggedIn].
   int refused = 0;
 
@@ -228,6 +231,7 @@ final class FakeImap {
       if (gone) return;
       gone = true;
       open--;
+      if (idling != null) inIdle--;
       logOut();
       socket.destroy();
     }
@@ -271,6 +275,7 @@ final class FakeImap {
           return '$tag OK done\r\n';
         case 'IDLE' when idle:
           idling = tag;
+          inIdle++;
           return '+ idling\r\n';
         case 'NOOP' || 'ENABLE':
           return '$tag OK done\r\n';
@@ -408,6 +413,7 @@ final class FakeImap {
           buffer = buffer.sublist(end + 1);
           if (idling case final tag? when line.toUpperCase() == 'DONE') {
             idling = null;
+            inIdle--;
             send('$tag OK idle done\r\n');
             continue;
           }

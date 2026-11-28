@@ -194,7 +194,9 @@ final class AccountSynchronizer {
         full: mailboxIds == null,
         listed: listed,
       );
-      imap = lease.client!;
+      // Between the steps after the folders, as between folders, the user's
+      // work waiting for a connection goes first.
+      imap = await _yieldTo(account, lease);
       // 4. Blocked senders, then the user's folder rules, then screened-out
       // senders (when they go to Archive), on new inbox mail; their moves
       // go to the server right away, in this session.
@@ -209,6 +211,7 @@ final class AccountSynchronizer {
             (_rules?.apply(account, everything: everything) ?? 0) +
             (_screener?.apply(account, everything: everything) ?? 0);
         if (movedByRules > 0) {
+          imap = await _yieldTo(account, lease);
           await _replayer.replay(
             imap,
             account,
@@ -220,12 +223,14 @@ final class AccountSynchronizer {
       // Optional: a problem here is retried next time, never fatal.
       var receipts = 0;
       if (inbox != null && results.containsKey(inbox.id)) {
+        imap = await _yieldTo(account, lease);
         try {
           receipts = await ReceiptCollector(_store).collect(imap, account);
         } on MailException {
           receipts = 0;
         }
         // Codes in new verification mail, for the list. Also optional.
+        imap = await _yieldTo(account, lease);
         try {
           await CodeReader(_store).read(imap, account);
         } on MailException {
@@ -238,6 +243,7 @@ final class AccountSynchronizer {
       _archived.note(account, results);
       ArchivedBackfillResult? archived;
       if (mailboxIds == null) {
+        imap = await _yieldTo(account, lease);
         try {
           await _archived.find(imap, account);
         } on MailException {
@@ -246,6 +252,7 @@ final class AccountSynchronizer {
         // On Gmail, archived mail this device never saw in another folder
         // (it was archived before the device was added), a batch a sync;
         // and the flags of what All Mail has on the device.
+        imap = await _yieldTo(account, lease);
         try {
           final allMail = _store.mailboxes.bySpecialUse(
             account.id,
@@ -269,6 +276,7 @@ final class AccountSynchronizer {
       AppDataSyncReport? appData;
       SyncFailure? appDataFailure;
       if (_appData case final sync? when mailboxIds == null) {
+        imap = await _yieldTo(account, lease);
         try {
           appData = await sync.run(imap, account);
         } on Object catch (e) {
@@ -421,6 +429,13 @@ final class AccountSynchronizer {
       }
     }
     return results;
+  }
+
+  /// [lease]'s connection, after handing it to the user's work waiting
+  /// for one, if any, and taking one back.
+  Future<ImapClient> _yieldTo(Account account, _Lease lease) async {
+    if (_connections.userWaiting(account.id)) await _handOver(account, lease);
+    return lease.client!;
   }
 
   /// Hands [lease]'s connection to the user's work waiting for one, and
