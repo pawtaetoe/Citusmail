@@ -192,6 +192,7 @@ abstract final class AccountFinder {
     'deleted',
     'closed',
     'deactivated',
+    'statement',
     '2-step',
     'two-factor',
     // Other languages.
@@ -210,6 +211,12 @@ abstract final class AccountFinder {
     '密碼',
     '登录',
     '登入',
+    '验证',
+    '驗證',
+    '认证',
+    '認證',
+    '新裝置',
+    '新设备',
     '注册',
     '註冊',
     'ようこそ',
@@ -289,8 +296,46 @@ abstract final class AccountFinder {
     r'\b(?:account (?:has been|was|is now|is) (?:permanently )?'
     r'(?:deleted|closed|deactivated|terminated|removed)|'
     r'(?:deleted|closed|deactivated) your (?:\w+ )?account|'
-    r'account (?:deletion|closure) (?:confirmed|complete[d]?|confirmation)|'
-    r'sorry to see you go)\b',
+    r'account (?:deletion|closure) (?:confirmed|complete[d]?|confirmation))\b',
+    caseSensitive: false,
+  );
+
+  /// "Sorry to see you go": the account closed, unless a plan, trial or
+  /// membership is what ended (the account is still there).
+  static final _sorryToSeeYouGo = RegExp(
+    r'\bsorry to see you go\b',
+    caseSensitive: false,
+  );
+  static final _planEnded = RegExp(
+    r'\b(?:expired|expires|re-?subscribe|subscription|plan|trial|'
+    r'membership|renew\w*)\b',
+    caseSensitive: false,
+  );
+
+  /// A one-time password for a card payment (3-D Secure), not for
+  /// signing in.
+  static final _paymentCode = RegExp(
+    r'\b(?:3-?d ?s(?:ecure)?|safekey|secure ?code|'
+    r'for (?:your|this|the) (?:card )?(?:transaction|purchase|payment)|'
+    r'transaction (?:otp|code|password))\b',
+    caseSensitive: false,
+  );
+
+  /// An order's confirmation ("Thanks for your order").
+  static final _order = RegExp(
+    r'\b(?:ordering|thanks? (?:you )?for (?:your )?(?:order|purchase)|'
+    r'your order (?:has been |is |was )?(?:placed|confirmed|received)|'
+    r'order (?:confirmation|number|no\.?|#))',
+    caseSensitive: false,
+  );
+
+  /// A registration for a webinar, meeting or event: not an account.
+  static final _eventMail = RegExp(
+    r'\b(?:webinar|meeting id|join (?:the |this )?(?:meeting|webinar|session|event)|'
+    r'add to (?:your )?calendar|zoom meeting|teams meeting)\b|'
+    r'thanks? (?:you )?for (?:joining|registering for|attending) '
+    r'(?:the |our |this )?(?:\w+ )?(?:webinar|meeting|call|event|session|class|'
+    r'workshop|seminar|conference|talk|livestream|stream)\b',
     caseSensitive: false,
   );
 
@@ -315,7 +360,8 @@ abstract final class AccountFinder {
     r'(?:two-factor|2-step|two-step) (?:authentication |verification )?'
     r'(?:is |has been |was )?(?:enabled|disabled|turned (?:on|off)|on|off)|'
     r'(?:ssh|gpg|api|security) key (?:was |has been )?(?:added|removed|deleted)|'
-    r'a new (?:ssh|gpg|public) key|personal access token)\b',
+    r'a new (?:ssh|gpg|public) key|personal access token|'
+    r'accounts? (?:are|is|have been|has been) (?:now )?(?:connected|linked))\b',
     caseSensitive: false,
   );
 
@@ -330,6 +376,7 @@ abstract final class AccountFinder {
     r'your (?:\w+ )?(?:id|account) was used to sign in|'
     r'neue anmeldung|nouvelle connexion|nuevo inicio de sesión)\b'
     r'|登录提醒|登入通知|异地登录|異常登入|登入.{0,8}錯誤|登录.{0,8}错误|'
+    r'登入成功|登录成功|成功登入|成功登录|新裝置|新设备|'
     r'新しい(?:端末|デバイス)|ログイン(?:通知|のお知らせ)',
     caseSensitive: false,
   );
@@ -337,7 +384,7 @@ abstract final class AccountFinder {
   static final _signedUp = RegExp(
     r'\b(?:welcome to|welcome aboard|welcome,|'
     r'(?:verify|confirm|activate) (?:your |this )?(?:new )?'
-    r'(?:\w+ )?(?:e-?mail|e-?mail address|account|registration)|'
+    r"(?:[\w.&'-]+ ){0,3}(?:e-?mail|e-?mail address|account|registration)|"
     r'(?:e-?mail|account) (?:verification|confirmation)|'
     r'thanks? (?:you )?for (?:signing up|joining|registering|creating)|'
     r'(?:your|new) (?:\w+ )?account (?:has been |is |was )?(?:created|ready|activated|set up)|'
@@ -367,10 +414,11 @@ abstract final class AccountFinder {
   /// "Welcome back" is a sign-in, not a sign-up.
   static final _welcomeBack = RegExp(r'\bwelcome back\b', caseSensitive: false);
 
-  /// The subject speaks of the user's account.
+  /// The subject speaks of the user's account, or of a statement of it.
   static final _accountSubject = RegExp(
     r"\b(?:your (?:[\w.&'-]+ ){0,2}(?:account|id|profile|membership)|"
-    r'account (?:update|notice|information|statement|summary|activity))\b',
+    r'account (?:update|notice|information|statement|summary|activity)|'
+    r"your (?:[\w.&'-]+ ){0,3}(?:e-?)?statements?|e-?statements?)\b",
     caseSensitive: false,
   );
 
@@ -403,6 +451,11 @@ abstract final class AccountFinder {
     final text = email.text;
     final both = '$subject\n$text';
     if (_closed.hasMatch(both)) return AccountEvidence.closed;
+    if (_sorryToSeeYouGo.hasMatch(both)) {
+      if (!_planEnded.hasMatch(both)) return AccountEvidence.closed;
+      // A plan or trial ended: the account is still there.
+      if (!email.newsletter) return AccountEvidence.notice;
+    }
     if (_reset.hasMatch(subject)) return AccountEvidence.passwordReset;
     if (_change.hasMatch(subject)) return AccountEvidence.accountChange;
     if (_alert.hasMatch(subject)) return AccountEvidence.securityAlert;
@@ -416,6 +469,8 @@ abstract final class AccountFinder {
             VerificationCodes.inMessage(subject, text) != null &&
             VerificationCodes.isVerificationText(text))) {
       if (_reset.hasMatch(text)) return AccountEvidence.passwordReset;
+      // A card payment's code shows a card account, not a sign-in.
+      if (_paymentCode.hasMatch(both)) return AccountEvidence.notice;
       return AccountEvidence.signInCode;
     }
     if (_isReceipt(email)) return AccountEvidence.paid;
@@ -436,6 +491,14 @@ abstract final class AccountFinder {
       // "Thanks for creating an account" may be in the text only.
       if (!_signedUpText.hasMatch(text)) return false;
     }
+    // An order's "Email Confirmation", or a webinar's "Thank you for
+    // registering": only these words, about an order or an event.
+    final both = '$subject\n$text';
+    if ((_order.hasMatch(both) || _eventMail.hasMatch(both)) &&
+        !_saysSignedUp(subject.replaceAll(_weakSignUp, '')) &&
+        !_accountCreated.hasMatch(both)) {
+      return false;
+    }
     // A newsletter's welcome ("Welcome to the Weekly Digest", "Confirm
     // your subscription") is not an account, unless its text says so.
     if (newsletter || _newsletterWords.hasMatch(subject)) {
@@ -444,9 +507,26 @@ abstract final class AccountFinder {
     return true;
   }
 
+  /// Sign-up words that an order or an event registration uses too.
+  static final _weakSignUp = RegExp(
+    r'\b(?:(?:e-?mail|account) (?:verification|confirmation)|'
+    r'thanks? (?:you )?for (?:registering|joining)|'
+    r'registration (?:confirmed|successful|complete))\b',
+    caseSensitive: false,
+  );
+
+  /// The account itself was created or is to be confirmed.
+  static final _accountCreated = RegExp(
+    r'\b(?:creating (?:an|your) (?:\w+ )?account|'
+    r'(?:your|new) (?:\w+ )?account (?:has been |is |was )?(?:created|activated)|'
+    r'(?:verify|confirm|activate) your (?:\w+ )?(?:account|e-?mail)|'
+    r'(?:sign(?:ing|ed)? up|create) (?:for )?(?:an|your) (?:\w+ )?account)\b',
+    caseSensitive: false,
+  );
+
   /// Sign-up wording strong enough in the text alone.
   static final _signedUpText = RegExp(
-    r'\b(?:thanks? (?:you )?for (?:signing up|creating (?:an|your) (?:\w+ )?account|registering)|'
+    r'\b(?:thanks? (?:you )?for (?:signing up|creating (?:an|your) (?:\w+ )?account|registering|joining)|'
     r'(?:your|new) (?:\w+ )?account (?:has been |is |was )?(?:created|activated)|'
     r'(?:verify|confirm) your (?:e-?mail|e-?mail address) to (?:finish|complete|activate|get started))',
     caseSensitive: false,
@@ -603,13 +683,29 @@ abstract final class AccountFinder {
     caseSensitive: false,
   );
 
+  /// "Robin from Example": a person writing for the brand.
+  static final _personFrom = RegExp(
+    r'^\p{Lu}\p{Ll}+(?: \p{Lu}\.?)? (?:from|at|@) (?=\S{2})',
+    unicode: true,
+  );
+
+  /// "Example - No Reply", "Example (Do not reply)".
+  static final _noReplySuffix = RegExp(
+    r'\s*[-|–—:,]?\s*[(\[]?(?:no[-_. ]?reply|do[-_. ]?not[-_. ]?reply)[)\]]?$',
+    caseSensitive: false,
+  );
+
   /// The sender name most used (not "noreply" or an address), else the
   /// known name, else the domain.
   static String _name(String company, List<AccountRecord> records) {
     if (names[company] case final known?) return known;
     final counts = <String, int>{};
     for (final r in records) {
-      final raw = r.email.senderName?.trim();
+      final raw = r.email.senderName
+          ?.trim()
+          .replaceFirst(_personFrom, '')
+          .replaceFirst(_noReplySuffix, '')
+          .trim();
       if (raw == null || _genericName.hasMatch(raw)) continue;
       final n = SubscriptionFinder.companyName(raw);
       if (n == null || _genericName.hasMatch(n)) continue;
