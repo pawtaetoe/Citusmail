@@ -114,7 +114,14 @@ void main() {
       final first = Features.byId(releaseNotes.first.features.first)!;
       await showShell(tester);
       expect(find.text('New in Citusmail'), findsOneWidget);
-      expect(find.text(first.title), findsOneWidget);
+      // On the card (the sidebar may name the same place, such as Pins).
+      expect(
+        find.descendant(
+          of: find.byType(WhatsNewCard),
+          matching: find.text(first.title),
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('more'), findsOneWidget, reason: 'And N more');
 
       await tester.tap(find.bySemanticsLabel('Show ${first.title}'));
@@ -127,14 +134,16 @@ void main() {
           findsOneWidget,
         );
       } else {
-        // A page of its own (Trips, Subscriptions...): it opens on top.
+        // A page of its own (Trips, Subscriptions...) opens on top; a place
+        // in the mail (Pins) opens in the list. Either way it is shown.
         expect(find.text(first.title), findsWidgets);
-        expect(find.byType(BackButton), findsOneWidget);
       }
       expect(WhatsNew(app.store).seenVersion, appVersion);
 
-      await tester.pageBack();
-      await tester.pumpAndSettle();
+      if (find.byType(BackButton).evaluate().isNotEmpty) {
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+      }
       expect(find.text('New in Citusmail'), findsNothing);
 
       // Not again at the next start.
