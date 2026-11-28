@@ -7,7 +7,7 @@ import 'package:mail_store/mail_store.dart';
 
 import 'appointments.dart';
 import 'due_dates.dart';
-import 'subscriptions.dart' show SubscriptionFinder;
+import 'forwards.dart';
 import 'trips.dart';
 
 /// What an event is, to pick an icon and a word for it.
@@ -96,6 +96,30 @@ final class EventEmail {
 
   /// Sorted as a newsletter or promotion: not read.
   final bool bulk;
+
+  /// This email as its first sender wrote it (see
+  /// [Forwards.originalOf]): itself, the email a forward forwards
+  /// (attributed to its first sender), or null for a reply or a forward
+  /// whose original cannot be read.
+  EventEmail? get original => Forwards.originalOf(
+    this,
+    subject: subject,
+    text: text,
+    at: at,
+    rebuild: (f, sent) => EventEmail(
+      messageId: messageId,
+      sender: f.domain ?? sender,
+      senderName: f.address == null ? f.senderName ?? senderName : f.senderName,
+      subject: f.subject,
+      text: f.text,
+      at: sent,
+      reservations: reservations,
+      appointments: appointments,
+      invite: invite,
+      links: links,
+      bulk: bulk,
+    ),
+  );
 }
 
 /// One email, as understood.
@@ -297,6 +321,9 @@ abstract final class EventText {
     r'\bdate of (?:the )?(?:event|visit|show|performance|tour)\b|'
     r'\b(?:event|show|performance) (?:date|time)\b|'
     r'\bseats?:\s*[A-Z]?\d|'
+    r"\b(?:we have you|you(?:'re| are)) booked (?:onto|on|in|for)\b|"
+    r'\b(?:will (?:begin|start)|starts?|begins?) in (?:\d{1,2}|an?|one) '
+    r'(?:hours?|minutes?|mins?)\b|\bthis is a reminder that\b|'
     r'\binterviews?\b[^.\n]{0,40}?\b(?:is |has been )?(?:scheduled|arranged|booked)\b|'
     r'\binvit(?:e|ed|ing) you (?:to|for) an? (?:\w+ )?interview\b',
   );
@@ -313,8 +340,13 @@ abstract final class EventText {
     (
       EventKind.movie,
       _re(
-        r'\b(?:cinemas?|movies?|films?|screenings?|imax|4dx|tix|'
-        r'cineplex|multiplex|odeon|vue|cineworld|amc|regal)\b',
+        r'\b(?:cinemas?|movies?|films?|imax|4dx|tix|'
+        r'cineplex|multiplex|odeon|vue|cineworld|amc|regal)\b|'
+        // A film's screening, not a health one.
+        r'(?<!(?:medical|health|cancer|eye|hearing|dental|blood|covid|breast|'
+        r'bowel|cervical|vision|diabetes|diabetic|hiv|std|newborn|lung) )'
+        r'\bscreenings?\b(?!\s+(?:appointment|test|centre|center|clinic|'
+        r'programme|program|results?))',
       ),
     ),
     (EventKind.festival, _re(r'\bfestival\w*|\bfest\b|\bcarnival\b')),
@@ -328,7 +360,8 @@ abstract final class EventText {
     (
       EventKind.sport,
       _re(
-        r'\b(?:match(?:day)?|vs\.?|stadium|kick-?off|grand prix|race day|'
+        r'\bmatch(?:day)?\b(?!\s+(?:that|the|your|those|what|with|exactly))|'
+        r'\b(?:vs\.?|stadium|kick-?off|grand prix|race day|'
         r'championships?|league|cup final|game day|football|soccer|rugby|'
         r'cricket|tennis|basketball|baseball|hockey|marathon|formula 1|f1)\b',
       ),
@@ -343,9 +376,10 @@ abstract final class EventText {
     (
       EventKind.exhibition,
       _re(
-        r'\b(?:exhibitions?|exhibits?|museums?|galler(?:y|ies)|expo|zoo|'
+        r'\b(?:exhibitions?|exhibits?|museums?|muse[oiu]s?|musées?|galler(?:y|ies)|expo|zoo|'
         r'aquarium|theme park|attractions?|observation deck|botanic\w* gardens?|'
-        r'planetarium)\b',
+        r'planetarium|castles?|palaces?|heritage site|country park|monuments?|'
+        r'cathedral|historic house)\b',
       ),
     ),
     (
@@ -376,8 +410,10 @@ abstract final class EventText {
 
   /// Words that it is an event, whatever its kind.
   static final _eventWords = _re(
-    r'\b(?:events?|venue|doors open|admission|entry|showtime|performance|'
-    r'activit(?:y|ies)|meeting point)\b',
+    r'\b(?:events?|venue|doors open|admission|entry|entrance|showtime|'
+    r'performance|activit(?:y|ies)|meeting point|your visit|enjoy your visit|'
+    r'booked onto|event qr code)\b|'
+    r'\blook(?:ing)? forward to (?:seeing|welcoming) you at\b',
   );
 
   /// What kind of event its [head] (the title, the subject, the sender's
@@ -521,7 +557,27 @@ abstract final class EventText {
         );
       }
     }
+    if (when == null) {
+      if (_dayOn(text, sent) case final d?) when = (start: d, end: null);
+    }
     if (when == null) return null;
+    final zoned = AppointmentText.zoned(when.start, text);
+    if (!identical(zoned, when.start)) {
+      final end = when.end;
+      when = (
+        start: zoned,
+        end: end == null || end.offset != null
+            ? end
+            : PlaceTime(
+                end.wall.year,
+                end.wall.month,
+                end.wall.day,
+                hour: end.wall.hour,
+                minute: end.wall.minute,
+                offset: zoned.offset,
+              ),
+      );
+    }
     if (when.end == null && when.start.hasTime) {
       if (_duration.firstMatch(_cap(text, 20000)) case final m?) {
         final n = double.parse(m[1]!.replaceAll(',', '.'));
@@ -623,6 +679,10 @@ abstract final class EventText {
     r'reservation for|order for|booked|signed up for)\s+(?:the\s+)?'
     r'[«“"‘]([^»”"’\n]{3,90})[»”"’]',
   );
+  static final _quotedBefore = _re(
+    r'[«“"]([^»”"\n]{3,90})[»”"]\s+(?:will (?:begin|start)|starts|begins|'
+    r'is (?:starting|about to start)|is (?:today|tomorrow))\b',
+  );
   static final _registeredFor = _re(
     r'\b(?:thank you for registering|you(?:.re| are|.ve| have) registered|'
     r'registration (?:is )?confirmed) for (?:the )?([^.\n]{3,90}?)\s*(?:[.!\n]|$)',
@@ -638,6 +698,9 @@ abstract final class EventText {
       if (v != null && !_looksLikeWhen(v)) return v;
     }
     if (_cleanTitle(_quotedTitle.firstMatch(sample)?[1]) case final t?) {
+      return t;
+    }
+    if (_cleanTitle(_quotedBefore.firstMatch(sample)?[1]) case final t?) {
       return t;
     }
     if (_cleanTitle(_registeredFor.firstMatch(sample)?[1]) case final t?) {
@@ -706,7 +769,10 @@ abstract final class EventText {
   /// " @ Thu 12 Nov 3pm", " is in 2 days". Null when nothing is left
   /// that names it.
   static String? titleOfSubject(String subject) {
-    final quoted = RegExp('[«“"]([^»”"]{3,80})[»”"]').firstMatch(subject);
+    final quoted =
+        RegExp('[«“"]([^»”"]{3,80})[»”"]').firstMatch(subject) ??
+        RegExp("(?:^|(?<=[\\s:–-]))['‘]([^'’\\n]{3,80})['’](?=\\s|\$|[.,!:])")
+            .firstMatch(subject);
     if (quoted != null) return _cleanTitle(quoted[1]);
     var s = subject
         .replaceFirst(_subjectNoise, '')
@@ -788,6 +854,7 @@ abstract final class EventText {
       final v = m[1]!
           .replaceAll('*', '')
           .replaceAll(RegExp(r'<https?://[^>]*>|https?://\S+'), '')
+          .replaceFirst(AppointmentText.linkWords, '')
           .replaceAll(RegExp(r'\s+'), ' ')
           .replaceFirst(RegExp(r'[.,;:\s]+$'), '')
           .trim();
@@ -800,6 +867,45 @@ abstract final class EventText {
     final p = AppointmentText.placeIn(text);
     if (p != null && p.contains('://')) return null;
     return p;
+  }
+
+  static final _onWeekday = _re(
+    r'\b(?:on|for)\s+((?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|'
+    r'sun)(?:day)?)\b[,\s]*$',
+  );
+
+  /// A day written after "on" with its weekday ("on Sunday 13th
+  /// September"), in the future of [sent]: the weekday says which year
+  /// when none is written.
+  static PlaceTime? _dayOn(String text, DateTime sent) {
+    final sample = _cap(text, 6000);
+    final today = DueDates.dayOf(sent);
+    for (final d in DueDates.datesIn(sample, reference: sent)) {
+      final before = sample.substring(
+        (d.start - 24).clamp(0, d.start),
+        d.start,
+      );
+      final m = _onWeekday.firstMatch(before);
+      if (m == null) continue;
+      final weekday = const [
+        'mon',
+        'tue',
+        'wed',
+        'thu',
+        'fri',
+        'sat',
+        'sun',
+      ].indexOf(m[1]!.toLowerCase().substring(0, 3));
+      var day = d.date;
+      // The year left out: the next one where the weekday fits.
+      for (var i = 0; i < 7 && day.weekday != weekday + 1; i++) {
+        day = DateTime.utc(day.year + 1, day.month, day.day);
+      }
+      if (day.weekday != weekday + 1) continue;
+      if (day.isBefore(today) || day.difference(today).inDays > 400) continue;
+      return PlaceTime(day.year, day.month, day.day, hasTime: false);
+    }
+    return null;
   }
 
   /// Whether [email]'s words read like a booked event: it confirms a
@@ -883,8 +989,10 @@ abstract final class EventFinder {
 
   /// Whether [subject] (and the start of the text, [preview]) reads like
   /// an event, worth downloading.
-  static bool looksLikeEvent(String subject, {String preview = ''}) {
-    if (SubscriptionFinder.isReplyOrForward(subject)) return false;
+  /// A forward is judged by the subject it forwards.
+  static bool looksLikeEvent(String rawSubject, {String preview = ''}) {
+    if (Forwards.isReply(rawSubject)) return false;
+    final subject = Forwards.withoutPrefix(rawSubject);
     if (EventText.notAnEvent.hasMatch(subject)) return false;
     if (TripFinder.looksLikeBooking(subject) &&
         RegExp(
@@ -930,22 +1038,40 @@ abstract final class EventFinder {
 
   /// [email], as understood, or null when it says nothing of an event
   /// (or it is an appointment, or a trip's).
-  static EventRecord? read(EventEmail email) {
-    if (SubscriptionFinder.isReplyOrForward(email.subject)) return null;
-    if (email.bulk) return null;
+  /// A forward is read as the email it forwards ([EventEmail.original]).
+  static EventRecord? read(EventEmail mail) {
+    final email = mail.original;
+    if (email == null) return null;
     // Flights, stays, trains and tables: the Trips page's.
     if (email.reservations.any((r) => r is! EventReservationInfo)) return null;
     final events = [
       for (final r in email.reservations)
-        if (r case final EventReservationInfo e when e.start != null) e,
+        if (r case final EventReservationInfo e when e.start != null)
+          // Bulk mail's markup counts when it names the booking or whom
+          // it is for: a promotion's does not.
+          if (!email.bulk || e.reservationNumber != null || e.underName != null)
+            e,
     ];
     if (events.isNotEmpty) return _fromMarkup(email, events.first);
+    if (email.bulk) return null;
     // A clinic, a salon, a garage: the Appointments page's.
     if (email.appointments.isNotEmpty) return null;
     if (AppointmentFinder.read(_asAppointment(email)) != null) return null;
+    // A train, a flight, a stay: the Trips page's, even with a calendar
+    // file.
+    if (TripText.aboutTravel(_asTrip(email))) return null;
     if (email.invite case final i?) return _fromInvite(email, i);
     return _fromWords(email);
   }
+
+  static TripEmail _asTrip(EventEmail email) => TripEmail(
+    messageId: email.messageId,
+    sender: email.sender,
+    senderName: email.senderName,
+    subject: email.subject,
+    text: email.text,
+    at: email.at,
+  );
 
   static EventRecord _fromMarkup(EventEmail email, EventReservationInfo e) {
     final words = '${email.subject}\n${email.text}';
@@ -1007,7 +1133,9 @@ abstract final class EventFinder {
         EventText.kindOf(head) == EventKind.workshop
             ? EventKind.workshop
             : EventKind.meeting,
-      EventKind.other => EventKind.meeting,
+      // People invited: a meeting; else a calendar file for something
+      // else, which says not what.
+      EventKind.other when i.guests > 0 => EventKind.meeting,
       final k => k,
     };
     final cancels =
@@ -1047,15 +1175,7 @@ abstract final class EventFinder {
     if (!EventText.namesAnEvent(email.subject, email.text, link: link)) {
       return null;
     }
-    final trip = TripEmail(
-      messageId: email.messageId,
-      sender: email.sender,
-      senderName: email.senderName,
-      subject: email.subject,
-      text: email.text,
-      at: email.at,
-    );
-    if (TripText.read(trip).isNotEmpty) return null;
+    if (TripText.read(_asTrip(email)).isNotEmpty) return null;
     final words = '${email.subject}\n${email.text}';
     final cancels = EventText.saysCancelled(email.subject, email.text);
     final changes =
@@ -1164,13 +1284,23 @@ abstract final class EventFinder {
   /// same sender and time or name and day, and a change, cancellation or
   /// reminder of it) are one event. The newest time counts.
   static List<Event> find(Iterable<EventEmail> emails) {
-    final records = [for (final e in emails) ?read(e)]
-      ..sort((a, b) {
-        final byAt = a.email.at.compareTo(b.email.at);
-        return byAt != 0
-            ? byAt
-            : a.email.messageId.value.compareTo(b.email.messageId.value);
-      });
+    final records = <EventRecord>[];
+    // Reminders too short to read alone: they may join an event below.
+    final reminders = <EventEmail>[];
+    for (final e in emails) {
+      if (read(e) case final r?) {
+        records.add(r);
+      } else if (e.original case final o?
+          when !o.bulk && _reminderSubject.hasMatch(o.subject)) {
+        reminders.add(o);
+      }
+    }
+    records.sort((a, b) {
+      final byAt = a.email.at.compareTo(b.email.at);
+      return byAt != 0
+          ? byAt
+          : a.email.messageId.value.compareTo(b.email.messageId.value);
+    });
 
     final groups = <List<EventRecord>>[];
     for (final r in records) {
@@ -1182,8 +1312,50 @@ abstract final class EventFinder {
       if (r.start == null) continue;
       groups.add([r]);
     }
+    for (final e in reminders) {
+      _remind(groups, e);
+    }
     return [for (final g in groups) _event(g)]
       ..sort((a, b) => a.start.compareTo(b.start));
+  }
+
+  /// "Reminder: Friday, 14 Mar 2026 10:30 AM": too few words to be read
+  /// alone.
+  static final _reminderSubject = RegExp(
+    r'^\s*(?:a )?(?:friendly )?reminder\b',
+    caseSensitive: false,
+  );
+
+  /// A reminder no event was read from joins the sender's event at the
+  /// time it gives.
+  static void _remind(List<List<EventRecord>> groups, EventEmail email) {
+    final when = EventText.whenIn('${email.subject}\n${email.text}', email.at);
+    if (when == null) return;
+    for (final g in groups) {
+      if (g.first.email.sender != email.sender) continue;
+      final t = _timed(g);
+      final s = t.start!;
+      final same = s.hasTime && when.start.hasTime
+          ? s.wall == when.start.wall
+          : s.day == when.start.day;
+      if (!same) continue;
+      g
+        ..add(
+          EventRecord(
+            email: email,
+            kind: t.kind,
+            title: t.title,
+            start: when.start,
+            end: when.end ?? t.end,
+            venue: t.venue,
+            link: t.link,
+            reference: t.reference,
+            links: _links(email),
+          ),
+        )
+        ..sort((a, b) => a.email.at.compareTo(b.email.at));
+      return;
+    }
   }
 
   static String _norm(String? s) => (s ?? '').toLowerCase().replaceAll(

@@ -364,4 +364,44 @@ void main() {
       isEmpty,
     );
   });
+
+  test('a street holding the whole address gets no default country', () {
+    final r = ReservationInfo.allIn(
+      StructuredData.extract('''
+<div itemscope itemtype="http://schema.org/EventReservation">
+  <meta itemprop="reservationNumber" content="QV-1">
+  <div itemprop="reservationFor" itemscope itemtype="http://schema.org/Event">
+    <meta itemprop="name" content="Lantern Walk">
+    <meta itemprop="startDate" content="2026-09-03T18:00:00">
+    <div itemprop="location" itemscope itemtype="http://schema.org/Place">
+      <meta itemprop="name" content="Willowmere Gardens">
+      <div itemprop="address" itemscope itemtype="http://schema.org/PostalAddress">
+        <meta itemprop="streetAddress" content="Quill Lane, Fernbridge QX9 4ZZ, UK">
+        <meta itemprop="addressLocality" content="">
+        <meta itemprop="addressCountry" content="US">
+      </div>
+    </div>
+  </div>
+</div>'''),
+    );
+    final e = r.single as EventReservationInfo;
+    expect(e.venue?.address, 'Quill Lane, Fernbridge QX9 4ZZ, UK');
+  });
+
+  test('an address part said already is not repeated', () {
+    final r = ReservationInfo.allIn(
+      StructuredData.extract('''
+<script type="application/ld+json">
+{"@type": "EventReservation", "reservationNumber": "QV-2",
+ "reservationFor": {"@type": "Event", "name": "Night Market",
+   "startDate": "2026-09-04T19:00:00",
+   "location": {"@type": "Place", "name": "Old Mill",
+     "address": {"@type": "PostalAddress",
+       "streetAddress": "4 Brook Row, Fernbridge",
+       "addressLocality": "Fernbridge", "addressCountry": "GB"}}}}
+</script>'''),
+    );
+    final e = r.single as EventReservationInfo;
+    expect(e.venue?.address, '4 Brook Row, Fernbridge, GB');
+  });
 }

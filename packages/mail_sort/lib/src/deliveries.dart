@@ -5,6 +5,7 @@
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'forwards.dart';
 import 'subscriptions.dart' show SubscriptionFinder;
 
 /// One email that may be about a shipped order: an order confirmation, a
@@ -46,6 +47,28 @@ final class DeliveryEmail {
   /// for its unsubscribe link): status words count only with an order or
   /// tracking number ("Arriving soon: our new collection" does not).
   final bool bulk;
+
+  /// This email as its first sender wrote it (see
+  /// [Forwards.originalOf]): itself, the email a forward forwards
+  /// (attributed to its first sender), or null for a reply or a forward
+  /// whose original cannot be read.
+  DeliveryEmail? get original => Forwards.originalOf(
+    this,
+    subject: subject,
+    text: text,
+    at: at,
+    rebuild: (f, sent) => DeliveryEmail(
+      messageId: messageId,
+      shop: f.domain ?? shop,
+      senderName: f.address == null ? f.senderName ?? senderName : f.senderName,
+      subject: f.subject,
+      text: f.text,
+      at: sent,
+      parcels: parcels,
+      orders: orders,
+      bulk: bulk,
+    ),
+  );
 }
 
 /// A delivery company, and its tracking page when it has a stable one.
@@ -352,9 +375,10 @@ abstract final class DeliveryFinder {
   );
 
   /// Whether [subject] reads like shipping mail, worth downloading.
+  /// A forward is judged by the subject it forwards.
   static bool looksLikeShipping(String subject) =>
-      !SubscriptionFinder.isReplyOrForward(subject) &&
-      _shippingSubject.hasMatch(subject);
+      !Forwards.isReply(subject) &&
+      _shippingSubject.hasMatch(Forwards.withoutPrefix(subject));
 
   // ---------------------------------------------------------------- status
 
@@ -846,7 +870,8 @@ abstract final class DeliveryFinder {
   /// The deliveries in [emails] (any order): emails with the same
   /// tracking number are one delivery; else the same order number from
   /// the same shop. [now] is today; [markedDelivered] holds the keys of
-  /// those the user said arrived. Newest first.
+  /// those the user said arrived. Newest first. A forward is read as
+  /// the email it forwards ([DeliveryEmail.original]).
   static List<Delivery> find(
     Iterable<DeliveryEmail> emails, {
     required DateTime now,
@@ -854,7 +879,7 @@ abstract final class DeliveryFinder {
   }) {
     final records = [
       for (final e in emails)
-        if (!SubscriptionFinder.isReplyOrForward(e.subject)) read(e),
+        if (e.original case final o?) read(o),
     ]..sort((a, b) => a.email.at.compareTo(b.email.at));
 
     String orderKey(DeliveryRecord r) =>

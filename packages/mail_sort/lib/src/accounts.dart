@@ -4,6 +4,7 @@
 
 import 'package:mail_store/mail_store.dart';
 
+import 'forwards.dart';
 import 'subscriptions.dart';
 import 'verification_codes.dart';
 
@@ -593,7 +594,9 @@ abstract final class AccountFinder {
         ownDomains.any((d) => d == company || d.endsWith('.$company'));
 
     final byCompany = <String, List<AccountEmail>>{};
-    for (final e in emails) {
+    for (final raw in emails) {
+      final e = _original(raw, own, freeMailDomains);
+      if (e == null) continue;
       final domain = companyOf(e.company);
       if (domain.isEmpty || ownDomain(domain)) continue;
       // A payment service's receipt for another company is that
@@ -648,6 +651,37 @@ abstract final class AccountFinder {
     }
     found.sort((a, b) => b.lastActivity.compareTo(a.lastActivity));
     return found;
+  }
+
+  /// [email] as its first sender wrote it: itself, or for a forward the
+  /// email it forwards, from its first sender, when that was sent to one
+  /// of the user's [own] addresses (a rule forwarding their other
+  /// mailbox). A forward of someone else's mail shows their account,
+  /// not the user's: null, as for one that cannot be read.
+  static AccountEmail? _original(
+    AccountEmail email,
+    Set<String> own,
+    Set<String> freeMailDomains,
+  ) {
+    if (!Forwards.isForward(email.subject)) return email;
+    final f = Forwards.unwrap(email.subject, email.text);
+    final to = f?.to;
+    if (f == null || to == null || Forwards.isReply(f.subject)) return null;
+    if (!own.contains(withoutTag(to))) return null;
+    final domain = f.domain ?? email.company;
+    return AccountEmail(
+      messageId: email.messageId,
+      company: domain,
+      senderName: f.address == null
+          ? f.senderName ?? email.senderName
+          : f.senderName,
+      subject: f.subject,
+      text: f.text,
+      at: f.sent ?? email.at,
+      recipients: [to],
+      accountAddress: email.accountAddress,
+      fromPerson: freeMailDomains.contains(domain),
+    );
   }
 
   /// The user's addresses [records] were sent to, most used first.
