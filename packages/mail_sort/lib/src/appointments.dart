@@ -372,7 +372,30 @@ abstract final class AppointmentText {
   /// The words of a table, a ticket or a trip.
   static final _tripText = _re(
     r'\b(?:table for \d+|party of \d+|e-?tickets?|your tickets?|'
-    r'seat (?:number|no)|seats? \d+[A-Z]?|flight (?:number|no)|check-?out)\b',
+    r'seat (?:number|no)|seats? \d+[A-Z]?|flight (?:number|no)|check-?out|'
+    r'pick[- ]?up location|drop[- ]?off location|rental agreement|'
+    r'car (?:rental|hire)|rental car|rent a car)\b',
+  );
+
+  /// Not a service booked: a tour, an experience, a show, a film, an
+  /// exhibition (the Events page's), or a job interview.
+  static final _notAServiceSubject = _re(
+    r'\b(?:tours?|excursions?|experiences?|escape rooms?|museums?|'
+    r'exhibitions?|galler(?:y|ies)|concerts?|gigs?|shows?|cinemas?|movies?|'
+    r'films?|screenings?|theat(?:re|er)s?|musicals?|festivals?|'
+    r'attractions?|sightseeing|cruises?|safaris?|'
+    r'interviews?)\b',
+  );
+
+  /// The same in an email's words: only plain ones ("experience" and
+  /// "show" are said in every booking).
+  static final _notAServiceText = _re(
+    r'\b(?:escape rooms?|guided tours?|(?:walking|city|food|boat|bus|wine|'
+    r'brewery|distillery|factory|museum|private|day) tours?|your (?:tour|'
+    r'excursion|experience|activity)|tour (?:date|guide|starts?|meeting '
+    r'point)|museum|exhibition|concert|cinema|movie|theat(?:re|er)|'
+    r'sightseeing|admission tickets?|'
+    r'(?:job |video |phone |final |first |second )?interviews?)\b',
   );
 
   /// Shipping mail with no booked slot.
@@ -619,7 +642,7 @@ abstract final class AppointmentText {
 
   static final _referenceLabel = _re(
     r'\b(?:appointment|booking|reservation|confirmation|reference|ref|order)\.?'
-    r'(?:\s+(?:id|no\.?|number|code|ref(?:erence)?\.?|#))?\s*[:#]\s*#?\s*'
+    r'(?:\s+(?:id|no\.?|number|code|ref(?:erence)?\.?|#))?\s*[:#：]\s*#?\s*'
     r'([A-Z0-9][A-Z0-9-]{3,19})\b',
   );
 
@@ -743,7 +766,8 @@ abstract final class AppointmentText {
     (
       AppointmentKind.school,
       _re(
-        r"\bparent[- ]teacher\b|\bparents'? evening\b|\bschool\b|\bteacher\b",
+        r"\bparent[- ]teacher\b|\bparents'? evening\b|"
+        r'(?<!driving )\bschool\b|\bteacher\b',
       ),
     ),
     (AppointmentKind.delivery, _slot),
@@ -795,6 +819,7 @@ abstract final class AppointmentText {
       AppointmentKind.lesson,
       _re(
         r'\bclass(?:es)?\b|\blessons?\b|\bcourse\b|\btutor\w*|\byoga\b|'
+        r'\bdriving (?:school|test)\b|\bdrive test\b|'
         r'\bpilates\b|\bfitness\b|\bgym\b|\bswim\w*|\bpersonal training\b',
       ),
     ),
@@ -828,6 +853,10 @@ abstract final class AppointmentText {
     if (SubscriptionFinder.isReplyOrForward(email.subject)) return false;
     final head = _cap('${email.subject}\n${email.text}', 6000);
     if (!_confirms.hasMatch(head) && !_cancelled.hasMatch(head)) return false;
+    if (_notAServiceSubject.hasMatch(email.subject) ||
+        _notAServiceText.hasMatch(_cap(email.text, 3000))) {
+      return false;
+    }
     if (_tripWords.hasMatch(email.subject) &&
         !_appointmentWords.hasMatch(email.subject)) {
       return false;
@@ -885,6 +914,7 @@ abstract final class AppointmentFinder {
   static bool looksLikeAppointment(String subject) =>
       !SubscriptionFinder.isReplyOrForward(subject) &&
       !AppointmentText.notAnAppointment.hasMatch(subject) &&
+      !AppointmentText._notAServiceSubject.hasMatch(subject) &&
       // Flights, stays, tables: the Trips page's (a "reservation" is
       // most often a table).
       (AppointmentText._appointmentWords.hasMatch(subject) ||
@@ -1076,6 +1106,12 @@ abstract final class AppointmentFinder {
             ) &&
             !AppointmentText._meeting.hasMatch(title));
     if (!booked) return null;
+    if (AppointmentText._notAServiceSubject.hasMatch(head) ||
+        AppointmentText._notAServiceText.hasMatch(
+          AppointmentText._cap('${i.description ?? ''}\n${email.text}', 3000),
+        )) {
+      return null;
+    }
     if (AppointmentText._meeting.hasMatch(title) &&
         !AppointmentText._appointmentWords.hasMatch(head)) {
       return null;
