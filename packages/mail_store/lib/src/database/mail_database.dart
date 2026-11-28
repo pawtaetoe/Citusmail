@@ -92,7 +92,7 @@ final class MailDatabase {
   /// The UI and the sync worker each have a connection; a transaction that
   /// read first and wrote later could otherwise fail if the other
   /// connection wrote in between. Waiting for the lock is bounded by
-  /// `busy_timeout`.
+  /// [busyTimeout].
   T transaction<T>(T Function() action) {
     _checkOpen();
     final outermost = _savepointDepth == 0;
@@ -203,9 +203,31 @@ final class MailDatabase {
       ..execute('PRAGMA secure_delete = ON')
       ..execute('PRAGMA foreign_keys = ON')
       ..execute('PRAGMA journal_mode = WAL') // the WAL file is encrypted too
-      ..execute('PRAGMA synchronous = NORMAL')
-      ..execute('PRAGMA busy_timeout = 5000');
+      ..execute('PRAGMA synchronous = NORMAL');
+    _waitWhenBusy(db);
     _addFunctions(db);
+  }
+
+  /// How long a statement waits for another connection's write to finish
+  /// before it fails with SQLITE_BUSY.
+  static const busyTimeout = Duration(seconds: 5);
+
+  /// While another connection writes (the UI, the sync worker and the
+  /// reading helper each have one), a write waits for it, looking again
+  /// every millisecond. SQLite's own wait (`busy_timeout`) sleeps longer
+  /// and longer, up to 100 ms at a time, so a write from the screen missed
+  /// the short gaps between the sync's transactions and waited for
+  /// hundreds of milliseconds; now it waits for the transaction under way
+  /// at most. Reads never wait: the database is in WAL mode.
+  static void _waitWhenBusy(Database db) {
+    final waited = Stopwatch();
+    db.busyHandler = (count) {
+      if (count == 0) waited.reset();
+      waited.start();
+      if (waited.elapsed >= busyTimeout) return false;
+      sleep(const Duration(milliseconds: 1));
+      return true;
+    };
   }
 
   /// SQL functions the schema's triggers use to keep the search words
