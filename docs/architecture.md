@@ -249,7 +249,7 @@ a `SyncEngine` opens counts in one `ConnectionBudget` per account
   folders instead; IDLE gives its connection up whenever anything waits,
   and asks again 10 seconds later. At a budget of 1, with 10 ms a reply,
   a message opened during a first sync of 3,000 messages waits about
-  0.15 s (one batch); before, it waited for the whole folder.
+  0.15 s (one batch); before, it waited for the whole folder, 3.3 s.
 - **Sending** does not wait for a sync. Once the undo delay is over
   (`SyncEngine.syncAt`, also for "Send now" and "Send later" when due),
   `SyncEngine.replayNow` replays the outbox as the user's work, outside
@@ -269,7 +269,7 @@ a `SyncEngine` opens counts in one `ConnectionBudget` per account
   `requestSync` from the screen), the user never waiting for it. At a
   budget of 1, with 10 ms a reply, a message sent during that long sync
   reaches the SMTP server in about 0.15 s and Sent in about 0.25 s;
-  before, both waited for the end of the sync.
+  before, both waited for the end of the sync, 2.8 s.
 - **When the server refuses anyway** (`ImapAuthenticationException.
   temporary`: other devices hold the rest), the account's budget drops
   to 2, coming back one connection at a time over 30 minutes; its kept
@@ -348,8 +348,8 @@ and 0.25 s with LIST-STATUS at either budget.
   older mail is filled in while the inbox is checked every 50 ms; and at
   budgets of 1, 2 and 4, with opened messages, sends and a big sync
   together, no stall reaches 2 s and the server never sees more than the
-  budget. Before, the sync kept its connection for a whole folder, and
-  once it handed it over, a stream of the user's work kept it for 30 s.
+  budget. Before, the sync kept its connection for a whole folder: in
+  the same stream, an opened message waited up to 3.4 s.
 - **Syncs of one account never overlap; accounts sync side by side.**
   `SyncEngine` keeps per account one sync running and at most one
   waiting: whatever is asked for meanwhile (the inbox check, IDLE, the
