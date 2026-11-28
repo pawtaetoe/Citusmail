@@ -67,9 +67,15 @@ Content-Type: text/html; charset=utf-8
 /// The app's services over a temporary encrypted store with sample mail
 /// and a sync worker that can't reach any server.
 final class TestApp {
-  TestApp._(this.directory, this.store, this.services);
+  TestApp._(this.directory, this.store, this.services, this.key);
 
   final Directory directory;
+
+  /// The store's key, for another connection to it (as the sync worker's).
+  final DatabaseKey key;
+
+  /// The store's file.
+  String get path => '${directory.path}/mail.db';
   final MailStore store;
   final AppServices services;
 
@@ -222,6 +228,7 @@ final class TestApp {
         pinRounds: 1000,
         aiProviders: aiProviders ?? _noAi,
       ),
+      key,
     );
   }
 
