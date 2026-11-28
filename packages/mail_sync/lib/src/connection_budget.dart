@@ -9,14 +9,28 @@ import 'package:mail_store/mail_store.dart';
 
 import 'connector.dart';
 
-/// Who waits for a connection, which decides who gets the next free one.
+/// Who waits for a connection, which decides who gets the next free one:
+/// the first tier first, and within a tier first come, first served. See
+/// [ConnectionBudget] for how waiting moves work up, so that nothing
+/// waits for ever.
 enum ConnectionPriority {
-  /// The user is waiting: opening a message, a server search, loading
-  /// older mail. Goes ahead of everything else.
+  /// The user sent a message: its copy in Sent and the flags and draft
+  /// clean-up that go with it, once the undo delay is over.
+  send,
+
+  /// The user opens a message: its body, or the files it has.
+  open,
+
+  /// Other work of the user's: a server search, older mail, a new
+  /// folder, and the moves, deletions and flags they just made.
   user,
 
   /// Nobody is waiting: syncs, reading ahead, IDLE.
-  background,
+  background;
+
+  /// Whether this is the user's work, which a sync hands its connection
+  /// to.
+  bool get isUser => this != background;
 }
 
 /// No connection to the account's server came free in time, or the
@@ -37,11 +51,21 @@ final class ConnectionBusyException extends MailException {
 ///
 /// 1. reuses one of the owner's own kept connections;
 /// 2. else, for [take], reuses another owner's kept one;
-/// 3. else waits in a queue, the user's work first, then in order of
-///    arrival, until a connection is given back (handed over directly,
-///    still logged in) or closed, or [waitTimeout] passes. Background
-///    work that has waited [ageAfter] is not overtaken any more, so the
-///    user's work can never starve it.
+/// 3. else waits in a queue until a connection is given back (handed
+///    over directly, still logged in) or closed, or [waitTimeout] passes.
+///
+/// The next free connection goes to the first tier of
+/// [ConnectionPriority] that waits, and within a tier to the one that
+/// came first. Nothing waits for ever:
+///
+/// - the user's work moves up a tier for each [promoteAfter] it waited,
+///   so a search waits for at most a couple of seconds of opened
+///   messages and sends;
+/// - a sync that handed its connection to the user's work
+///   ([take] with `afterHandOver`) gets one back after at most
+///   [handBackAfter] pieces of other work, or [handBackWithin], whichever
+///   comes first;
+/// - any work that has waited [ageAfter] is not overtaken any more.
 ///
 /// No one holds a connection while waiting for another (a sync hands its
 /// connection over before it queues for one again), so the queue always
@@ -60,8 +84,12 @@ final class ConnectionBudget {
     this.waitTimeout = const Duration(minutes: 2),
     this.checkAfter = const Duration(seconds: 20),
     this.ageAfter = const Duration(seconds: 30),
+    this.promoteAfter = const Duration(milliseconds: 500),
+    this.handBackAfter = 3,
+    this.handBackWithin = const Duration(seconds: 2),
+    this.onTaken,
     DateTime Function()? now,
-  }) : assert(perAccount >= 1 && whenRefused >= 1),
+  }) : assert(perAccount >= 1 && whenRefused >= 1 && handBackAfter >= 1),
        _now = now ?? DateTime.now;
 
   final MailConnector _connector;
@@ -84,9 +112,29 @@ final class ConnectionBudget {
   /// asked a NOOP before it is reused.
   final Duration checkAfter;
 
-  /// Background work that has waited this long goes ahead of the user's
-  /// work that comes after it.
+  /// Work that has waited this long is not overtaken any more, whoever
+  /// comes after it.
   final Duration ageAfter;
+
+  /// The user's work moves up one tier of [ConnectionPriority] for each
+  /// time it waited this long.
+  final Duration promoteAfter;
+
+  /// A sync that handed its connection over gets one back after at most
+  /// this many pieces of other work (the one it handed to included)...
+  final int handBackAfter;
+
+  /// ... or once it waited this long, whichever comes first.
+  final Duration handBackWithin;
+
+  /// Told of each connection [take] hands out, in order, with what it
+  /// was taken for: to see who went first (diagnostics and tests).
+  final void Function(
+    AccountId accountId,
+    ConnectionPriority priority, {
+    required bool afterHandOver,
+  })?
+  onTaken;
 
   final DateTime Function() _now;
   final _accounts = <AccountId, _Slots>{};
@@ -109,12 +157,16 @@ final class ConnectionBudget {
         (slots.waiters.isNotEmpty || slots.open > slots.limit(this));
   }
 
-  /// Whether the user waits for a connection of [accountId].
+  /// Whether the user's work waits for a connection of [accountId].
   bool userWaiting(AccountId accountId) =>
-      _accounts[accountId]?.waiters.any(
-        (w) => w.priority == ConnectionPriority.user,
-      ) ??
-      false;
+      _accounts[accountId]?.waiters.any((w) => w.priority.isUser) ?? false;
+
+  /// The priorities of what waits for a connection of [accountId], in the
+  /// order they arrived.
+  List<ConnectionPriority> waitingFor(AccountId accountId) => [
+    for (final w in _accounts[accountId]?.waiters ?? const <_Waiter>[])
+      w.priority,
+  ];
 
   /// Completes once [accountId] is [contended]: at once if it is now. A
   /// long-held connection (IDLE) gives itself back then.
@@ -127,13 +179,26 @@ final class ConnectionBudget {
   /// account's budget is full (see the class comment); [until] completing
   /// ends the wait with a [ConnectionBusyException]. Give it back with
   /// [give] or [discard].
+  ///
+  /// [afterHandOver]: a sync takes a connection again after handing its
+  /// own to the user's work. It waits for at most [handBackAfter] pieces
+  /// of other work, the one it handed to included, or [handBackWithin].
   Future<ImapClient> take(
     Account account, {
     required Object owner,
     ConnectionPriority priority = ConnectionPriority.background,
     Future<void>? until,
+    bool afterHandOver = false,
   }) async {
-    final client = await _take(account, owner, priority, until, wait: true);
+    final client = await _take(
+      account,
+      owner,
+      priority,
+      until,
+      wait: true,
+      afterHandOver: afterHandOver,
+    );
+    onTaken?.call(account.id, priority, afterHandOver: afterHandOver);
     return client!;
   }
 
@@ -149,6 +214,7 @@ final class ConnectionBudget {
     ConnectionPriority priority,
     Future<void>? until, {
     required bool wait,
+    bool afterHandOver = false,
   }) async {
     final slots = _slots(account.id);
     while (true) {
@@ -167,7 +233,7 @@ final class ConnectionBudget {
         }
         continue;
       }
-      switch (await _wait(slots, priority, until)) {
+      switch (await _wait(slots, priority, until, afterHandOver)) {
         case _Handed(:final client):
           return client;
         case _Slot():
@@ -228,22 +294,11 @@ final class ConnectionBudget {
     _Slots slots,
     ConnectionPriority priority,
     Future<void>? until,
+    bool afterHandOver,
   ) {
-    final now = _now();
-    final waiter = _Waiter(priority, now);
-    // The user's work goes after the user's work already waiting, and
-    // after background work that has waited [ageAfter], ahead of the rest;
-    // the rest in order of arrival.
-    final at = priority == ConnectionPriority.user
-        ? slots.waiters.indexWhere(
-            (w) => w.priority != priority && now.difference(w.since) < ageAfter,
-          )
-        : -1;
-    if (at < 0) {
-      slots.waiters.add(waiter);
-    } else {
-      slots.waiters.insert(at, waiter);
-    }
+    // In order of arrival; [_next] picks who goes first.
+    final waiter = _Waiter(priority, _now(), afterHandOver: afterHandOver);
+    slots.waiters.add(waiter);
     void giveUp(String why) {
       if (waiter.done.isCompleted) return;
       slots.waiters.remove(waiter);
@@ -288,7 +343,7 @@ final class ConnectionBudget {
     final retired = slots.retired.remove(client);
     if (client.isUsable && !retired && !_closed) {
       if (slots.waiters.isNotEmpty && slots.open <= slots.limit(this)) {
-        final waiter = slots.waiters.removeAt(0);
+        final waiter = _next(slots);
         waiter.timer?.cancel();
         waiter.done.complete(_Handed(client));
         return;
@@ -427,15 +482,51 @@ final class ConnectionBudget {
     }
   }
 
-  /// Free slots go to those waiting, first come first: each is reserved
+  /// Free slots go to those waiting, in turn ([_next]): each is reserved
   /// for the waiter it was given to.
   void _grant(_Slots slots) {
     while (slots.waiters.isNotEmpty && slots.open < slots.limit(this)) {
-      final waiter = slots.waiters.removeAt(0);
+      final waiter = _next(slots);
       waiter.timer?.cancel();
       slots.opening++;
       waiter.done.complete(const _Slot());
     }
+  }
+
+  /// Takes the one whose turn it is out of the queue: the lowest [_rank],
+  /// and of those the one that came first. Every sync still waiting after
+  /// a hand-over counts one more piece of work done before it.
+  _Waiter _next(_Slots slots) {
+    final now = _now();
+    final waiters = slots.waiters;
+    var best = 0;
+    var bestRank = _rank(waiters[0], now);
+    for (var i = 1; i < waiters.length; i++) {
+      final rank = _rank(waiters[i], now);
+      if (rank < bestRank) {
+        best = i;
+        bestRank = rank;
+      }
+    }
+    final waiter = waiters.removeAt(best);
+    for (final w in waiters) {
+      if (w.afterHandOver) w.served++;
+    }
+    return waiter;
+  }
+
+  /// Lower goes first; ties in order of arrival (the queue's order).
+  int _rank(_Waiter w, DateTime now) {
+    final waited = now.difference(w.since);
+    if (waited >= ageAfter) return -1;
+    if (w.afterHandOver &&
+        (w.served >= handBackAfter || waited >= handBackWithin)) {
+      return -1;
+    }
+    final tier = w.priority.index;
+    if (!w.priority.isUser || promoteAfter <= Duration.zero) return tier;
+    final up = waited.inMicroseconds ~/ promoteAfter.inMicroseconds;
+    return up >= tier ? 0 : tier - up;
   }
 
   static Future<void> _logout(ImapClient client) async {
@@ -509,10 +600,18 @@ final class _Kept {
 }
 
 final class _Waiter {
-  _Waiter(this.priority, this.since);
+  _Waiter(this.priority, this.since, {this.afterHandOver = false})
+    : served = afterHandOver ? 1 : 0; // the work it handed its own to
 
   final ConnectionPriority priority;
   final DateTime since;
+
+  /// A sync taking a connection back after handing its own over.
+  final bool afterHandOver;
+
+  /// Pieces of other work given a connection before it (with
+  /// [afterHandOver]).
+  int served;
   final done = Completer<_Grant>();
   Timer? timer;
 }

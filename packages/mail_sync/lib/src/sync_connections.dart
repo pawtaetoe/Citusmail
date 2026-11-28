@@ -49,13 +49,19 @@ final class SyncConnections {
   /// back with [give] when done.
   Future<ImapClient> take(Account account) => budget.take(account, owner: this);
 
+  /// A connection again after a sync handed its own to the user's work:
+  /// back after a bounded wait ([ConnectionBudget.handBackAfter],
+  /// [ConnectionBudget.handBackWithin]), however much the user does.
+  Future<ImapClient> takeBack(Account account) =>
+      budget.take(account, owner: this, afterHandOver: true);
+
   /// One more connection for a full sync, only if the budget has room
   /// now (null otherwise: the sync goes on with the ones it has).
   Future<ImapClient?> takeExtra(Account account) =>
       budget.takeIfFree(account, owner: this);
 
   /// Whether the user's work waits for a connection of [accountId]: a
-  /// sync then hands its connection over between folders.
+  /// sync then hands its connection over between two batches.
   bool userWaiting(AccountId accountId) => budget.userWaiting(accountId);
 
   /// Whether a connection of [accountId] is wanted elsewhere, or it has
