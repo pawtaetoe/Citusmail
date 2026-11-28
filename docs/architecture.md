@@ -217,15 +217,59 @@ a `SyncEngine` opens counts in one `ConnectionBudget` per account
 - **When it is full**, taking a connection reuses the owner's own kept
   one, else another owner's kept one, else waits in a queue (at most 2
   minutes) for one given back (handed over still logged in) or closed.
-- **Priorities.** The user's work (opening a message, searching the
-  server, loading older mail) goes ahead of everything else in the
-  queue, except background work that has waited 30 seconds
-  (`ConnectionBudget.ageAfter`), so neither can starve the other. While
-  the user's work waits, a full sync hands its connection over between
-  folders and between the steps after them (receipts, codes, archived
-  mail, app data), and its extra connections stop; IDLE gives its
-  connection up whenever anything waits, and asks again 10 seconds
-  later.
+- **Priorities** (`ConnectionPriority`), first to last:
+  1. `send`: the IMAP part of a message the user sent (its copy in
+     Sent, the \Answered flag, the old draft's removal);
+  2. `open`: opening a message (its body, or the files it has);
+  3. `user`: the user's other work: a server search, older mail, a new
+     folder, and the moves, deletions and flags they just made;
+  4. `background`: syncs, reading ahead, IDLE.
+
+  The next free connection goes to the first tier that waits, and
+  within a tier to the one that came first. Each piece of on-demand
+  work takes its own connection with its own priority
+  (`OnDemandConnections.run`), so an opened message never waits behind
+  a search in a line of its own. Nothing waits for ever: see
+  "Concurrency" below for the bounds.
+- **Preemption points.** While the user's work waits, a sync hands its
+  main connection over and takes one back (`SyncLease`), at every point
+  between two batches: between folders and between the steps after them
+  (receipts, codes, archived mail, app data), and inside each long step:
+  between two FETCHes of summaries (`SyncSettings.fetchBatch`, 100: a
+  first sync, new mail, older mail filled in), two chunks of flags
+  compared without CONDSTORE and two chunks of the removals check
+  (`SyncSettings.checkBatch`, 1,000 UIDs), two FETCHes of receipts (5)
+  and of verification mail (3), two Message-ID searches of archived mail,
+  two steps of Gmail's archived back-fill, and two entries of the
+  outbox replay. The sync then goes on where it stopped, nothing fetched
+  again: on the connection it gets back, the folder is selected again
+  (EXAMINE), and if its UIDVALIDITY changed meanwhile, what was stored
+  of it is dropped and the folder synced afresh
+  (`FolderResetException`). A full sync's extra connections stop between
+  folders instead; IDLE gives its connection up whenever anything waits,
+  and asks again 10 seconds later. At a budget of 1, with 10 ms a reply,
+  a message opened during a first sync of 3,000 messages waits about
+  0.15 s (one batch); before, it waited for the whole folder.
+- **Sending** does not wait for a sync. Once the undo delay is over
+  (`SyncEngine.syncAt`, also for "Send now" and "Send later" when due),
+  `SyncEngine.replayNow` replays the outbox as the user's work, outside
+  the account's syncs (not behind the one running nor the one waiting):
+  the message goes to the SMTP server at once, on its own connection
+  (not in the budget), then its IMAP follow-ups take a connection at
+  `send` priority, and the sync after it brings Sent up to date. One
+  replay of an account runs at a time (`OutboxReplayer`): a sync's
+  replay does nothing while the user's runs, and stops before its next
+  entry when the user's waits, which goes on where it stopped; SMTP's
+  acceptance is recorded before anything else, so nothing is sent twice
+  and every entry is replayed once, in order. The user's replay gives
+  its IMAP connection back before a message not sent yet (it goes to
+  SMTP first, without holding one) and after 0.3 s when others wait.
+  The user's moves, deletions and flags are done on the device at once;
+  their replay follows the same way (after their undo delay, or
+  `requestSync` from the screen), the user never waiting for it. At a
+  budget of 1, with 10 ms a reply, a message sent during that long sync
+  reaches the SMTP server in about 0.15 s and Sent in about 0.25 s;
+  before, both waited for the end of the sync.
 - **When the server refuses anyway** (`ImapAuthenticationException.
   temporary`: other devices hold the rest), the account's budget drops
   to 2, coming back one connection at a time over 30 minutes; its kept
@@ -269,15 +313,43 @@ and 0.25 s with LIST-STATUS at either budget.
 
 - **No deadlock.** Nothing holds a connection while it waits for another:
   a sync's extra connections never wait (`takeIfFree`), its main one is
-  given back before it queues again (`_handOver`), IDLE gives its own up
-  before it asks again, and the on-demand work (opening, searching,
-  older mail, new folders, reading ahead) takes one connection per piece
-  of work and runs one piece at a time per account. So the queue always
-  moves, at any budget. `connections_test.dart` ("no deadlock") runs a
-  full sync with a change to replay, opening a message, a server search,
-  older mail, a new folder, reading ahead and IDLE together at budgets
-  of 1 and 2: all finish, and the server never sees more than the
-  budget.
+  given back before it queues again (`SyncLease.handOverIfWanted`), IDLE
+  gives its own up before it asks again, and the on-demand work
+  (opening, searching, older mail, new folders, reading ahead, the
+  user's replay) takes one connection per piece of work. The outbox
+  lock never waits while holding a connection: a sync's replay skips
+  when the user's runs, and the user's waits for it holding nothing.
+  So the queue always moves, at any budget. `connections_test.dart`
+  ("no deadlock") runs a full sync with a change to replay, opening a
+  message, a server search, older mail, a new folder, reading ahead, a
+  send and IDLE together at budgets of 1 and 2: all finish, the message
+  goes out once, and the server never sees more than the budget.
+- **No starvation, with bounds** (`ConnectionBudget`):
+  - a sync that handed its connection over gets one back after at most
+    3 pieces of other work (`handBackAfter`, the one it handed to
+    included) or 2 seconds (`handBackWithin`), whichever comes first,
+    plus the piece under way; and it hands over again only after at
+    least one batch of its own. Under a constant stream of the user's
+    work it still moves on a batch every few pieces;
+  - the user's work moves up a tier for each 0.5 s it waited
+    (`promoteAfter`), so a search waits behind a stream of opened
+    messages or sends for about a second at most;
+  - anything that waited 30 s (`ageAfter`) is not overtaken any more;
+  - background work among itself is first come, first served (a sync,
+    reading ahead), and requests for syncs join the one waiting, so the
+    full sync with its back-filling of older mail always runs, however
+    often the inbox is checked.
+
+  `user_first_test.dart` measures it at 20 ms a reply: under a body load
+  every 50 ms for 10 s at a budget of 1, a first sync of 3,000 messages
+  completes, at most 3 of the user's pieces in a row, the longest stall
+  between two of its batches about 0.35 s; the same under a send every
+  100 ms (about 0.5 s); a search behind two readers waits about 0.5 s;
+  older mail is filled in while the inbox is checked every 50 ms; and at
+  budgets of 1, 2 and 4, with opened messages, sends and a big sync
+  together, no stall reaches 2 s and the server never sees more than the
+  budget. Before, the sync kept its connection for a whole folder, and
+  once it handed it over, a stream of the user's work kept it for 30 s.
 - **Syncs of one account never overlap; accounts sync side by side.**
   `SyncEngine` keeps per account one sync running and at most one
   waiting: whatever is asked for meanwhile (the inbox check, IDLE, the
