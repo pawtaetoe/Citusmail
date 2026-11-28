@@ -76,7 +76,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
     return DetailScaffold(
       title: s.name,
       header: DetailHeader(
-        leading: Avatar(name: s.name, address: s.company, size: 44),
+        leading: Avatar(name: s.name, address: s.biller, size: 44),
         title: s.amount == null
             ? 'Price unknown'
             : '${s.variable ? 'About ' : ''}'
@@ -110,7 +110,9 @@ final class SubscriptionDetailPage extends StatelessWidget {
                   'Varies from charge to charge: the average of the last '
                   'ones.',
             ),
-          DetailFact(label: 'From', value: s.company),
+          DetailFact(label: 'From', value: s.biller),
+          if (s.line case final line?)
+            DetailFact(label: 'Line', value: 'Number ending $line'),
         ],
       ),
       actions: [
@@ -121,6 +123,19 @@ final class SubscriptionDetailPage extends StatelessWidget {
         ),
       ],
       children: [
+        if (s.priceChange case final p?)
+          Card(
+            key: const ValueKey('price-change'),
+            color: colors.surfaceContainerHigh,
+            child: ListTile(
+              leading: Icon(
+                p.from != null && p.to.minor < p.from!.minor
+                    ? AppIcons.priceDown
+                    : AppIcons.priceUp,
+              ),
+              title: Text(_priceChangeText(p, date, DateTime.now())),
+            ),
+          ),
         for (final change in changes.take(3))
           Card(
             color: colors.surfaceContainerHigh,
@@ -162,6 +177,20 @@ final class SubscriptionDetailPage extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// "Price changes to $12.99 on 1 Jan 2027", or "changed" once [now] is
+  /// past that day; [date] formats a day.
+  static String _priceChangeText(
+    PriceChange p,
+    String Function(DateTime) date,
+    DateTime now,
+  ) {
+    final on = p.on;
+    final today = DateTime.utc(now.year, now.month, now.day);
+    final past = on != null && on.isBefore(today);
+    return 'Price ${past ? 'changed' : 'changes'} to ${Prices.format(p.to)}'
+        '${on == null ? '' : ' on ${date(on)}'}';
   }
 
   /// Price changes between charges in the same currency, newest first.
