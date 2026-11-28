@@ -236,6 +236,44 @@ void main() {
       );
     });
 
+    test(
+      'two actions in steps at once: the progress ends with the last',
+      () async {
+        final deals = seedMany();
+        final inbox = c.box('INBOX');
+        final now = DateTime.now().toUtc();
+        c.store.messages.upsertSummaries(inbox.id, [
+          for (var i = 0; i < 400; i++)
+            MessageSummary(
+              uid: 9000 + i,
+              receivedAt: now.subtract(Duration(minutes: 10 + i)),
+              subject: 'News $i',
+              from: const MailAddress(localPart: 'news', domain: 'paper.test'),
+            ),
+        ]);
+        List<StoredMessage> news() => c.store.messages.inboxFromList(
+          c.accountId,
+          fromAddress: 'news@paper.test',
+          limit: 5000,
+        );
+        final said = watchWorking();
+        c.actions.archive(deals);
+        c.actions.toggleRead(news());
+        await until(
+          () =>
+              offers() == 0 &&
+              news().every((m) => m.flags.seen) &&
+              c.actions.working.value == null,
+        );
+        expect(
+          said.where((s) => s == null),
+          hasLength(1),
+          reason: 'shown until both were done',
+        );
+        expect(said.last, isNull);
+      },
+    );
+
     test('up to the step size, an action is still done at once', () {
       final mail = seedMany().take(MailActions.stepsAbove).toList();
       c.actions.archive(mail);
