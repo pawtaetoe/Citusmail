@@ -586,7 +586,7 @@ final class _SubscriptionTile extends StatelessWidget {
     String date(DateTime d) => material.formatMediumDate(d.toLocal());
 
     final details = <String>[
-      Prices.cadence(s.cadence),
+      s.period?.label ?? Prices.cadence(s.cadence),
       switch (s.status) {
         SubscriptionStatus.cancelled => 'Cancelled',
         SubscriptionStatus.lapsed when s.lastCharge != null =>

@@ -436,4 +436,161 @@ void main() {
       );
     });
   });
+
+  group('carriers and shops', () {
+    test('a courier that picked up the parcel, then delivers it today', () {
+      expect(
+        DeliveryFinder.statusOf(
+          'Swift Van has picked up your parcel SWX123456789',
+          '',
+        ),
+        DeliveryStatus.shipped,
+      );
+      expect(
+        DeliveryFinder.statusOf(
+          'Your parcel from Acme Sports is being delivered to you today!',
+          '',
+        ),
+        DeliveryStatus.outForDelivery,
+      );
+      expect(
+        DeliveryFinder.statusOf(
+          'Parcel update',
+          'Your parcel from Acme Sports has been picked up by Swift Van!',
+        ),
+        DeliveryStatus.shipped,
+      );
+    });
+
+    test('the courier\'s updates join the shop\'s order', () {
+      final d = find([
+        mail(
+          'Your order AB12CD34EF is shipped!',
+          shop: 'acmesports.example',
+          name: 'Acme Sports',
+          text: 'Order no. AB12CD34EF. Our carrier has taken over.',
+          daysAgo: 3,
+        ),
+        mail(
+          'Ninja Van has picked up your parcel NVSGACM00000123456',
+          shop: 'ninjavan.co',
+          name: 'Ninja Van',
+          text:
+              'Your parcel from Acme Sports Sg has been picked up by Ninja '
+              'Van! Order tracking ID NVSGACM00000123456',
+          daysAgo: 2,
+        ),
+        mail(
+          'Your parcel from Acme Sports Sg is being delivered to you today!',
+          shop: 'ninjavan.co',
+          name: 'Ninja Van',
+          text: 'Order tracking ID NVSGACM00000123456',
+        ),
+      ]).single;
+      expect(d.status, DeliveryStatus.outForDelivery);
+      expect(d.shop, 'acmesports.example');
+      expect(d.shopName, 'Acme Sports');
+      expect(d.orderNumber, 'AB12CD34EF');
+      expect(d.trackingNumber, 'NVSGACM00000123456');
+      expect(d.carrier, Carrier.ninjaVan);
+      expect(d.records, hasLength(3));
+    });
+
+    test('a carrier email names the shop by its sender name', () {
+      final d = find([
+        mail(
+          'Your order 0a1b2c3d4e5f is ready to be shipped',
+          shop: 'shipmentsplatform.example',
+          name: 'Example Toys B.V.',
+          text: 'Track your shipment',
+          daysAgo: 4,
+        ),
+        mail(
+          'DHL On Demand Delivery',
+          shop: 'dhl.com',
+          name: 'DHL Express',
+          text:
+              'Your DHL Express shipment with waybill number 1234567890 from '
+              'EXAMPLE TOYS BV has been delivered on Fri 28 Nov at 12:07.',
+        ),
+      ]).single;
+      expect(d.status, DeliveryStatus.delivered);
+      expect(d.shopName, 'Example Toys B.V.');
+      expect(d.trackingNumber, '1234567890');
+    });
+
+    test('two orders from the shop: the courier is not guessed', () {
+      final found = find([
+        mail(
+          'Your order AA11BB22CC is shipped!',
+          shop: 'acmesports.example',
+          name: 'Acme Sports',
+          daysAgo: 3,
+        ),
+        mail(
+          'Your order DD33EE44FF is shipped!',
+          shop: 'acmesports.example',
+          name: 'Acme Sports',
+          daysAgo: 3,
+        ),
+        mail(
+          'Your parcel from Acme Sports is on its way',
+          shop: 'ninjavan.co',
+          name: 'Ninja Van',
+          text: 'Tracking ID NVSGACM00000999999',
+        ),
+      ]);
+      expect(found, hasLength(3));
+    });
+
+    test('a courier alone: the shop it names', () {
+      final d = find([
+        mail(
+          'Swift has delivered your parcel',
+          shop: 'ninjavan.co',
+          name: 'Ninja Van SG',
+          text:
+              'Your parcel from Example Mart has been delivered! '
+              'Tracking ID NVSGEXM00000111111',
+        ),
+      ]).single;
+      expect(d.shopName, 'Example Mart');
+    });
+
+    test('a shipment number is a tracking number', () {
+      final r = DeliveryFinder.read(
+        mail(
+          'Courier: Shipment is on its way',
+          shop: 'courier.example',
+          text:
+              'Dear Customer, Your shipment number: 200700000001 is on its '
+              'way to you.',
+        ),
+      );
+      expect(r.trackingNumbers, ['200700000001']);
+      expect(r.status, DeliveryStatus.shipped);
+    });
+  });
+
+  group('not parcels', () {
+    test('a refund on its way is money, not a delivery', () {
+      expect(
+        find([
+          mail(
+            'Your refund is on its way',
+            shop: 'food.example',
+            text:
+                'Sorry that your order ab12-3456-cdef from Example Burger '
+                "didn't turn out the way it should've.",
+          ),
+          mail(
+            'Your cashback has been sent',
+            shop: 'cashback.example',
+            text: 'Your order 99887766 earned cashback.',
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+  });
 }

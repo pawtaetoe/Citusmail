@@ -103,6 +103,7 @@ abstract final class ReminderWords {
         Cadence.weekly => ' a week',
         Cadence.monthly => ' a month',
         Cadence.quarterly => ' every 3 months',
+        Cadence.halfYearly => ' every 6 months',
         Cadence.yearly => ' a year',
         null => '',
       }}';

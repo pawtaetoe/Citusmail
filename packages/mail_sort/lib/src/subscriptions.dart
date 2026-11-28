@@ -4,6 +4,8 @@
 
 import 'package:mail_store/mail_store.dart';
 
+import 'due_dates.dart';
+
 /// One email that may be about a paid subscription: a receipt, a renewal
 /// notice, a cancellation.
 final class SubscriptionEmail {
@@ -32,11 +34,13 @@ final class SubscriptionEmail {
   final DateTime at;
 }
 
-/// How often a subscription charges.
+/// How often a subscription charges, roughly (see [BillingPeriod] for
+/// the exact period, such as every 30 days).
 enum Cadence {
   weekly(7),
   monthly(30),
   quarterly(91),
+  halfYearly(182),
   yearly(365);
 
   const Cadence(this.days);
@@ -49,6 +53,7 @@ enum Cadence {
     weekly => 52 / 12,
     monthly => 1,
     quarterly => 1 / 3,
+    halfYearly => 1 / 6,
     yearly => 1 / 12,
   };
 
@@ -56,22 +61,127 @@ enum Cadence {
 
   /// [n] periods after [from], on the calendar: a bill on the 29th comes
   /// again on the 29th (or the month's last day), not 30 days later.
-  DateTime after(DateTime from, [int n = 1]) {
-    if (this == weekly) return from.add(Duration(days: 7 * n));
-    final months = switch (this) {
-      quarterly => 3 * n,
-      yearly => 12 * n,
-      _ => n,
+  DateTime after(DateTime from, [int n = 1]) =>
+      BillingPeriod.of(this).after(from, n);
+}
+
+/// What a [BillingPeriod] counts in.
+enum PeriodUnit { day, week, month, year }
+
+/// The exact time between charges: a calendar period ("monthly", "every
+/// 6 months") or a fixed number of days ("every 30 days", which drifts
+/// against the calendar).
+final class BillingPeriod {
+  const BillingPeriod(this.count, this.unit);
+
+  const BillingPeriod.days(int n) : this(n, PeriodUnit.day);
+
+  const BillingPeriod.months(int n) : this(n, PeriodUnit.month);
+
+  final int count;
+  final PeriodUnit unit;
+
+  static const weekly = BillingPeriod(1, PeriodUnit.week);
+  static const monthly = BillingPeriod.months(1);
+  static const quarterly = BillingPeriod.months(3);
+  static const halfYearly = BillingPeriod.months(6);
+  static const yearly = BillingPeriod.months(12);
+
+  /// The calendar period of [cadence].
+  static BillingPeriod of(Cadence cadence) => switch (cadence) {
+    Cadence.weekly => weekly,
+    Cadence.monthly => monthly,
+    Cadence.quarterly => quarterly,
+    Cadence.halfYearly => halfYearly,
+    Cadence.yearly => yearly,
+  };
+
+  /// Calendar months in it, or null for a period of days or weeks.
+  int? get months => switch (unit) {
+    PeriodUnit.month => count,
+    PeriodUnit.year => 12 * count,
+    _ => null,
+  };
+
+  /// Its length in days (on average, for months).
+  int get days => switch (unit) {
+    PeriodUnit.day => count,
+    PeriodUnit.week => 7 * count,
+    PeriodUnit.month => (count * 30.44).round(),
+    PeriodUnit.year => 365 * count,
+  };
+
+  Duration get length => Duration(days: days);
+
+  /// The [Cadence] it is, or is close to (every 30 days is about
+  /// monthly); null for one in between (every 2 months).
+  Cadence? get cadence {
+    if (months case final m?) {
+      return switch (m) {
+        1 => Cadence.monthly,
+        3 => Cadence.quarterly,
+        6 => Cadence.halfYearly,
+        12 => Cadence.yearly,
+        _ => null,
+      };
+    }
+    return switch (days) {
+      >= 6 && <= 8 => Cadence.weekly,
+      >= 26 && <= 32 => Cadence.monthly,
+      >= 84 && <= 95 => Cadence.quarterly,
+      >= 175 && <= 190 => Cadence.halfYearly,
+      >= 355 && <= 370 => Cadence.yearly,
+      _ => null,
     };
+  }
+
+  /// Charges per month, for a monthly total.
+  double get perMonth {
+    if (months case final m?) return 1 / m;
+    if (unit == PeriodUnit.week && count == 1) return Cadence.weekly.perMonth;
+    return 365 / 12 / days;
+  }
+
+  /// [n] periods after [from]: on the calendar for months and years (a
+  /// bill on the 31st comes again on the month's last day), else a fixed
+  /// number of days later.
+  DateTime after(DateTime from, [int n = 1]) {
+    final m = months;
+    if (m == null) return from.add(Duration(days: days * n));
     final first = from.isUtc
-        ? DateTime.utc(from.year, from.month + months)
-        : DateTime(from.year, from.month + months);
+        ? DateTime.utc(from.year, from.month + m * n)
+        : DateTime(from.year, from.month + m * n);
     final last = DateTime.utc(first.year, first.month + 1, 0).day;
     final day = from.day > last ? last : from.day;
     return from.isUtc
         ? DateTime.utc(first.year, first.month, day, from.hour, from.minute)
         : DateTime(first.year, first.month, day, from.hour, from.minute);
   }
+
+  /// How it reads: "Monthly", "Every 30 days", "Every 6 months".
+  String get label {
+    if (months case final m?) {
+      return switch (m) {
+        1 => 'Monthly',
+        12 => 'Yearly',
+        _ when m % 12 == 0 => 'Every ${m ~/ 12} years',
+        _ => 'Every $m months',
+      };
+    }
+    if (days == 7) return 'Weekly';
+    if (unit == PeriodUnit.week) return 'Every $count weeks';
+    return 'Every $count days';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is BillingPeriod && other.count == count && other.unit == unit;
+
+  @override
+  int get hashCode => Object.hash(count, unit);
+
+  @override
+  String toString() => label;
 }
 
 /// A price: [minor] units (cents) of [currency] (`SGD`, `USD`... or the
@@ -145,8 +255,11 @@ final class Subscription {
     required this.nextCharge,
     this.variable = false,
     this.spentLastYear,
+    this.period,
   });
 
+  /// The company's domain, or for a company billed through a payment
+  /// service, `Acme via stripe.com` ([SubscriptionFinder.billerOf]).
   final String company;
 
   /// What to call it: the sender's name most used, else the domain.
@@ -155,8 +268,17 @@ final class Subscription {
   /// Its emails, newest first.
   final List<SubscriptionRecord> records;
 
-  /// Null when it can't be told (one receipt, no wording about it).
+  /// Null when it can't be told (one receipt, no wording about it), or
+  /// when [period] is none of these (every 2 months).
   final Cadence? cadence;
+
+  /// The exact time between charges ("every 30 days"), when known.
+  final BillingPeriod? period;
+
+  BillingPeriod? get _period {
+    final c = cadence;
+    return period ?? (c == null ? null : BillingPeriod.of(c));
+  }
 
   /// The latest amount charged, if any was found.
   final Money? amount;
@@ -186,18 +308,18 @@ final class Subscription {
       return Money((y.minor / 12).round(), y.currency);
     }
     final a = amount;
-    final c = cadence;
-    if (a == null || c == null) return null;
-    return Money((a.minor * c.perMonth).round(), a.currency);
+    final p = _period;
+    if (a == null || p == null) return null;
+    return Money((a.minor * p.perMonth).round(), a.currency);
   }
 
   /// The amount per year, or null.
   Money? get yearly {
     if (spentLastYear case final y?) return y;
     final a = amount;
-    final c = cadence;
-    if (a == null || c == null) return null;
-    return Money((a.minor * c.perMonth * 12).round(), a.currency);
+    final p = _period;
+    if (a == null || p == null) return null;
+    return Money((a.minor * p.perMonth * 12).round(), a.currency);
   }
 }
 
@@ -270,7 +392,7 @@ abstract final class SubscriptionFinder {
     ),
     Cadence.yearly: RegExp(
       r'\b(?:yearly|annual(?:ly)?|per year|/\s?y(?:ea)?r|a year|every year|'
-      r'12 months|1 year|one year|domain (?:renewal|registration))\b',
+      r'12 months|1 year|one year)\b',
       caseSensitive: false,
     ),
   };
@@ -328,6 +450,15 @@ abstract final class SubscriptionFinder {
 
   /// The length of a billing period printed in [text], if any.
   static Duration? billingPeriodIn(String text) {
+    if (_rangeIn(text) case (:final from, :final to)) {
+      return to.difference(from);
+    }
+    return null;
+  }
+
+  /// The first billing period printed in [text], as its first and last
+  /// day.
+  static ({DateTime from, DateTime to})? _rangeIn(String text) {
     for (final (i, re) in _periods.indexed) {
       for (final m in re.allMatches(text)) {
         DateTime? date(int g) {
@@ -345,16 +476,208 @@ abstract final class SubscriptionFinder {
         final from = date(1);
         final to = date(4);
         if (from == null || to == null || !to.isAfter(from)) continue;
-        final length = to.difference(from);
-        if (length.inDays >= 6 && length.inDays <= 400) return length;
+        final length = to.difference(from).inDays;
+        if (length >= 6 && length <= 400) return (from: from, to: to);
       }
     }
     return null;
   }
 
-  static Cadence? _cadenceOfPeriod(Duration period) {
-    for (final c in Cadence.values) {
-      if ((period.inDays - c.days).abs() <= c.days * 0.1 + 2) return c;
+  /// The billing period printed in [text] as dates ("Dec 18, 2025 – Jan
+  /// 18, 2026" is monthly, and so is "1 Mar – 31 Mar", an inclusive end;
+  /// other lengths are days), or null.
+  static BillingPeriod? _periodOfRange(String text) {
+    final r = _rangeIn(text);
+    if (r == null) return null;
+    final months = (r.to.year - r.from.year) * 12 + r.to.month - r.from.month;
+    for (final m in [months, months + 1]) {
+      if (m < 1) continue;
+      final end = BillingPeriod.months(m).after(r.from);
+      final gap = end.difference(r.to).inDays;
+      // The same day of the month, or the day before (an inclusive end).
+      if (gap == 0 || gap == 1) return BillingPeriod.months(m);
+    }
+    return _ofDays(r.to.difference(r.from).inDays);
+  }
+
+  /// [n] days as a period: whole weeks as weeks.
+  static BillingPeriod? _ofDays(int n) {
+    if (n < 6 || n > 400) return null;
+    if (n % 7 == 0 && n <= 56) return BillingPeriod(n ~/ 7, PeriodUnit.week);
+    return BillingPeriod.days(n);
+  }
+
+  static const _numberWords = {
+    'one': 1,
+    'two': 2,
+    'three': 3,
+    'four': 4,
+    'six': 6,
+    'twelve': 12,
+  };
+
+  static const _count = r'(\d{1,3}|one|two|three|four|six|twelve)';
+
+  /// "every 30 days", "every 6 months", "each 2 weeks".
+  static final _everyN = RegExp(
+    '\\b(?:every|each)\\s+$_count\\s+(day|week|month|year)s?\\b',
+    caseSensitive: false,
+  );
+
+  /// "30-day plan", "6-month membership", "12 month subscription".
+  static final _nUnitPlan = RegExp(
+    '\\b$_count[-\\s](day|week|month|year)s?\\s+(?:plan|subscription|'
+    r'membership|pass|package|term|contract|bundle|cycle|renewal|'
+    r'billing(?:\s+(?:cycle|period))?)\b',
+    caseSensitive: false,
+  );
+
+  /// "billed monthly", "renews every year", "charged quarterly".
+  static final _billedEvery = RegExp(
+    r'\b(?:billed|charged|paid|payable|renews?|renewed|renewing|recurring|'
+    r'auto-?renews?)\s+((?:every|each)\s+(?:week|month|quarter|year)|'
+    r'weekly|fortnightly|bi-?weekly|monthly|quarterly|semi-?annually|'
+    r'half-?yearly|bi-?annually|annually|yearly)\b',
+    caseSensitive: false,
+  );
+
+  /// "annual plan", "monthly subscription", "semi-annual membership".
+  static final _adjectivePlan = RegExp(
+    r'\b(weekly|fortnightly|bi-?weekly|monthly|quarterly|semi-?annual|'
+    r'half-?yearly|bi-?annual|annual|yearly)\s+(?:plan|subscription|'
+    r'membership|billing|fee|pass|renewal|charge|payment)\b',
+    caseSensitive: false,
+  );
+
+  static BillingPeriod? _ofWord(String word) {
+    final w = word.toLowerCase().replaceAll(RegExp(r'[\s-]+'), ' ');
+    if (w.endsWith('week') || w == 'weekly') return BillingPeriod.weekly;
+    if (w == 'fortnightly' || w.startsWith('bi') && w.endsWith('weekly')) {
+      return const BillingPeriod(2, PeriodUnit.week);
+    }
+    if (w.endsWith('month') || w == 'monthly') return BillingPeriod.monthly;
+    if (w.endsWith('quarter') || w == 'quarterly') {
+      return BillingPeriod.quarterly;
+    }
+    if (w.startsWith('semi') || w.startsWith('half') || w.startsWith('bi')) {
+      return BillingPeriod.halfYearly;
+    }
+    return BillingPeriod.yearly;
+  }
+
+  static BillingPeriod? _ofCount(String count, String unit) {
+    final n = int.tryParse(count) ?? _numberWords[count.toLowerCase()] ?? 0;
+    return switch (unit.toLowerCase()) {
+      'day' => _ofDays(n),
+      'week' when n >= 1 && n <= 8 => BillingPeriod(n, PeriodUnit.week),
+      'month' when n >= 1 && n <= 24 => BillingPeriod.months(n),
+      'year' when n >= 1 && n <= 3 => BillingPeriod.months(12 * n),
+      _ => null,
+    };
+  }
+
+  /// Words near a stated period that make it something else than how
+  /// often a plan charges: "save 30% for 6 months", "30-day free
+  /// returns", "valid for 30 days", "switch to an annual plan".
+  static final _notAPeriod = RegExp(
+    r'\b(?:save|saving|savings|off|discount\w*|promo\w*|deals?|offers?|'
+    r'coupons?|vouchers?|valid|validity|expir\w*|returns?|refund\w*|'
+    r'warranty|guarantee\w*|trial|free|upgrade|switch|compare|instead|'
+    r'cashback|or)\b|%',
+    caseSensitive: false,
+  );
+
+  /// Whether the words around [start]..[end] in [text] (the same
+  /// sentence) read as a promotion or a voucher.
+  static bool _promotional(String text, int start, int end) {
+    var before = text.substring(start - 40 < 0 ? 0 : start - 40, start);
+    var after = text.substring(
+      end,
+      end + 25 > text.length ? text.length : end + 25,
+    );
+    before = before.split(RegExp(r'[\n.!?]')).last;
+    after = after.split(RegExp(r'[\n.!?]')).first;
+    return _notAPeriod.hasMatch(before) || _notAPeriod.hasMatch(after);
+  }
+
+  /// The billing period [text] states: printed as dates, else in words
+  /// ("every 30 days", "6-month plan", "billed quarterly", "annual
+  /// plan"), not in a promotion or a voucher. Null when it states none.
+  static BillingPeriod? statedPeriodIn(String text) {
+    if (text.isEmpty) return null;
+    final sample = text.length > 20000 ? text.substring(0, 20000) : text;
+    final range = _periodOfRange(sample);
+    final found = <(int, BillingPeriod)>[];
+    for (final re in [_everyN, _nUnitPlan]) {
+      for (final m in re.allMatches(sample)) {
+        final p = _ofCount(m[1]!, m[2]!);
+        if (p != null && !_promotional(sample, m.start, m.end)) {
+          found.add((m.start, p));
+        }
+      }
+    }
+    for (final re in [_billedEvery, _adjectivePlan]) {
+      for (final m in re.allMatches(sample)) {
+        final p = _ofWord(m[1]!);
+        if (p != null && !_promotional(sample, m.start, m.end)) {
+          found.add((m.start, p));
+        }
+      }
+    }
+    found.sort((a, b) => a.$1.compareTo(b.$1));
+    final words = found.firstOrNull?.$2;
+    // The dates, unless the words say the same more exactly ("30-day
+    // pass", 10 Jan - 9 Feb).
+    if (range != null &&
+        (words == null || (words.days - range.days).abs() > 2)) {
+      return range;
+    }
+    return words;
+  }
+
+  /// Looser wording ("per month", "a year", "/mo") for when nothing
+  /// states the period: the cadence it names, not in a promotion.
+  static BillingPeriod? _loosePeriodIn(String text) {
+    // Domains are registered by the year.
+    if (_domainRenewal.hasMatch(text)) return BillingPeriod.yearly;
+    for (final MapEntry(key: cadence, value: words) in _cadenceWords.entries) {
+      for (final m in words.allMatches(text)) {
+        if (!_promotional(text, m.start, m.end)) {
+          return BillingPeriod.of(cadence);
+        }
+      }
+    }
+    return null;
+  }
+
+  static final _domainRenewal = RegExp(
+    r'\bdomain (?:renewal|registration)\b',
+    caseSensitive: false,
+  );
+
+  /// Words right before the date of the next charge.
+  static final _renewsOnWords = RegExp(
+    r'\b(?:(?:will\s+)?(?:auto-?)?renews?|renewing|will\s+be\s+(?:renewed|'
+    r'charged|billed)|next\s+(?:renewal|billing|payment|charge)(?:\s+date)?|'
+    r'(?:renewal|billing)\s+date)\b',
+    caseSensitive: false,
+  );
+
+  /// The date of the next charge [text] states ("renews on 12 Dec 2026",
+  /// "Your next renewal date is 12-04-2027"), read against [sent]; only
+  /// one after [sent].
+  static DateTime? renewalDateIn(String text, DateTime sent) {
+    final sample = text.length > 20000 ? text.substring(0, 20000) : text;
+    final sentDay = DateTime.utc(sent.year, sent.month, sent.day);
+    for (final m in _renewsOnWords.allMatches(sample)) {
+      final rest = sample.substring(
+        m.end,
+        m.end + 40 > sample.length ? sample.length : m.end + 40,
+      );
+      final date = DueDates.datesIn(rest, reference: sent).firstOrNull;
+      if (date == null || date.start > 12) continue;
+      final days = date.date.difference(sentDay).inDays;
+      if (days >= 1 && days <= 400) return date.date;
     }
     return null;
   }
@@ -435,9 +758,44 @@ abstract final class SubscriptionFinder {
     }
     if (_trialWords.hasMatch(subject)) return SubscriptionEvent.trial;
     if (_chargeWords.hasMatch(subject)) return SubscriptionEvent.charge;
-    if (_cancelWords.hasMatch(email.text)) return SubscriptionEvent.cancelled;
+    final text = email.text;
+    // "Data plan renewal": "Your plan is renewed. Your next renewal date
+    // is 12-04-2027."; "Your free trial has ended, and you're now a paid
+    // member".
+    if ((_renewalSubject.hasMatch(subject) && _renewedText.hasMatch(text)) ||
+        _paidNow.hasMatch(text)) {
+      return SubscriptionEvent.charge;
+    }
+    if (_cancelWords.allMatches(text).any((m) => !_endOfTrial(text, m))) {
+      return SubscriptionEvent.cancelled;
+    }
     return SubscriptionEvent.notice;
   }
+
+  static final _renewalSubject = RegExp(
+    r'\brenew(?:al|ed|s)?\b',
+    caseSensitive: false,
+  );
+
+  /// A renewal done: "is renewed", "has been successfully renewed" (not
+  /// "will be renewed").
+  static final _renewedText = RegExp(
+    r'\b(?:is|was|were|has been|have been)\s+'
+    r'(?:successfully\s+|automatically\s+|auto-?)?renewed\b',
+    caseSensitive: false,
+  );
+
+  /// A trial turned into a paid plan.
+  static final _paidNow = RegExp(
+    r"\byou(?:'|’|\s+a)re now a paid\b|\byou(?:'|’|\s+ha)ve been upgraded to (?:a )?paid\b",
+    caseSensitive: false,
+  );
+
+  /// "Your free trial has ended": the trial, not the subscription, ended.
+  static bool _endOfTrial(String text, RegExpMatch m) => RegExp(
+    r'\btrial\s+(?:period\s+)?$',
+    caseSensitive: false,
+  ).hasMatch(text.substring(m.start - 20 < 0 ? 0 : m.start - 20, m.start));
 
   // ------------------------------------------------------------ amounts
 
@@ -593,7 +951,7 @@ abstract final class SubscriptionFinder {
       // Replies and forwards (a discussion that mentions a receipt or a
       // subscription) are not the company's own mail.
       if (isReplyOrForward(e.subject)) continue;
-      byCompany.putIfAbsent(e.company, () => []).add(e);
+      byCompany.putIfAbsent(billerOf(e.company, e.senderName), () => []).add(e);
     }
     final found = <Subscription>[];
     for (final MapEntry(key: company, value: list) in byCompany.entries) {
@@ -609,9 +967,13 @@ abstract final class SubscriptionFinder {
       var charges = records
           .where((r) => r.event == SubscriptionEvent.charge)
           .toList();
+      // Charged at a steady interval at least three times: a subscription
+      // even without the word, unless the receipts are shop orders or
+      // purchases of varying amounts that happen to fall a month apart.
       final regular =
           charges.length >= 3 &&
-          _cadenceFromDates([for (final r in charges) r.email.at]) != null;
+          _periodFromDates([for (final r in charges) r.email.at]) != null &&
+          _steady(charges);
       if (!regular) {
         // A company that also sells one-off things (rides, food, shop
         // orders) sends receipts that are not the subscription's: only
@@ -634,14 +996,44 @@ abstract final class SubscriptionFinder {
         }
       }
       charges = _oneChargePerBill(charges, records);
-      final cadence =
-          _cadenceFromDates([for (final r in charges) r.email.at]) ??
-          _cadenceFromWords([for (final r in records) r.email]);
       final says = records.any((r) => _speaksOfSubscription(r.email));
       if (!says && !regular) continue;
       // Nothing paid yet (only a free trial, or talk of plans): not a
       // subscription until a charge comes.
       if (charges.isEmpty) continue;
+
+      final lastCharge = charges.first.email.at;
+      // The next charge as the newest mail since the last charge states
+      // it ("renews on 12 Dec 2026", "next renewal date is 12-04-2027").
+      DateTime? renewsOn;
+      for (final r in records) {
+        if (r.email.at.isBefore(lastCharge)) break;
+        if (r.event == SubscriptionEvent.cancelled) break;
+        if (renewalDateIn(r.email.text, r.email.at) case final d?) {
+          renewsOn = d;
+          break;
+        }
+      }
+      // How often: as printed or stated (receipts first), else from the
+      // dates of the charges, else looser wording, else the gap to the
+      // stated next charge.
+      final byKind = [
+        ...charges,
+        for (final r in records)
+          if (r.event != SubscriptionEvent.charge) r,
+      ];
+      final period =
+          byKind
+              .map((r) => statedPeriodIn(r.email.text))
+              .nonNulls
+              .firstOrNull ??
+          _periodFromDates([for (final r in charges) r.email.at]) ??
+          byKind
+              .map((r) => _loosePeriodIn('${r.email.subject}\n${r.email.text}'))
+              .nonNulls
+              .firstOrNull ??
+          (renewsOn == null ? null : _periodUntil(lastCharge, renewsOn));
+      final cadence = period?.cadence;
 
       // The newest amounts, in the latest currency.
       final recent = [
@@ -651,41 +1043,45 @@ abstract final class SubscriptionFinder {
             a,
       ];
       final variable = {for (final a in recent) a.minor}.length >= 3;
-      final lastCharge = charges.firstOrNull?.email.at;
       final cancelledAt = records
           .where((r) => r.event == SubscriptionEvent.cancelled)
           .map((r) => r.email.at)
           .firstOrNull;
-      final period = (cadence ?? Cadence.monthly).period;
+      final length = (period ?? BillingPeriod.monthly).length;
+      final today = DateTime.utc(now.year, now.month, now.day);
+      bool due(DateTime d) =>
+          !DateTime.utc(d.year, d.month, d.day).isBefore(today);
       final SubscriptionStatus status;
-      if (cancelledAt != null &&
-          (lastCharge == null || cancelledAt.isAfter(lastCharge))) {
+      if (cancelledAt != null && cancelledAt.isAfter(lastCharge)) {
         status = SubscriptionStatus.cancelled;
-      } else if (lastCharge != null &&
-          now.difference(lastCharge) > period * 1.5 + const Duration(days: 7)) {
+      } else if (now.difference(renewsOn ?? lastCharge) >
+          length * (renewsOn == null ? 1.5 : 0.5) + const Duration(days: 7)) {
         status = SubscriptionStatus.lapsed;
       } else {
         status = SubscriptionStatus.active;
       }
       DateTime? next;
-      if (status == SubscriptionStatus.active &&
-          lastCharge != null &&
-          cadence != null) {
+      if (status == SubscriptionStatus.active && renewsOn != null) {
+        // A stated date gone by: the periods after it.
+        var n = 0;
+        DateTime at(int n) => n == 0 ? renewsOn! : period!.after(renewsOn!, n);
+        while (!due(at(n)) && period != null && n < 1000) {
+          n++;
+        }
+        next = due(at(n)) ? at(n) : null;
+      } else if (status == SubscriptionStatus.active && period != null) {
         // Each charge of the last period comes again (several domains
         // renewing on their own dates): the soonest of them. A charge due
         // today is still to come until the day ends.
-        final today = DateTime.utc(now.year, now.month, now.day);
-        bool due(DateTime d) =>
-            !DateTime.utc(d.year, d.month, d.day).isBefore(today);
         final again = [
           for (final r in charges)
-            if (due(cadence.after(r.email.at))) cadence.after(r.email.at),
+            if (due(period.after(r.email.at))) period.after(r.email.at),
         ]..sort();
         next = again.firstOrNull;
         if (next == null) {
           var n = 1;
           do {
-            next = cadence.after(lastCharge, n++);
+            next = period.after(lastCharge, n++);
           } while (!due(next));
         }
       }
@@ -695,6 +1091,7 @@ abstract final class SubscriptionFinder {
           name: _name(company, list),
           records: List.unmodifiable(records),
           cadence: cadence,
+          period: period,
           amount: variable ? _average(recent) : recent.firstOrNull,
           status: status,
           nextCharge: next,
@@ -777,9 +1174,24 @@ abstract final class SubscriptionFinder {
           amounts.first.currency,
         );
 
-  /// A regular interval between charges (dates newest first), when the
-  /// gaps agree: the median gap near a cadence, every gap within 40% of it.
-  static Cadence? _cadenceFromDates(List<DateTime> dates) {
+  /// The periods charges are matched against, shortest first.
+  static const _calendarPeriods = [
+    BillingPeriod.weekly,
+    BillingPeriod(2, PeriodUnit.week),
+    BillingPeriod.monthly,
+    BillingPeriod.months(2),
+    BillingPeriod.quarterly,
+    BillingPeriod.halfYearly,
+    BillingPeriod.yearly,
+  ];
+
+  /// A regular interval between charges (dates in any order), when the
+  /// gaps agree: the median gap near a period, every gap within 40% of
+  /// it (28 to 31 days is a month; a renewal a day late still counts).
+  /// Monthly-looking charges that keep the same number of days between
+  /// them while drifting against the calendar (every 30 days: 10 Jan, 9
+  /// Feb, 11 Mar) are that many days.
+  static BillingPeriod? _periodFromDates(List<DateTime> dates) {
     final days = <DateTime>{
       for (final d in dates) DateTime.utc(d.year, d.month, d.day),
     }.toList()..sort();
@@ -787,41 +1199,139 @@ abstract final class SubscriptionFinder {
     final gaps = [
       for (var i = 1; i < days.length; i++)
         days[i].difference(days[i - 1]).inDays,
-    ]..sort();
-    final median = gaps[gaps.length ~/ 2];
-    for (final c in Cadence.values) {
-      if ((median - c.days).abs() <= c.days * 0.2 + 2 &&
-          gaps.every((g) => (g - c.days).abs() <= c.days * 0.4 + 2)) {
-        return c;
+    ];
+    final median = ([...gaps]..sort())[gaps.length ~/ 2];
+    for (final p in _calendarPeriods) {
+      final d = p.days;
+      if ((median - d).abs() > d * 0.2 + 2 ||
+          !gaps.every((g) => (g - d).abs() <= d * 0.4 + 2)) {
+        continue;
       }
+      if (p == BillingPeriod.monthly && gaps.length >= 2) {
+        var calendar = 0;
+        var fixed = 0;
+        for (var i = 1; i < days.length; i++) {
+          calendar += p.after(days[i - 1]).difference(days[i]).inDays.abs();
+          fixed += (gaps[i - 1] - median).abs();
+        }
+        final margin = (gaps.length + 1) ~/ 2;
+        if (fixed <= gaps.length ~/ 2 &&
+            calendar >= 2 &&
+            calendar - fixed >= margin) {
+          return _ofDays(median) ?? p;
+        }
+      }
+      return p;
     }
     return null;
   }
 
-  static Cadence? _cadenceFromWords(List<SubscriptionEmail> list) {
-    for (final e in list) {
-      if (billingPeriodIn(e.text) case final period?) {
-        if (_cadenceOfPeriod(period) case final c?) return c;
-      }
+  /// The period from a charge on [from] to the next one stated for [to].
+  static BillingPeriod? _periodUntil(DateTime from, DateTime to) =>
+      _periodFromDates([from, to]) ??
+      _ofDays(
+        to.difference(DateTime.utc(from.year, from.month, from.day)).inDays,
+      );
+
+  /// What a bill says of itself in its subject.
+  static final _billSubject = RegExp(
+    r'\b(?:bill|e-?bill|invoice|statement|renew\w*|subscription|membership)\b',
+    caseSensitive: false,
+  );
+
+  /// Charges that look like one plan billed again and again: bills or
+  /// invoices, or the same price each time; not shop orders.
+  static bool _steady(List<SubscriptionRecord> charges) {
+    if (charges.any((r) => isShopOrder(r.email))) return false;
+    if (charges.every((r) => _billSubject.hasMatch(r.email.subject))) {
+      return true;
     }
-    for (final e in list) {
-      final text = '${e.subject}\n${e.text}';
-      for (final MapEntry(key: cadence, value: words)
-          in _cadenceWords.entries) {
-        if (words.hasMatch(text)) return cadence;
-      }
-    }
-    return null;
+    final prices = {for (final r in charges) ?r.amount};
+    return prices.length <= 1;
   }
 
-  /// The sender name most used, else the domain.
+  /// The sender name most used (see [companyName]), else the domain.
   static String _name(String company, List<SubscriptionEmail> list) {
     final counts = <String, int>{};
     for (final e in list) {
-      final n = e.senderName?.trim();
-      if (n != null && n.isNotEmpty) counts[n] = (counts[n] ?? 0) + 1;
+      final n = companyName(e.senderName);
+      if (n != null) counts[n] = (counts[n] ?? 0) + 1;
     }
     if (counts.isEmpty) return company;
     return counts.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+  }
+
+  // ------------------------------------------------------------- senders
+
+  /// Payment services that send receipts on behalf of many companies,
+  /// under each company's name (`Acme <invoice+statements@stripe.com>`).
+  static const billingServices = {
+    'stripe.com',
+    'paddle.com',
+    'lemonsqueezy.com',
+    'fastspring.com',
+    'chargebee.com',
+    'recurly.com',
+    'gumroad.com',
+  };
+
+  /// Who charges, for a sender at [company] (a registrable domain) named
+  /// [senderName]: the domain; for a payment service sending for another
+  /// company, that company ("Acme via stripe.com"), so that two
+  /// companies billed through the same service are two subscriptions.
+  static String billerOf(String company, String? senderName) {
+    final domain = company.toLowerCase();
+    if (!billingServices.contains(domain)) return company;
+    final name = companyName(senderName);
+    if (name == null) return company;
+    // The service's own mail ("Stripe", "Paddle Billing").
+    final service = domain.substring(0, domain.indexOf('.'));
+    if (_letters(name).startsWith(service)) return company;
+    return '$name via $domain';
+  }
+
+  static String _letters(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  /// A department or channel after the company's name: "Example Support
+  /// Dept.", "Acme Client Services", "Shop Notifications", "Bank (Do not
+  /// reply)".
+  static final _departmentSuffix = RegExp(
+    r'(?:\s*[-|:,–—]\s*|\s+)(?:(?:customer|client|member|account|accounts|'
+    r'billing|technical|tech|help|service|services|support|security|'
+    r'payments?|online|it|the)\s+)*(?:support|service|services|care|team|'
+    r'dept\.?|department|desk|helpdesk|notifications?|alerts?|billing|'
+    r'renewals?|accounts?|security|payments?|mailer|no-?reply|newsletter)$',
+    caseSensitive: false,
+  );
+
+  static final _parenthesis = RegExp(r'\s*[(\[（【][^)\]）】]*[)\]）】]\s*$');
+  static final _brackets = RegExp(r'^[\s【\[(（]+|[\s】\])）]+$');
+  static final _leadingDepartment = RegExp(
+    r'^(?:the\s+)?(?:support|team|billing|help)\s+(?:at|from|@)\s+',
+    caseSensitive: false,
+  );
+
+  /// [senderName] as the company's name: without a department ("Support
+  /// Dept.", "Client Services", "Team"), a trailing note in brackets
+  /// ("(Do not reply)") or decoration ("【Airline】"). Null when nothing
+  /// is left, or the name is an address.
+  static String? companyName(String? senderName) {
+    var n = senderName?.trim() ?? '';
+    if (n.isEmpty || n.contains('@')) return null;
+    String strip(String s, RegExp re) {
+      final t = s.replaceFirst(re, '').trim();
+      return t.length >= 2 ? t : s;
+    }
+
+    for (var i = 0; i < 3; i++) {
+      final before = n;
+      n = strip(n, _parenthesis);
+      n = strip(n, _leadingDepartment);
+      n = strip(n, _departmentSuffix);
+      if (n == before) break;
+    }
+    n = n.replaceAll(_brackets, '').trim();
+    return n.isEmpty ? null : n;
   }
 }

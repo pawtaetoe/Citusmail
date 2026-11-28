@@ -71,7 +71,7 @@ void main() {
       for (final t in tester.widgetList<ListTile>(find.byType(ListTile)))
         ((t.title! as Text).data),
     ];
-    expect(shops.take(4), ['Shopee', 'Amazon.sg', 'UPS', 'SingPost']);
+    expect(shops.take(4), ['Shopee', 'Amazon.sg', 'Gadget Hub', 'SingPost']);
     expect(
       find.text('Kindle Paperwhite (16 GB) and 1 more'),
       findsOneWidget,
@@ -158,11 +158,14 @@ void main() {
     expect(find.text('3 on the way'), findsOneWidget);
 
     // "Not a delivery": hidden, with Undo, and listed again from below.
-    await tester.tap(find.text('UPS'));
+    await tester.tap(find.text('Gadget Hub'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Not a delivery'));
     await settle(tester);
-    expect(find.text('UPS won\'t be listed as a delivery'), findsOneWidget);
+    expect(
+      find.text('Gadget Hub won\'t be listed as a delivery'),
+      findsOneWidget,
+    );
     expect(find.text('2 on the way'), findsOneWidget);
     await tester.tap(find.text('Show 1 marked "not a delivery"'));
     await tester.pumpAndSettle();
