@@ -7,6 +7,7 @@ import 'package:mail_store/mail_store.dart';
 
 import 'summary_mapper.dart';
 import 'sync_lease.dart';
+import 'write_steps.dart';
 
 /// Tuning for message sync.
 final class SyncSettings {
@@ -34,9 +35,10 @@ final class SyncSettings {
   /// between two as between FETCHes.
   final int checkBatch;
 
-  /// Summaries per stored transaction, with a pause between them: while
-  /// the sync writes, a write from the screen (marking read, archiving)
-  /// waits for one of them at most, never for a whole FETCH.
+  /// Summaries in the first stored transaction. Later ones are sized by
+  /// time ([WriteSteps]): while the sync writes, a write from the screen
+  /// (marking read, archiving) waits for one short transaction at most,
+  /// on any device.
   final int writeBatch;
 
   /// Older messages downloaded per folder per sync, until the folder
@@ -160,16 +162,24 @@ final class MailboxSynchronizer {
     this._store,
     this._mapper, {
     this.settings = const SyncSettings(),
-  });
+    WriteSteps? writes,
+  }) : writes =
+           writes ??
+           WriteSteps(initial: settings.writeBatch, pause: writePause);
 
   final MailStore _store;
   final SummaryMapper _mapper;
   final SyncSettings settings;
 
+  /// How the cache is written: short transactions sized by time, so the
+  /// screen's own writes never wait long for the lock. Shared with
+  /// [another], so what one learns of the device's speed the others use.
+  final WriteSteps writes;
+
   /// Another synchronizer like this one, for a second connection: one
   /// instance syncs one folder at a time.
   MailboxSynchronizer another() =>
-      MailboxSynchronizer(_store, _mapper, settings: settings);
+      MailboxSynchronizer(_store, _mapper, settings: settings, writes: writes);
 
   /// UIDs whose flags must not be overwritten during the current sync.
   Set<int> _pending = const {};
@@ -547,10 +557,7 @@ final class MailboxSynchronizer {
     final vanished = selected.vanished;
     final removed = vanished == null ? <int>[] : _cachedIn(mailbox, vanished);
     final changes = _flagChanges(mailbox, selected.changedMessages);
-    _store.transaction(() {
-      if (removed.isNotEmpty) _removeUids(mailbox, removed);
-      if (changes.isNotEmpty) _store.messages.updateFlags(mailbox.id, changes);
-    });
+    await _writeChanges(mailbox, removed, changes);
     return (SyncMethod.qresync, changes.length, removed.length);
   }
 
@@ -579,10 +586,7 @@ final class MailboxSynchronizer {
     final removed = mayHaveRemovals()
         ? await _removedFrom(lease, mailbox, range, selected.uidValidity)
         : const <int>[];
-    _store.transaction(() {
-      if (removed.isNotEmpty) _removeUids(mailbox, removed);
-      if (changes.isNotEmpty) _store.messages.updateFlags(mailbox.id, changes);
-    });
+    await _writeChanges(mailbox, removed, changes);
     return (SyncMethod.condstore, changes.length, removed.length);
   }
 
@@ -638,10 +642,7 @@ final class MailboxSynchronizer {
             modSeq: null,
           ),
     ];
-    _store.transaction(() {
-      if (removed.isNotEmpty) _removeUids(mailbox, removed);
-      if (changes.isNotEmpty) _store.messages.updateFlags(mailbox.id, changes);
-    });
+    await _writeChanges(mailbox, removed, changes);
     return (SyncMethod.plain, changes.length, removed.length);
   }
 
@@ -764,6 +765,21 @@ final class MailboxSynchronizer {
     return _fetchSummaries(lease ?? SyncLease.fixed(imap), mailbox, uids);
   }
 
+  /// Removes [removed] and applies [changes] to the cache, in short
+  /// transactions ([writes]): either is safe to repeat, so a sync stopped
+  /// half way finishes the job the next time.
+  Future<void> _writeChanges(
+    StoredMailbox mailbox,
+    List<int> removed,
+    List<({int uid, MessageFlags flags, int? modSeq})> changes,
+  ) async {
+    await writes.run(removed, (part) => _removeUids(mailbox, part));
+    await writes.run(
+      changes,
+      (part) => _store.messages.updateFlags(mailbox.id, part),
+    );
+  }
+
   /// Removes [uids] from the cache, noting their Message-IDs.
   void _removeUids(StoredMailbox mailbox, List<int> uids) {
     for (final uid in uids) {
@@ -811,17 +827,10 @@ final class MailboxSynchronizer {
         for (final m in fetched.messages)
           ?_mapper.map(m, mailboxUse: mailbox.specialUse),
       ];
-      final step = settings.writeBatch < 1 ? 1 : settings.writeBatch;
-      for (var j = 0; j < summaries.length; j += step) {
-        if (j > 0) await Future<void>.delayed(writePause);
-        _store.messages.upsertSummaries(
-          mailbox.id,
-          summaries.sublist(
-            j,
-            j + step > summaries.length ? summaries.length : j + step,
-          ),
-        );
-      }
+      await writes.run(
+        summaries,
+        (part) => _store.messages.upsertSummaries(mailbox.id, part),
+      );
       stored += summaries.length;
       lease.advanced();
     }

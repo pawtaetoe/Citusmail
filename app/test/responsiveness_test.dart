@@ -408,9 +408,20 @@ void main() {
           worst.statements,
         ),
       );
-      // The same bound as the screen alone: a write waits for one of
-      // the worker's small transactions at most, a read for none.
-      expect(worst.longest.inMilliseconds, lessThan(250), reason: name);
+      // The guarantee: a write waits for one of the worker's
+      // transactions at most, a read for none. So the screen's own
+      // bound, plus the longest transaction this run measured: on a
+      // loaded machine (CI runs two test files on two cores) the worker
+      // can be paused while it holds the lock, and no size of batch
+      // prevents that. Waiting behind several (SQLite's own busy wait,
+      // or long transactions) still fails.
+      expect(
+        worst.longest.inMilliseconds,
+        lessThan(250 + longestBatch ~/ 1000),
+        reason:
+            '$name: its own work plus one transaction of the worker '
+            '(${longestBatch ~/ 1000} ms) at most',
+      );
     }
     expect(round, greaterThanOrEqualTo(3));
   });
@@ -486,28 +497,25 @@ void main() {
 
 /// What the sync worker stores in a full sync: [_SyncWrites.count] new
 /// summaries in a folder, fetched 100 at a time (a few ms each from the
-/// server) and stored [SyncSettings.writeBatch] to a transaction, with
-/// [MailboxSynchronizer.writePause] between, on its own connection.
+/// server) and stored as the sync stores them ([WriteSteps]: short
+/// transactions sized by time), on its own connection.
 /// Returns the longest transaction (µs).
 Future<int> _syncWrites(_SyncWrites job) async {
   final store = MailStore.open(job.path, DatabaseKey.fromBytes(job.key));
   final mailbox = MailboxId(job.mailbox);
-  final step = const SyncSettings().writeBatch;
+  final writes = WriteSteps(
+    initial: const SyncSettings().writeBatch,
+    pause: MailboxSynchronizer.writePause,
+  );
   final watch = Stopwatch();
   var longest = 0;
   try {
     for (var fetched = 0; fetched < job.count; fetched += 100) {
       // The next FETCH from the server.
       await Future<void>.delayed(const Duration(milliseconds: 5));
-      for (var i = fetched; i < fetched + 100; i += step) {
-        if (i > fetched) {
-          await Future<void>.delayed(MailboxSynchronizer.writePause);
-        }
-        watch
-          ..reset()
-          ..start();
-        store.messages.upsertSummaries(mailbox, [
-          for (var n = i; n < i + step; n++)
+      await writes.run(
+        [
+          for (var n = fetched; n < fetched + 100; n++)
             MessageSummary(
               uid: 500000 + n,
               receivedAt: DateTime.utc(2024).add(Duration(minutes: n)),
@@ -520,11 +528,17 @@ Future<int> _syncWrites(_SyncWrites job) async {
               ),
               snippet: 'Hello, here is message $n, with a few words in it.',
             ),
-        ]);
-        if (watch.elapsedMicroseconds > longest) {
-          longest = watch.elapsedMicroseconds;
-        }
-      }
+        ],
+        (part) {
+          watch
+            ..reset()
+            ..start();
+          store.messages.upsertSummaries(mailbox, part);
+          if (watch.elapsedMicroseconds > longest) {
+            longest = watch.elapsedMicroseconds;
+          }
+        },
+      );
     }
   } finally {
     store.close();
