@@ -88,6 +88,10 @@ enum SyncMethod {
 
   /// Plain IMAP: all flags in the cached range, removals by UID search.
   plain,
+
+  /// Not opened: the folder's counters on the server (LIST-STATUS) showed
+  /// nothing changed since the last sync.
+  unchanged,
 }
 
 /// What a folder sync changed.
@@ -222,13 +226,15 @@ final class MailboxSynchronizer {
       if (wasReset) {
         _store.mailboxes.resetForUidValidity(mailbox.id, selected.uidValidity);
       }
-      final (added, low) = await _fullSync(imap, mailbox, selected);
+      final (added, low, everything) = await _fullSync(imap, mailbox, selected);
       _FolderMemo(
         uidValidity: selected.uidValidity,
         uidNext: selected.uidNext,
         exists: selected.exists,
         low: low,
         removalsCheckedAt: DateTime.now(),
+        // All of it fit in the first window: no older mail to look for.
+        backfillDone: everything ? KeepMail.read(_store).storageName : null,
       ).save(_store, mailbox.id);
       return MailboxSyncResult(
         method: SyncMethod.full,
@@ -315,6 +321,32 @@ final class MailboxSynchronizer {
     );
   }
 
+  /// Whether [mailbox] needs no sync, by its [counters] on the server (from
+  /// LIST-STATUS, without selecting it): the same UIDVALIDITY, UIDNEXT,
+  /// HIGHESTMODSEQ (so no flag changed and nothing was removed) and
+  /// message count as at its last sync, its older mail complete, and its
+  /// removals looked for within [removalCheckInterval]. Never without
+  /// CONDSTORE, where a flag change shows in no counter.
+  bool unchanged(StoredMailbox mailbox, MailboxStatus counters) {
+    final cached = mailbox.syncState;
+    if (cached.uidValidity == null ||
+        cached.highestModSeq == null ||
+        counters.uidValidity != cached.uidValidity ||
+        counters.uidNext != cached.uidNext ||
+        counters.highestModSeq != cached.highestModSeq) {
+      return false;
+    }
+    final memo = _FolderMemo.read(_store, mailbox.id, cached);
+    final checkedAt = memo?.removalsCheckedAt;
+    final now = DateTime.now();
+    return memo != null &&
+        counters.messages == memo.exists &&
+        memo.backfillDone == KeepMail.read(_store).storageName &&
+        checkedAt != null &&
+        !now.isBefore(checkedAt) &&
+        now.difference(checkedAt) <= removalCheckInterval;
+  }
+
   /// Downloads up to [count] messages older than the oldest synced one.
   Future<int> fetchOlder(
     ImapClient imap,
@@ -395,17 +427,19 @@ final class MailboxSynchronizer {
     return SyncMethod.plain;
   }
 
-  /// The newest messages; returns how many were stored and the oldest
-  /// UID of them.
-  Future<(int, int?)> _fullSync(
+  /// The newest messages; returns how many were stored, the oldest UID of
+  /// them, and whether that was every message of the folder.
+  Future<(int, int?, bool)> _fullSync(
     ImapClient imap,
     StoredMailbox mailbox,
     SelectedMailbox selected,
   ) async {
     var added = 0;
     int? low;
+    var everything = true;
     if (selected.exists > 0) {
       final all = (await imap.uidSearch(SearchCriteria.all())).matches.toList();
+      everything = all.length <= settings.initialWindow;
       final newest = all.sublist(
         all.length > settings.initialWindow
             ? all.length - settings.initialWindow
@@ -415,7 +449,7 @@ final class MailboxSynchronizer {
       low = newest.firstOrNull;
     }
     _saveState(mailbox, selected);
-    return (added, low);
+    return (added, low, everything);
   }
 
   /// QRESYNC delivered removals (VANISHED) and changes (FETCH) with SELECT.

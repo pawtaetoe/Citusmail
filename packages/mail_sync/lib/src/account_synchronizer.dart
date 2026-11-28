@@ -176,7 +176,14 @@ final class AccountSynchronizer {
     final lease = _Lease(await _connections.take(account));
     try {
       var imap = lease.client!;
-      final listed = await _listFolders(account, imap);
+      // On the full sync, each folder's counters too (one command, on a
+      // server with LIST-STATUS): folders they show unchanged are not
+      // opened.
+      final (:listed, :status) = await _listFolders(
+        account,
+        imap,
+        withStatus: mailboxIds == null,
+      );
       final replay = await _replayer.replay(
         imap,
         account,
@@ -193,6 +200,7 @@ final class AccountSynchronizer {
         ),
         full: mailboxIds == null,
         listed: listed,
+        status: status,
       );
       // Between the steps after the folders, as between folders, the user's
       // work waiting for a connection goes first.
@@ -319,23 +327,38 @@ final class AccountSynchronizer {
   void listFoldersNextTime(AccountId accountId) => _listedAt.remove(accountId);
 
   /// Reads the folder list when it is older than [listInterval] (or there
-  /// is none yet), or when [force]d. Returns whether it did.
-  Future<bool> _listFolders(
+  /// is none yet), or when [force]d. Returns whether it did; and [withStatus]
+  /// on a server with LIST-STATUS, each folder's counters (by encoded
+  /// name), read in the same command, which then also reads the list.
+  Future<({bool listed, Map<String, MailboxStatus> status})> _listFolders(
     Account account,
     ImapClient imap, {
     bool force = false,
+    bool withStatus = false,
   }) async {
     final now = _now();
     final last = _listedAt[account.id];
-    if (!force &&
-        last != null &&
-        now.difference(last) < listInterval &&
-        _store.mailboxes.forAccount(account.id).isNotEmpty) {
-      return false;
+    final due =
+        force ||
+        last == null ||
+        now.difference(last) >= listInterval ||
+        _store.mailboxes.forAccount(account.id).isEmpty;
+    if (withStatus) {
+      final both = await imap.listMailboxesWithStatus(
+        highestModSeq: imap.capabilities.has('CONDSTORE'),
+      );
+      if (both != null) {
+        if (due) {
+          _store.mailboxes.replaceAll(account.id, both.mailboxes);
+          _listedAt[account.id] = now;
+        }
+        return (listed: due, status: both.status);
+      }
     }
+    if (!due) return (listed: false, status: const <String, MailboxStatus>{});
     _store.mailboxes.replaceAll(account.id, await imap.listMailboxes());
     _listedAt[account.id] = now;
-    return true;
+    return (listed: true, status: const <String, MailboxStatus>{});
   }
 
   /// Syncs [folders], the inbox first, over the [main] connection and up
@@ -359,11 +382,23 @@ final class AccountSynchronizer {
     Iterable<StoredMailbox> folders, {
     required bool full,
     required bool listed,
+    Map<String, MailboxStatus> status = const {},
   }) async {
-    final queue = Queue.of(
-      [...folders]..sort((a, b) => (b.isInbox ? 1 : 0) - (a.isInbox ? 1 : 0)),
-    );
     final results = <MailboxId, MailboxSyncResult>{};
+    final changed = <StoredMailbox>[];
+    for (final mailbox in folders) {
+      if (status[mailbox.encodedName] case final counters?
+          when _mailboxSync.unchanged(mailbox, counters)) {
+        results[mailbox.id] = const MailboxSyncResult(
+          method: SyncMethod.unchanged,
+        );
+      } else {
+        changed.add(mailbox);
+      }
+    }
+    final queue = Queue.of(
+      changed..sort((a, b) => (b.isInbox ? 1 : 0) - (a.isInbox ? 1 : 0)),
+    );
     (Object, StackTrace)? failure;
     final refused = <StoredMailbox, (Object, StackTrace)>{};
 

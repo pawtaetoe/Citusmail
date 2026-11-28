@@ -126,6 +126,10 @@ final class FakeImap {
   final bool gmail;
   final bool idle;
 
+  /// Whether it has LIST-STATUS (RFC 5819): LIST returns each folder's
+  /// counters too.
+  bool listStatus = false;
+
   /// Logins refused once this many connections are logged in (Gmail
   /// allows about 15 per account); null for no limit.
   int? maxLoggedIn;
@@ -208,7 +212,8 @@ final class FakeImap {
   String get _capabilities =>
       'IMAP4rev1 AUTH=PLAIN SASL-IR LITERAL+ UIDPLUS MOVE SPECIAL-USE '
       'LIST-EXTENDED${condstore ? ' CONDSTORE' : ''}'
-      '${gmail ? ' X-GM-EXT-1' : ''}${idle ? ' IDLE' : ''}';
+      '${gmail ? ' X-GM-EXT-1' : ''}${idle ? ' IDLE' : ''}'
+      '${listStatus ? ' LIST-STATUS' : ''}';
 
   void _session(Socket socket) {
     open++;
@@ -280,7 +285,9 @@ final class FakeImap {
         case 'NOOP' || 'ENABLE':
           return '$tag OK done\r\n';
         case 'LIST':
-          return '${[for (final MapEntry(key: name, value: f) in folders.entries) '* LIST (\\HasNoChildren${f.specialUse == null ? '' : ' \\${f.specialUse}'}) "/" "$name"\r\n'].join()}'
+          final withStatus =
+              listStatus && line.toUpperCase().contains('STATUS (');
+          return '${[for (final MapEntry(key: name, value: f) in folders.entries) '* LIST (\\HasNoChildren${f.specialUse == null ? '' : ' \\${f.specialUse}'}) "/" "$name"\r\n${withStatus ? _status(name, f, line) : ''}'].join()}'
               '$tag OK done\r\n';
         case 'CREATE':
           folders.putIfAbsent(words[1], FakeFolder.new);
@@ -288,9 +295,7 @@ final class FakeImap {
         case 'STATUS':
           final folder = folders[words[1]];
           if (folder == null) return '$tag NO [NONEXISTENT] no such folder\r\n';
-          return '* STATUS "${words[1]}" (MESSAGES ${folder.messages.length} '
-              'UIDNEXT ${folder.uidNext} UIDVALIDITY ${folder.uidValidity} '
-              'UNSEEN 0)\r\n$tag OK done\r\n';
+          return '${_status(words[1], folder, line)}$tag OK done\r\n';
         case 'SELECT' || 'EXAMINE':
           final folder = selected = folders[words[1]];
           if (folder == null) return '$tag NO [NONEXISTENT] no such folder\r\n';
@@ -442,6 +447,13 @@ final class FakeImap {
       onDone: ended,
     );
   }
+
+  /// A folder's STATUS line, with HIGHESTMODSEQ when [line] asks for it.
+  String _status(String name, FakeFolder folder, String line) =>
+      '* STATUS "$name" (MESSAGES ${folder.messages.length} '
+      'UIDNEXT ${folder.uidNext} UIDVALIDITY ${folder.uidValidity} '
+      '${condstore && line.toUpperCase().contains('HIGHESTMODSEQ') ? 'HIGHESTMODSEQ ${folder.highestModSeq} ' : ''}'
+      'UNSEEN 0)\r\n';
 
   /// Words of a command line; quoted strings unquoted, lists kept apart
   /// only by their parentheses.
