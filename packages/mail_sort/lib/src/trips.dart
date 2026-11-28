@@ -5,7 +5,7 @@
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_store/mail_store.dart';
 
-import 'subscriptions.dart' show SubscriptionFinder;
+import 'forwards.dart';
 import 'travel_places.dart';
 
 /// One email that may be about a booking: a flight or hotel confirmation,
@@ -44,6 +44,27 @@ final class TripEmail {
   /// Sorted as a newsletter or promotion: its words are not read (flight
   /// deals name flights and dates too).
   final bool bulk;
+
+  /// This email as its first sender wrote it (see
+  /// [Forwards.originalOf]): itself, the email a forward forwards
+  /// (attributed to its first sender), or null for a reply or a forward
+  /// whose original cannot be read.
+  TripEmail? get original => Forwards.originalOf(
+    this,
+    subject: subject,
+    text: text,
+    at: at,
+    rebuild: (f, sent) => TripEmail(
+      messageId: messageId,
+      sender: f.domain ?? sender,
+      senderName: f.address == null ? f.senderName ?? senderName : f.senderName,
+      subject: f.subject,
+      text: f.text,
+      at: sent,
+      reservations: reservations,
+      bulk: bulk,
+    ),
+  );
 }
 
 /// One email, as understood.
@@ -218,9 +239,12 @@ abstract final class TripText {
     r'reservation (?:code|number|no\.?|id|#)|record locator|PNR|'
     r'(?:reservation|booking) n[°º]|'
     r'(?:airline |agency |trip |travel )?reference (?:number|no\.?|code)|'
+    r'airline confirmation|booking locator|'
     r'itinerary(?: number| no\.?)?\s*#?|booking id)'
-    // A colon may be full width ("Booking Reference：").
-    r'(?:\s*\([\w ]{2,20}\))?\s*(?:is\s*)?[:#.：]?\s*#?\s*'
+    // A colon may be full width ("Booking Reference："), a table's bar or
+    // an image's words in brackets may come before the code.
+    r'(?:\s*\([\w ]{2,20}\))?(?:\s*\[[^\]\n]{1,40}\])?\s*(?:is\s*)?'
+    r'[:#.：]?\s*\|?\s*#?\s*'
     // The code, maybe on the next line, maybe in groups of four digits
     // ("0428 3315 6092 7781").
     r'(\d{4}(?:[ ]\d{4}){2,4}(?![ ]?\d)|[A-Za-z0-9][A-Za-z0-9-]{4,15})\b',
@@ -285,14 +309,25 @@ abstract final class TripText {
   static bool saysCancelled(String subject, String text) {
     final s = subject.replaceAll(_cancellationTerms, '');
     if (_cancelledSubject.hasMatch(s)) return true;
-    return _cancelledText.hasMatch(_cap(text, 6000));
+    return _cancelledText.hasMatch(
+      _cap(text, 6000).replaceAll(_ifCancelled, ''),
+    );
   }
+
+  /// A policy's condition: "not refundable even if the booking is
+  /// cancelled", "should your flight be cancelled", "in case the trip is
+  /// cancelled". Not a cancellation.
+  static final _ifCancelled = _re(
+    r'\b(?:even if|if|in case|in the event|should|when|whenever|unless|'
+    r'whether)\b[^.\n]{0,60}?\bcancel+ed\b',
+  );
 
   static final _changed = _re(
     r'\bschedule (?:change|update)|\b(?:flight|time|itinerary|booking|reservation) '
     r'(?:change|changed|update|updated|modified|amended)\b|'
     r'\b(?:has|have) been (?:changed|modified|amended|rescheduled)\b|'
     r'\brescheduled\b|\bnew (?:departure|arrival|flight) times?\b|'
+    r'\brevised (?:departure|arrival)\b|'
     r'\bnew (?:check-?in |stay |travel )?dates\b',
   );
 
@@ -340,6 +375,13 @@ abstract final class TripText {
     '(?:,?\\s+(\\d{4}))?',
   );
   static final _dateIso = RegExp(r'\b(\d{4})-(\d{2})-(\d{2})\b');
+
+  /// "17Mar", "05Nov27", "05NOV2027", "SAT 05NOV": an e-ticket's or a
+  /// boarding pass's, the year short or left out.
+  static final _dateCompact = _re(
+    r'\b(\d{1,2})(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)'
+    r'(\d{4}|\d{2})?\b',
+  );
 
   /// "2026/12/08": year first, as in East Asia.
   static final _dateYearSlash = RegExp(r'\b(\d{4})/(\d{1,2})/(\d{1,2})\b');
@@ -411,6 +453,18 @@ abstract final class TripText {
       final y = int.parse(m[3]!);
       add(m.start, m.end, day(y < 100 ? 2000 + y : y, mo, int.parse(m[1]!)));
     }
+    for (final m in _dateCompact.allMatches(text)) {
+      final y = int.tryParse(m[3] ?? '');
+      add(
+        m.start,
+        m.end,
+        day(
+          y == null ? null : (y < 100 ? 2000 + y : y),
+          month(m[2]!),
+          int.parse(m[1]!),
+        ),
+      );
+    }
     for (final m in _dateDayMonth.allMatches(text)) {
       add(
         m.start,
@@ -455,7 +509,9 @@ abstract final class TripText {
     r'(?<![\w:./-])([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})(?![\w:/-])',
   );
   static final _flightWord = _re(r'\bflights?\b');
-  static final _flightLabel = _re(r'\bflight(?: no\.?| number| #)?\s*:?\s*$');
+  static final _flightLabel = _re(
+    r'\bflight(?: no\.?| number| #)?\s*:?[\s|]*$',
+  );
   static final _operatedBy = _re(
     r'\b(?:operated|marketed) by\b[^\n]{0,30}$|\bcodeshare\b[^\n]{0,20}$',
   );
@@ -546,6 +602,10 @@ abstract final class TripText {
   }) {
     final sample = _cap(text, 30000);
     final airText = _airWords.hasMatch(sample);
+    // A boarding pass's other time is when boarding starts, in a cell
+    // whose label is far off: only its departure counts.
+    final boardingPass =
+        isBoardingPass(sample) && !_arrivalWord.hasMatch(sample);
     final numbers = <RegExpMatch>[];
     for (final m in _flightNumber.allMatches(sample)) {
       final before = sample.substring(
@@ -664,9 +724,13 @@ abstract final class TripText {
           timesFrom = label.end;
         }
       }
-      final times = _flightTimes(window)
-          .where((t) => t.at >= timesFrom)
-          .toList();
+      var times = _flightTimes(window).where((t) => t.at >= timesFrom).toList();
+      // "Revised departure 12:30 … Revised arrival 13:57": those, by
+      // their labels (an arrival's time never starts the flight).
+      if (_labelledTime(_revisedDeparture, window) case final d?) {
+        times = [d, ?_labelledTime(_revisedArrival, window)];
+      }
+      if (boardingPass && times.length > 1) times = [times.first];
       DateTime? dayBefore(int at) =>
           dates.where((d) => d.at < at).lastOrNull?.day;
       // The date written right by a time ("2026/12/08 23:40", "01:40,
@@ -723,6 +787,38 @@ abstract final class TripText {
       add(route, departure, arrival);
     }
     return flights;
+  }
+
+  static final _arrivalWord = _re(r'\b(?:arriv(?:al|es|e|ing)|lands?)\b');
+
+  static final _revisedDeparture = _re(
+    r'\b(?:revised|new|updated|rescheduled)\s+(?:departure|departs|'
+    r'departing)(?:\s+time)?\b[\s:：|]*',
+  );
+  static final _revisedArrival = _re(
+    r'\b(?:revised|new|updated|rescheduled)\s+(?:arrival|arrives|'
+    r'arriving)(?:\s+time)?\b[\s:：|]*',
+  );
+
+  /// The time right after [label] in [text], if any.
+  static ({int at, int hour, int minute, bool nextDay})? _labelledTime(
+    RegExp label,
+    String text,
+  ) {
+    for (final m in label.allMatches(text)) {
+      final t = timesIn(
+        text.substring(m.end, (m.end + 12).clamp(0, text.length)),
+      ).firstOrNull;
+      if (t != null && t.at <= 2) {
+        return (
+          at: m.end + t.at,
+          hour: t.hour,
+          minute: t.minute,
+          nextDay: t.nextDay,
+        );
+      }
+    }
+    return null;
   }
 
   static PlaceTime _at(
@@ -820,16 +916,39 @@ abstract final class TripText {
 
   static List<({ReservationPlace from, ReservationPlace to})> _cityRoutes(
     String text,
-  ) => [
-    for (final line in text.split('\n'))
-      if (_cityPair.firstMatch(line) case final m?)
-        if ((TravelPlaces.cityIn(m[1]!), TravelPlaces.cityIn(m[2]!))
-            case (final a?, final b?) when a != b)
-          (
-            from: ReservationPlace(name: m[1]!.trim(), locality: a),
-            to: ReservationPlace(name: m[2]!.trim(), locality: b),
-          ),
-  ];
+  ) {
+    final lines = text.split('\n');
+    final found = [
+      for (final line in lines)
+        if (_cityPair.firstMatch(line) case final m?)
+          if ((TravelPlaces.cityIn(m[1]!), TravelPlaces.cityIn(m[2]!))
+              case (final a?, final b?) when a != b)
+            (
+              from: ReservationPlace(name: m[1]!.trim(), locality: a),
+              to: ReservationPlace(name: m[2]!.trim(), locality: b),
+            ),
+    ];
+    if (found.isNotEmpty) return found;
+    for (var i = 0; i + 1 < lines.length; i++) {
+      final a = lines[i].trim();
+      final b = lines[i + 1].trim();
+      if (!_placeCell.hasMatch(a) || !_placeCell.hasMatch(b)) continue;
+      if ((TravelPlaces.cityIn(a), TravelPlaces.cityIn(b))
+          case (final x?, final y?) when x != y) {
+        found.add((
+          from: ReservationPlace(name: a, locality: x),
+          to: ReservationPlace(name: b, locality: y),
+        ));
+      }
+    }
+    return found;
+  }
+
+  /// A table cell that is only a place's name: one to five words, no
+  /// digits, no sentence.
+  static final _placeCell = RegExp(
+    r"^[A-Za-zÀ-ɏ][A-Za-zÀ-ɏ'.()-]*(?:[ \t]+[A-Za-zÀ-ɏ'.()-]+){0,4}$",
+  );
 
   /// Whether [start]–[end] is all of its line in [text], but for spaces.
   static bool _aloneOnLine(String text, int start, int end) {
@@ -842,6 +961,32 @@ abstract final class TripText {
 
   /// "SIN → NRT", "Singapore (SIN) to Tokyo Narita (NRT)".
   static ({ReservationPlace from, ReservationPlace to})? _route(String text) {
+    // "From: LIS Lisbon … To: OSL Oslo …", an agency's itinerary.
+    final from = _fromCode.firstMatch(text);
+    if (from != null) {
+      final to = _toCode.firstMatch(text.substring(from.end));
+      if (to != null &&
+          to[1] != from[1] &&
+          TravelPlaces.isAirport(from[1]!) &&
+          TravelPlaces.isAirport(to[1]!)) {
+        return (
+          from: ReservationPlace(code: from[1]),
+          to: ReservationPlace(code: to[1]),
+        );
+      }
+    }
+    // "Lisbon LIS Oslo OSL 08:40 12:55": each city with its code, then
+    // both times.
+    for (final m in _cityCodes.allMatches(text)) {
+      if (m[1] != m[2] &&
+          TravelPlaces.isAirport(m[1]!) &&
+          TravelPlaces.isAirport(m[2]!)) {
+        return (
+          from: ReservationPlace(code: m[1]),
+          to: ReservationPlace(code: m[2]),
+        );
+      }
+    }
     final named = _namedAirport.allMatches(text).toList();
     if (named.length >= 2 && named[0][2] != named[1][2]) {
       ReservationPlace place(RegExpMatch m) {
@@ -866,6 +1011,19 @@ abstract final class TripText {
     }
     return null;
   }
+
+  static final _fromCode = RegExp(
+    r'(?:^|[|\n])[ \t]*(?:From|FROM|Depart(?:ure|s)?|DEPART(?:URE|S)?)[ \t]*:'
+    r'[ \t|]*([A-Z]{3})\b',
+  );
+  static final _toCode = RegExp(
+    r'(?:^|[|\n])[ \t]*(?:To|TO|Arriv(?:al|es)|ARRIV(?:AL|ES))[ \t]*:'
+    r'[ \t|]*([A-Z]{3})\b',
+  );
+  static final _cityCodes = RegExp(
+    r"\b([A-Z]{3})[ \t]+[A-Z][\w'.-]*(?:[ \t]+[A-Z][\w'.-]*){0,3}[ \t]+"
+    r'([A-Z]{3})[ \t]+(?:[01]?\d|2[0-3]):[0-5]\d[ \t]+(?:[01]?\d|2[0-3]):[0-5]\d',
+  );
 
   /// An airport code standing alone in a table cell: at the end of its
   /// line, or followed by a time ("SIN 22:05", "SIN\n22:05").
@@ -1004,7 +1162,19 @@ abstract final class TripText {
         }
       }
     }
-    if (checkIn == null || checkOut == null) return null;
+    if (checkIn == null || checkOut == null) {
+      // "Dates 22 Aug 2026 - 25 Aug 2026", "Date of stay: From 13 Jul
+      // 2026 to 14 Jul 2026", the times by "Check in"/"Check out".
+      final range = _stayRange(text, email.at);
+      if (range == null) return null;
+      final inTime = _timeAfter(_checkIn, text);
+      final outTime = _timeAfter(_checkOut, text);
+      PlaceTime at(DateTime d, ({int hour, int minute})? t) => t == null
+          ? PlaceTime(d.year, d.month, d.day, hasTime: false)
+          : PlaceTime(d.year, d.month, d.day, hour: t.hour, minute: t.minute);
+      checkIn = at(range.from, inTime);
+      checkOut = at(range.to, outTime);
+    }
     final nights = checkOut.day.difference(checkIn.day).inDays;
     if (nights < 1 || nights > 60) return null;
 
@@ -1072,6 +1242,42 @@ abstract final class TripText {
       checkin: checkIn,
       checkout: checkOut,
     );
+  }
+
+  static final _stayDates = _re(
+    r'\b(?:dates?(?: of (?:your )?stay)?|stay(?:ing)?|your stay)\b[\s:：]*(?:from\s+)?',
+  );
+
+  /// Two dates after a "Dates" or "Date of stay" label, a dash or "to"
+  /// between them.
+  static ({DateTime from, DateTime to})? _stayRange(
+    String text,
+    DateTime sent,
+  ) {
+    for (final m in _stayDates.allMatches(text)) {
+      final rest = text.substring(m.end, (m.end + 80).clamp(0, text.length));
+      final dates = datesIn(rest, sent);
+      if (dates.length < 2 || dates[0].at > 3) continue;
+      final between = rest.substring(dates[0].end, dates[1].at);
+      if (!RegExp(
+        r'^\s*(?:-|–|—|to|until|till)\s*$',
+        caseSensitive: false,
+      ).hasMatch(between)) {
+        continue;
+      }
+      return (from: dates[0].day, to: dates[1].day);
+    }
+    return null;
+  }
+
+  /// The time right after [label] ("Check in 3:00 pm"), without a date.
+  static ({int hour, int minute})? _timeAfter(RegExp label, String text) {
+    for (final m in label.allMatches(text)) {
+      final rest = text.substring(m.end, (m.end + 12).clamp(0, text.length));
+      final t = timesIn(rest).firstOrNull;
+      if (t != null && t.at <= 2) return (hour: t.hour, minute: t.minute);
+    }
+    return null;
   }
 
   /// The date (and time, close after it) right after [label].
@@ -1559,6 +1765,47 @@ abstract final class TripText {
     return legs;
   }
 
+  static final _bookedWith = _re(
+    r'\b(?:booking|booked|travel(?:l)?ing|journey|trip)\s+with\s+'
+    r'(?:\S+\s+){0,3}$',
+  );
+
+  /// [leg] without the operator's name run into its first station
+  /// ("booking with Example West Rail Alpha Central"): the words before
+  /// it in [operatorWords], after "booking with".
+  static _Leg _withoutOperator(
+    _Leg leg,
+    String text,
+    Set<String> operatorWords,
+  ) {
+    final name = leg.from.name;
+    if (name == null || operatorWords.isEmpty) return leg;
+    final words = name.split(' ');
+    var drop = 0;
+    while (drop < words.length - 1 &&
+        operatorWords.contains(words[drop].toLowerCase())) {
+      drop++;
+    }
+    if (drop == 0) return leg;
+    // The operator's name begins before the leg: "with Example" + "West
+    // Rail Alpha Central".
+    final lead = text.substring(
+      (leg.start - 60).clamp(0, leg.start),
+      leg.start,
+    );
+    if (!_bookedWith.hasMatch(lead)) return leg;
+    final station = _station(words.sublist(drop).join(' '));
+    if (station == null) return leg;
+    return (
+      start: leg.start,
+      end: leg.end,
+      from: station,
+      to: leg.to,
+      departs: leg.departs,
+      arrives: leg.arrives,
+    );
+  }
+
   /// The train or coach journeys in [email]'s words: each route between
   /// two stations or towns, with its date (written near it, else the
   /// subject's) and its times when given. Only for mail from a railway
@@ -1597,8 +1844,15 @@ abstract final class TripText {
     final label = email.sender.toLowerCase().split('.').first;
     final provider = email.senderName ?? _operators[label];
 
+    final operatorWords = {
+      for (final w in (email.senderName ?? '').toLowerCase().split(
+        RegExp(r'\s+'),
+      ))
+        if (w.isNotEmpty) w,
+    };
     final out = <TransitReservationInfo>[];
-    for (final (i, leg) in legs.indexed) {
+    for (final (i, raw) in legs.indexed) {
+      final leg = _withoutOperator(raw, text, operatorWords);
       final lo = i > 0 ? legs[i - 1].end : 0;
       final hi = i + 1 < legs.length ? legs[i + 1].start : text.length;
       final before = text.substring(
@@ -1685,6 +1939,36 @@ abstract final class TripText {
     return out;
   }
 
+  /// A boarding pass or a check-in: a flight, whatever else it says.
+  static final _boardingWords = _re(
+    r'\b(?:boarding pass(?:es)?|boarding time|check in (?:now|online) for your '
+    r'flight|your flight (?:to|from|on)|online check-?in is (?:now )?open)\b',
+  );
+
+  /// A boarding pass's subject: "AB123/05Nov27/014C/ROE".
+  static final _boardingPassSubject = RegExp(
+    r'^\s*[A-Z0-9]{2}\s?\d{1,4}/\d{1,2}[A-Za-z]{3}\d{2}/',
+  );
+  static final _boardingPassText = _re(r'\bboarding pass(?:es)?\b');
+
+  /// Whether [text] (with its subject first) is a boarding pass.
+  static bool isBoardingPass(String text) =>
+      _boardingPassSubject.hasMatch(text) ||
+      _boardingPassText.hasMatch(_cap(text, 3000));
+
+  /// Whether [email] is about getting somewhere or a place to stay: from a
+  /// railway or coach company, a boarding pass, or a flight, train,
+  /// stay or rental car in its words (booking reference or not).
+  static bool aboutTravel(TripEmail email) {
+    if (_transitOf(email)?.byWords == false) return true;
+    final words = '${email.subject}\n${_cap(email.text, 8000)}';
+    if (_boardingWords.hasMatch(words)) return true;
+    if (trainsIn(email).isNotEmpty) return true;
+    if (flightsIn(words, sent: email.at).isNotEmpty) return true;
+    if (carIn(email) != null) return true;
+    return stayIn(email) != null;
+  }
+
   // ----------------------------------------------------------- reading
 
   /// The bookings [email]'s words describe (none for bulk mail or offers,
@@ -1695,6 +1979,8 @@ abstract final class TripText {
     final reference = referencesIn(words).firstOrNull;
     final railway = _transitOf(email)?.byWords == false;
     if (reference == null) {
+      // A boarding pass names its flight, not always the booking.
+      if (isBoardingPass(words)) return flightsIn(words, sent: email.at);
       if (!railway) return const [];
       final ticket = ticketNumberIn(words);
       if (ticket == null) return const [];
@@ -1766,10 +2052,12 @@ abstract final class TripFinder {
   );
 
   /// Whether [subject] reads like a booking, worth downloading.
-  static bool looksLikeBooking(String subject) =>
-      !SubscriptionFinder.isReplyOrForward(subject) &&
-      !TripText.notABooking.hasMatch(subject) &&
-      _bookingSubject.hasMatch(subject);
+  /// A forward of one counts: it is read as the email it forwards.
+  static bool looksLikeBooking(String subject) {
+    if (Forwards.isReply(subject)) return false;
+    final s = Forwards.withoutPrefix(subject);
+    return !TripText.notABooking.hasMatch(s) && _bookingSubject.hasMatch(s);
+  }
 
   /// Bookings close together: the next one this close after a trip's end
   /// joins it, if it is in the same place.
@@ -1790,10 +2078,15 @@ abstract final class TripFinder {
     final events = markup.length < email.reservations.length;
     final changes =
         !email.bulk && TripText.saysChanged(email.subject, email.text);
+    final confirmed = markup.any(
+      (r) => r.status == ReservationStatus.confirmed,
+    );
     final cancels =
         (markup.isNotEmpty &&
             markup.every((r) => r.status == ReservationStatus.cancelled)) ||
-        (!email.bulk && TripText.saysCancelled(email.subject, email.text));
+        (!email.bulk &&
+            !confirmed &&
+            TripText.saysCancelled(email.subject, email.text));
     return TripRecord(
       email: email,
       reservations: markup.isNotEmpty
@@ -1856,11 +2149,12 @@ abstract final class TripFinder {
 
   /// The bookings in [emails] (any order), oldest first: emails about
   /// the same flight on the same day, or the same stay, table or ticket,
-  /// are one booking.
+  /// are one booking. A forward is read as the email it forwards
+  /// ([TripEmail.original]); replies are left out.
   static List<Booking> bookings(Iterable<TripEmail> emails) {
     final records = [
       for (final e in emails)
-        if (!SubscriptionFinder.isReplyOrForward(e.subject)) read(e),
+        if (e.original case final o?) read(o),
     ]..sort((a, b) => a.email.at.compareTo(b.email.at));
 
     final groups = <_Group>[];
@@ -1892,13 +2186,25 @@ abstract final class TripFinder {
                 ? _changedStay(groups, info)
                 : null) ??
             _Group(key, info.kind);
+        // An "update" that gives the times already known (another
+        // booking of the same flight, a reminder) changes nothing.
+        final same =
+            g.infos.isNotEmpty &&
+            g.infos.every(
+              (x) =>
+                  x.start?.compareTo(info.start!) == 0 &&
+                  (x.end == null ||
+                      info.end == null ||
+                      x.end!.compareTo(info.end!) == 0),
+            );
         if (!groups.contains(g)) groups.add(g);
         g.keys.add(key);
         if (ref != null) g.references.add(ref);
         g.infos.add(info);
         g.statuses.add(r.cancels || info.status == ReservationStatus.cancelled);
         if (!g.records.contains(r)) g.records.add(r);
-        if (r.changes || (stayChanged && info is LodgingReservationInfo)) {
+        if (!same &&
+            (r.changes || (stayChanged && info is LodgingReservationInfo))) {
           g.changed = true;
         }
         touched.add(g);
@@ -1912,6 +2218,15 @@ abstract final class TripFinder {
           if (!g.records.contains(r)) g.records.add(r);
           if (r.cancels) g.statuses.add(true);
           if (r.changes) g.changed = true;
+        }
+      } else if (touched.isEmpty && r.references.isNotEmpty) {
+        final refs = {for (final x in r.references) x.toUpperCase()};
+        for (final g in groups) {
+          if (g.references.intersection(refs).isEmpty ||
+              !g.records.any((x) => x.email.sender == r.email.sender)) {
+            continue;
+          }
+          if (!g.records.contains(r)) g.records.add(r);
         }
       }
     }

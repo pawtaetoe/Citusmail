@@ -607,7 +607,7 @@ void main() {
             ),
           ]),
         ),
-        // A boarding-pass reminder with no booking details at all.
+        // A boarding pass with no booking reference: the same flight.
         mail(
           'Your boarding pass for SQ 638',
           sender: 'singaporeair.com',
@@ -617,7 +617,7 @@ void main() {
         ),
       ]);
       expect(found, hasLength(2));
-      expect(found.first.records, hasLength(2));
+      expect(found.first.records, hasLength(3));
     });
 
     test('a cancelled segment, and a schedule change in markup', () {

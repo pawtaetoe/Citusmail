@@ -14,6 +14,7 @@ export 'src/classification.dart';
 export 'src/deliveries.dart';
 export 'src/due_dates.dart';
 export 'src/events.dart';
+export 'src/forwards.dart';
 export 'src/header_rule_classifier.dart';
 export 'src/learned_classifier.dart';
 export 'src/list_id.dart';
