@@ -11,6 +11,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../features/accounts/state/accounts_model.dart';
 import '../features/found/state/appointments_model.dart';
 import '../features/found/state/deliveries_model.dart';
+import '../features/found/state/events_model.dart';
 import '../features/found/state/subscriptions_model.dart';
 import '../features/found/state/trips_model.dart';
 import '../features/inbox/state/message_reads.dart';
@@ -239,6 +240,7 @@ final class AutoReader extends ChangeNotifier {
       (await findTrips(store, now, skip: skip)).toRead,
       (await findDeliveries(store, now, skip: skip)).toRead,
       (await findAppointments(store, now, skip: skip)).toRead,
+      (await findEvents(store, now, skip: skip)).toRead,
       (await findOnlineAccounts(store, now, skip: skip)).toRead,
     ];
     final ids = <MessageId>{};

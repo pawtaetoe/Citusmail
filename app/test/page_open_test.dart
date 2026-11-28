@@ -13,9 +13,11 @@ import 'dart:async';
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
 import 'package:citusmail/src/core/widgets/skeleton_rows.dart';
 import 'package:citusmail/src/features/accounts/ui/accounts_page.dart';
+import 'package:citusmail/src/features/calendar/ui/calendar_view.dart';
 import 'package:citusmail/src/features/found/ui/appointments_page.dart';
 import 'package:citusmail/src/features/found/ui/attachments_page.dart';
 import 'package:citusmail/src/features/found/ui/deliveries_page.dart';
+import 'package:citusmail/src/features/found/ui/events_page.dart';
 import 'package:citusmail/src/features/found/ui/subscriptions_page.dart';
 import 'package:citusmail/src/features/found/ui/trips_page.dart';
 import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
@@ -28,6 +30,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support/appointment_mail.dart';
 import 'support/delivery_mail.dart';
+import 'support/event_mail.dart';
 import 'support/privacy_mail.dart';
 import 'support/test_app.dart';
 import 'support/trip_mail.dart';
@@ -38,6 +41,8 @@ void main() {
     'Deliveries': (c) => DeliveriesPage(controller: c),
     'Trips': (c) => TripsPage(controller: c),
     'Appointments': (c) => AppointmentsPage(controller: c),
+    'Events': (c) => EventsPage(controller: c),
+    'Calendar': (c) => CalendarPage(controller: c),
     'Online accounts': (c) => AccountsPage(controller: c),
     'Files': (c) => AttachmentsPage(controller: c),
     'Clean up': (c) => SenderCleanupPage(controller: c),
@@ -58,6 +63,7 @@ void main() {
       seedDeliveries(app.store, now: now);
       seedTrips(app.store, now: now);
       seedAppointments(app.store, now: now);
+      seedEvents(app.store, now: now);
       seedPrivacyMail(app, now);
       final controller = MailController(app.services);
       tester.view.physicalSize = const Size(1400, 1000);

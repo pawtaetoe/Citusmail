@@ -200,8 +200,9 @@ void main() {
   ) async {
     // Tablets have the sidebar in a drawer (phones: see phone_tabs_test).
     for (final (size, drawer) in [
-      (const Size(1400, 900), false),
-      (const Size(800, 860), true),
+      // Tall enough for every row unfolded.
+      (const Size(1400, 1000), false),
+      (const Size(800, 960), true),
     ]) {
       await show(tester, size);
       if (drawer) {
@@ -219,6 +220,7 @@ void main() {
       final order = [
         'Inbox',
         'Pins',
+        'Calendar',
         'alice@citusmail.test',
         'Sent',
         'Projects',
@@ -227,6 +229,7 @@ void main() {
         'Deliveries',
         'Trips',
         'Appointments',
+        'Events',
         'Online accounts',
         'Tools',
         'Clean up',

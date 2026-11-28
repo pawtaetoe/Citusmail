@@ -513,9 +513,10 @@ final class _Empty extends StatelessWidget {
           Text('No trips found', style: theme.textTheme.titleMedium),
           const SizedBox(height: 6),
           Text(
-            'Flights, hotels, train and bus tickets, rental cars, '
-            'restaurant tables and event tickets show here once their '
-            'confirmation emails are in your mail.',
+            'Flights, hotels, train and bus tickets, rental cars and '
+            'restaurant tables show here once their confirmation emails are '
+            'in your mail. Tickets for tours, concerts and shows are under '
+            'Events.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,

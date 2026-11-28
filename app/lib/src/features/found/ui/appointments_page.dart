@@ -469,9 +469,9 @@ final class _HowDialog extends StatelessWidget {
             'the others, a confirmation with a date and a time is read from the '
             'email. When unsure, it leaves the email out.\n\n'
             'A change, a cancellation or a reminder from the same place updates '
-            'the appointment, and the newest time counts. Restaurant tables and '
-            'event tickets are under Trips; meeting invitations from colleagues '
-            'stay in your inbox.\n\n'
+            'the appointment, and the newest time counts. Restaurant tables are '
+            'under Trips; tickets, tours and meeting invitations from '
+            'colleagues are under Events.\n\n'
             'Nothing is sent anywhere. Links from the email open only after '
             'asking. If something listed is not an appointment, open it and '
             'choose "Not an appointment".',
