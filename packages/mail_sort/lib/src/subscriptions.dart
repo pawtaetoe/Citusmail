@@ -32,6 +32,10 @@ final class SubscriptionEmail {
   /// message was downloaded. May be empty.
   final String text;
   final DateTime at;
+
+  /// Who it is from, as a [Subscription] is keyed: [company], or the
+  /// merchant for a payment service's mail (`Acme via stripe.com`).
+  String get biller => SubscriptionFinder.billerOf(company, senderName);
 }
 
 /// How often a subscription charges, roughly (see [BillingPeriod] for
@@ -951,7 +955,7 @@ abstract final class SubscriptionFinder {
       // Replies and forwards (a discussion that mentions a receipt or a
       // subscription) are not the company's own mail.
       if (isReplyOrForward(e.subject)) continue;
-      byCompany.putIfAbsent(billerOf(e.company, e.senderName), () => []).add(e);
+      byCompany.putIfAbsent(e.biller, () => []).add(e);
     }
     final found = <Subscription>[];
     for (final MapEntry(key: company, value: list) in byCompany.entries) {

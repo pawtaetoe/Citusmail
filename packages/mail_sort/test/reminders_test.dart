@@ -32,9 +32,9 @@ SubscriptionEmail mail(
 
 const _myRepublic = '''
 Your e-bill is ready!
-Hi Tan,
+Hi Alex,
 The monthly bill for your MyRepublic mobile is now ready! The outstanding
-amount for your account C4082197 is: \$6.00
+amount for your account A1234567 is: \$6.00
 View bill on MyAccount
 To avoid any service interruption, please pay your bill within 7 days of
 receiving this email.
@@ -78,6 +78,32 @@ List<Reminder> find(
 );
 
 void main() {
+  test('a payment service\'s mail is keyed by the merchant it bills for', () {
+    // Two merchants billed through the same payment service: a bill from
+    // one is that one's, not "stripe.com"'s, so the other's renewal stays.
+    final emails = [
+      mail(
+        'stripe.com',
+        'Your invoice from Notely is due',
+        at(11, 1),
+        name: 'Notely',
+        text: 'Amount due: \$12.00\nDue date: 10 Nov 2026',
+      ),
+      mail(
+        'stripe.com',
+        'Your receipt from Acme Cloud',
+        at(11, 2),
+        name: 'Acme Cloud',
+      ),
+    ];
+    expect(emails.first.biller, 'Notely via stripe.com');
+    final bills = find(
+      emails,
+      now: at(11, 3),
+    ).where((r) => r.kind == ReminderKind.billDue).toList();
+    expect([for (final r in bills) r.company], ['Notely via stripe.com']);
+  });
+
   group('bills', () {
     test('MyRepublic: within 7 days of receiving the email', () {
       final bill = mail(

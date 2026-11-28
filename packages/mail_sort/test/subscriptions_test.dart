@@ -350,7 +350,7 @@ void main() {
           text:
               'Your e-bill is ready! The monthly bill for your MyRepublic '
               'mobile is now ready! The outstanding amount for your account '
-              'C4082197 is: \$6.00',
+              'A1234567 is: \$6.00',
         ),
         mail(
           'myrepublic.com.sg',

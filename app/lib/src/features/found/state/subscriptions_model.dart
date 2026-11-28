@@ -81,7 +81,7 @@ List<MailSample> subscriptionSamples(
   for (final r in subscription.records)
     mailSample(
       message(r.email.messageId),
-      domain: subscription.company,
+      domain: r.email.company,
       senderName: r.email.senderName,
       subject: r.email.subject,
       text: r.email.text,
@@ -169,8 +169,8 @@ List<MessageId> subscriptionMailToRead(
   final known = {for (final s in found) s.company};
   final unknown = [
     for (final e in mail.emails)
-      if (!known.contains(e.company) &&
-          !left.contains(e.company) &&
+      if (!known.contains(e.biller) &&
+          !left.contains(e.biller) &&
           !SubscriptionFinder.isReplyOrForward(e.subject) &&
           SubscriptionFinder.eventOf(e) == SubscriptionEvent.charge &&
           wanted(e.messageId))
@@ -190,7 +190,7 @@ List<MessageId> subscriptionMailToRead(
     // due or end.
     for (final e in mail.emails)
       if (now.difference(e.at) < SubscriptionsModel.datesBack &&
-          !dated.contains(e.company) &&
+          !dated.contains(e.biller) &&
           (Reminders.mayBeBill(e) || Reminders.isTrial(e)) &&
           wanted(e.messageId))
         e.messageId,

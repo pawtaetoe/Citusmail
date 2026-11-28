@@ -210,7 +210,7 @@ abstract final class Reminders {
   ) sync* {
     final seen = <String>{};
     for (final bill in newestFirst) {
-      if (!mayBeBill(bill) || !seen.add(bill.company)) continue;
+      if (!mayBeBill(bill) || !seen.add(bill.biller)) continue;
       if (today.difference(DueDates.dayOf(bill.at)).inDays > 90) continue;
       final text = '${bill.subject}\n${bill.text}';
       if (_paidText.hasMatch(text)) continue;
@@ -225,7 +225,7 @@ abstract final class Reminders {
       if (paid) continue;
       yield Reminder(
         kind: ReminderKind.billDue,
-        company: bill.company,
+        company: bill.biller,
         name: _senderName(bill),
         date: due,
         messageId: bill.messageId,
@@ -235,7 +235,7 @@ abstract final class Reminders {
   }
 
   static bool _sameSender(SubscriptionEmail a, SubscriptionEmail b) {
-    if (a.company == b.company) return true;
+    if (a.biller == b.biller) return true;
     final x = a.senderName?.trim().toLowerCase();
     final y = b.senderName?.trim().toLowerCase();
     return x != null && x.isNotEmpty && x == y;
@@ -327,7 +327,7 @@ abstract final class Reminders {
   ) sync* {
     final byCompany = <String, List<SubscriptionEmail>>{};
     for (final e in newestFirst) {
-      if (isTrial(e)) byCompany.putIfAbsent(e.company, () => []).add(e);
+      if (isTrial(e)) byCompany.putIfAbsent(e.biller, () => []).add(e);
     }
     for (final MapEntry(key: company, value: trial) in byCompany.entries) {
       final newest = trial.first;
@@ -342,7 +342,7 @@ abstract final class Reminders {
       var charged = false;
       var cancelled = false;
       for (final e in newestFirst) {
-        if (e.company != company ||
+        if (e.biller != company ||
             !e.at.isAfter(started) ||
             SubscriptionFinder.isReplyOrForward(e.subject)) {
           continue;
