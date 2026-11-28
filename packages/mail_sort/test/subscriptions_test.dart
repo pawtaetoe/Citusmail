@@ -587,4 +587,326 @@ Our services Membership Terms of sale Privacy Policy
       expect(found.last.status, SubscriptionStatus.lapsed);
     });
   });
+
+  group('billing periods in words and dates', () {
+    test('stated periods', () {
+      final cases = {
+        'Your plan renews every 30 days.': const BillingPeriod.days(30),
+        'Pro, billed every 2 weeks': const BillingPeriod(2, PeriodUnit.week),
+        'Your 6-month plan is active.': BillingPeriod.halfYearly,
+        'Billed quarterly. Total \$30.00': BillingPeriod.quarterly,
+        'Annual plan · \$99.00': BillingPeriod.yearly,
+        'Semi-annual membership fee': BillingPeriod.halfYearly,
+        'renews every year on 4 March': BillingPeriod.yearly,
+        'Period: 4 Mar 2026 - 4 Sep 2026': BillingPeriod.halfYearly,
+        'Period: 1 Mar 2026 - 31 Mar 2026': BillingPeriod.monthly,
+        'Plan 10 Jan 2026 – 9 Feb 2026, 30-day pass': const BillingPeriod.days(
+          30,
+        ),
+      };
+      for (final MapEntry(key: text, value: period) in cases.entries) {
+        expect(SubscriptionFinder.statedPeriodIn(text), period, reason: text);
+      }
+    });
+
+    test('promotions, returns and vouchers state no period', () {
+      for (final text in [
+        'Save 30% for 6 months when you upgrade today!',
+        'Enjoy 30-day free returns on every order.',
+        'This voucher is valid for 30 days.',
+        'Switch to an annual plan and save 20%.',
+        'Compare plans: monthly plan or annual plan.',
+        'Try it free: 30-day trial membership, cancel any time.',
+        'Get 3 months for the price of 2 on our quarterly plan, 15% off',
+      ]) {
+        expect(SubscriptionFinder.statedPeriodIn(text), isNull, reason: text);
+      }
+    });
+
+    test('a 30-day plan comes again 30 days later, not on the same day', () {
+      final s = SubscriptionFinder.find([
+        mail(
+          'roam.example',
+          'Your receipt',
+          day(10, 10),
+          name: 'Roam',
+          text: 'Data plan, renews every 30 days. Total S\$12.00',
+        ),
+      ], now: now).single;
+      expect(s.period, const BillingPeriod.days(30));
+      expect(s.cadence, Cadence.monthly);
+      expect(s.nextCharge, day(11, 9));
+      expect(s.period!.label, 'Every 30 days');
+    });
+
+    test('receipts 30 days apart drift against the calendar', () {
+      final s = SubscriptionFinder.find([
+        for (final d in [day(7, 5), day(8, 4), day(9, 3), day(10, 3)])
+          mail(
+            'pass.example',
+            'Your pass has been renewed',
+            d,
+            text: 'Thanks for your payment of S\$9.90.',
+          ),
+      ], now: now).single;
+      expect(s.period, const BillingPeriod.days(30));
+      expect(s.nextCharge, day(11, 2));
+    });
+
+    test('monthly receipts a day apart are still monthly', () {
+      final s = SubscriptionFinder.find([
+        for (final d in [day(7, 5), day(8, 6), day(9, 5), day(10, 5)])
+          mail('tv.example', 'Your subscription receipt', d, text: '\$8.00'),
+      ], now: now).single;
+      expect(s.period, BillingPeriod.monthly);
+      expect(s.nextCharge, day(11, 5));
+    });
+
+    test('a 6-month plan', () {
+      final s = SubscriptionFinder.find([
+        mail(
+          'vpn.example',
+          'Receipt for your subscription',
+          day(6, 15),
+          text: 'Your 6-month plan. Total US\$30.00',
+        ),
+      ], now: now).single;
+      expect(s.cadence, Cadence.halfYearly);
+      expect(s.nextCharge, day(12, 15));
+      expect(s.monthly, const Money(500, 'USD'));
+      expect(s.status, SubscriptionStatus.active);
+    });
+
+    test('a quarterly plan, from three receipts', () {
+      final s = SubscriptionFinder.find([
+        for (final m in [2, 5, 8])
+          mail('box.example', 'Your invoice', day(m, 10), text: 'S\$45.00'),
+      ], now: now).single;
+      expect(s.cadence, Cadence.quarterly);
+      expect(s.nextCharge, day(11, 10));
+      expect(s.monthly, const Money(1500, 'SGD'));
+    });
+
+    test('"renews on" a date: the next charge, and the period from it', () {
+      final s = SubscriptionFinder.find([
+        mail(
+          'notes.example',
+          'Your Notes Pro receipt',
+          day(10, 20),
+          text: 'Amount paid \$14.99. Your subscription renews on 20 Jan 2027.',
+        ),
+      ], now: now).single;
+      expect(s.nextCharge, day(1, 20, 2027));
+      expect(s.period, BillingPeriod.quarterly);
+    });
+
+    test('a plan renewed with its next renewal date', () {
+      // A prepaid mobile plan: the renewal email has no price, only the
+      // next date.
+      final s = SubscriptionFinder.find([
+        mail(
+          'telco.example',
+          'RoamPlus Renewal',
+          day(9, 26),
+          name: 'Telco Support Team',
+          text:
+              '27-09-2026 Dear Customer Your RoamPlus 80000000 is renewed. '
+              'Your next renewal date is 27-10-2026.',
+        ),
+        mail(
+          'telco.example',
+          'RoamPlus Renewal',
+          day(10, 26),
+          name: 'Telco Support Team',
+          text:
+              '27-10-2026 Dear Customer Your RoamPlus 80000000 is renewed. '
+              'Your next renewal date is 26-11-2026.',
+        ),
+      ], now: now).single;
+      expect(
+        s.records.map((r) => r.event),
+        everyElement(SubscriptionEvent.charge),
+      );
+      expect(s.status, SubscriptionStatus.active);
+      expect(s.nextCharge, day(11, 26));
+      expect(s.cadence, Cadence.monthly);
+    });
+
+    test('a promotion from the same company does not change the period', () {
+      final s = SubscriptionFinder.find([
+        for (final m in [8, 9, 10])
+          mail(
+            'music.example',
+            'Your Premium receipt',
+            day(m, 3),
+            text: 'Premium, billed monthly. Total \$9.99',
+          ),
+        mail(
+          'music.example',
+          'Go yearly and save',
+          day(10, 20),
+          text: 'Switch to the annual plan and save 25%. 12 months for less.',
+        ),
+      ], now: now).single;
+      expect(s.period, BillingPeriod.monthly);
+      expect(s.nextCharge, day(11, 3));
+    });
+
+    test('a trial that turned paid is a charge, not a cancellation', () {
+      final e = mail(
+        'food.example',
+        'Your Plus journey begins!',
+        day(8, 11),
+        text:
+            "Your free trial has ended, and you're now a paid Plus member! "
+            'Your plan ends 2026/09/11.',
+      );
+      expect(SubscriptionFinder.eventOf(e), SubscriptionEvent.charge);
+      expect(
+        SubscriptionFinder.eventOf(
+          mail(
+            'food.example',
+            'We miss you',
+            day(8, 11),
+            text: 'Your free trial has ended.',
+          ),
+        ),
+        isNot(SubscriptionEvent.cancelled),
+      );
+    });
+
+    test('one-off purchases a month apart are not a subscription', () {
+      // A supermarket's app receipts: about a month apart, each a
+      // different basket.
+      expect(
+        SubscriptionFinder.find([
+          mail(
+            'grocer.example',
+            'Your app receipt',
+            day(8, 21),
+            text: 'Your payment is complete. Total \$10.71',
+          ),
+          mail(
+            'grocer.example',
+            'Your app receipt',
+            day(9, 21),
+            text: 'Your payment is complete. Total \$7.92',
+          ),
+          mail(
+            'grocer.example',
+            'Your app receipt',
+            day(10, 20),
+            text: 'Your payment is complete. Total \$9.80',
+          ),
+        ], now: now),
+        isEmpty,
+      );
+      // Two shop orders a month apart.
+      expect(
+        SubscriptionFinder.find([
+          mail(
+            'shop.example',
+            'Your order receipt',
+            day(9, 1),
+            text: 'Order number 123456. Total \$20.00',
+          ),
+          mail(
+            'shop.example',
+            'Your order receipt',
+            day(10, 1),
+            text: 'Order number 123999. Total \$20.00',
+          ),
+        ], now: now),
+        isEmpty,
+      );
+    });
+  });
+
+  group('who charges', () {
+    test('companies billed through one payment service stay apart', () {
+      final found = SubscriptionFinder.find([
+        for (final m in [9, 10])
+          mail(
+            'stripe.com',
+            'Your receipt from Acme Render #1000-200$m',
+            day(m, 18),
+            name: 'Acme Render',
+            text:
+                'Receipt from Acme Render \$6.00 Paid. '
+                '${m == 9 ? 'Sep 18, 2026 – Oct 18, 2026' : 'Oct 18, 2026 – Nov 18, 2026'} '
+                'Pro Qty 1 Total \$6.00 Amount paid \$6.00',
+          ),
+        mail(
+          'stripe.com',
+          'Your Notely receipt [#3000-4000]',
+          day(9, 1),
+          name: 'Notely',
+          text:
+              'Receipt from Notely Amount paid \$16.99. '
+              'Sep 1, 2026 – Sep 1, 2027 Notely Pro (yearly)',
+        ),
+        // A one-off fee paid through the same service.
+        mail(
+          'stripe.com',
+          'Your City Permits receipt [#5000-6000]',
+          day(10, 2),
+          name: 'City Permits',
+          text: 'Receipt from City Permits Amount paid S\$50.00',
+        ),
+      ], now: now);
+      expect(
+        {for (final s in found) s.name: s.company},
+        {
+          'Acme Render': 'Acme Render via stripe.com',
+          'Notely': 'Notely via stripe.com',
+        },
+      );
+      final render = found.firstWhere((s) => s.name == 'Acme Render');
+      expect(render.cadence, Cadence.monthly);
+      expect(render.amount, const Money(600, r'$'));
+      final notes = found.firstWhere((s) => s.name == 'Notely');
+      expect(notes.cadence, Cadence.yearly);
+    });
+
+    test('the service\'s own mail is the service', () {
+      expect(SubscriptionFinder.billerOf('stripe.com', 'Stripe'), 'stripe.com');
+      expect(SubscriptionFinder.billerOf('stripe.com', null), 'stripe.com');
+      expect(
+        SubscriptionFinder.billerOf('example.com', 'Example Billing'),
+        'example.com',
+      );
+    });
+
+    test('a company\'s name without its department', () {
+      final cases = {
+        'Example Support Dept.': 'Example',
+        'Example Client Services': 'Example',
+        'Example Support Team': 'Example',
+        'Example Notifications': 'Example',
+        'Example Renewals': 'Example',
+        'Example account team': 'Example',
+        'Support at Example': 'Example',
+        'Example Online (Do not reply)': 'Example Online',
+        'Ministry (via FileBox)': 'Ministry',
+        '【Example Air】': 'Example Air',
+        'Example': 'Example',
+        'Support': 'Support',
+      };
+      for (final MapEntry(key: raw, value: name) in cases.entries) {
+        expect(SubscriptionFinder.companyName(raw), name, reason: raw);
+      }
+      expect(SubscriptionFinder.companyName('billing@example.com'), isNull);
+      final s = SubscriptionFinder.find([
+        for (final m in [9, 10])
+          mail(
+            'domains.example',
+            'Auto Renewal Invoice - Success!',
+            day(m, 2),
+            name: 'Domains Example Support Dept.',
+            text: 'Domain renewal. Total \$11.08',
+          ),
+      ], now: now).single;
+      expect(s.name, 'Domains Example');
+    });
+  });
 }

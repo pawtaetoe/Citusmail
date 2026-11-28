@@ -40,6 +40,7 @@ abstract final class Prices {
     Cadence.weekly => 'Weekly',
     Cadence.monthly => 'Monthly',
     Cadence.quarterly => 'Every 3 months',
+    Cadence.halfYearly => 'Every 6 months',
     Cadence.yearly => 'Yearly',
     null => 'How often unknown',
   };

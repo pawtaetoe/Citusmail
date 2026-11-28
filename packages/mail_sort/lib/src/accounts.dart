@@ -194,6 +194,27 @@ abstract final class AccountFinder {
     'deactivated',
     '2-step',
     'two-factor',
+    // Other languages.
+    'willkommen',
+    'bienvenue',
+    'bienvenid',
+    'benvenut',
+    'passwort',
+    'anmeldung',
+    'mot de passe',
+    'connexion',
+    'contraseña',
+    '欢迎',
+    '歡迎',
+    '密码',
+    '密碼',
+    '登录',
+    '登入',
+    '注册',
+    '註冊',
+    'ようこそ',
+    'パスワード',
+    'ログイン',
   ];
 
   /// Notification domains that belong to another company's domain.
@@ -234,10 +255,34 @@ abstract final class AccountFinder {
     'grab.com': 'Grab',
   };
 
+  /// Companies whose one account serves all their country sites
+  /// (`amazon.sg`, `paypal.de`, `ebay.co.uk`).
+  static const _global = {
+    'amazon',
+    'paypal',
+    'ebay',
+    'airbnb',
+    'uber',
+    'booking',
+    'grab',
+    'google',
+    'apple',
+    'microsoft',
+    'netflix',
+    'spotify',
+  };
+
+  static final _countryDomain = RegExp(r'^([a-z0-9-]+)\.(?:com?\.)?[a-z]{2}$');
+
   /// The company a registrable sender domain belongs to.
   static String companyOf(String registrable) {
     final domain = registrable.toLowerCase();
-    return aliases[domain] ?? domain;
+    if (aliases[domain] case final alias?) return alias;
+    if (_countryDomain.firstMatch(domain) case final m?
+        when _global.contains(m[1])) {
+      return '${m[1]}.com';
+    }
+    return domain;
   }
 
   static final _closed = RegExp(
@@ -252,7 +297,12 @@ abstract final class AccountFinder {
   static final _reset = RegExp(
     r'\b(?:password reset|reset (?:your |my )?(?:\w+ ){0,2}password|'
     r'forgot (?:your )?password|new password request|'
-    r'password (?:recovery|reset request)|recover your account)\b',
+    r'password (?:recovery|reset request)|recover your account|'
+    r'passwort (?:zurücksetzen|vergessen)|'
+    r'réinitialis\w* (?:de |du )?(?:votre |ton )?mot de passe|'
+    r'restablec\w* (?:tu |su |la )?contraseña|redefini\w* (?:a |sua )*senha)'
+    r'|密码重置|密碼重置|重[置设]密码|重[置設]密碼|找回密码|'
+    r'パスワード(?:の)?(?:再設定|リセット)',
     caseSensitive: false,
   );
 
@@ -277,7 +327,10 @@ abstract final class AccountFinder {
     r'(?:signed|logged) in (?:from|on) (?:a )?new|'
     r'sign-in (?:attempt|from)|login attempt|'
     r'was this you|someone (?:signed|logged) in|'
-    r'your (?:\w+ )?(?:id|account) was used to sign in)\b',
+    r'your (?:\w+ )?(?:id|account) was used to sign in|'
+    r'neue anmeldung|nouvelle connexion|nuevo inicio de sesión)\b'
+    r'|登录提醒|登入通知|异地登录|異常登入|登入.{0,8}錯誤|登录.{0,8}错误|'
+    r'新しい(?:端末|デバイス)|ログイン(?:通知|のお知らせ)',
     caseSensitive: false,
   );
 
@@ -294,6 +347,22 @@ abstract final class AccountFinder {
     r'registration (?:confirmed|successful|complete))',
     caseSensitive: false,
   );
+
+  /// Sign-up wording in other languages ("Willkommen bei", "Bienvenue
+  /// chez", "欢迎加入").
+  static final _signedUpElsewhere = RegExp(
+    r'\b(?:willkommen (?:bei|an bord|zu)|bienvenue (?:à|a|chez|sur|dans)|'
+    r'bienvenid[oa]s? (?:a|al)|benvenut[oa] (?:in|su|a)|'
+    r'bem-vind[oa] (?:a|ao)|konto (?:erstellt|bestätigen|aktivieren)|'
+    r'bestätige (?:deine|ihre) e-mail|confirmez votre (?:adresse|compte)|'
+    r'confirma tu (?:correo|cuenta))'
+    r'|(?:欢迎|歡迎)(?:加入|注册|註冊|使用|来到|來到)|注册成功|註冊成功|'
+    r'ようこそ|登録(?:完了|が完了)',
+    caseSensitive: false,
+  );
+
+  static bool _saysSignedUp(String s) =>
+      _signedUp.hasMatch(s) || _signedUpElsewhere.hasMatch(s);
 
   /// "Welcome back" is a sign-in, not a sign-up.
   static final _welcomeBack = RegExp(r'\bwelcome back\b', caseSensitive: false);
@@ -363,8 +432,7 @@ abstract final class AccountFinder {
 
   static bool _isSignUp(String subject, String text, bool newsletter) {
     if (_welcomeBack.hasMatch(subject)) return false;
-    if (!_signedUp.hasMatch(subject) &&
-        !(subject.isEmpty && _signedUp.hasMatch(text))) {
+    if (!_saysSignedUp(subject) && !(subject.isEmpty && _saysSignedUp(text))) {
       // "Thanks for creating an account" may be in the text only.
       if (!_signedUpText.hasMatch(text)) return false;
     }
@@ -446,8 +514,11 @@ abstract final class AccountFinder {
 
     final byCompany = <String, List<AccountEmail>>{};
     for (final e in emails) {
-      final company = companyOf(e.company);
-      if (company.isEmpty || ownDomain(company)) continue;
+      final domain = companyOf(e.company);
+      if (domain.isEmpty || ownDomain(domain)) continue;
+      // A payment service's receipt for another company is that
+      // company's.
+      final company = SubscriptionFinder.billerOf(domain, e.senderName);
       byCompany.putIfAbsent(company, () => []).add(e);
     }
 
@@ -538,13 +609,10 @@ abstract final class AccountFinder {
     if (names[company] case final known?) return known;
     final counts = <String, int>{};
     for (final r in records) {
-      final n = r.email.senderName?.trim();
-      if (n == null ||
-          n.isEmpty ||
-          n.contains('@') ||
-          _genericName.hasMatch(n)) {
-        continue;
-      }
+      final raw = r.email.senderName?.trim();
+      if (raw == null || _genericName.hasMatch(raw)) continue;
+      final n = SubscriptionFinder.companyName(raw);
+      if (n == null || _genericName.hasMatch(n)) continue;
       counts[n] = (counts[n] ?? 0) + 1;
     }
     if (counts.isEmpty) return company;

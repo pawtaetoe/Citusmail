@@ -79,7 +79,7 @@ final class SubscriptionDetailPage extends StatelessWidget {
             ? 'Price unknown'
             : '${s.variable ? 'About ' : ''}'
                   '${Prices.format(s.amount!)} · '
-                  '${Prices.cadence(s.cadence).toLowerCase()}',
+                  '${(s.period?.label ?? Prices.cadence(s.cadence)).toLowerCase()}',
         subtitle: status,
         facts: [
           DetailFact(
