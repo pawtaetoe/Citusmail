@@ -21,6 +21,7 @@ import 'screener_archiver.dart';
 import 'sender_blocker.dart';
 import 'server_rules.dart';
 import 'sync_connections.dart';
+import 'sync_lease.dart';
 import 'sync_worker.dart';
 
 /// Why a sync could not finish, in terms the app can act on.
@@ -164,26 +165,52 @@ final class AccountSynchronizer {
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled). Without, every
   /// folder except views like Gmail's Starred and Important
-  /// ([StoredMailbox.isView]), which are synced when opened.
+  /// ([StoredMailbox.isView]), which are synced when opened, unless they
+  /// are in [alsoMailboxIds].
+  ///
+  /// Its connection goes to the user's work waiting for one between
+  /// folders, between the steps after them, and inside every long step
+  /// between two batches ([SyncLease]); see docs/architecture.md,
+  /// "Connections".
   Future<AccountSyncReport> sync(
     Account account, {
     Set<MailboxId>? mailboxIds,
+    Set<MailboxId> alsoMailboxIds = const {},
   }) async {
-    final imap = await _connections.take(account);
+    // The connection can change hands (to the user's work waiting for
+    // one), so it is read from the lease each time.
+    final lease = _Lease(
+      _connections,
+      account,
+      await _connections.take(account),
+    );
     try {
-      final listed = await _listFolders(account, imap);
+      // On the full sync, each folder's counters too (one command, on a
+      // server with LIST-STATUS): folders they show unchanged are not
+      // opened.
+      final (:listed, :status) = await _listFolders(
+        account,
+        lease.client,
+        withStatus: mailboxIds == null,
+      );
       final replay = await _replayer.replay(
-        imap,
+        lease.client,
         account,
         smtp: () => _connector.smtp(account),
+        lease: lease,
       );
 
       final results = await _syncFolders(
         account,
-        imap,
-        foldersToSync(_store.mailboxes.forAccount(account.id), mailboxIds),
+        lease,
+        foldersToSync(
+          _store.mailboxes.forAccount(account.id),
+          mailboxIds,
+          also: alsoMailboxIds,
+        ),
         full: mailboxIds == null,
         listed: listed,
+        status: status,
       );
       // 4. Blocked senders, then the user's folder rules, then screened-out
       // senders (when they go to Archive), on new inbox mail; their moves
@@ -200,9 +227,10 @@ final class AccountSynchronizer {
             (_screener?.apply(account, everything: everything) ?? 0);
         if (movedByRules > 0) {
           await _replayer.replay(
-            imap,
+            await _step(lease),
             account,
             smtp: () => _connector.smtp(account),
+            lease: lease,
           );
         }
       }
@@ -211,13 +239,15 @@ final class AccountSynchronizer {
       var receipts = 0;
       if (inbox != null && results.containsKey(inbox.id)) {
         try {
-          receipts = await ReceiptCollector(_store).collect(imap, account);
+          receipts = await ReceiptCollector(_store)
+              .collect(await _step(lease), account, lease: lease);
         } on MailException {
           receipts = 0;
         }
         // Codes in new verification mail, for the list. Also optional.
         try {
-          await CodeReader(_store).read(imap, account);
+          await CodeReader(_store)
+              .read(await _step(lease), account, lease: lease);
         } on MailException {
           // Read again next time.
         }
@@ -229,7 +259,7 @@ final class AccountSynchronizer {
       ArchivedBackfillResult? archived;
       if (mailboxIds == null) {
         try {
-          await _archived.find(imap, account);
+          await _archived.find(await _step(lease), account, lease: lease);
         } on MailException {
           // Looked up again next time.
         }
@@ -242,11 +272,12 @@ final class AccountSynchronizer {
             SpecialUse.all,
           );
           archived = await _archivedFill.run(
-            imap,
+            await _step(lease),
             account,
             pendingUids: allMail == null
                 ? const {}
                 : pendingUids(account.id, allMail.id),
+            lease: lease,
           );
         } on MailException {
           // Goes on next time, where it stopped.
@@ -260,7 +291,7 @@ final class AccountSynchronizer {
       SyncFailure? appDataFailure;
       if (_appData case final sync? when mailboxIds == null) {
         try {
-          appData = await sync.run(imap, account);
+          appData = await sync.run(await _step(lease), account);
         } on Object catch (e) {
           appDataFailure = SyncFailure.from(e);
           sync.recordProblem(appDataFailure.message);
@@ -290,7 +321,9 @@ final class AccountSynchronizer {
       _listedAt.remove(account.id);
       rethrow;
     } finally {
-      await _connections.give(account, imap);
+      if (lease.held case final client?) {
+        await _connections.give(account, client);
+      }
     }
   }
 
@@ -299,61 +332,99 @@ final class AccountSynchronizer {
   void listFoldersNextTime(AccountId accountId) => _listedAt.remove(accountId);
 
   /// Reads the folder list when it is older than [listInterval] (or there
-  /// is none yet), or when [force]d. Returns whether it did.
-  Future<bool> _listFolders(
+  /// is none yet), or when [force]d. Returns whether it did; and [withStatus]
+  /// on a server with LIST-STATUS, each folder's counters (by encoded
+  /// name), read in the same command, which then also reads the list.
+  Future<({bool listed, Map<String, MailboxStatus> status})> _listFolders(
     Account account,
     ImapClient imap, {
     bool force = false,
+    bool withStatus = false,
   }) async {
     final now = _now();
     final last = _listedAt[account.id];
-    if (!force &&
-        last != null &&
-        now.difference(last) < listInterval &&
-        _store.mailboxes.forAccount(account.id).isNotEmpty) {
-      return false;
+    final due =
+        force ||
+        last == null ||
+        now.difference(last) >= listInterval ||
+        _store.mailboxes.forAccount(account.id).isEmpty;
+    if (withStatus) {
+      final both = await imap.listMailboxesWithStatus(
+        highestModSeq: imap.capabilities.has('CONDSTORE'),
+      );
+      if (both != null) {
+        if (due) {
+          _store.mailboxes.replaceAll(account.id, both.mailboxes);
+          _listedAt[account.id] = now;
+        }
+        return (listed: due, status: both.status);
+      }
     }
+    if (!due) return (listed: false, status: const <String, MailboxStatus>{});
     _store.mailboxes.replaceAll(account.id, await imap.listMailboxes());
     _listedAt[account.id] = now;
-    return true;
+    return (listed: true, status: const <String, MailboxStatus>{});
   }
 
-  /// Syncs [folders], the inbox first, over [imap] and up to
-  /// [SyncSettings.connections] - 1 more connections, each taking the next
-  /// folder when it is done with one. A connection the server refuses is
-  /// simply not used. After a folder fails, no new one is started and the
-  /// first failure is thrown once the others are done.
+  /// Syncs [folders], the inbox first, over the [main] connection and up
+  /// to [SyncSettings.connections] - 1 more, as many as the account's
+  /// connection budget has room for, each taking the next folder when it
+  /// is done with one. A connection the server refuses is simply not
+  /// used. After a folder fails, no new one is started and the first
+  /// failure is thrown once the others are done.
+  ///
+  /// Between folders, an extra connection stops when another piece of
+  /// work waits for one (it is handed over) or the budget was lowered.
+  /// The main one is handed to the user's work waiting for a connection
+  /// between folders and inside them, between two batches
+  /// ([MailboxSynchronizer.sync] with a lease), and taken back after it.
   ///
   /// When the folder list was not [listed] in this sync, a folder the
   /// server refuses to open may have been deleted elsewhere: the list is
   /// read again, and a folder that is gone is no failure.
   Future<Map<MailboxId, MailboxSyncResult>> _syncFolders(
     Account account,
-    ImapClient imap,
+    _Lease main,
     Iterable<StoredMailbox> folders, {
     required bool full,
     required bool listed,
+    Map<String, MailboxStatus> status = const {},
   }) async {
-    final queue = Queue.of(
-      [...folders]..sort((a, b) => (b.isInbox ? 1 : 0) - (a.isInbox ? 1 : 0)),
-    );
     final results = <MailboxId, MailboxSyncResult>{};
+    final changed = <StoredMailbox>[];
+    for (final mailbox in folders) {
+      if (status[mailbox.encodedName] case final counters?
+          when _mailboxSync.unchanged(mailbox, counters)) {
+        results[mailbox.id] = const MailboxSyncResult(
+          method: SyncMethod.unchanged,
+        );
+      } else {
+        changed.add(mailbox);
+      }
+    }
+    final queue = Queue.of(
+      changed..sort((a, b) => (b.isInbox ? 1 : 0) - (a.isInbox ? 1 : 0)),
+    );
     (Object, StackTrace)? failure;
     final refused = <StoredMailbox, (Object, StackTrace)>{};
 
-    Future<void> work(ImapClient client, MailboxSynchronizer sync) async {
+    Future<void> work(_Lease lease, MailboxSynchronizer sync) async {
       while (queue.isNotEmpty && failure == null) {
+        if (lease != main && _connections.contended(account.id)) return;
+        await lease.handOverIfWanted();
         final mailbox = queue.removeFirst();
         try {
           results[mailbox.id] = await sync.sync(
-            client,
+            lease.client,
             mailbox,
             pendingUids: pendingUids(account.id, mailbox.id),
             // Without change tracking on the server, comparing every
             // message's flags waits for the full sync: the frequent
             // inbox check only looks for new and removed mail.
             refreshFlags: full || !mailbox.isInbox,
+            lease: lease,
           );
+          lease.advanced();
         } on Object catch (e, s) {
           if (e is ImapCommandException && !listed) {
             refused[mailbox] = (e, s);
@@ -365,27 +436,33 @@ final class AccountSynchronizer {
     }
 
     Future<void> extra() async {
-      final ImapClient client;
+      final ImapClient? client;
       try {
-        client = await _connections.take(account);
+        client = await _connections.takeExtra(account);
       } on Object {
         return; // Too many connections, or offline: the others go on.
       }
+      if (client == null) return; // No room in the budget.
       try {
-        await work(client, _mailboxSync.another());
+        // It never hands over: it stops between folders instead.
+        await work(
+          _Lease(_connections, account, client, handsOver: false),
+          _mailboxSync.another(),
+        );
       } finally {
-        await _connections.give(account, client);
+        // Not kept: one connection per account waits for the next sync.
+        await _connections.give(account, client, keep: false);
       }
     }
 
     final extras = min(_mailboxSync.settings.connections - 1, queue.length - 1);
     await Future.wait([
-      work(imap, _mailboxSync),
+      work(main, _mailboxSync),
       for (var i = 0; i < extras; i++) extra(),
     ]);
     if (failure case (final e, final s)) Error.throwWithStackTrace(e, s);
     if (refused.isNotEmpty) {
-      await _listFolders(account, imap, force: true);
+      await _listFolders(account, main.client, force: true);
       final names = {
         for (final m in _store.mailboxes.forAccount(account.id)) m.encodedName,
       };
@@ -398,18 +475,30 @@ final class AccountSynchronizer {
     return results;
   }
 
+  /// Before the next step: the one before it is done, so [lease]'s
+  /// connection may go to the user's work waiting for one. Returns the
+  /// connection to work on.
+  static Future<ImapClient> _step(_Lease lease) async {
+    lease.advanced();
+    await lease.handOverIfWanted();
+    return lease.client;
+  }
+
   /// Which of [mailboxes] a sync covers: with [mailboxIds], those;
   /// without, all but views like Gmail's Starred and Important
   /// ([StoredMailbox.isView]). Never folders that can't be opened, nor the
   /// app's own sync data folder.
   static Iterable<StoredMailbox> foldersToSync(
     Iterable<StoredMailbox> mailboxes,
-    Set<MailboxId>? mailboxIds,
-  ) => mailboxes.where(
+    Set<MailboxId>? mailboxIds, {
+    Set<MailboxId> also = const {},
+  }) => mailboxes.where(
     (m) =>
         m.selectable &&
         !m.isAppData &&
-        (mailboxIds == null ? !m.isView : mailboxIds.contains(m.id)),
+        (mailboxIds == null
+            ? !m.isView || also.contains(m.id)
+            : mailboxIds.contains(m.id)),
   );
 
   /// UIDs in [mailboxId] with local changes still queued.
@@ -424,5 +513,45 @@ final class AccountSynchronizer {
       }
     }
     return uids;
+  }
+}
+
+/// The connection a sync works on. The main one goes to the user's work
+/// waiting for one, at most once per batch of the sync's own work, and
+/// comes back after a bounded wait ([ConnectionBudget.handBackAfter],
+/// [ConnectionBudget.handBackWithin]): the sync always moves on.
+final class _Lease extends SyncLease {
+  _Lease(this._connections, this._account, this.held, {this.handsOver = true});
+
+  final SyncConnections _connections;
+  final Account _account;
+
+  /// Whether it goes to the user's work waiting for a connection (the
+  /// main connection; extra ones stop between folders instead).
+  final bool handsOver;
+
+  /// Null while it is handed over.
+  ImapClient? held;
+
+  /// Whether a batch was done since the last hand-over.
+  bool _advanced = true;
+
+  @override
+  ImapClient get client => held!;
+
+  @override
+  void advanced() => _advanced = true;
+
+  @override
+  Future<bool> handOverIfWanted() async {
+    if (!handsOver || !_advanced || !_connections.userWaiting(_account.id)) {
+      return false;
+    }
+    final client = held!;
+    held = null;
+    _advanced = false;
+    await _connections.give(_account, client, keep: false);
+    held = await _connections.takeBack(_account);
+    return true;
   }
 }

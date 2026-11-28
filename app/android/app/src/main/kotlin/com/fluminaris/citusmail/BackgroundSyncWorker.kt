@@ -52,7 +52,7 @@ class BackgroundSyncWorker(context: Context, params: WorkerParameters) :
                         ExistingWorkPolicy.KEEP
                     },
                 )
-                main.post { engine?.destroy(); engine = null }
+                main.post { engine?.let(BackgroundDart::destroy); engine = null }
                 completer.set(result)
             }
             main.post {

@@ -210,6 +210,7 @@ final class MessageListModel extends ChangeNotifier {
     _location = location;
     messages = const [];
     reachedEnd = false;
+    loadingOlder = false;
     serverSearches = const {};
     _serverFound = const [];
     _refresh(changed: true);

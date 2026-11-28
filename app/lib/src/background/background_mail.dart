@@ -32,6 +32,14 @@ import '../services/secret_store.dart';
 /// the app, so nothing is announced twice, and tidy up old codes the same
 /// way (at most once an hour between them, silently). Both keep the
 /// "Latest code" tile's value up to date ([LatestCode]).
+///
+/// The background engines run in the app's process but have mail
+/// connections of their own, and a server allows only a few per account
+/// (Gmail about 15, shared by all the user's devices). So while the app's
+/// own engine syncs ([setAppSyncing]), they leave the mail to it: the
+/// periodic check asks the app to check instead, and Instant mail pauses
+/// ([DeferToApp]). With the app gone and Instant mail running, the
+/// periodic check asks Instant mail's engine to look at the inboxes.
 abstract final class BackgroundMail {
   static const _task = MethodChannel('citusmail/background-task');
   static const _app = MethodChannel('citusmail/background');
@@ -39,6 +47,54 @@ abstract final class BackgroundMail {
   /// Whether Instant mail is offered: on Android (both the GitHub and the
   /// Google Play build).
   static bool get instantAvailable => Platform.isAndroid;
+
+  /// Android: the app's own sync engine started ([on]) or stopped. While
+  /// it runs, a periodic check calls [check] (the app's engine checks
+  /// every account; true when all went well) instead of connecting
+  /// itself, and Instant mail pauses.
+  static Future<void> setAppSyncing(
+    bool on, {
+    Future<bool> Function()? check,
+  }) async {
+    if (!Platform.isAndroid) return;
+    try {
+      _app.setMethodCallHandler(
+        on && check != null
+            ? (call) async {
+                if (call.method == 'checkNow') return check();
+                throw MissingPluginException();
+              }
+            : null,
+      );
+      await _app.invokeMethod<void>('appSyncing', on);
+    } on Object catch (e) {
+      debugPrint('app syncing: ${e.runtimeType}');
+    }
+  }
+
+  /// In a background engine: whether the app's own engine syncs now.
+  static Future<bool> _appSyncing() async {
+    try {
+      return await _task.invokeMethod<bool>('appSyncing') ?? false;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// In the periodic check: asks the engine already running in this
+  /// process (the app's, else Instant mail's) to check the accounts.
+  /// Whether all went well; null when none runs, to check here.
+  static Future<bool?> _checkElsewhere() async {
+    try {
+      return await _task
+          .invokeMethod<bool>('checkElsewhere')
+          .timeout(fullSyncBudget);
+    } on TimeoutException {
+      return false;
+    } on Object {
+      return null;
+    }
+  }
 
   /// Turns the instant-mail service on or off.
   static Future<void> setInstant(bool on) async {
@@ -152,16 +208,36 @@ abstract final class BackgroundMail {
     }
   }
 
-  /// One check of every account; tells Android when done.
+  /// One check of every account; tells Android when done. While the app
+  /// or Instant mail runs, its engine does the check, so this device does
+  /// not open a second set of connections.
   static Future<void> runOnce() async {
     var ok = false;
     try {
-      ok = await _syncOnce();
+      final elsewhere = await _checkElsewhere();
+      ok = elsewhere == null
+          ? await _syncOnce()
+          : await _checkedElsewhere(ok: elsewhere);
     } on Object {
       ok = false;
     } finally {
       await _task.invokeMethod<void>('done', ok);
     }
+  }
+
+  /// After another engine did the check: noted for Settings, and a check
+  /// when the next scheduled message is due, as after a check here.
+  static Future<bool> _checkedElsewhere({required bool ok}) async {
+    final opened = await AppStartup.openExisting();
+    if (opened == null) return ok;
+    final (store, _) = opened;
+    try {
+      recordCheck(store, ok: ok);
+      await checkWhenDue(store, fromCheck: true);
+    } finally {
+      store.close();
+    }
+    return ok;
   }
 
   static Future<bool> _syncOnce() async {
@@ -173,6 +249,13 @@ abstract final class BackgroundMail {
       DefaultMailConnector(KeychainCredentials(secrets)),
       syncCodes: KeychainSyncCodes(secrets),
     );
+    // The app opened meanwhile: it syncs now, this check stops early.
+    var appStarted = false;
+    _task.setMethodCallHandler((call) async {
+      if (call.method == 'appSyncing' && call.arguments == true) {
+        appStarted = true;
+      }
+    });
     try {
       final notifier = AppSettings(store).notifications
           ? await MailNotifier.create()
@@ -192,6 +275,7 @@ abstract final class BackgroundMail {
       // mail can take longer than Android lets a check run.
       final accounts = store.accounts.all();
       for (final account in accounts) {
+        if (appStarted) break;
         final inbox = store.mailboxes.inbox(account.id);
         final report = await engine.syncAccount(
           account.id,
@@ -210,6 +294,7 @@ abstract final class BackgroundMail {
       // looks at the inboxes: a cheap safety net if its connection died.
       final fullSync = !AppSettings(store).instantMail;
       for (final account in fullSync ? accounts : const <Account>[]) {
+        if (appStarted) break;
         if (DateTime.now().difference(started) > fullSyncBudget) break;
         final report = await engine.syncAccount(account.id);
         if (report == null) {
@@ -253,15 +338,18 @@ abstract final class BackgroundMail {
       await notifier?.announceFailedSends(store);
       await checkWhenDue(store, fromCheck: true);
       // Last, once the news is out: receipts, bills and booking emails for
-      // the pages, a few at a time (they stay unread).
-      await readAhead(
-        store,
-        (id) => engine.loadBody(id, background: true),
-        newMail: newMail,
-      );
+      // the pages, a few at a time (they stay unread). The app reads ahead
+      // on its own when it runs.
+      if (!appStarted) {
+        await readAhead(
+          store,
+          (id) => engine.loadBody(id, background: true),
+          newMail: newMail,
+        );
+      }
       // New mail the sorting rules can't place, to the AI assistant: only
       // with "Sorting backup" on and a key (else nothing at all).
-      if (newMail) {
+      if (newMail && !appStarted) {
         await AiSorter.sortOnce(
           store,
           AiAssistant(store, secrets),
@@ -274,6 +362,7 @@ abstract final class BackgroundMail {
       recordCheck(store, ok: false);
       rethrow;
     } finally {
+      _task.setMethodCallHandler(null);
       await engine.dispose();
       store.close();
     }
@@ -315,7 +404,7 @@ abstract final class BackgroundMail {
   static const instantFullSyncInterval = Duration(minutes: 30);
 
   /// Keeps syncing (IDLE on every inbox) until the service stops; announces
-  /// new mail as it arrives.
+  /// new mail as it arrives. Paused while the app's own engine syncs.
   static Future<void> runInstant() async {
     final opened = await AppStartup.openExisting();
     if (opened == null) {
@@ -358,8 +447,56 @@ abstract final class BackgroundMail {
         unawaited(notifier?.announceFollowUps(store));
       }
     });
-    engine.start();
+    final deferral = DeferToApp(start: engine.start, stop: engine.stop);
+    _task.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'appSyncing':
+          await deferral.appSyncing(call.arguments == true);
+        // The periodic check, done here (every inbox) while this runs.
+        case 'checkNow' when deferral.running:
+          final reports = await Future.wait([
+            for (final account in store.accounts.all())
+              if (store.mailboxes.inbox(account.id) case final inbox)
+                engine.syncAccount(
+                  account.id,
+                  mailboxIds: inbox == null ? null : {inbox.id},
+                ),
+          ]);
+          return reports.every((r) => r != null);
+      }
+      return null;
+    });
+    await deferral.appSyncing(await _appSyncing());
   }
+}
+
+/// Runs Instant mail's engine only while the app's own engine does not
+/// sync: two engines would each hold their connections to every account
+/// (IDLE, syncs), and servers allow only a few per account. Changes are
+/// applied one at a time, so a stop always ends before the next start.
+final class DeferToApp {
+  DeferToApp({required this.start, required this.stop});
+
+  final void Function() start;
+  final Future<void> Function() stop;
+
+  bool _running = false;
+  Future<void> _changes = Future.value();
+
+  /// Whether the engine runs (once the changes asked for are done).
+  bool get running => _running;
+
+  /// The app's engine syncs now ([on]: this one stops) or no longer
+  /// (this one starts).
+  Future<void> appSyncing(bool on) => _changes = _changes.then((_) async {
+    if (on && _running) {
+      _running = false;
+      await stop();
+    } else if (!on && !_running) {
+      _running = true;
+      start();
+    }
+  });
 }
 
 /// The last background check, as stored: `ok` or `failed`, a space, and

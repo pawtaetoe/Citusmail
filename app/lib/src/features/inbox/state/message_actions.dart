@@ -178,20 +178,33 @@ final class MessageActions {
   }
 
   /// Runs an action in steps, saying what it does and how far it got in
-  /// [working] ("[doing]… 2,400 of 7,080").
+  /// [working] ("[doing]… 2,400 of 7,080"). While several run (archiving
+  /// one sender's mail while another's is marked read), the newest says
+  /// how far it got, and [working] ends when the last one is done.
   Future<T> _inSteps<T>(
     String doing,
     int total,
     Future<T> Function(StepProgress progress) run,
   ) async {
-    String text(int done) => '$doing… ${grouped(done)} of ${grouped(total)}';
-    working.value = text(0);
+    final step = Object();
+    _stepping.add(step);
+    void show(int done) {
+      if (identical(_stepping.last, step)) {
+        working.value = '$doing… ${grouped(done)} of ${grouped(total)}';
+      }
+    }
+
+    show(0);
     try {
-      return await run((done, _) => working.value = text(done));
+      return await run((done, _) => show(done));
     } finally {
-      working.value = null;
+      _stepping.remove(step);
+      if (_stepping.isEmpty) working.value = null;
     }
   }
+
+  /// The actions running in steps, the newest last.
+  final _stepping = <Object>[];
 
   /// The account's Archive folder, if it has one. On Gmail, archiving
   /// means moving to All Mail (the message leaves the inbox, nothing else).

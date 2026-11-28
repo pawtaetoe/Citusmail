@@ -368,7 +368,8 @@ Future<void> _workerMain(_Boot boot) async {
           await engine.syncAccount(mailbox.accountId, mailboxIds: {mailboxId});
         }
       case _RequestSync(:final accountId):
-        engine.requestSync(accountId);
+        // From the screen: the user just changed something.
+        engine.requestSync(accountId, replay: true);
       case _CheckInboxes():
         engine.checkInboxes();
       case _Reconnect():
@@ -405,9 +406,7 @@ Future<void> _workerMain(_Boot boot) async {
         }
         return counted;
       case _AccountsChanged():
-        for (final account in store.accounts.all()) {
-          await engine.accountChanged(account.id);
-        }
+        await engine.accountsChanged();
         if (running) {
           await engine.stop();
           engine.start();

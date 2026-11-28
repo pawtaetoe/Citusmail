@@ -9,6 +9,8 @@
 // Timings are printed for the record.
 // ignore_for_file: avoid_print
 
+import 'dart:isolate';
+
 import 'package:citusmail/src/core/state/load_state.dart';
 import 'package:citusmail/src/core/state/page_model.dart';
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
@@ -333,6 +335,97 @@ void main() {
     }, statements: 40);
   });
 
+  test('during a long sync: scrolling, opening and marking read', () async {
+    // The sync worker, in its own isolate with its own connection, stores
+    // 3,000 summaries in one account's inbox as a full sync does: a FETCH
+    // of 100 at a time, stored 25 to a transaction.
+    final account = big.accounts[3];
+    final inbox = store().mailboxes.inbox(account.id)!;
+    var written = false;
+    final writing = Isolate.run(
+      _syncWriting(_SyncWrites(app.path, app.key.bytes, inbox.id.value, 3000)),
+    ).whenComplete(() => written = true);
+    controller.syncStatusController.debugEvent(AccountSyncStarted(account.id));
+    controller.goTo(const SectionLocation(SmartSection.general));
+    final general = controller.list.visible.take(20).toList();
+    final during = <String, List<UiWork>>{};
+    Future<void> time(String name, Future<void> Function() action) async {
+      final work = await UiWork.measure(name, store(), action);
+      (during[name] ??= []).add(work);
+    }
+
+    var round = 0;
+    while (!written || round < 3) {
+      final message = general[round % general.length];
+      await time('during a sync: scroll a page', () => controller.loadMore());
+      await time('during a sync: open a message', () async {
+        await controller.open(message);
+      });
+      await time('during a sync: mark unread (a write)', () async {
+        controller.toggleRead([message]);
+      });
+      // Another account's inbox check ends meanwhile.
+      await time('during a sync: refresh after another account', () async {
+        controller.refresh();
+      });
+      round++;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    final longestBatch = await writing;
+    controller.syncStatusController.debugEvent(
+      AccountSynced(
+        account.id,
+        AccountSyncReport(
+          replay: const ReplayResult(),
+          mailboxes: {
+            inbox.id: const MailboxSyncResult(
+              method: SyncMethod.condstore,
+              added: 3000,
+            ),
+          },
+        ),
+      ),
+    );
+    await measure(
+      'refresh after a sync stored 3,000',
+      () async => controller.refresh(),
+    );
+    controller
+      ..closeMessage()
+      ..goTo(const InboxLocation());
+
+    print(
+      'during a sync of 3,000 summaries ($round rounds; the longest '
+      'transaction in the worker ${longestBatch ~/ 1000} ms):',
+    );
+    for (final MapEntry(key: name, value: all) in during.entries) {
+      all.sort((a, b) => a.longest.compareTo(b.longest));
+      final worst = all.last;
+      results.add(
+        UiWork.frame(
+          '$name (worst of ${all.length})',
+          worst.longest,
+          worst.statements,
+        ),
+      );
+      // The guarantee: a write waits for one of the worker's
+      // transactions at most, a read for none. So the screen's own
+      // bound, plus the longest transaction this run measured: on a
+      // loaded machine (CI runs two test files on two cores) the worker
+      // can be paused while it holds the lock, and no size of batch
+      // prevents that. Waiting behind several (SQLite's own busy wait,
+      // or long transactions) still fails.
+      expect(
+        worst.longest.inMilliseconds,
+        lessThan(250 + longestBatch ~/ 1000),
+        reason:
+            '$name: its own work plus one transaction of the worker '
+            '(${longestBatch ~/ 1000} ms) at most',
+      );
+    }
+    expect(round, greaterThanOrEqualTo(3));
+  });
+
   testWidgets('the mail screen on a phone: scrolling and opening', (
     tester,
   ) async {
@@ -400,4 +493,68 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     debugDefaultTargetPlatformOverride = null;
   });
+}
+
+/// What the sync worker stores in a full sync: [_SyncWrites.count] new
+/// summaries in a folder, fetched 100 at a time (a few ms each from the
+/// server) and stored as the sync stores them ([WriteSteps]: short
+/// transactions sized by time), on its own connection.
+/// Returns the longest transaction (µs).
+Future<int> _syncWrites(_SyncWrites job) async {
+  final store = MailStore.open(job.path, DatabaseKey.fromBytes(job.key));
+  final mailbox = MailboxId(job.mailbox);
+  final writes = WriteSteps(
+    initial: const SyncSettings().writeBatch,
+    pause: MailboxSynchronizer.writePause,
+  );
+  final watch = Stopwatch();
+  var longest = 0;
+  try {
+    for (var fetched = 0; fetched < job.count; fetched += 100) {
+      // The next FETCH from the server.
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await writes.run(
+        [
+          for (var n = fetched; n < fetched + 100; n++)
+            MessageSummary(
+              uid: 500000 + n,
+              receivedAt: DateTime.utc(2024).add(Duration(minutes: n)),
+              messageId: 'synced$n@gen.example',
+              subject: 'Synced message $n about the quarterly report',
+              from: const MailAddress(
+                displayName: 'Dana',
+                localPart: 'dana',
+                domain: 'x.example',
+              ),
+              snippet: 'Hello, here is message $n, with a few words in it.',
+            ),
+        ],
+        (part) {
+          watch
+            ..reset()
+            ..start();
+          store.messages.upsertSummaries(mailbox, part);
+          if (watch.elapsedMicroseconds > longest) {
+            longest = watch.elapsedMicroseconds;
+          }
+        },
+      );
+    }
+  } finally {
+    store.close();
+  }
+  return longest;
+}
+
+/// [_syncWrites] of [job], capturing nothing else.
+Future<int> Function() _syncWriting(_SyncWrites job) =>
+    () => _syncWrites(job);
+
+final class _SyncWrites {
+  const _SyncWrites(this.path, this.key, this.mailbox, this.count);
+
+  final String path;
+  final List<int> key;
+  final int mailbox;
+  final int count;
 }

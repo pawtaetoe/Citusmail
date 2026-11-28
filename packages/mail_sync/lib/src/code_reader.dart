@@ -7,6 +7,8 @@ import 'package:mail_sort/mail_sort.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
+import 'sync_lease.dart';
+
 /// Finds the code in new verification mail, so the list can show it
 /// without the message being opened. Most servers (Gmail, Outlook) send
 /// no preview text, so fresh Codes mail is downloaded (BODY.PEEK: it stays
@@ -30,9 +32,14 @@ final class CodeReader {
   /// Messages read per sync, newest first.
   static const maxMessages = 10;
 
+  /// Messages downloaded per FETCH; between two, a sync's connection may
+  /// go to the user's work ([SyncLease]).
+  static const perFetch = 3;
+
   /// Reads new Codes mail in the inbox of [account] over [imap]; returns
-  /// how many codes were found.
-  Future<int> read(ImapClient imap, Account account) async {
+  /// how many codes were found. With a [lease], the connection may go to
+  /// the user's work between two FETCHes.
+  Future<int> read(ImapClient imap, Account account, {SyncLease? lease}) async {
     final inbox = _store.mailboxes.inbox(account.id);
     if (inbox == null) return 0;
     final fresh = _store.messages.codesToRead(
@@ -63,30 +70,39 @@ final class CodeReader {
         ? imap.selected!
         : await imap.select(inbox.encodedName, readOnly: true);
     if (selected.uidValidity != inbox.syncState.uidValidity) return 0;
-    final fetched = await imap.uidFetch(
-      SequenceSet.of(byUid.keys),
-      FetchItems(fullMessage: true),
-    );
+    final on = lease ?? SyncLease.fixed(imap);
+    final uids = byUid.keys.toList()..sort();
     var found = 0;
     final seen = <MessageId>{};
-    for (final item in fetched.messages) {
-      final message = byUid[item.uid];
-      final raw = item.sections[''];
-      if (message == null || raw == null || raw.length > maxBytes) continue;
-      seen.add(message.id);
-      final view = MessageView.parse(raw);
-      final code =
-          VerificationCodes.inMessage(message.subject, view.body.plainText) ??
-          '';
-      _store.transaction(() {
-        _store.messages.saveBody(
-          message.id,
-          raw,
-          searchableText: view.searchableText,
-        );
-        _store.messages.setCode(message.id, code);
-      });
-      if (code.isNotEmpty) found++;
+    for (var i = 0; i < uids.length; i += perFetch) {
+      final part = uids.sublist(
+        i,
+        i + perFetch > uids.length ? uids.length : i + perFetch,
+      );
+      final fetched = await (await on.resume(
+        inbox.encodedName,
+        selected.uidValidity,
+      )).uidFetch(SequenceSet.of(part), FetchItems(fullMessage: true));
+      for (final item in fetched.messages) {
+        final message = byUid[item.uid];
+        final raw = item.sections[''];
+        if (message == null || raw == null || raw.length > maxBytes) continue;
+        seen.add(message.id);
+        final view = MessageView.parse(raw);
+        final code =
+            VerificationCodes.inMessage(message.subject, view.body.plainText) ??
+            '';
+        _store.transaction(() {
+          _store.messages.saveBody(
+            message.id,
+            raw,
+            searchableText: view.searchableText,
+          );
+          _store.messages.setCode(message.id, code);
+        });
+        if (code.isNotEmpty) found++;
+      }
+      on.advanced();
     }
     // Gone from the server, or larger than it said: not asked again.
     for (final message in waiting) {

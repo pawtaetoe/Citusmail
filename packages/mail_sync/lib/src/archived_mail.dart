@@ -6,6 +6,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'mailbox_synchronizer.dart';
+import 'sync_lease.dart';
 
 /// Keeps mail archived elsewhere on the device.
 ///
@@ -56,8 +57,10 @@ final class ArchivedMail {
   }
 
   /// Looks the waiting messages up in All Mail over [imap] and stores
-  /// those found. Returns how many were stored.
-  Future<int> find(ImapClient imap, Account account) async {
+  /// those found. Returns how many were stored. With a [lease], the
+  /// connection may go to the user's work between two searches and two
+  /// FETCHes.
+  Future<int> find(ImapClient imap, Account account, {SyncLease? lease}) async {
     final allMail = _allMail(account);
     final waiting = _waiting(account);
     if (allMail == null || waiting.isEmpty) {
@@ -88,17 +91,25 @@ final class ArchivedMail {
       _waitingFor(account.id).clear(_store.settings);
       return 0;
     }
+    final on = lease ?? SyncLease.fixed(imap);
     final uids = <int>{};
     for (final id in now) {
+      final client = await on.resume(allMail.encodedName, selected.uidValidity);
       uids.addAll(
-        (await imap.uidSearch(SearchCriteria.header('Message-ID', '<$id>')))
+        (await client.uidSearch(SearchCriteria.header('Message-ID', '<$id>')))
             .matches
             .toList(),
       );
+      on.advanced();
     }
     final stored = uids.isEmpty
         ? 0
-        : await _mailboxSync.fetchUids(imap, allMail, (uids.toList()..sort()));
+        : await _mailboxSync.fetchUids(
+            await on.resume(allMail.encodedName, selected.uidValidity),
+            allMail,
+            (uids.toList()..sort()),
+            lease: on,
+          );
     _write(account, later);
     return stored;
   }

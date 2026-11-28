@@ -88,10 +88,12 @@ abstract base class PageModel<T> extends ChangeNotifier {
   }
 
   /// Replaces the loaded data at once, for a change made on the page that
-  /// needs no new load.
+  /// needs no new load. A fetch under way read from before the change:
+  /// what it finds is dropped, and it reads again.
   @protected
   void change(T value) {
     if (_disposed) return;
+    if (_running != null) _again = true;
     _state = Loaded<T>(value);
     notifyListeners();
   }
@@ -102,8 +104,10 @@ abstract base class PageModel<T> extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// What [reloadOn] tells: loads again once something was loaded, or
+  /// while the first load is under way (it may have read from before).
   void _changed() {
-    if (!loading) unawaited(load());
+    if (!loading || _running != null) unawaited(load());
   }
 
   @override

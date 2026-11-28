@@ -11,6 +11,7 @@ import 'package:mail_store/mail_store.dart';
 
 import 'account_synchronizer.dart';
 import 'app_data/app_data_sync.dart';
+import 'connection_budget.dart';
 import 'connector.dart';
 import 'folder_rules.dart';
 import 'idle_watcher.dart';
@@ -50,6 +51,10 @@ final class AccountSyncFailed extends SyncEvent {
 
 /// Runs syncs for all accounts: on demand, when IDLE reports a change,
 /// and periodically. Syncs of one account never overlap.
+///
+/// Every IMAP connection it opens counts in one [ConnectionBudget] per
+/// account (4 by default, IDLE included), shared by the syncs, the
+/// on-demand work and IDLE; see docs/architecture.md, "Connections".
 final class SyncEngine {
   SyncEngine(
     this._store,
@@ -60,7 +65,15 @@ final class SyncEngine {
     this.inboxCheckInterval,
     this.changeDelay = const Duration(milliseconds: 500),
     SyncCodeProvider? syncCodes,
-  }) : appData = syncCodes == null ? null : AppDataSync(_store, syncCodes),
+    ConnectionBudget? connections,
+    List<Duration> refusalRetryDelays = const [
+      Duration(seconds: 2),
+      Duration(seconds: 5),
+    ],
+    Backoff? backoff,
+  }) : connections = connections ?? ConnectionBudget(_connector),
+       _backoff = backoff ?? Backoff(),
+       appData = syncCodes == null ? null : AppDataSync(_store, syncCodes),
        _mailboxSync = MailboxSynchronizer(
          _store,
          // By default the header rules, plus what each sender's other
@@ -75,15 +88,24 @@ final class SyncEngine {
          settings: settings,
        ),
        _loader = MessageLoader(_store),
-       _files = FileLookup(_store),
-       _onDemand = OnDemandConnections(_connector),
-       _background = OnDemandConnections(_connector),
-       _syncConnections = SyncConnections(_connector) {
+       _files = FileLookup(_store) {
+    _onDemand = OnDemandConnections(
+      _connector,
+      budget: this.connections,
+      retryDelays: refusalRetryDelays,
+    );
+    _background = OnDemandConnections(
+      _connector,
+      budget: this.connections,
+      priority: ConnectionPriority.background,
+      retryDelays: const [],
+    );
+    _syncConnections = SyncConnections(_connector, budget: this.connections);
     _synchronizer = AccountSynchronizer(
       _store,
       _connector,
       _mailboxSync,
-      OutboxReplayer(_store),
+      _replayer,
       rules: FolderRuleApplier(_store),
       blocker: SenderBlocker(_store),
       screener: ScreenerArchiver(_store),
@@ -96,22 +118,39 @@ final class SyncEngine {
   final MailStore _store;
   final MailConnector _connector;
 
+  /// Every connection of an account counts here: the syncs', the
+  /// on-demand ones and IDLE.
+  final ConnectionBudget connections;
+
+  /// After a login refused for being one connection too many, an
+  /// account's periodic syncs and inbox checks wait this long (longer
+  /// after each refusal in a row).
+  final Backoff _backoff;
+  final _refusals = <AccountId, ({int count, DateTime until})>{};
+
   /// App data sync between the user's devices; null without a code source.
   final AppDataSync? appData;
   final MailboxSynchronizer _mailboxSync;
   final MessageLoader _loader;
   final FileLookup _files;
-  final OnDemandConnections _onDemand;
+  late final OnDemandConnections _onDemand;
 
   /// A second on-demand connection per account for work nobody waits on
   /// (reading receipts ahead of time), so a message the user opens never
   /// queues behind it.
-  final OnDemandConnections _background;
+  late final OnDemandConnections _background;
 
   /// Connections kept between syncs, so the frequent inbox check does
   /// not log in every time.
-  final SyncConnections _syncConnections;
+  late final SyncConnections _syncConnections;
   late final AccountSynchronizer _synchronizer;
+
+  /// The outbox's replays: the syncs' and the user's ([replayNow]), one
+  /// at a time per account.
+  late final OutboxReplayer _replayer = OutboxReplayer(_store);
+
+  /// The user's replays under way ([replayNow]).
+  final Set<Future<void>> _replaying = {};
 
   /// How often every folder is synced while running.
   final Duration fullSyncInterval;
@@ -128,9 +167,12 @@ final class SyncEngine {
   // Delivered when they happen, so an event is always seen before the call
   // that caused it returns (the sync worker relies on this order).
   final _events = StreamController<SyncEvent>.broadcast(sync: true);
-  final Map<AccountId, Future<void>> _running = {};
-  final Map<AccountId, Timer> _pendingRequests = {};
+  final Map<AccountId, _AccountSyncs> _syncs = {};
+  final Map<AccountId, _PendingRequest> _pendingRequests = {};
+  bool _stopping = false;
+  bool _disposed = false;
   final List<Timer> _scheduled = [];
+  final Set<Future<void>> _watching = {};
   Completer<void>? _stop;
   Completer<void>? _stopWatching;
   Timer? _periodic;
@@ -140,41 +182,166 @@ final class SyncEngine {
 
   bool get isRunning => _stop != null;
 
-  /// Syncs one account now (after any sync already running for it).
+  /// Syncs one account now, or after the sync already running for it.
   /// Failures are reported as [AccountSyncFailed] events, not thrown.
+  ///
+  /// An account has at most one sync running and one waiting: what is
+  /// asked for while one waits joins it (its folders added; a full sync
+  /// covers every folder, and views like Gmail's Starred asked for are
+  /// added), and every caller gets that sync's report. Different accounts
+  /// sync side by side. While the engine stops, nothing new starts (null).
   Future<AccountSyncReport?> syncAccount(
     AccountId accountId, {
     Set<MailboxId>? mailboxIds,
-  }) {
-    final previous = _running[accountId] ?? Future.value();
-    final run = previous.then((_) async {
+  }) => _sync(accountId, _SyncRequest(mailboxIds));
+
+  Future<AccountSyncReport?> _sync(AccountId accountId, _SyncRequest request) {
+    if (_stopping || _disposed) return Future.value();
+    final syncs = _syncs.putIfAbsent(accountId, _AccountSyncs.new);
+    if (syncs.waiting case final waiting?) {
+      waiting.request = waiting.request.join(request);
+      return waiting.done.future;
+    }
+    final sync = _WaitingSync(request);
+    if (syncs.done != null) {
+      syncs.waiting = sync;
+    } else {
+      syncs.done = _runSyncs(accountId, syncs, sync);
+    }
+    return sync.done.future;
+  }
+
+  /// Runs [first], then the sync that waited meanwhile, one at a time.
+  Future<void> _runSyncs(
+    AccountId accountId,
+    _AccountSyncs syncs,
+    _WaitingSync first,
+  ) async {
+    // Runs after the caller noted that this account has a sync running.
+    await null;
+    _WaitingSync? next = first;
+    while (next != null) {
+      next.done.complete(await _syncOnce(accountId, next.request));
+      next = syncs.waiting;
+      syncs.waiting = null;
+      if (next != null && (_stopping || _disposed)) {
+        next.done.complete(null);
+        next = null;
+      }
+    }
+    _syncs.remove(accountId);
+  }
+
+  /// One sync of [accountId]; never throws.
+  Future<AccountSyncReport?> _syncOnce(
+    AccountId accountId,
+    _SyncRequest request,
+  ) async {
+    try {
       final account = _store.accounts.byId(accountId);
       if (account == null) return null;
-      _events.add(AccountSyncStarted(accountId));
-      try {
-        final report = await _synchronizer.sync(
-          account,
-          mailboxIds: mailboxIds,
+      _emit(AccountSyncStarted(accountId));
+      final report = await _synchronizer.sync(
+        account,
+        mailboxIds: request.full ? null : request.mailboxIds,
+        alsoMailboxIds: request.full ? request.mailboxIds : const {},
+      );
+      _refusals.remove(accountId);
+      _emit(AccountSynced(accountId, report));
+      return report;
+    } on Object catch (e) {
+      if (e is ImapAuthenticationException && e.temporary) {
+        final count = (_refusals[accountId]?.count ?? 0) + 1;
+        _refusals[accountId] = (
+          count: count,
+          until: DateTime.now().add(_backoff.after(count - 1)),
         );
-        _events.add(AccountSynced(accountId, report));
-        return report;
-      } on Object catch (e) {
-        _events.add(AccountSyncFailed(accountId, SyncFailure.from(e)));
-        return null;
       }
-    });
-    _running[accountId] = run.then((_) {});
-    return run;
+      _emit(AccountSyncFailed(accountId, SyncFailure.from(e)));
+      return null;
+    }
+  }
+
+  void _emit(SyncEvent event) {
+    if (!_events.isClosed) _events.add(event);
   }
 
   /// Asks for a sync soon (e.g. after the user acted on mail). Requests
-  /// arriving within [changeDelay] are merged.
-  void requestSync(AccountId accountId, {Set<MailboxId>? mailboxIds}) {
-    _pendingRequests[accountId]?.cancel();
-    _pendingRequests[accountId] = Timer(changeDelay, () {
-      _pendingRequests.remove(accountId);
-      unawaited(syncAccount(accountId, mailboxIds: mailboxIds));
+  /// arriving within [changeDelay] of the first are merged into one.
+  ///
+  /// With [replay] (the user just changed something), the queued changes
+  /// go to the server first as the user's work ([replayNow]), without
+  /// waiting for a sync under way.
+  void requestSync(
+    AccountId accountId, {
+    Set<MailboxId>? mailboxIds,
+    bool replay = false,
+  }) {
+    final request = _SyncRequest(mailboxIds);
+    if (_pendingRequests[accountId] case final pending?) {
+      pending.request = pending.request.join(request);
+      pending.replay |= replay;
+      return;
+    }
+    final pending = _PendingRequest(request)..replay = replay;
+    pending.timer = Timer(changeDelay, () {
+      if (_pendingRequests[accountId] == pending) {
+        _pendingRequests.remove(accountId);
+      }
+      unawaited(() async {
+        if (pending.replay) await replayNow(accountId);
+        await _sync(accountId, pending.request);
+      }());
     });
+    _pendingRequests[accountId] = pending;
+  }
+
+  /// Replays what is due in [accountId]'s outbox now, as the user's work,
+  /// outside the account's syncs (it waits neither for the one running
+  /// nor for the one waiting): a message whose undo delay is over goes to
+  /// the SMTP server at once, on its own connection, and its copy in
+  /// Sent, its \Answered flag and the old draft's removal follow on an
+  /// IMAP connection taken with [ConnectionPriority.send], ahead of
+  /// everything else; the user's other changes with
+  /// [ConnectionPriority.user]. A sync's replay under way stops before
+  /// its next entry and leaves the rest to this one, so nothing is
+  /// replayed twice ([OutboxReplayer]).
+  ///
+  /// Never throws: what fails is retried by the sync that follows, which
+  /// reports it.
+  Future<void> replayNow(AccountId accountId) async {
+    if (_stopping || _disposed) return;
+    final account = _store.accounts.byId(accountId);
+    if (account == null) return;
+    final done = () async {
+      try {
+        await _replayer.replayForUser(
+          account,
+          smtp: () => _connector.smtp(account),
+          withImap: (replay) {
+            final sending = _store.outbox
+                .due(accountId)
+                .any((e) => e.action is SendAction);
+            return _onDemand.run(
+              account,
+              replay,
+              priority: sending
+                  ? ConnectionPriority.send
+                  : ConnectionPriority.user,
+            );
+          },
+          othersWait: () => connections.contended(accountId),
+        );
+      } on Object {
+        // Retried by the sync that follows.
+      }
+    }();
+    _replaying.add(done);
+    try {
+      await done;
+    } finally {
+      _replaying.remove(done);
+    }
   }
 
   /// Starts syncing every account, watching each inbox with IDLE.
@@ -183,8 +350,8 @@ final class SyncEngine {
     _stop = Completer<void>();
     _watch();
     _periodic = Timer.periodic(fullSyncInterval, (_) {
-      for (final account in _store.accounts.all()) {
-        unawaited(syncAccount(account.id));
+      for (final account in _accounts()) {
+        if (!_backingOff(account.id)) unawaited(syncAccount(account.id));
       }
     });
     if (inboxCheckInterval case final interval?) {
@@ -197,16 +364,45 @@ final class SyncEngine {
   /// [reconnect].
   void _watch() {
     final stop = _stopWatching = Completer<void>();
-    for (final account in _store.accounts.all()) {
-      unawaited(_runAccount(account, stop.future));
+    for (final account in _accounts()) {
+      final running = _runAccount(account, stop.future);
+      _watching.add(running);
+      unawaited(running.whenComplete(() => _watching.remove(running)));
     }
+  }
+
+  /// Whether [accountId]'s server refused a login for having too many
+  /// connections a short while ago: background syncs wait then.
+  bool _backingOff(AccountId accountId) {
+    final refusals = _refusals[accountId];
+    return refusals != null && DateTime.now().isBefore(refusals.until);
   }
 
   /// A quick look at every inbox for new mail.
   void checkInboxes() {
-    for (final account in _store.accounts.all()) {
-      final inbox = _store.mailboxes.inbox(account.id);
+    for (final account in _accounts()) {
+      if (_backingOff(account.id)) continue;
+      final inbox = _inboxOf(account.id);
       if (inbox != null) requestSync(account.id, mailboxIds: {inbox.id});
+    }
+  }
+
+  /// The accounts, or none when the store cannot be read just now (it is
+  /// read again next time). Timers and IDLE call this: an error thrown
+  /// there would end the sync worker.
+  List<Account> _accounts() {
+    try {
+      return _store.accounts.all();
+    } on Object {
+      return const [];
+    }
+  }
+
+  StoredMailbox? _inboxOf(AccountId accountId) {
+    try {
+      return _store.mailboxes.inbox(accountId);
+    } on Object {
+      return null;
     }
   }
 
@@ -241,16 +437,18 @@ final class SyncEngine {
     }
   }
 
-  /// Stops watching and waits for running syncs to finish.
+  /// Stops watching and waits for running syncs to finish. Syncs waiting
+  /// to run, or asked for meanwhile, are dropped (null).
   Future<void> stop() async {
+    _stopping = true;
     _periodic?.cancel();
     _inboxChecks?.cancel();
     _inboxChecks = null;
     final watching = _stopWatching;
     _stopWatching = null;
     if (watching != null && !watching.isCompleted) watching.complete();
-    for (final timer in _pendingRequests.values) {
-      timer.cancel();
+    for (final pending in _pendingRequests.values) {
+      pending.timer.cancel();
     }
     _pendingRequests.clear();
     for (final timer in _scheduled) {
@@ -260,14 +458,31 @@ final class SyncEngine {
     final stop = _stop;
     _stop = null;
     if (stop != null && !stop.isCompleted) stop.complete();
-    await Future.wait(_running.values);
-    await _syncConnections.closeAll();
+    // Syncs waiting for a connection give up rather than start now.
+    connections.cancelWaits();
+    for (final syncs in _syncs.values) {
+      syncs.waiting?.done.complete(null);
+      syncs.waiting = null;
+    }
+    try {
+      await Future.wait([
+        for (final syncs in [..._syncs.values]) ?syncs.done,
+        ..._replaying,
+      ]);
+      // IDLE connections are closed when their watchers end.
+      await Future.wait([..._watching]);
+      await _syncConnections.closeAll();
+    } finally {
+      _stopping = false;
+    }
   }
 
   Future<void> dispose() async {
+    _disposed = true;
     await stop();
     await _onDemand.closeAll();
     await _background.closeAll();
+    await connections.close();
     await _events.close();
   }
 
@@ -286,10 +501,10 @@ final class SyncEngine {
     }
     final account = _accountOfMessage(messageId);
     try {
-      return await (background ? _background : _onDemand).run(
-        account,
-        (imap) => _loader.load(imap, messageId),
-      );
+      Future<Uint8List> load(ImapClient imap) => _loader.load(imap, messageId);
+      return await (background
+          ? _background.run(account, load)
+          : _onDemand.run(account, load, priority: ConnectionPriority.open));
     } on BodyUnavailableException catch (e) {
       // The cache is out of date: let a sync catch up.
       if (e.problem != BodyProblem.tooLarge) requestSync(account.id);
@@ -311,7 +526,11 @@ final class SyncEngine {
     for (final MapEntry(key: accountId, value: ids) in byAccount.entries) {
       final account = _store.accounts.byId(accountId);
       if (account == null) continue;
-      await _onDemand.run(account, (imap) => _files.lookUp(imap, ids));
+      await _onDemand.run(
+        account,
+        (imap) => _files.lookUp(imap, ids),
+        priority: ConnectionPriority.open,
+      );
     }
   }
 
@@ -342,13 +561,20 @@ final class SyncEngine {
     );
   }
 
-  /// Syncs [accountId] at [at] (when a delayed send becomes due), so the
-  /// message goes out then rather than at the next periodic sync.
+  /// Replays [accountId]'s outbox at [at] (when a send or another change
+  /// comes out of its undo delay, or a "Send later" message is due), as
+  /// the user's work ([replayNow]), then syncs it: the message goes out
+  /// then rather than at the next periodic sync, and without waiting for
+  /// a sync under way.
   void syncAt(AccountId accountId, DateTime at) {
     final delay = at.difference(DateTime.now());
     _scheduled.add(
       Timer(delay.isNegative ? Duration.zero : delay, () {
-        if (_stop != null) unawaited(syncAccount(accountId));
+        if (_stop == null) return;
+        unawaited(() async {
+          await replayNow(accountId);
+          await syncAccount(accountId);
+        }());
       }),
     );
     _scheduled.removeWhere((t) => !t.isActive);
@@ -388,12 +614,26 @@ final class SyncEngine {
     await _onDemand.run(account, (imap) => sync.forget(imap, account));
   }
 
-  /// Forgets the on-demand connection of an account (after it was removed
-  /// or its settings changed).
+  /// Closes the connections of an account (after it was removed or its
+  /// settings changed): kept ones now, those in use when they are done.
   Future<void> accountChanged(AccountId accountId) async {
     await _onDemand.close(accountId);
     await _background.close(accountId);
     await _syncConnections.close(accountId);
+    await connections.forget(accountId);
+    _refusals.remove(accountId);
+  }
+
+  /// After accounts were added, removed or changed: [accountChanged] for
+  /// each, also those no longer there.
+  Future<void> accountsChanged() async {
+    final ids = {
+      for (final account in _store.accounts.all()) account.id,
+      ...connections.accountIds,
+    };
+    for (final id in ids) {
+      await accountChanged(id);
+    }
   }
 
   Account _accountOfMessage(MessageId messageId) {
@@ -409,9 +649,9 @@ final class SyncEngine {
 
   Future<void> _runAccount(Account account, Future<void> stop) async {
     await syncAccount(account.id);
-    final inbox = _store.mailboxes.inbox(account.id);
+    final inbox = _inboxOf(account.id);
     if (inbox == null) return;
-    await IdleWatcher(_connector).watch(
+    await IdleWatcher(_connector, budget: connections).watch(
       account,
       inbox,
       stop: stop,
@@ -420,4 +660,45 @@ final class SyncEngine {
           _events.add(AccountSyncFailed(account.id, failure)),
     );
   }
+}
+
+/// What a sync covers: every folder ([full], plus [mailboxIds] that a full
+/// sync leaves out, such as Gmail's Starred), or only [mailboxIds].
+final class _SyncRequest {
+  _SyncRequest(Set<MailboxId>? mailboxIds)
+    : full = mailboxIds == null,
+      mailboxIds = {...?mailboxIds};
+
+  _SyncRequest._(this.full, this.mailboxIds);
+
+  final bool full;
+  final Set<MailboxId> mailboxIds;
+
+  /// One sync that covers both.
+  _SyncRequest join(_SyncRequest other) =>
+      _SyncRequest._(full || other.full, {...mailboxIds, ...other.mailboxIds});
+}
+
+/// An account's syncs: the one running (until [done]) and the next.
+final class _AccountSyncs {
+  Future<void>? done;
+  _WaitingSync? waiting;
+}
+
+final class _WaitingSync {
+  _WaitingSync(this.request);
+
+  _SyncRequest request;
+  final done = Completer<AccountSyncReport?>();
+}
+
+/// A [SyncEngine.requestSync] waiting for its delay.
+final class _PendingRequest {
+  _PendingRequest(this.request);
+
+  _SyncRequest request;
+
+  /// Whether the queued changes go to the server first, as the user's.
+  bool replay = false;
+  late final Timer timer;
 }

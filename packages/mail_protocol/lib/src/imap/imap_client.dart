@@ -357,11 +357,75 @@ final class ImapClient {
     return result;
   }
 
+  /// All folders, as [listMailboxes], and each one's counters, as
+  /// [status], in one command: on a server with LIST-STATUS (RFC 5819),
+  /// else null. [highestModSeq] asks for HIGHESTMODSEQ too (CONDSTORE).
+  /// A folder the server gives no counters for (one that can't be
+  /// selected) is left out of the counters.
+  Future<
+    ({List<ImapMailboxInfo> mailboxes, Map<String, MailboxStatus> status})?
+  >
+  listMailboxesWithStatus({bool highestModSeq = false}) async {
+    if (!_capabilities.has('LIST-STATUS')) return null;
+    // An open folder's counters may answer from this session's old view
+    // (see [status]): close it first where the server allows (UNSELECT),
+    // else leave its counters out below.
+    await unselect();
+    final items = [
+      'MESSAGES',
+      'UIDNEXT',
+      'UIDVALIDITY',
+      if (highestModSeq) 'HIGHESTMODSEQ',
+    ];
+    final command = ImapCommand('LIST')
+      ..string('')
+      ..string('*');
+    final specialUse =
+        _capabilities.has('SPECIAL-USE') && _capabilities.has('LIST-EXTENDED');
+    command.raw(
+      'RETURN (${specialUse ? 'SPECIAL-USE ' : ''}'
+      'STATUS (${items.join(' ')}))',
+    );
+    final mailboxes = <ImapMailboxInfo>[];
+    final status = <String, MailboxStatus>{};
+    await _run(
+      command,
+      onData: (data) {
+        switch (data.keyword) {
+          case 'LIST':
+            final info = ImapMailboxInfo.fromResponse(data);
+            if (info != null) mailboxes.add(info);
+            return true;
+          case 'STATUS' when data.values.length >= 2:
+            final name = data.values[0].asText;
+            if (name != null) {
+              status[name] = MailboxStatus.fromValues(
+                data.values[1].asList ?? const [],
+              );
+            }
+            return true;
+        }
+        return false;
+      },
+    );
+    // Still open (no UNSELECT): its counters may be stale, so they are
+    // left out and nobody takes the folder for unchanged.
+    if (_selected case final open?) status.remove(open.name);
+    return (mailboxes: mailboxes, status: status);
+  }
+
   /// Folder counters without selecting it.
   Future<MailboxStatus> status(
     String encodedName, {
     bool highestModSeq = false,
   }) async {
+    // STATUS on the folder this connection has open may answer from the
+    // session's own view, without what other clients did since (RFC 9051
+    // 6.3.11 says not to rely on it). Opening it again brings that view
+    // up to date first.
+    if (_selected case final open? when open.name == encodedName) {
+      await select(encodedName, readOnly: open.readOnly);
+    }
     final items = [
       'MESSAGES',
       'UIDNEXT',
@@ -382,6 +446,17 @@ final class ImapClient {
       },
     );
     return status ?? const MailboxStatus();
+  }
+
+  /// Closes the open folder without expunging anything (UNSELECT, RFC
+  /// 3691). Returns whether no folder is open afterwards: false when one
+  /// is and the server can't unselect.
+  Future<bool> unselect() async {
+    if (_selected == null) return true;
+    if (!_capabilities.has('UNSELECT')) return false;
+    await _run(ImapCommand('UNSELECT'));
+    _selected = null;
+    return true;
   }
 
   /// Opens a folder. [readOnly] uses EXAMINE, which never changes flags.

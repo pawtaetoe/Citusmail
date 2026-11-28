@@ -8,6 +8,7 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'mailbox_synchronizer.dart';
+import 'sync_lease.dart';
 
 /// What one pass of [ArchivedBackfill] did.
 final class ArchivedBackfillResult {
@@ -97,6 +98,7 @@ final class ArchivedBackfill {
     ImapClient imap,
     Account account, {
     Set<int> pendingUids = const {},
+    SyncLease? lease,
   }) async {
     if (!appliesTo(imap)) return null;
     final allMail = _store.mailboxes.bySpecialUse(account.id, SpecialUse.all);
@@ -106,6 +108,11 @@ final class ArchivedBackfill {
     final selected = await imap.select(allMail.encodedName, readOnly: true);
     final uidNext = selected.uidNext;
     if (uidNext == null) return null;
+    // Between two commands, the connection may go to the user's work: All
+    // Mail is selected again on the one that comes back.
+    final on = lease ?? SyncLease.fixed(imap);
+    final validity = selected.uidValidity;
+    Future<ImapClient> resume() => on.resume(allMail.encodedName, validity);
 
     // All Mail was reset on the server: what is stored under the old UIDs
     // means nothing now, and is filled in again from the start. Kept
@@ -143,7 +150,7 @@ final class ArchivedBackfill {
       final top = fill.top;
       final arrived = [
         for (final uid in await _search(
-          imap,
+          await resume(),
           SequenceSet.range(top),
           since,
           starred: false,
@@ -151,7 +158,7 @@ final class ArchivedBackfill {
           if (uid >= top && !onDevice.contains(uid)) uid,
       ];
       final batch = arrived.take(budget).toList();
-      stored += await _storeNew(imap, account, allMail, batch);
+      stored += await _storeNew(on, validity, account, allMail, batch);
       budget -= batch.length;
       fill = fill.copy(
         top: arrived.length <= batch.length ? uidNext : batch.last + 1,
@@ -166,7 +173,7 @@ final class ArchivedBackfill {
           ? const <int>[]
           : [
               for (final uid in (await _search(
-                imap,
+                await resume(),
                 SequenceSet.range(1, below - 1),
                 since,
                 starred: starred,
@@ -174,7 +181,8 @@ final class ArchivedBackfill {
                 if (uid < below && !onDevice.contains(uid)) uid,
             ];
       final batch = older.take(budget).toList();
-      stored += await _storeNew(imap, account, allMail, batch);
+      stored += await _storeNew(on, validity, account, allMail, batch);
+      on.advanced();
       budget -= batch.length;
       onDevice.addAll(batch);
       fill = older.length > batch.length
@@ -185,7 +193,7 @@ final class ArchivedBackfill {
     }
 
     final (updated, removed, checkedAt) = await _refreshFlags(
-      imap,
+      on,
       allMail,
       selected,
       fill,
@@ -223,7 +231,8 @@ final class ArchivedBackfill {
   /// of [account], by Message-ID (read first, a few bytes each). Mail
   /// without one is left out: it could not be told apart from a copy.
   Future<int> _storeNew(
-    ImapClient imap,
+    SyncLease on,
+    int validity,
     Account account,
     StoredMailbox allMail,
     List<int> uids,
@@ -240,10 +249,12 @@ final class ArchivedBackfill {
         i,
         i + batch > uids.length ? uids.length : i + batch,
       );
+      final imap = await on.resume(allMail.encodedName, validity);
       final fetched = await imap.uidFetch(
         SequenceSet.of(part),
         FetchItems(headerFields: const ['Message-ID']),
       );
+      on.advanced();
       for (final m in fetched.messages) {
         final uid = m.uid;
         final id = _messageId(m.headerFields);
@@ -257,7 +268,12 @@ final class ArchivedBackfill {
       }
     }
     if (wanted.isEmpty) return 0;
-    return _mailboxSync.fetchUids(imap, allMail, wanted..sort());
+    return _mailboxSync.fetchUids(
+      await on.resume(allMail.encodedName, validity),
+      allMail,
+      wanted..sort(),
+      lease: on,
+    );
   }
 
   static String? _messageId(Uint8List? raw) {
@@ -270,12 +286,14 @@ final class ArchivedBackfill {
   /// server, and drops those it no longer has. Returns how many changed,
   /// how many were removed, and when removals were last looked for.
   Future<(int, int, DateTime?)> _refreshFlags(
-    ImapClient imap,
+    SyncLease on,
     StoredMailbox allMail,
     SelectedMailbox selected,
     _FillState state,
     Set<int> pendingUids,
   ) async {
+    Future<ImapClient> resume() =>
+        on.resume(allMail.encodedName, selected.uidValidity);
     final cached = _store.messages.flagsByUid(allMail.id);
     var checkedAt = state.removalsCheckedAt;
     if (cached.isEmpty) return (0, 0, checkedAt);
@@ -288,7 +306,7 @@ final class ArchivedBackfill {
       // Only what changed since the last pass: usually nothing at all.
       if (selected.highestModSeq != modSeq) {
         fetched.addAll(
-          (await imap.uidFetch(
+          (await (await resume()).uidFetch(
             SequenceSet.range(uids.first),
             FetchItems.flagsOnly(modSeq: true),
             changedSince: modSeq,
@@ -301,11 +319,13 @@ final class ArchivedBackfill {
         checkedAt = now;
         final there = <int>{};
         for (final chunk in _chunks(uids)) {
+          final imap = await resume();
           there.addAll(
             (await imap.uidSearch(SearchCriteria.uids(SequenceSet.of(chunk))))
                 .matches
                 .toList(),
           );
+          on.advanced();
         }
         removed = [
           for (final uid in uids)
@@ -318,12 +338,13 @@ final class ArchivedBackfill {
       checkedAt = now;
       final there = <int>{};
       for (final chunk in _chunks(uids)) {
-        final part = await imap.uidFetch(
+        final part = await (await resume()).uidFetch(
           SequenceSet.of(chunk),
           FetchItems.flagsOnly(modSeq: selected.highestModSeq != null),
         );
         fetched.addAll(part.messages);
         there.addAll([for (final m in part.messages) ?m.uid]);
+        on.advanced();
       }
       removed = [
         for (final uid in uids)

@@ -6,14 +6,18 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'summary_mapper.dart';
+import 'sync_lease.dart';
+import 'write_steps.dart';
 
 /// Tuning for message sync.
 final class SyncSettings {
   const SyncSettings({
     this.initialWindow = 500,
     this.fetchBatch = 100,
+    this.checkBatch = 1000,
     this.backfillBatch = 500,
     this.connections = 3,
+    this.writeBatch = 25,
   });
 
   /// Newest messages downloaded on a folder's first sync. Older ones
@@ -21,8 +25,21 @@ final class SyncSettings {
   /// [KeepMail] says; and on demand with [MailboxSynchronizer.fetchOlder].
   final int initialWindow;
 
-  /// Messages per FETCH and per stored transaction.
+  /// Messages per FETCH of summaries. Between two, the sync hands its
+  /// connection to the user's work waiting for one ([SyncLease]), so it
+  /// waits for one FETCH at most.
   final int fetchBatch;
+
+  /// Stored messages whose flags (without change tracking) or presence on
+  /// the server are compared per command, the user's work going first
+  /// between two as between FETCHes.
+  final int checkBatch;
+
+  /// Summaries in the first stored transaction. Later ones are sized by
+  /// time ([WriteSteps]): while the sync writes, a write from the screen
+  /// (marking read, archiving) waits for one short transaction at most,
+  /// on any device.
+  final int writeBatch;
 
   /// Older messages downloaded per folder per sync, until the folder
   /// reaches back to [KeepMail]'s date.
@@ -30,8 +47,9 @@ final class SyncSettings {
 
   /// Connections per account during a sync: folders are synced side by
   /// side, the inbox first. Servers allow a handful per account (Gmail
-  /// 15, Outlook about 16); the app also keeps one for IDLE and one for
-  /// opening messages.
+  /// 15, Outlook about 16, shared by all devices), so the extra ones are
+  /// opened only while the account's `ConnectionBudget` has room (IDLE
+  /// and opening messages count in it too).
   final int connections;
 }
 
@@ -81,6 +99,10 @@ enum SyncMethod {
 
   /// Plain IMAP: all flags in the cached range, removals by UID search.
   plain,
+
+  /// Not opened: the folder's counters on the server (LIST-STATUS) showed
+  /// nothing changed since the last sync.
+  unchanged,
 }
 
 /// What a folder sync changed.
@@ -114,6 +136,16 @@ final class MailboxSyncResult {
 
   bool get hasChanges => added + updated + removed + backfilled > 0 || wasReset;
 
+  MailboxSyncResult _reset() => MailboxSyncResult(
+    method: method,
+    added: added,
+    updated: updated,
+    removed: removed,
+    wasReset: true,
+    backfilled: backfilled,
+    removedMessageIds: removedMessageIds,
+  );
+
   @override
   String toString() =>
       'MailboxSyncResult(${method.name}, +$added ~$updated -$removed'
@@ -130,22 +162,34 @@ final class MailboxSynchronizer {
     this._store,
     this._mapper, {
     this.settings = const SyncSettings(),
-  });
+    WriteSteps? writes,
+  }) : writes =
+           writes ??
+           WriteSteps(initial: settings.writeBatch, pause: writePause);
 
   final MailStore _store;
   final SummaryMapper _mapper;
   final SyncSettings settings;
 
+  /// How the cache is written: short transactions sized by time, so the
+  /// screen's own writes never wait long for the lock. Shared with
+  /// [another], so what one learns of the device's speed the others use.
+  final WriteSteps writes;
+
   /// Another synchronizer like this one, for a second connection: one
   /// instance syncs one folder at a time.
   MailboxSynchronizer another() =>
-      MailboxSynchronizer(_store, _mapper, settings: settings);
+      MailboxSynchronizer(_store, _mapper, settings: settings, writes: writes);
 
   /// UIDs whose flags must not be overwritten during the current sync.
   Set<int> _pending = const {};
 
   /// Message-IDs removed during the current sync.
   List<String> _gone = [];
+
+  /// The pause between two stored transactions of one FETCH, so another
+  /// connection waiting to write gets its turn.
+  static const writePause = Duration(milliseconds: 1);
 
   /// Most Message-IDs of removed messages a sync reports.
   static const maxNotedRemovals = 500;
@@ -165,12 +209,45 @@ final class MailboxSynchronizer {
   /// older mail only until the folder reaches back far enough. On a
   /// server without CONDSTORE, every message's flags are compared only
   /// with [refreshFlags] (the full sync, not the frequent inbox check).
+  ///
+  /// With a [lease] (instead of [imap] alone), the connection goes to the
+  /// user's work waiting for one between two batches (FETCHes of
+  /// summaries, chunks of flags or of the removals check), and the sync
+  /// goes on where it stopped on the connection it gets back, the folder
+  /// selected again. If the folder's UIDVALIDITY changed meanwhile, what
+  /// was stored of it is dropped and the folder synced afresh.
   Future<MailboxSyncResult> sync(
     ImapClient imap,
     StoredMailbox mailbox, {
     Set<int> pendingUids = const {},
     bool refreshFlags = true,
+    SyncLease? lease,
   }) async {
+    final on = lease ?? SyncLease.fixed(imap);
+    var folder = mailbox;
+    var pending = pendingUids;
+    for (var resets = 0; ; resets++) {
+      try {
+        final result = await _sync(on, folder, pending, refreshFlags);
+        return resets == 0 ? result : result._reset();
+      } on FolderResetException catch (e) {
+        if (e.encodedName != folder.encodedName || resets >= 2) rethrow;
+        // Reset while it was handed over: the UIDs stored so far mean
+        // nothing now, nor those of the queued changes.
+        _store.mailboxes.resetForUidValidity(folder.id, e.uidValidity);
+        folder = _store.mailboxes.byId(folder.id) ?? (throw e);
+        pending = const {};
+      }
+    }
+  }
+
+  Future<MailboxSyncResult> _sync(
+    SyncLease lease,
+    StoredMailbox mailbox,
+    Set<int> pendingUids,
+    bool refreshFlags,
+  ) async {
+    final imap = lease.client;
     _pending = pendingUids;
     _gone = [];
     final cached = mailbox.syncState;
@@ -211,13 +288,19 @@ final class MailboxSynchronizer {
       if (wasReset) {
         _store.mailboxes.resetForUidValidity(mailbox.id, selected.uidValidity);
       }
-      final (added, low) = await _fullSync(imap, mailbox, selected);
+      final (added, low, everything) = await _fullSync(
+        lease,
+        mailbox,
+        selected,
+      );
       _FolderMemo(
         uidValidity: selected.uidValidity,
         uidNext: selected.uidNext,
         exists: selected.exists,
         low: low,
         removalsCheckedAt: DateTime.now(),
+        // All of it fit in the first window: no older mail to look for.
+        backfillDone: everything ? KeepMail.read(_store).storageName : null,
       ).save(_store, mailbox.id);
       return MailboxSyncResult(
         method: SyncMethod.full,
@@ -251,6 +334,7 @@ final class MailboxSynchronizer {
     }
 
     final range = _cachedRange(mailbox, memo);
+    final validity = selected.uidValidity;
     final (method, updated, removed) = switch (_methodFor(
       cached,
       selected,
@@ -258,19 +342,34 @@ final class MailboxSynchronizer {
     )) {
       SyncMethod.qresync => await _applyQresync(mailbox, selected),
       SyncMethod.condstore => await _condstoreChanges(
-        imap,
+        lease,
         mailbox,
         range,
         cached,
         selected,
         mayHaveRemovals,
       ),
-      _ when refreshFlags => await _plainChanges(imap, mailbox, range, () {
-        removalsCheckedAt = DateTime.now();
-      }),
-      _ => await _plainRemovals(imap, mailbox, range, mayHaveRemovals),
+      _ when refreshFlags => await _plainChanges(
+        lease,
+        mailbox,
+        range,
+        validity,
+        () => removalsCheckedAt = DateTime.now(),
+      ),
+      _ => await _plainRemovals(
+        lease,
+        mailbox,
+        range,
+        validity,
+        mayHaveRemovals,
+      ),
     };
-    final added = await _fetchSummaries(imap, mailbox, newUids);
+    final added = await _fetchSummaries(
+      lease,
+      mailbox,
+      newUids,
+      uidValidity: validity,
+    );
     _saveState(mailbox, selected);
     var backfillDone = memo?.backfillDone;
     // Where the synced range starts (messages stored outside it, like
@@ -280,8 +379,9 @@ final class MailboxSynchronizer {
     var backfilled = 0;
     if (backfillDone != keep) {
       (backfilled, low) = await _backfill(
-        imap,
+        lease,
         mailbox,
+        validity,
         low,
         () => backfillDone = keep,
       );
@@ -304,6 +404,32 @@ final class MailboxSynchronizer {
     );
   }
 
+  /// Whether [mailbox] needs no sync, by its [counters] on the server (from
+  /// LIST-STATUS, without selecting it): the same UIDVALIDITY, UIDNEXT,
+  /// HIGHESTMODSEQ (so no flag changed and nothing was removed) and
+  /// message count as at its last sync, its older mail complete, and its
+  /// removals looked for within [removalCheckInterval]. Never without
+  /// CONDSTORE, where a flag change shows in no counter.
+  bool unchanged(StoredMailbox mailbox, MailboxStatus counters) {
+    final cached = mailbox.syncState;
+    if (cached.uidValidity == null ||
+        cached.highestModSeq == null ||
+        counters.uidValidity != cached.uidValidity ||
+        counters.uidNext != cached.uidNext ||
+        counters.highestModSeq != cached.highestModSeq) {
+      return false;
+    }
+    final memo = _FolderMemo.read(_store, mailbox.id, cached);
+    final checkedAt = memo?.removalsCheckedAt;
+    final now = DateTime.now();
+    return memo != null &&
+        counters.messages == memo.exists &&
+        memo.backfillDone == KeepMail.read(_store).storageName &&
+        checkedAt != null &&
+        !now.isBefore(checkedAt) &&
+        now.difference(checkedAt) <= removalCheckInterval;
+  }
+
   /// Downloads up to [count] messages older than the oldest synced one.
   Future<int> fetchOlder(
     ImapClient imap,
@@ -323,7 +449,7 @@ final class MailboxSynchronizer {
     )).matches;
     final uids = older.toList();
     final batch = uids.sublist(uids.length > count ? uids.length - count : 0);
-    final stored = await _fetchSummaries(imap, mailbox, batch);
+    final stored = await _fetchSummaries(SyncLease.fixed(imap), mailbox, batch);
     if (memo != null && batch.isNotEmpty) {
       memo.withLow(batch.first).save(_store, mailbox.id);
     }
@@ -340,8 +466,9 @@ final class MailboxSynchronizer {
   /// [lowest] is the oldest synced UID; returns how many were stored and
   /// the new oldest one.
   Future<(int, int?)> _backfill(
-    ImapClient imap,
+    SyncLease lease,
     StoredMailbox mailbox,
+    int uidValidity,
     int? lowest,
     void Function() done,
   ) async {
@@ -353,6 +480,7 @@ final class MailboxSynchronizer {
     }
     final since = KeepMail.read(_store).since(DateTime.now());
     final range = SearchCriteria.uids(SequenceSet.range(1, lowest - 1));
+    final imap = await lease.resume(mailbox.encodedName, uidValidity);
     final older = (await imap.uidSearch(
       since == null
           ? range
@@ -365,7 +493,13 @@ final class MailboxSynchronizer {
           ? older.length - settings.backfillBatch
           : 0,
     );
-    return (await _fetchSummaries(imap, mailbox, batch), batch.first);
+    final stored = await _fetchSummaries(
+      lease,
+      mailbox,
+      batch,
+      uidValidity: uidValidity,
+    );
+    return (stored, batch.first);
   }
 
   // ---------------------------------------------------------------------
@@ -384,27 +518,35 @@ final class MailboxSynchronizer {
     return SyncMethod.plain;
   }
 
-  /// The newest messages; returns how many were stored and the oldest
-  /// UID of them.
-  Future<(int, int?)> _fullSync(
-    ImapClient imap,
+  /// The newest messages; returns how many were stored, the oldest UID of
+  /// them, and whether that was every message of the folder.
+  Future<(int, int?, bool)> _fullSync(
+    SyncLease lease,
     StoredMailbox mailbox,
     SelectedMailbox selected,
   ) async {
     var added = 0;
     int? low;
+    var everything = true;
     if (selected.exists > 0) {
-      final all = (await imap.uidSearch(SearchCriteria.all())).matches.toList();
+      final all = (await lease.client.uidSearch(SearchCriteria.all())).matches
+          .toList();
+      everything = all.length <= settings.initialWindow;
       final newest = all.sublist(
         all.length > settings.initialWindow
             ? all.length - settings.initialWindow
             : 0,
       );
-      added = await _fetchSummaries(imap, mailbox, newest);
+      added = await _fetchSummaries(
+        lease,
+        mailbox,
+        newest,
+        uidValidity: selected.uidValidity,
+      );
       low = newest.firstOrNull;
     }
     _saveState(mailbox, selected);
-    return (added, low);
+    return (added, low, everything);
   }
 
   /// QRESYNC delivered removals (VANISHED) and changes (FETCH) with SELECT.
@@ -415,10 +557,7 @@ final class MailboxSynchronizer {
     final vanished = selected.vanished;
     final removed = vanished == null ? <int>[] : _cachedIn(mailbox, vanished);
     final changes = _flagChanges(mailbox, selected.changedMessages);
-    _store.transaction(() {
-      if (removed.isNotEmpty) _removeUids(mailbox, removed);
-      if (changes.isNotEmpty) _store.messages.updateFlags(mailbox.id, changes);
-    });
+    await _writeChanges(mailbox, removed, changes);
     return (SyncMethod.qresync, changes.length, removed.length);
   }
 
@@ -426,7 +565,7 @@ final class MailboxSynchronizer {
   /// ask when it did not move); removals by comparing cached UIDs with
   /// the server's, when [mayHaveRemovals].
   Future<(SyncMethod, int, int)> _condstoreChanges(
-    ImapClient imap,
+    SyncLease lease,
     StoredMailbox mailbox,
     SequenceSet? range,
     MailboxSyncState cached,
@@ -438,54 +577,61 @@ final class MailboxSynchronizer {
         ? const <({int uid, MessageFlags flags, int? modSeq})>[]
         : _flagChanges(
             mailbox,
-            (await imap.uidFetch(
+            (await lease.client.uidFetch(
               range,
               FetchItems.flagsOnly(modSeq: true),
               changedSince: cached.highestModSeq,
             )).messages,
           );
     final removed = mayHaveRemovals()
-        ? await _removedFrom(imap, mailbox, range)
+        ? await _removedFrom(lease, mailbox, range, selected.uidValidity)
         : const <int>[];
-    _store.transaction(() {
-      if (removed.isNotEmpty) _removeUids(mailbox, removed);
-      if (changes.isNotEmpty) _store.messages.updateFlags(mailbox.id, changes);
-    });
+    await _writeChanges(mailbox, removed, changes);
     return (SyncMethod.condstore, changes.length, removed.length);
   }
 
   /// No change tracking, only removals: by comparing cached UIDs with
   /// the server's, when [mayHaveRemovals].
   Future<(SyncMethod, int, int)> _plainRemovals(
-    ImapClient imap,
+    SyncLease lease,
     StoredMailbox mailbox,
     SequenceSet? range,
+    int uidValidity,
     bool Function() mayHaveRemovals,
   ) async {
     if (range == null || !mayHaveRemovals()) return (SyncMethod.plain, 0, 0);
-    final removed = await _removedFrom(imap, mailbox, range);
+    final removed = await _removedFrom(lease, mailbox, range, uidValidity);
     if (removed.isNotEmpty) _removeUids(mailbox, removed);
     return (SyncMethod.plain, 0, removed.length);
   }
 
   /// No change tracking: compare every cached message's flags (which
-  /// also shows what was removed; [checked] is told so).
+  /// also shows what was removed; [checked] is told so),
+  /// [SyncSettings.checkBatch] at a time.
   Future<(SyncMethod, int, int)> _plainChanges(
-    ImapClient imap,
+    SyncLease lease,
     StoredMailbox mailbox,
     SequenceSet? range,
+    int uidValidity,
     void Function() checked,
   ) async {
     if (range == null) return (SyncMethod.plain, 0, 0);
     checked();
-    final current = await imap.uidFetch(range, FetchItems.flagsOnly());
-    final serverUids = <int>{for (final m in current.messages) ?m.uid};
     final cachedFlags = _store.messages.flagsByUid(mailbox.id);
+    final current = <FetchedMessage>[];
+    for (final (_, part) in _parts(range, cachedFlags.keys.toList()..sort())) {
+      final imap = await lease.resume(mailbox.encodedName, uidValidity);
+      current.addAll(
+        (await imap.uidFetch(part, FetchItems.flagsOnly())).messages,
+      );
+      lease.advanced();
+    }
+    final serverUids = <int>{for (final m in current) ?m.uid};
     final removed = cachedFlags.keys
         .where((uid) => !serverUids.contains(uid))
         .toList();
     final changes = [
-      for (final m in current.messages)
+      for (final m in current)
         if (m.uid != null &&
             !_pending.contains(m.uid) &&
             cachedFlags[m.uid] != null &&
@@ -496,10 +642,7 @@ final class MailboxSynchronizer {
             modSeq: null,
           ),
     ];
-    _store.transaction(() {
-      if (removed.isNotEmpty) _removeUids(mailbox, removed);
-      if (changes.isNotEmpty) _store.messages.updateFlags(mailbox.id, changes);
-    });
+    await _writeChanges(mailbox, removed, changes);
     return (SyncMethod.plain, changes.length, removed.length);
   }
 
@@ -538,17 +681,59 @@ final class MailboxSynchronizer {
     ]).union(SequenceSet.range(low));
   }
 
-  /// UIDs cached in [range] that the server no longer has.
+  /// UIDs cached in [range] that the server no longer has, asked
+  /// [SyncSettings.checkBatch] at a time.
   Future<List<int>> _removedFrom(
-    ImapClient imap,
+    SyncLease lease,
     StoredMailbox mailbox,
     SequenceSet range,
+    int uidValidity,
   ) async {
-    final onServer = (await imap.uidSearch(SearchCriteria.uids(range))).matches;
-    return [
-      for (final uid in _store.messages.uids(mailbox.id))
-        if (!onServer.contains(uid)) uid,
-    ];
+    final removed = <int>[];
+    for (final (uids, part) in _parts(
+      range,
+      _store.messages.uids(mailbox.id),
+    )) {
+      final imap = await lease.resume(mailbox.encodedName, uidValidity);
+      final onServer = (await imap.uidSearch(SearchCriteria.uids(part)))
+          .matches;
+      removed.addAll(uids.where((uid) => !onServer.contains(uid)));
+      lease.advanced();
+    }
+    return removed;
+  }
+
+  /// [range] cut into parts of at most [SyncSettings.checkBatch] of the
+  /// cached [uids] (ascending), each with the UIDs it covers; the last
+  /// part keeps the end of [range] (often "*"). One part when they all
+  /// fit.
+  Iterable<(List<int>, SequenceSet)> _parts(
+    SequenceSet range,
+    List<int> uids,
+  ) sync* {
+    final size = settings.checkBatch < 1 ? 1 : settings.checkBatch;
+    if (uids.length <= size) {
+      yield (uids, range);
+      return;
+    }
+    var from = 1;
+    for (var i = 0; i < uids.length; i += size) {
+      final last = i + size >= uids.length;
+      final chunk = uids.sublist(i, last ? uids.length : i + size);
+      final to = last ? null : chunk.last;
+      SequenceSet? part;
+      for (final (a, b) in range.ranges) {
+        final low = a > from ? a : from;
+        final high = to == null || b < to ? b : to;
+        if (low > high) continue;
+        final piece = range.hasStar && b == range.ranges.last.$2 && to == null
+            ? SequenceSet.range(low)
+            : SequenceSet.range(low, high);
+        part = part == null ? piece : part.union(piece);
+      }
+      if (part != null) yield (chunk, part);
+      if (to != null) from = to + 1;
+    }
   }
 
   /// Downloads and stores the summaries of [uids] in [mailbox], which
@@ -558,11 +743,15 @@ final class MailboxSynchronizer {
   /// found there), its UIDVALIDITY is kept, so the messages can be opened
   /// and changed like any other; its first sync still starts with its
   /// newest mail.
+  ///
+  /// With a [lease], the connection goes to the user's work between two
+  /// FETCHes, as in [sync].
   Future<int> fetchUids(
     ImapClient imap,
     StoredMailbox mailbox,
-    List<int> uids,
-  ) async {
+    List<int> uids, {
+    SyncLease? lease,
+  }) async {
     final selected = imap.selected;
     if (uids.isNotEmpty &&
         selected != null &&
@@ -573,7 +762,22 @@ final class MailboxSynchronizer {
         MailboxSyncState(uidValidity: selected.uidValidity),
       );
     }
-    return _fetchSummaries(imap, mailbox, uids);
+    return _fetchSummaries(lease ?? SyncLease.fixed(imap), mailbox, uids);
+  }
+
+  /// Removes [removed] and applies [changes] to the cache, in short
+  /// transactions ([writes]): either is safe to repeat, so a sync stopped
+  /// half way finishes the job the next time.
+  Future<void> _writeChanges(
+    StoredMailbox mailbox,
+    List<int> removed,
+    List<({int uid, MessageFlags flags, int? modSeq})> changes,
+  ) async {
+    await writes.run(removed, (part) => _removeUids(mailbox, part));
+    await writes.run(
+      changes,
+      (part) => _store.messages.updateFlags(mailbox.id, part),
+    );
   }
 
   /// Removes [uids] from the cache, noting their Message-IDs.
@@ -588,30 +792,47 @@ final class MailboxSynchronizer {
   }
 
   /// Fetches and stores summaries in batches; returns how many were stored.
+  /// Before each batch, the [lease] may go to the user's work: the folder
+  /// is then selected again, expected at [uidValidity] (by default what
+  /// is selected now).
   Future<int> _fetchSummaries(
-    ImapClient imap,
+    SyncLease lease,
     StoredMailbox mailbox,
-    List<int> uids,
-  ) async {
+    List<int> uids, {
+    int? uidValidity,
+  }) async {
+    if (uids.isEmpty) return 0;
     var stored = 0;
+    final first = lease.client;
+    final validity =
+        uidValidity ??
+        (first.selected?.name == mailbox.encodedName
+            ? first.selected!.uidValidity
+            : null);
     final items = SummaryMapper.fetchItems(
-      imap.capabilities,
-      modSeq: imap.capabilities.has('CONDSTORE'),
+      first.capabilities,
+      modSeq: first.capabilities.has('CONDSTORE'),
     );
-    for (var i = 0; i < uids.length; i += settings.fetchBatch) {
+    final size = settings.fetchBatch < 1 ? 1 : settings.fetchBatch;
+    for (var i = 0; i < uids.length; i += size) {
       final batch = uids.sublist(
         i,
-        i + settings.fetchBatch > uids.length
-            ? uids.length
-            : i + settings.fetchBatch,
+        i + size > uids.length ? uids.length : i + size,
       );
+      final imap = validity == null
+          ? lease.client
+          : await lease.resume(mailbox.encodedName, validity);
       final fetched = await imap.uidFetch(SequenceSet.of(batch), items);
       final summaries = [
         for (final m in fetched.messages)
           ?_mapper.map(m, mailboxUse: mailbox.specialUse),
       ];
-      _store.messages.upsertSummaries(mailbox.id, summaries);
+      await writes.run(
+        summaries,
+        (part) => _store.messages.upsertSummaries(mailbox.id, part),
+      );
       stored += summaries.length;
+      lease.advanced();
     }
     return stored;
   }

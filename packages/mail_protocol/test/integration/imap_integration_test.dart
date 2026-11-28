@@ -181,6 +181,24 @@ void main() {
       expect(status.uidValidity, inbox.uidValidity);
     });
 
+    test(
+      'the folders and their counters in one command (LIST-STATUS)',
+      () async {
+        final both = await client.listMailboxesWithStatus(highestModSeq: true);
+        expect(both, isNotNull, reason: 'Dovecot has LIST-STATUS');
+        expect(
+          both!.mailboxes.map((f) => f.name),
+          containsAll(['INBOX', 'Projects/2026', '日本語']),
+        );
+        final inbox = await client.status('INBOX', highestModSeq: true);
+        final listed = both.status['INBOX']!;
+        expect(listed.messages, 22);
+        expect(listed.uidNext, inbox.uidNext);
+        expect(listed.uidValidity, inbox.uidValidity);
+        expect(listed.highestModSeq, inbox.highestModSeq);
+      },
+    );
+
     test('summary fetch of every message', () async {
       await client.select('INBOX', readOnly: true);
       final result = await client.uidFetch(
@@ -275,6 +293,27 @@ void main() {
       await client.create(folder);
     });
     tearDown(() => client.logout());
+
+    test('another client\'s mail shows in the counters of a folder '
+        'this connection has open', () async {
+      await client.select(folder);
+      final before = await client.status(folder);
+      final other = await servers.imap('alice');
+      addTearDown(other.logout);
+      await other.append(folder, sampleMessage('from elsewhere'));
+      // STATUS on the open folder, and LIST-STATUS, must not answer from
+      // this session's old view.
+      final after = await client.status(folder);
+      expect(after.uidNext, greaterThan(before.uidNext!));
+      expect(after.messages, (before.messages ?? 0) + 1);
+      // LIST-STATUS closes the open folder first (UNSELECT), so its
+      // counters are current too.
+      await client.select(folder);
+      await other.append(folder, sampleMessage('and another'));
+      final listed = await client.listMailboxesWithStatus();
+      expect(listed!.status[folder]!.uidNext, greaterThan(after.uidNext!));
+      expect(client.selected, isNull);
+    });
 
     test('append, search, store with UNCHANGEDSINCE, move', () async {
       final mapping = await client.append(

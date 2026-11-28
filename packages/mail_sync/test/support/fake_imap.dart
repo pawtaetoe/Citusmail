@@ -87,27 +87,36 @@ final class FakeFolder {
 /// MOVE, APPEND, CREATE), optionally with CONDSTORE. It records every
 /// command and counts logins, so tests can check how much a sync does.
 ///
+/// With [maxLoggedIn], it refuses a login like Gmail once that many
+/// connections are logged in ("Too many simultaneous connections"). With
+/// [idle], it has IDLE. [latency] delays every answer, so work on several
+/// connections overlaps as it does with a real server.
+///
 /// With [gmail], it says it has Gmail's extensions (`X-GM-EXT-1`) and
 /// answers `X-GM-RAW` searches: `in:inbox` (and sent, drafts, spam, trash)
 /// is true when that folder has a message with the same Message-ID,
 /// `is:starred` when it is flagged, other words when the message has them;
 /// a leading `-` turns any of them around.
 final class FakeImap {
-  FakeImap._(this._server, this.condstore, this.gmail);
+  FakeImap._(this._server, this._smtp, this.condstore, this.gmail, this.idle);
 
   static Future<FakeImap> start({
     bool condstore = false,
     bool gmail = false,
+    bool idle = false,
   }) async {
     final context = SecurityContext()
       ..useCertificateChain('${_certs.path}/mail.crt')
       ..usePrivateKey('${_certs.path}/mail.key');
     final fake = FakeImap._(
       await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, context),
+      await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, context),
       condstore,
       gmail,
+      idle,
     );
     fake._server.listen(fake._session, onError: (Object _) {});
+    fake._smtp.listen(fake._smtpSession, onError: (Object _) {});
     return fake;
   }
 
@@ -115,8 +124,34 @@ final class FakeImap {
   static String? get skipReason => fakeServersSkipReason;
 
   final SecureServerSocket _server;
+
+  /// A tiny SMTP server next to it (the account's port 465), which keeps
+  /// what it is sent in [delivered].
+  final SecureServerSocket _smtp;
   final bool condstore;
   final bool gmail;
+  final bool idle;
+
+  /// Messages delivered over SMTP, as received, and when.
+  final delivered = <({DateTime at, Uint8List message})>[];
+
+  /// When each of [commands] arrived.
+  final commandTimes = <DateTime>[];
+
+  /// Whether it has LIST-STATUS (RFC 5819): LIST returns each folder's
+  /// counters too.
+  bool listStatus = false;
+
+  /// Logins refused once this many connections are logged in (Gmail
+  /// allows about 15 per account); null for no limit.
+  int? maxLoggedIn;
+
+  /// How long each answer takes.
+  Duration latency = Duration.zero;
+
+  /// When it returns true for a command, the server drops the connection
+  /// instead of answering (the network went away).
+  bool Function(String command)? dropOn;
 
   /// Whether SINCE compares dates (by default every date matches).
   bool filterDates = false;
@@ -132,6 +167,18 @@ final class FakeImap {
   /// Open connections.
   int open = 0;
 
+  /// Connections logged in and not yet logged out or closed.
+  int loggedIn = 0;
+
+  /// The most connections logged in at once.
+  int peakLoggedIn = 0;
+
+  /// Connections in IDLE now.
+  int inIdle = 0;
+
+  /// Logins refused for [maxLoggedIn].
+  int refused = 0;
+
   /// Commands since [mark] whose name starts with [prefix].
   List<String> since(int mark, String prefix) => [
     for (final c in commands.skip(mark))
@@ -144,18 +191,19 @@ final class FakeImap {
     useQresync: false,
     endpointFor: (s) => ServerEndpoint(
       'mail.citusmail.test',
-      _server.port,
+      s.port == 465 ? _smtp.port : _server.port,
       ConnectionSecurity.implicitTls,
       connectAddress: '127.0.0.1',
     ),
   );
 
   /// An account for this server in [store], with its folders listed.
-  Account addAccount(MailStore store) {
+  /// Several accounts can share the server, each with its own [email].
+  Account addAccount(MailStore store, {String email = 'alice@citusmail.test'}) {
     final account = store.accounts.add(
       NewAccount(
-        email: 'alice@citusmail.test',
-        username: 'alice@citusmail.test',
+        email: email,
+        username: email,
         imap: ServerSettings(
           host: 'mail.citusmail.test',
           port: 993,
@@ -171,12 +219,87 @@ final class FakeImap {
     return account;
   }
 
-  Future<void> close() => _server.close();
+  Future<void> close() async {
+    await _server.close();
+    await _smtp.close();
+  }
+
+  /// How many copies with this Message-ID (without brackets) were
+  /// delivered over SMTP.
+  int deliveredCount(String messageId) => delivered
+      .where((d) => const MimeParser().parse(d.message).messageId == messageId)
+      .length;
+
+  /// SMTP, with [latency] on every answer like IMAP.
+  void _smtpSession(Socket socket) {
+    var answered = Future<void>.value();
+    void send(String text) {
+      void write() {
+        try {
+          socket.add(ascii.encode(text));
+        } on Object {
+          // The connection is gone.
+        }
+      }
+
+      if (latency == Duration.zero) {
+        write();
+      } else {
+        answered = answered.then((_) => Future<void>.delayed(latency, write));
+      }
+    }
+
+    send('220 fake ESMTP\r\n');
+    var buffer = <int>[];
+    BytesBuilder? data;
+    socket.listen(
+      (chunk) {
+        buffer.addAll(chunk);
+        while (true) {
+          final end = buffer.indexOf(0x0A);
+          if (end < 0) return;
+          final raw = buffer.sublist(0, end + 1);
+          buffer = buffer.sublist(end + 1);
+          if (data case final message?) {
+            if (latin1.decode(raw) == '.\r\n') {
+              delivered.add((at: DateTime.now(), message: message.takeBytes()));
+              data = null;
+              send('250 queued\r\n');
+            } else {
+              // Undo dot-stuffing.
+              message.add(
+                raw.length > 1 && raw[0] == 0x2E && raw[1] == 0x2E
+                    ? raw.sublist(1)
+                    : raw,
+              );
+            }
+            continue;
+          }
+          final line = latin1.decode(raw).trimRight();
+          final verb = line.split(RegExp('[ :]')).first.toUpperCase();
+          send(switch (verb) {
+            'EHLO' => '250-fake\r\n250 AUTH PLAIN\r\n',
+            'AUTH' => '235 ok\r\n',
+            'MAIL' || 'RSET' || 'RCPT' => '250 ok\r\n',
+            'DATA' => () {
+              data = BytesBuilder();
+              return '354 go ahead\r\n';
+            }(),
+            'QUIT' => '221 bye\r\n',
+            _ => '502 unknown\r\n',
+          });
+        }
+      },
+      onError: (_) {},
+      onDone: socket.destroy,
+    );
+  }
 
   String get _capabilities =>
-      'IMAP4rev1 AUTH=PLAIN SASL-IR LITERAL+ UIDPLUS MOVE SPECIAL-USE '
+      'IMAP4rev1 AUTH=PLAIN SASL-IR LITERAL+ UIDPLUS MOVE SPECIAL-USE UNSELECT '
       'LIST-EXTENDED${condstore ? ' CONDSTORE' : ''}'
-      '${gmail ? ' X-GM-EXT-1' : ''}';
+      '${gmail ? ' X-GM-EXT-1' : ''}${idle ? ' IDLE' : ''}'
+      '${listStatus ? ' LIST-STATUS' : ''}';
 
   void _session(Socket socket) {
     open++;
@@ -184,13 +307,47 @@ final class FakeImap {
     var buffer = <int>[];
     FakeFolder? selected;
     ({String tag, String line, int length})? literal;
+    var authenticated = false;
+    String? idling;
+    var answered = Future<void>.value();
 
-    void send(String text) => socket.add(latin1.encode(text));
+    void logOut() {
+      if (!authenticated) return;
+      authenticated = false;
+      loggedIn--;
+    }
+
+    var gone = false;
+    void ended() {
+      if (gone) return;
+      gone = true;
+      open--;
+      if (idling != null) inIdle--;
+      logOut();
+      socket.destroy();
+    }
+
+    void send(String text) {
+      void write() {
+        try {
+          socket.add(latin1.encode(text));
+        } on Object {
+          // The connection is gone.
+        }
+      }
+
+      if (latency == Duration.zero) {
+        write();
+      } else {
+        answered = answered.then((_) => Future<void>.delayed(latency, write));
+      }
+    }
 
     String reply(String tag, String line) {
       final words = _tokens(line);
       var command = words.first.toUpperCase();
       if (command == 'UID') command = 'UID ${words[1].toUpperCase()}';
+      commandTimes.add(DateTime.now());
       commands.add(
         command == 'AUTHENTICATE' || command == 'LOGIN' ? command : line,
       );
@@ -198,12 +355,26 @@ final class FakeImap {
         case 'CAPABILITY':
           return '* CAPABILITY $_capabilities\r\n$tag OK done\r\n';
         case 'AUTHENTICATE' || 'LOGIN':
+          if (maxLoggedIn case final max? when loggedIn >= max) {
+            refused++;
+            return '$tag NO [ALERT] Too many simultaneous connections. '
+                '(Failure)\r\n';
+          }
           logins++;
+          authenticated = true;
+          loggedIn++;
+          if (loggedIn > peakLoggedIn) peakLoggedIn = loggedIn;
           return '$tag OK done\r\n';
+        case 'IDLE' when idle:
+          idling = tag;
+          inIdle++;
+          return '+ idling\r\n';
         case 'NOOP' || 'ENABLE':
           return '$tag OK done\r\n';
         case 'LIST':
-          return '${[for (final MapEntry(key: name, value: f) in folders.entries) '* LIST (\\HasNoChildren${f.specialUse == null ? '' : ' \\${f.specialUse}'}) "/" "$name"\r\n'].join()}'
+          final withStatus =
+              listStatus && line.toUpperCase().contains('STATUS (');
+          return '${[for (final MapEntry(key: name, value: f) in folders.entries) '* LIST (\\HasNoChildren${f.specialUse == null ? '' : ' \\${f.specialUse}'}) "/" "$name"\r\n${withStatus ? _status(name, f, line) : ''}'].join()}'
               '$tag OK done\r\n';
         case 'CREATE':
           folders.putIfAbsent(words[1], FakeFolder.new);
@@ -211,9 +382,7 @@ final class FakeImap {
         case 'STATUS':
           final folder = folders[words[1]];
           if (folder == null) return '$tag NO [NONEXISTENT] no such folder\r\n';
-          return '* STATUS "${words[1]}" (MESSAGES ${folder.messages.length} '
-              'UIDNEXT ${folder.uidNext} UIDVALIDITY ${folder.uidValidity} '
-              'UNSEEN 0)\r\n$tag OK done\r\n';
+          return '${_status(words[1], folder, line)}$tag OK done\r\n';
         case 'SELECT' || 'EXAMINE':
           final folder = selected = folders[words[1]];
           if (folder == null) return '$tag NO [NONEXISTENT] no such folder\r\n';
@@ -293,7 +462,11 @@ final class FakeImap {
           return '* OK [COPYUID ${target.uidValidity} '
               '${moving.map((m) => m.uid).join(',')} ${to.join(',')}] moved\r\n'
               '$tag OK done\r\n';
+        case 'UNSELECT':
+          selected = null;
+          return '$tag OK done\r\n';
         case 'LOGOUT':
+          logOut();
           return '* BYE bye\r\n$tag OK done\r\n';
         default:
           return '$tag BAD unknown\r\n';
@@ -303,6 +476,7 @@ final class FakeImap {
     void append(String tag, String line, Uint8List message) {
       final words = _tokens(line);
       commands.add('APPEND ${words[1]}');
+      commandTimes.add(DateTime.now());
       final folder = folders.putIfAbsent(words[1], FakeFolder.new);
       final flags = {
         for (final w in words.skip(2))
@@ -333,6 +507,16 @@ final class FakeImap {
           if (end < 0) return;
           final line = latin1.decode(buffer.sublist(0, end)).trimRight();
           buffer = buffer.sublist(end + 1);
+          if (idling case final tag? when line.toUpperCase() == 'DONE') {
+            idling = null;
+            inIdle--;
+            send('$tag OK idle done\r\n');
+            continue;
+          }
+          if (dropOn?.call(line.substring(line.indexOf(' ') + 1)) ?? false) {
+            ended();
+            return;
+          }
           final space = line.indexOf(' ');
           if (space < 0) continue;
           final tag = line.substring(0, space);
@@ -351,12 +535,16 @@ final class FakeImap {
         }
       },
       onError: (_) {},
-      onDone: () {
-        open--;
-        socket.destroy();
-      },
+      onDone: ended,
     );
   }
+
+  /// A folder's STATUS line, with HIGHESTMODSEQ when [line] asks for it.
+  String _status(String name, FakeFolder folder, String line) =>
+      '* STATUS "$name" (MESSAGES ${folder.messages.length} '
+      'UIDNEXT ${folder.uidNext} UIDVALIDITY ${folder.uidValidity} '
+      '${condstore && line.toUpperCase().contains('HIGHESTMODSEQ') ? 'HIGHESTMODSEQ ${folder.highestModSeq} ' : ''}'
+      'UNSEEN 0)\r\n';
 
   /// Words of a command line; quoted strings unquoted, lists kept apart
   /// only by their parentheses.

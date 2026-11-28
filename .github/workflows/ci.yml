@@ -89,6 +89,10 @@ jobs:
       - name: Test mail_store
         working-directory: packages/mail_store
         run: dart test
+      # The fake IMAP and SMTP servers in the unit tests speak TLS with the
+      # test CA; without it those tests are skipped (connections, sync).
+      - name: Test certificates
+        run: test-server/certs/generate.sh
       - name: Test mail_sync
         working-directory: packages/mail_sync
         run: dart test

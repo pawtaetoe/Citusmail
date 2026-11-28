@@ -8,6 +8,8 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 import 'package:mail_view/mail_view.dart';
 
+import 'sync_lease.dart';
+
 /// Reads read receipts (RFC 8098 reports) that arrived in the inbox and
 /// records them for the sent messages that asked for one, entirely on the
 /// device. Receipts for anything else are ignored. Each report is read
@@ -43,9 +45,18 @@ final class ReceiptCollector {
   static IntSetting _readWith(AccountId accountId) =>
       IntSetting('receipts.matcher.${accountId.value}');
 
+  /// Reports downloaded per FETCH; between two, a sync's connection may go
+  /// to the user's work ([SyncLease]).
+  static const perFetch = 5;
+
   /// Reads new reports of [account], over [imap] for those not on the
-  /// device yet; returns how many receipts were recorded.
-  Future<int> collect(ImapClient imap, Account account) async {
+  /// device yet; returns how many receipts were recorded. With a [lease],
+  /// the connection may go to the user's work between two FETCHes.
+  Future<int> collect(
+    ImapClient imap,
+    Account account, {
+    SyncLease? lease,
+  }) async {
     final inbox = _store.mailboxes.inbox(account.id);
     if (inbox == null) return 0;
     var recorded = readStored(account);
@@ -67,24 +78,33 @@ final class ReceiptCollector {
         ? imap.selected!
         : await imap.select(inbox.encodedName, readOnly: true);
     if (selected.uidValidity != inbox.syncState.uidValidity) return recorded;
-    final fetched = await imap.uidFetch(
-      SequenceSet.of(byUid.keys),
-      FetchItems(fullMessage: true),
-    );
-    for (final item in fetched.messages) {
-      final message = byUid[item.uid];
-      final raw = item.sections[''];
-      if (message == null || raw == null) continue;
-      if (raw.length > maxReportBytes) {
-        _store.receipts.markReportRead(message.id);
-        continue;
-      }
-      _store.messages.saveBody(
-        message.id,
-        raw,
-        searchableText: MessageView.parse(raw).searchableText,
+    final on = lease ?? SyncLease.fixed(imap);
+    final uids = byUid.keys.toList()..sort();
+    for (var i = 0; i < uids.length; i += perFetch) {
+      final part = uids.sublist(
+        i,
+        i + perFetch > uids.length ? uids.length : i + perFetch,
       );
-      if (read(account, message, raw) != null) recorded++;
+      final fetched = await (await on.resume(
+        inbox.encodedName,
+        selected.uidValidity,
+      )).uidFetch(SequenceSet.of(part), FetchItems(fullMessage: true));
+      for (final item in fetched.messages) {
+        final message = byUid[item.uid];
+        final raw = item.sections[''];
+        if (message == null || raw == null) continue;
+        if (raw.length > maxReportBytes) {
+          _store.receipts.markReportRead(message.id);
+          continue;
+        }
+        _store.messages.saveBody(
+          message.id,
+          raw,
+          searchableText: MessageView.parse(raw).searchableText,
+        );
+        if (read(account, message, raw) != null) recorded++;
+      }
+      on.advanced();
     }
     return recorded;
   }

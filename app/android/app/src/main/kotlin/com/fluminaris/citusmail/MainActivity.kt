@@ -50,9 +50,17 @@ class MainActivity : FlutterFragmentActivity() {
         if (debuggable && intent.hasExtra("citusmail.instant")) {
             InstantMailService.setEnabled(this, intent.getBooleanExtra("citusmail.instant", false))
         }
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "citusmail/background")
+        val background = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "citusmail/background")
+        background
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    // The app's engine started or stopped syncing: the
+                    // background check and Instant mail leave the mail to
+                    // it meanwhile (one set of connections per account).
+                    "appSyncing" -> {
+                        BackgroundDart.setAppSyncing(call.arguments as? Boolean ?: false, background)
+                        result.success(null)
+                    }
                     "setInstant" -> {
                         InstantMailService.setEnabled(this, call.arguments as? Boolean ?: false)
                         result.success(null)
@@ -224,6 +232,13 @@ class MainActivity : FlutterFragmentActivity() {
         } catch (e: ActivityNotFoundException) {
             false
         }
+    }
+
+    // The app's engine goes with the activity: background work connects
+    // on its own again.
+    override fun onDestroy() {
+        BackgroundDart.setAppSyncing(false)
+        super.onDestroy()
     }
 
     // The browser hands back the answer to a sign-in (singleTop: this same

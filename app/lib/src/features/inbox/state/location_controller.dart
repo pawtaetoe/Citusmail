@@ -45,7 +45,9 @@ final class LocationController {
       unawaited(
         _worker
             .syncFolder(mailboxId)
-            .then((_) => _refresh())
+            .then((_) {
+              if (!_disposed) _refresh();
+            })
             .catchError((Object _) {}),
       );
     }
@@ -102,6 +104,7 @@ final class LocationController {
       _list.setLoadingOlder(false, reachedEnd: true);
       return;
     }
+    final at = location.value;
     _list.setLoadingOlder(true);
     var added = 0;
     var failed = false;
@@ -113,7 +116,8 @@ final class LocationController {
       // Offline: not the end, so the next scroll tries again.
       failed = true;
     }
-    if (_disposed) return;
+    // Moved on meanwhile: the list shows another place, with its own end.
+    if (_disposed || location.value != at) return;
     _list.setLoadingOlder(false, reachedEnd: !failed && added == 0);
     _list.loadMoreStored();
   }

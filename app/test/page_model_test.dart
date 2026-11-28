@@ -179,6 +179,37 @@ void main() {
       expect(model.fetches, hasLength(2), reason: 'stops listening');
     });
 
+    test('a change told while the first load runs loads again', () async {
+      final changes = ValueNotifier(0);
+      final model = _Model(reloadOn: changes);
+      addTearDown(model.dispose);
+      final done = model.load();
+      changes.value++;
+      model.fetches.single.complete('before the change');
+      await pumpEventQueue();
+      expect(model.fetches, hasLength(2), reason: 'read again');
+      model.fetches.last.complete('after the change');
+      await done;
+      expect(model.state, const Loaded('after the change'));
+    });
+
+    test('a fetch that read from before a change on the page does not undo '
+        'it', () async {
+      final model = _Model();
+      final first = model.load();
+      model.fetches.single.complete('a');
+      await first;
+      final again = model.load();
+      model.edit('b');
+      model.fetches.last.complete('a, read before the change');
+      await pumpEventQueue();
+      expect(model.state, const Loaded('b'));
+      expect(model.fetches, hasLength(3), reason: 'read again');
+      model.fetches.last.complete('b, read after it');
+      await again;
+      expect(model.state, const Loaded('b, read after it'));
+    });
+
     test('a change on the page shows at once', () async {
       final model = _Model();
       final done = model.load();

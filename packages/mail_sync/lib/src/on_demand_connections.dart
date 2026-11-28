@@ -7,90 +7,108 @@ import 'dart:async';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'connection_budget.dart';
 import 'connector.dart';
 
-/// One IMAP connection per account for work the user is waiting for
-/// (opening a message, loading older mail). It is kept for a short while
-/// so opening several messages in a row does not log in each time, and
-/// closed when idle. Work on one account runs one piece at a time, so a
-/// folder selected by one request is never changed under another.
+/// IMAP connections for work done on demand (opening a message, loading
+/// older mail, reading ahead), counted in the account's
+/// [ConnectionBudget]: each piece of work takes one with its priority
+/// ([priority] unless it says otherwise), so the user's most urgent work
+/// goes first, and gives it back when done. One is kept for a short
+/// while so opening several messages in a row does not log in each time,
+/// and closed when idle. Each piece has its connection to itself, so a
+/// folder selected by one is never changed under another.
+///
+/// A login the server refuses for now (too many connections) is tried
+/// again after each of [retryDelays], so the user sees the message rather
+/// than an error; the budget has closed what it could meanwhile.
 final class OnDemandConnections {
   OnDemandConnections(
-    this._connector, {
+    MailConnector connector, {
     this.idleTimeout = const Duration(minutes: 2),
-  });
+    this.priority = ConnectionPriority.user,
+    this.retryDelays = const [Duration(seconds: 2), Duration(seconds: 5)],
+    ConnectionBudget? budget,
+  }) : budget = budget ?? ConnectionBudget(connector);
 
-  final MailConnector _connector;
+  /// The account's budget, shared with the engine's other connections.
+  final ConnectionBudget budget;
   final Duration idleTimeout;
-  final _sessions = <AccountId, _Session>{};
 
-  /// Runs [action] with a logged-in connection for [account]. A connection
-  /// the server dropped while idle is replaced once, transparently.
+  /// Where this work queues for a connection when the budget is full,
+  /// unless a piece of work says otherwise.
+  final ConnectionPriority priority;
+
+  /// Waits before trying again after a login refused for now.
+  final List<Duration> retryDelays;
+
+  /// The work under way, per account.
+  final _running = <AccountId, Set<Future<void>>>{};
+
+  /// Runs [action] with a logged-in connection for [account], taken with
+  /// [priority] (this one's by default). A connection the server dropped
+  /// while idle is replaced once, transparently.
   Future<T> run<T>(
     Account account,
-    Future<T> Function(ImapClient imap) action,
-  ) {
-    final session = _sessions.putIfAbsent(account.id, _Session.new);
-    final result = session.tail.then((_) async {
-      session.idle?.cancel();
-      try {
-        for (var attempt = 0; ; attempt++) {
-          final imap = await session.connect(() => _connector.imap(account));
-          try {
-            return await action(imap);
-          } on MailConnectionException {
-            await session.close();
-            if (attempt > 0) rethrow;
-          } on MailTimeoutException {
-            await session.close();
-            rethrow;
-          }
+    Future<T> Function(ImapClient imap) action, {
+    ConnectionPriority? priority,
+  }) {
+    final result = () async {
+      for (var refused = 0; ; refused++) {
+        try {
+          return await _once(account, action, priority ?? this.priority);
+        } on ImapAuthenticationException catch (e) {
+          if (!e.temporary || refused >= retryDelays.length) rethrow;
+          await Future<void>.delayed(retryDelays[refused]);
         }
-      } finally {
-        session.idle = Timer(idleTimeout, () => unawaited(session.close()));
       }
-    });
-    session.tail = result.then<void>((_) {}, onError: (Object _) {});
+    }();
+    final running = _running.putIfAbsent(account.id, () => {});
+    final done = result.then<void>((_) {}, onError: (Object _) {});
+    running.add(done);
+    unawaited(done.whenComplete(() => running.remove(done)));
     return result;
   }
 
+  Future<T> _once<T>(
+    Account account,
+    Future<T> Function(ImapClient imap) action,
+    ConnectionPriority priority,
+  ) async {
+    for (var attempt = 0; ; attempt++) {
+      final imap = await budget.take(account, owner: this, priority: priority);
+      final T result;
+      try {
+        result = await action(imap);
+      } on MailConnectionException {
+        await budget.discard(account, imap);
+        if (attempt > 0) rethrow;
+        continue;
+      } on MailTimeoutException {
+        await budget.discard(account, imap);
+        rethrow;
+      } on Object {
+        await _giveBack(account, imap);
+        rethrow;
+      }
+      await _giveBack(account, imap);
+      return result;
+    }
+  }
+
+  Future<void> _giveBack(Account account, ImapClient imap) =>
+      budget.give(account, imap, owner: this, keepFor: idleTimeout);
+
   /// Closes the connection of one account (e.g. after it was removed or
-  /// its password changed).
+  /// its password changed), once the work under way is done.
   Future<void> close(AccountId accountId) async {
-    final session = _sessions.remove(accountId);
-    if (session == null) return;
-    await session.tail;
-    await session.close();
+    await Future.wait([...?_running.remove(accountId)]);
+    await budget.closeKept(accountId, owner: this);
   }
 
   Future<void> closeAll() async {
-    for (final id in [..._sessions.keys]) {
+    for (final id in {..._running.keys, ...budget.accountIds}) {
       await close(id);
-    }
-  }
-}
-
-final class _Session {
-  ImapClient? _client;
-  Future<void> tail = Future.value();
-  Timer? idle;
-
-  Future<ImapClient> connect(Future<ImapClient> Function() open) async {
-    final current = _client;
-    if (current != null && current.isUsable) return current;
-    if (current != null) await close();
-    return _client = await open();
-  }
-
-  Future<void> close() async {
-    idle?.cancel();
-    final client = _client;
-    _client = null;
-    if (client == null) return;
-    try {
-      await client.logout();
-    } on Object {
-      await client.close();
     }
   }
 }

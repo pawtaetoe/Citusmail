@@ -105,7 +105,14 @@ final class _MailShellState extends State<MailShell> {
         return AppExitResponse.exit;
       },
     );
-    unawaited(widget.services.worker.start().catchError((Object _) {}));
+    // Android: while this engine syncs, the background check and Instant
+    // mail leave the mail to it (one set of connections per account).
+    unawaited(
+      widget.services.worker.start().then(
+        (_) => BackgroundMail.setAppSyncing(true, check: _checkForBackground),
+        onError: (Object _) {},
+      ),
+    );
     widget.services.linkSafety.start();
     widget.services.autoRead.start(widget.services.worker.events);
     widget.services.aiSort.start(widget.services.worker.events);
@@ -115,8 +122,20 @@ final class _MailShellState extends State<MailShell> {
     }
   }
 
+  /// The periodic background check, done by this engine while the app
+  /// runs: every account synced; new mail is announced as after any sync.
+  Future<bool> _checkForBackground() async {
+    try {
+      await widget.services.worker.syncNow();
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
   @override
   void dispose() {
+    unawaited(BackgroundMail.setAppSyncing(false));
     unawaited(_announcer?.dispose());
     _controller.working.removeListener(_working);
     _lifecycle.dispose();
