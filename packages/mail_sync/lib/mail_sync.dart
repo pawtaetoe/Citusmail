@@ -31,4 +31,5 @@ export 'src/server_search.dart';
 export 'src/snooze_waker.dart';
 export 'src/summary_mapper.dart';
 export 'src/sync_engine.dart';
+export 'src/sync_lease.dart';
 export 'src/sync_worker.dart';
