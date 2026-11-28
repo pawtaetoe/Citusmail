@@ -9,12 +9,14 @@
 <title>{{title}}</title>
 <meta name="description" content="{{description}}">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#0F7A69">
+<meta name="theme-color" content="#F6F4EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0C1714" media="(prefers-color-scheme: dark)">
 <link rel="canonical" href="{{canonical}}">
 <link rel="icon" href="/icon/icon.svg" type="image/svg+xml">
 <link rel="icon" href="/icon/32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/icon/256.png">
 <link rel="preload" href="/fonts/IBMPlexSans-Regular-Latin1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/IBMPlexSans-Bold-Latin1.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/site.css">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Citusmail">
@@ -32,27 +34,49 @@
       <img src="/icon/icon.svg" alt="" width="32" height="32">
       <span>Citusmail</span>
     </a>
-    <nav aria-label="Main">
+    <nav class="top-nav" aria-label="Main">
       <a href="/#features">Features</a>
-      <a href="/#download">Download</a>
-      <a href="/privacy-policy">Privacy</a>
+      <a href="/#privacy">Privacy</a>
+      <a href="/#faq">FAQ</a>
+      <a href="{{repo}}">GitHub</a>
     </nav>
+    <a class="button small primary" href="/#download">Download</a>
   </div>
 </header>
 <main id="main">
 {{content}}
 </main>
 <footer class="bottom">
-  <div class="wrap footer-row">
-    <p>© {{year}} Fluminaris. Citusmail is free software under the
-      <a href="{{repo}}/blob/main/LICENSE">Mozilla Public License 2.0</a>.</p>
-    <nav aria-label="Footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="/">
+        <img src="/icon/icon.svg" alt="" width="28" height="28">
+        <span>Citusmail</span>
+      </a>
+      <p>Fast, private email that stays yours. Free software under the
+        <a href="{{repo}}/blob/main/LICENSE">Mozilla Public License 2.0</a>.</p>
+    </div>
+    <nav aria-label="Get it">
+      <h2>Get it</h2>
+      <a href="/#download">Download</a>
+      <a href="{{releases}}">Releases</a>
+      <a href="{{repo}}#building-from-source">Build from source</a>
+    </nav>
+    <nav aria-label="Privacy and legal">
+      <h2>Privacy</h2>
       <a href="/privacy-policy">Privacy policy</a>
       <a href="/terms-of-service">Terms of service</a>
+      <a href="{{repo}}/blob/main/PRIVACY.md">What leaves your device</a>
+    </nav>
+    <nav aria-label="Project">
+      <h2>Project</h2>
       <a href="{{repo}}">Source code</a>
-      <a href="{{releases}}">Releases</a>
+      <a href="{{repo}}/blob/main/SECURITY.md">Security</a>
       <a href="mailto:{{contact}}">Contact</a>
     </nav>
+  </div>
+  <div class="wrap footer-end">
+    <p>© {{year}} Fluminaris. No cookies, no analytics, no trackers on this site either.</p>
   </div>
 </footer>
 </body>

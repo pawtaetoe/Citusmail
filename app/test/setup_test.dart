@@ -16,26 +16,26 @@ import 'package:mail_store/mail_store.dart';
 
 DiscoveredSettings found({
   DiscoverySource source = DiscoverySource.httpAutoconfig,
-  String host = 'tommykung.cc',
+  String host = 'foglane.cc',
 }) => DiscoveredSettings(
-  email: 'me@tommykung.cc',
+  email: 'me@foglane.cc',
   imap: ServerCandidate(host, 993, ConnectionSecurity.implicitTls),
   smtp: ServerCandidate(host, 465, ConnectionSecurity.implicitTls),
-  username: 'me@tommykung.cc',
+  username: 'me@foglane.cc',
   source: source,
 );
 
 final account = Account(
   id: AccountId(1),
-  email: 'me@tommykung.cc',
-  username: 'me@tommykung.cc',
+  email: 'me@foglane.cc',
+  username: 'me@foglane.cc',
   imap: ServerSettings(
-    host: 'tommykung.cc',
+    host: 'foglane.cc',
     port: 993,
     security: ConnectionSecurity.implicitTls,
   ),
   smtp: ServerSettings(
-    host: 'tommykung.cc',
+    host: 'foglane.cc',
     port: 465,
     security: ConnectionSecurity.implicitTls,
   ),
@@ -76,12 +76,12 @@ final class Script {
   );
 }
 
-/// What Namecheap's shared hosting presents for mail.tommykung.cc.
+/// What Namecheap's shared hosting presents for mail.foglane.cc.
 VerificationResult webHostingMismatch({ServerRole role = ServerRole.imap}) =>
     VerificationResult.failure(
       role,
       VerificationProblem.certificate,
-      'TLS with mail.tommykung.cc failed: Hostname mismatch',
+      'TLS with mail.foglane.cc failed: Hostname mismatch',
       tlsFailure: TlsFailure.hostnameMismatch,
       certificate: RejectedCertificate(
         subject: '/CN=*.web-hosting.com',
@@ -98,9 +98,9 @@ void main() {
     test('discover, confirm, verify, save', () async {
       final s = Script();
       await s.controller.start(
-        email: ' me@tommykung.cc ',
+        email: ' me@foglane.cc ',
         password: 'pw',
-        displayName: ' Tommy ',
+        displayName: ' Robin ',
         askMozillaConsent: noMozilla,
       );
       final review = s.controller.state as ReviewingSettings;
@@ -112,7 +112,7 @@ void main() {
       await s.controller.useSettings(review.settings);
       expect(s.controller.state, isA<SetupDone>());
       expect(s.saved.single.$2, 'pw');
-      expect(s.saved.single.$3, 'Tommy');
+      expect(s.saved.single.$3, 'Robin');
     });
 
     test(
@@ -151,7 +151,7 @@ void main() {
           ),
         );
       await s.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'wrong',
         askMozillaConsent: noMozilla,
       );
@@ -165,12 +165,12 @@ void main() {
       () async {
         final s = Script();
         await s.controller.start(
-          email: 'me@tommykung.cc',
+          email: 'me@foglane.cc',
           password: 'pw',
           askMozillaConsent: noMozilla,
         );
         await s.controller.useSuggestedHost(
-          found(host: 'mail.tommykung.cc'),
+          found(host: 'mail.foglane.cc'),
           ServerRole.imap,
           'business905.web-hosting.com',
         );
@@ -187,15 +187,15 @@ void main() {
         ..verifications.add(webHostingMismatch())
         ..hostingServer = 'business905-5.web-hosting.com';
       await s.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'pw',
         askMozillaConsent: noMozilla,
       );
-      await s.controller.useSettings(found(host: 'mail.tommykung.cc'));
+      await s.controller.useSettings(found(host: 'mail.foglane.cc'));
       final failed = s.controller.state as VerificationFailed;
       expect(failed.hostingServer, 'business905-5.web-hosting.com');
       expect(failed.suggestedHost, 'business905-5.web-hosting.com');
-      expect(s.lookedUp.single.$1.imap.host, 'mail.tommykung.cc');
+      expect(s.lookedUp.single.$1.imap.host, 'mail.foglane.cc');
       // Nothing was switched or saved without the user.
       expect(s.verified, hasLength(1));
       expect(s.saved, isEmpty);
@@ -212,7 +212,7 @@ void main() {
         )
         ..hostingServer = 'business905-5.web-hosting.com';
       await s.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'pw',
         askMozillaConsent: noMozilla,
       );
@@ -224,19 +224,19 @@ void main() {
     test('a host name mismatch without a found name says where to look', () {
       final text = SetupText.problem(
         webHostingMismatch(),
-        found(host: 'mail.tommykung.cc'),
+        found(host: 'mail.foglane.cc'),
       );
       expect(
         text,
         startsWith(
-          'The certificate of mail.tommykung.cc is for *.web-hosting.com',
+          'The certificate of mail.foglane.cc is for *.web-hosting.com',
         ),
       );
       expect(text, contains('Shared hosting often uses its own server name'));
       expect(text, contains('cPanel: Email Accounts → Connect Devices'));
       final withName = SetupText.problem(
         webHostingMismatch(),
-        found(host: 'mail.tommykung.cc'),
+        found(host: 'mail.foglane.cc'),
         hostingServer: 'business905-5.web-hosting.com',
       );
       expect(
@@ -266,7 +266,7 @@ void main() {
 
       final other = Script();
       await other.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'abcd efgh ijkl mnop',
         askMozillaConsent: noMozilla,
       );
@@ -311,7 +311,7 @@ void main() {
     test('an empty password is caught before any network work', () async {
       final s = Script();
       await s.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: '',
         askMozillaConsent: noMozilla,
       );
@@ -336,7 +336,7 @@ void main() {
       await pump(tester);
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Email address'),
-        'me@tommykung.cc',
+        'me@foglane.cc',
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Password'),
@@ -350,7 +350,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Settings found'), findsOneWidget);
       expect(find.textContaining('unencrypted connection'), findsOneWidget);
-      expect(find.text('Incoming (IMAP): tommykung.cc'), findsOneWidget);
+      expect(find.text('Incoming (IMAP): foglane.cc'), findsOneWidget);
       expect(find.text('I\'ve checked, continue'), findsOneWidget);
     });
 
@@ -373,11 +373,11 @@ void main() {
         ),
       );
       await s.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'pw',
         askMozillaConsent: noMozilla,
       );
-      await s.controller.useSettings(found(host: 'mail.tommykung.cc'));
+      await s.controller.useSettings(found(host: 'mail.foglane.cc'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('is for business905.web-hosting.com'),
@@ -396,11 +396,11 @@ void main() {
         ..verifications.add(webHostingMismatch())
         ..hostingServer = 'business905-5.web-hosting.com';
       await s.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'pw',
         askMozillaConsent: noMozilla,
       );
-      await s.controller.useSettings(found(host: 'mail.tommykung.cc'));
+      await s.controller.useSettings(found(host: 'mail.foglane.cc'));
       await tester.pumpAndSettle();
       expect(find.text('Couldn\'t sign in'), findsOneWidget);
       expect(
@@ -437,11 +437,11 @@ void main() {
       final s = await pump(tester);
       s.verifications.add(webHostingMismatch());
       await s.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'pw',
         askMozillaConsent: noMozilla,
       );
-      await s.controller.useSettings(found(host: 'mail.tommykung.cc'));
+      await s.controller.useSettings(found(host: 'mail.foglane.cc'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Connect Devices'), findsOneWidget);
       expect(find.textContaining('Use '), findsNothing);
@@ -628,7 +628,7 @@ void main() {
       final s = await pump(tester);
       expect(button(tester, 'Continue'), isNull, reason: 'nothing typed');
       await type(tester, 'Password', 'pw');
-      for (final bad in ['me', 'me@', 'me@tommykung', 'Me <me@x.example>']) {
+      for (final bad in ['me', 'me@', 'me@foglane', 'Me <me@x.example>']) {
         await type(tester, 'Email address', bad);
         expect(find.text('Enter an email address'), findsOneWidget);
         expect(button(tester, 'Continue'), isNull, reason: bad);
@@ -638,24 +638,24 @@ void main() {
       expect(button(tester, 'Continue'), isNull);
 
       // The checked, trimmed address is what goes on.
-      await type(tester, 'Email address', '  me@tommykung.cc ');
+      await type(tester, 'Email address', '  me@foglane.cc ');
       expect(find.text('Enter an email address'), findsNothing);
       await tester.ensureVisible(find.text('Continue'));
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      expect(s.controller.email, 'me@tommykung.cc');
+      expect(s.controller.email, 'me@foglane.cc');
       expect(s.controller.state, isA<ReviewingSettings>());
     });
 
     testWidgets('a name on two lines is pointed out', (tester) async {
       await pump(tester);
-      await type(tester, 'Email address', 'me@tommykung.cc');
+      await type(tester, 'Email address', 'me@foglane.cc');
       await type(tester, 'Password', 'pw');
       expect(button(tester, 'Continue'), isNotNull);
       await type(
         tester,
         'Your name (optional)',
-        'Tommy\r\nBcc: x@evil.example',
+        'Robin\r\nBcc: x@evil.example',
       );
       expect(find.text('Keep it on one line.'), findsOneWidget);
       expect(button(tester, 'Continue'), isNull);
@@ -666,7 +666,7 @@ void main() {
     ) async {
       final s = await pump(tester);
       await s.controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'pw',
         askMozillaConsent: noMozilla,
       );
@@ -680,14 +680,14 @@ void main() {
 
       final host = find.widgetWithText(TextFormField, 'Server').first;
       final port = find.widgetWithText(TextFormField, 'Port').first;
-      await tester.enterText(host, 'imap.tommykung.cc\r\nA1 LOGOUT');
+      await tester.enterText(host, 'imap.foglane.cc\r\nA1 LOGOUT');
       await tester.pumpAndSettle();
       expect(find.text('Enter a server name'), findsOneWidget);
       expect(button(tester, 'Check and continue'), isNull);
-      await tester.enterText(host, 'https://imap.tommykung.cc');
+      await tester.enterText(host, 'https://imap.foglane.cc');
       await tester.pumpAndSettle();
       expect(find.textContaining('without http://'), findsOneWidget);
-      await tester.enterText(host, ' IMAP.TommyKung.cc ');
+      await tester.enterText(host, ' IMAP.RobinVale.cc ');
       await tester.enterText(port, '99999');
       await tester.pumpAndSettle();
       expect(find.text('Enter a port number'), findsOneWidget);
@@ -696,7 +696,7 @@ void main() {
 
       // A carriage return (single-line fields drop only line feeds) would
       // end up in the login command.
-      await type(tester, 'User name', 'me@tommykung.cc\rA2 LOGOUT');
+      await type(tester, 'User name', 'me@foglane.cc\rA2 LOGOUT');
       expect(find.text('Keep it on one line.'), findsOneWidget);
       expect(button(tester, 'Check and continue'), isNull);
       await type(tester, 'User name', 'me');
@@ -704,7 +704,7 @@ void main() {
       await tester.tap(find.text('Check and continue'));
       await tester.pump();
       final (settings, password) = s.verified.single;
-      expect(settings.imap.host, 'imap.tommykung.cc');
+      expect(settings.imap.host, 'imap.robinvale.cc');
       expect(settings.imap.port, 143);
       expect(settings.username, 'me');
       expect(password, 'pw');

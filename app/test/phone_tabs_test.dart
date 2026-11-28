@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/core/widgets/skeleton_rows.dart';
 import 'package:citusmail/src/features/calendar/ui/calendar_view.dart';
 import 'package:citusmail/src/features/discover/ui/discover_page.dart';
 import 'package:citusmail/src/features/found/ui/deliveries_page.dart';
@@ -186,6 +187,117 @@ void main() {
     await tab(tester, 'Inbox');
     expect(selectedTab(tester), 0);
     expect(find.text('Lunch?'), findsOneWidget);
+  });
+
+  /// The fade of the tab shown (the nearest one above [of]).
+  double tabOpacity(WidgetTester tester, Finder of) => tester
+      .widget<FadeTransition>(
+        find.ancestor(of: of, matching: find.byType(FadeTransition)).first,
+      )
+      .opacity
+      .value;
+
+  final tabAsItWas = find.byKey(const ValueKey('tab-as-it-was'));
+
+  testWidgets('Calendar fades through from and to the other tabs, as they '
+      'all do', (tester) async {
+    await show(tester);
+    await settle(tester);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Calendar'),
+      ),
+    );
+    await tester.pump();
+    // The first frame: the calendar is there, loading (with the light
+    // moving across it), and the inbox as it was fades out over it.
+    final calendar = find.byType(CalendarView);
+    expect(calendar, findsOneWidget);
+    expect(
+      find.descendant(of: calendar, matching: find.byType(SkeletonRows)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: calendar,
+        matching: find.byKey(const ValueKey('skeleton-shimmer')),
+      ),
+      findsOneWidget,
+    );
+    expect(tabAsItWas, findsOneWidget);
+    expect(tabOpacity(tester, calendar), 0);
+    // A third of the way: the inbox is gone, the calendar comes in.
+    await tester.pump(const Duration(milliseconds: 150));
+    final midway = tabOpacity(tester, calendar);
+    expect(midway, greaterThan(0));
+    expect(midway, lessThan(1));
+    final scale = tester
+        .widget<ScaleTransition>(
+          find.ancestor(of: calendar, matching: find.byType(ScaleTransition)),
+        )
+        .scale
+        .value;
+    expect(scale, greaterThan(0.92));
+    expect(scale, lessThan(1));
+    await tester.pumpAndSettle();
+    expect(tabOpacity(tester, calendar), 1);
+    expect(tabAsItWas, findsNothing);
+    expect(find.text('Nothing on the calendar'), findsOneWidget);
+
+    // The same from the calendar to each other tab, and back to it.
+    for (final (label, shown) in [
+      ('Pins', find.text('Keep this')),
+      ('Calendar', calendar),
+      ('Tools', find.byType(ToolsHub)),
+      ('Calendar', calendar),
+      ('Folders', find.byType(Sidebar)),
+      ('Calendar', calendar),
+      ('Inbox', find.text('Lunch?')),
+    ]) {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.text(label),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(tabAsItWas, findsOneWidget, reason: label);
+      expect(tabOpacity(tester, shown), 0, reason: label);
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(tabOpacity(tester, shown), inExclusiveRange(0, 1), reason: label);
+      await tester.pumpAndSettle();
+      expect(tabOpacity(tester, shown), 1, reason: label);
+      expect(tabAsItWas, findsNothing, reason: label);
+    }
+  });
+
+  testWidgets('with less motion, tabs change at once', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await show(tester);
+    await settle(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Calendar'),
+      ),
+    );
+    await tester.pump();
+    final calendar = find.byType(CalendarView);
+    expect(tabOpacity(tester, calendar), 1);
+    expect(tabAsItWas, findsNothing);
+    // Loading, standing still.
+    expect(
+      find.descendant(of: calendar, matching: find.byType(SkeletonRows)),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('skeleton-shimmer')), findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing on the calendar'), findsOneWidget);
   });
 
   testWidgets('the Inbox tab shows how many are unread', (tester) async {

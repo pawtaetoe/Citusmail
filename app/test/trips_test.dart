@@ -99,18 +99,18 @@ void main() {
       rows.where(
         (r) => const [
           'Flight to Tokyo',
-          'Park Hotel Shinjuku',
+          'Hotel Kumo Shinjuku',
           'Flight to Singapore',
         ].contains(r),
       ),
-      ['Flight to Tokyo', 'Park Hotel Shinjuku', 'Flight to Singapore'],
+      ['Flight to Tokyo', 'Hotel Kumo Shinjuku', 'Flight to Singapore'],
     );
     // Local times at the place, as the airline gives them.
     expect(find.text('SQ 638 · SIN 11:35 PM → NRT 7:30 AM +1'), findsOneWidget);
     expect(find.text('Tokyo · 5 nights'), findsOneWidget);
     // At home: a table, named by its day. A concert is an event, not a
     // booking here.
-    expect(find.text('Table at Burnt Ends'), findsOneWidget);
+    expect(find.text('Table at Ember Lane'), findsOneWidget);
     expect(find.text('4 people · Singapore'), findsOneWidget);
     expect(find.text('Coldplay: Music of the Spheres'), findsNothing);
     // Bali was cancelled.
@@ -206,12 +206,12 @@ void main() {
     await settle(tester);
     expect(find.text('Flight to Tokyo'), findsOneWidget);
 
-    await tester.tap(find.text('Table at Burnt Ends').last);
+    await tester.tap(find.text('Table at Ember Lane').last);
     await tester.pumpAndSettle();
     expect(find.text('4'), findsOneWidget);
     await tester.tap(find.text('Not a booking'));
     await settle(tester);
-    expect(find.text('Table at Burnt Ends'), findsNothing);
+    expect(find.text('Table at Ember Lane'), findsNothing);
     // The snackbar would cover the end of the list.
     ScaffoldMessenger.of(tester.element(find.byType(TripsPage)))
         .removeCurrentSnackBar();
@@ -231,7 +231,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('List again'));
     await settle(tester);
-    expect(find.text('Table at Burnt Ends'), findsOneWidget);
+    expect(find.text('Table at Ember Lane'), findsOneWidget);
   });
 
   test('a booking as a calendar event', () {

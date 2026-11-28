@@ -55,15 +55,15 @@ Appointment _dentist({String time = '3.30pm'}) => AppointmentFinder.find([
 Booking _table(int hour) => TripFinder.bookings([
   TripEmail(
     messageId: MessageId(2),
-    sender: 'burntends.com.sg',
-    senderName: 'Burnt Ends',
+    sender: 'emberlane.example',
+    senderName: 'Ember Lane',
     subject: 'Your reservation is confirmed',
     text: '',
     at: _now.subtract(const Duration(days: 2)),
     reservations: [
       FoodEstablishmentReservationInfo(
         reservationNumber: 'BE123',
-        restaurant: const ReservationPlace(name: 'Burnt Ends'),
+        restaurant: const ReservationPlace(name: 'Ember Lane'),
         startTime: PlaceTime(_now.year, _now.month, _now.day, hour: hour),
       ),
     ],
@@ -394,7 +394,9 @@ void main() {
 
     // Deliveries: the page.
     await tester.tap(piece('Parcel arriving today'));
-    await tester.pumpAndSettle();
+    // Its rows shimmer while it reads (in another isolate): no settling.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(DeliveriesPage), findsOneWidget);
     navigator().pop();
     await tester.pumpAndSettle();

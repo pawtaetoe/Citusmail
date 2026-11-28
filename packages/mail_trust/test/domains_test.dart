@@ -37,7 +37,7 @@ void main() {
       expect(Domains.registrable('foo.github.io'), 'foo.github.io');
       expect(Domains.registrable('co.uk'), isNull);
       expect(Domains.registrable('localhost'), isNull);
-      expect(Domains.registrable('mail.tommykung.cc'), 'tommykung.cc');
+      expect(Domains.registrable('mail.foglane.cc'), 'foglane.cc');
       // Unknown endings count as one label.
       expect(Domains.registrable('x.y.unknownending'), 'y.unknownending');
       expect(Domains.registrable('192.168.1.1'), isNull);

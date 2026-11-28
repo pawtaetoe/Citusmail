@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_sort/mail_sort.dart';
@@ -36,6 +38,10 @@ final class CalendarPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => PageScaffold(
     title: 'Calendar',
+    // The title lines up with the panes when they are side by side.
+    maxWidth: MediaQuery.sizeOf(context).width >= CalendarView.twoPaneWidth
+        ? CalendarView.maxWidth
+        : PageScaffold.width,
     help: (
       tooltip: 'What is on the calendar?',
       onPressed: () => CalendarView.explain(context),
@@ -59,6 +65,15 @@ final class CalendarView extends StatefulWidget {
 
   /// Now (tests).
   final DateTime Function()? now;
+
+  /// From this wide, the month and the agenda side by side.
+  static const twoPaneWidth = 840.0;
+
+  /// From this wide, what is on each day shows in the month too.
+  static const chipsWidth = 1200.0;
+
+  /// The widest the two panes get together, centred beyond.
+  static const maxWidth = 1400.0;
 
   /// What the calendar shows, and where it comes from.
   static Future<void> explain(BuildContext context) => showDialog<void>(
@@ -140,12 +155,65 @@ final class _CalendarViewState extends State<CalendarView> {
           label: 'Putting the calendar together…',
           maxWidth: PageScaffold.width,
         ),
-        Loaded() => _list(context),
+        Loaded() => LayoutBuilder(
+          builder: (context, constraints) =>
+              _model.items.isNotEmpty &&
+                  constraints.maxWidth >= CalendarView.twoPaneWidth
+              ? _sideBySide(context, constraints.maxWidth)
+              : _list(context),
+        ),
       },
     ),
   );
 
-  Widget _list(BuildContext context) {
+  /// The month, or one week when [open] is false. [roomy]: side by side,
+  /// with taller days and no folding; [chips] also puts what is on each
+  /// day in its cell.
+  Widget _grid({required bool open, double? roomy, bool chips = false}) {
+    final picked = _picked;
+    final weekEnd = _week.add(const Duration(days: 6));
+    return _MonthGrid(
+      month: _month,
+      week: open ? null : _week,
+      today: _model.today,
+      busy: open
+          ? _model.busyDays(_month)
+          : {
+              ..._model.busyDays(DateTime(_week.year, _week.month)),
+              ..._model.busyDays(DateTime(weekEnd.year, weekEnd.month)),
+            },
+      picked: picked,
+      cellHeight: roomy ?? _MonthGrid.phoneCellHeight,
+      itemsOn: chips ? _model.on : null,
+      now: _model.now(),
+      onOpen: _open,
+      onMonth: (m) => setState(() => _month = m),
+      onWeek: (w) => setState(() => _week = w),
+      // Side by side, the month always shows.
+      onFold: roomy != null
+          ? null
+          : () => setState(() {
+              _monthOpen = !open;
+              // Fold to the week of what is in view, and back.
+              if (open) {
+                _week = _mondayOf(
+                  picked ??
+                      (_month.year == _model.today.year &&
+                              _month.month == _model.today.month
+                          ? _model.today
+                          : _month),
+                );
+              } else {
+                _month = DateTime(_week.year, _week.month);
+              }
+            }),
+      onPick: (d) => setState(() => _picked = d == picked ? null : d),
+    );
+  }
+
+  /// What is on: the day picked, else what is coming up (and the past on
+  /// request), by day.
+  List<Widget> _agenda() {
     final now = _model.now();
     final upcoming = _model.upcoming;
     final past = _model.past;
@@ -158,103 +226,117 @@ final class _CalendarViewState extends State<CalendarView> {
       over: over,
       onOpen: _open,
     );
+    return [
+      if (picked != null) ...[
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: InputChip(
+              label: Text(_dayLabel(picked, now: now)),
+              onDeleted: () => setState(() => _picked = null),
+              deleteButtonTooltipMessage: 'Show every day',
+            ),
+          ),
+        ),
+        if (_model.on(picked) case final items when items.isNotEmpty)
+          day((day: picked, items: items), over: picked.isBefore(_model.today))
+        else
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Text('Nothing on this day')),
+          ),
+      ] else ...[
+        if (upcoming.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Text('Nothing coming up')),
+          ),
+        for (final d in upcoming) day(d),
+        if (past.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              key: const ValueKey('calendar-past'),
+              onPressed: () => setState(() => _showPast = !_showPast),
+              child: Text(_showPast ? 'Hide past' : 'Show past'),
+            ),
+          ),
+          if (_showPast)
+            for (final d in past) day(d, over: true),
+        ],
+      ],
+    ];
+  }
+
+  /// Phones (and anything narrow): the week or the month, then what is
+  /// on, in one column.
+  Widget _list(BuildContext context) => Align(
+    alignment: Alignment.topCenter,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: PageScaffold.width),
+      child: ListView(
+        key: const ValueKey('calendar-list'),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: [
+          if (_model.items.isEmpty)
+            const _Empty()
+          else ...[
+            LayoutBuilder(
+              builder: (context, constraints) =>
+                  _grid(open: _monthOpen ?? constraints.maxWidth >= 560),
+            ),
+            ..._agenda(),
+          ],
+        ],
+      ),
+    ),
+  );
+
+  /// Wider windows: the month on the left, staying put, with roomier
+  /// days (and what is on each, from [CalendarView.chipsWidth]); what is
+  /// on, scrolling on its own, on the right. As wide as the window
+  /// allows, to [CalendarView.maxWidth], like the inbox's panes.
+  Widget _sideBySide(BuildContext context, double width) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final chips = width >= CalendarView.chipsWidth;
+    final content = math.min(width, CalendarView.maxWidth) - 2 * 16;
+    // The agenda gets a reading column; the month takes the rest.
+    final agenda = chips
+        ? (content * 0.36).clamp(360.0, 480.0)
+        : (content * 0.5).clamp(320.0, 560.0);
+    final cellHeight = chips
+        ? _DayCell.chipsHeight(scaler)
+        : math.max(52.0, scaler.scale(52));
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: PageScaffold.width),
-        child: ListView(
-          key: const ValueKey('calendar-list'),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
-            if (_model.items.isEmpty)
-              const _Empty()
-            else ...[
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final open = _monthOpen ?? constraints.maxWidth >= 560;
-                  final weekEnd = _week.add(const Duration(days: 6));
-                  return _MonthGrid(
-                    month: _month,
-                    week: open ? null : _week,
-                    today: _model.today,
-                    busy: open
-                        ? _model.busyDays(_month)
-                        : {
-                            ..._model.busyDays(
-                              DateTime(_week.year, _week.month),
-                            ),
-                            ..._model.busyDays(
-                              DateTime(weekEnd.year, weekEnd.month),
-                            ),
-                          },
-                    picked: picked,
-                    onMonth: (m) => setState(() => _month = m),
-                    onWeek: (w) => setState(() => _week = w),
-                    onFold: () => setState(() {
-                      _monthOpen = !open;
-                      // Fold to the week of what is in view, and back.
-                      if (open) {
-                        _week = _mondayOf(
-                          picked ??
-                              (_month.year == _model.today.year &&
-                                      _month.month == _model.today.month
-                                  ? _model.today
-                                  : _month),
-                        );
-                      } else {
-                        _month = DateTime(_week.year, _week.month);
-                      }
-                    }),
-                    onPick: (d) =>
-                        setState(() => _picked = d == picked ? null : d),
-                  );
-                },
-              ),
-              if (picked != null) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: InputChip(
-                      label: Text(_dayLabel(picked, now: now)),
-                      onDeleted: () => setState(() => _picked = null),
-                      deleteButtonTooltipMessage: 'Show every day',
-                    ),
-                  ),
+        constraints: const BoxConstraints(maxWidth: CalendarView.maxWidth),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            key: const ValueKey('calendar-panes'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  key: const ValueKey('calendar-month-pane'),
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: _grid(open: true, roomy: cellHeight, chips: chips),
                 ),
-                if (_model.on(picked) case final items when items.isNotEmpty)
-                  day((
-                    day: picked,
-                    items: items,
-                  ), over: picked.isBefore(_model.today))
-                else
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: Text('Nothing on this day')),
-                  ),
-              ] else ...[
-                if (upcoming.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: Text('Nothing coming up')),
-                  ),
-                for (final d in upcoming) day(d),
-                if (past.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
-                      key: const ValueKey('calendar-past'),
-                      onPressed: () => setState(() => _showPast = !_showPast),
-                      child: Text(_showPast ? 'Hide past' : 'Show past'),
-                    ),
-                  ),
-                  if (_showPast)
-                    for (final d in past) day(d, over: true),
-                ],
-              ],
+              ),
+              const SizedBox(width: 24),
+              SizedBox(
+                width: agenda,
+                child: ListView(
+                  key: const ValueKey('calendar-list'),
+                  padding: const EdgeInsets.only(bottom: 32),
+                  children: _agenda(),
+                ),
+              ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -280,6 +362,27 @@ String _dayLabel(DateTime day, {required DateTime now}) {
     _ => BookingText.day(day, now: now),
   };
 }
+
+/// The icon for [item]'s kind.
+IconData _iconOf(CalendarItem item) => switch (item.item) {
+  final Booking b => BookingText.icon(b.kind),
+  final Appointment a => AppointmentWords.icon(a.kind),
+  final Event e => EventWords.icon(e.kind),
+  Reminder(kind: ReminderKind.billDue) => AppIcons.bill,
+  Reminder(kind: ReminderKind.trialEnds) => AppIcons.trial,
+  Reminder() => AppIcons.subscriptions,
+  _ => AppIcons.event,
+};
+
+/// What [item] is called.
+String _titleOf(CalendarItem item) => switch (item.item) {
+  final Booking b when item.checkOut => 'Check out: ${BookingText.title(b)}',
+  final Booking b => BookingText.title(b),
+  final Appointment a => a.title,
+  final Event e => e.title,
+  final Reminder r => r.name,
+  _ => '',
+};
 
 /// One day's heading and what is on it.
 final class _DaySection extends StatelessWidget {
@@ -337,24 +440,9 @@ final class _ItemTile extends StatelessWidget {
   final VoidCallback onOpen;
   final bool over;
 
-  IconData get _icon => switch (item.item) {
-    final Booking b => BookingText.icon(b.kind),
-    final Appointment a => AppointmentWords.icon(a.kind),
-    final Event e => EventWords.icon(e.kind),
-    Reminder(kind: ReminderKind.billDue) => AppIcons.bill,
-    Reminder(kind: ReminderKind.trialEnds) => AppIcons.trial,
-    Reminder() => AppIcons.subscriptions,
-    _ => AppIcons.event,
-  };
+  IconData get _icon => _iconOf(item);
 
-  String get _title => switch (item.item) {
-    final Booking b when item.checkOut => 'Check out: ${BookingText.title(b)}',
-    final Booking b => BookingText.title(b),
-    final Appointment a => a.title,
-    final Event e => e.title,
-    final Reminder r => r.name,
-    _ => '',
-  };
+  String get _title => _titleOf(item);
 
   /// "3:30 PM", "3:30 – 4:15 PM", "All day".
   String _time(BuildContext context) {
@@ -469,7 +557,8 @@ final class _ItemTile extends StatelessWidget {
 }
 
 /// A month, Monday first, with a dot under each day that has something
-/// on; arrows go to the month before and after.
+/// on; arrows go to the month before and after. With [itemsOn] (wide
+/// windows), each day lists what is on it instead of the dot.
 final class _MonthGrid extends StatelessWidget {
   const _MonthGrid({
     required this.month,
@@ -481,19 +570,34 @@ final class _MonthGrid extends StatelessWidget {
     required this.onWeek,
     required this.onFold,
     required this.onPick,
+    required this.now,
+    required this.onOpen,
+    this.cellHeight = phoneCellHeight,
+    this.itemsOn,
   });
+
+  /// A day's height on a phone.
+  static const phoneCellHeight = 40.0;
 
   final DateTime month;
 
   /// When folded to one row: that week's Monday.
   final DateTime? week;
   final ValueChanged<DateTime> onWeek;
-  final VoidCallback onFold;
+
+  /// Folds to one week and back; null when the month always shows.
+  final VoidCallback? onFold;
   final DateTime today;
   final Set<DateTime> busy;
   final DateTime? picked;
   final ValueChanged<DateTime> onMonth;
   final ValueChanged<DateTime> onPick;
+  final double cellHeight;
+
+  /// What is on a day, to list in its cell.
+  final List<CalendarItem> Function(DateTime day)? itemsOn;
+  final DateTime now;
+  final void Function(CalendarItem item) onOpen;
 
   static const _weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -512,19 +616,11 @@ final class _MonthGrid extends StatelessWidget {
       busy: busy.contains(day),
       picked: picked == day,
       onTap: onPick,
+      items: itemsOn?.call(day),
+      now: now,
+      onOpen: onOpen,
     );
     final cells = <Widget>[
-      for (final w in _weekdays)
-        Center(
-          child: ExcludeSemantics(
-            child: Text(
-              w,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
       if (week != null)
         for (var d = 0; d < 7; d++)
           cell(DateTime(week.year, week.month, week.day + d))
@@ -534,6 +630,7 @@ final class _MonthGrid extends StatelessWidget {
           cell(DateTime(month.year, month.month, d)),
       ],
     ];
+    final fold = onFold;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Padding(
@@ -563,25 +660,51 @@ final class _MonthGrid extends StatelessWidget {
                       ? onMonth(DateTime(month.year, month.month + 1))
                       : onWeek(DateTime(week.year, week.month, week.day + 7)),
                 ),
-                IconButton(
-                  key: const ValueKey('calendar-fold'),
-                  tooltip: week == null ? 'Show one week' : 'Show the month',
-                  icon: AnimatedRotation(
-                    turns: week == null ? 0.5 : 0,
-                    duration: CitusMotion.of(context, CitusMotion.fold),
-                    child: const Icon(AppIcons.expand),
+                if (fold != null)
+                  IconButton(
+                    key: const ValueKey('calendar-fold'),
+                    tooltip: week == null ? 'Show one week' : 'Show the month',
+                    icon: AnimatedRotation(
+                      turns: week == null ? 0.5 : 0,
+                      duration: CitusMotion.of(context, CitusMotion.fold),
+                      child: const Icon(AppIcons.expand),
+                    ),
+                    onPressed: fold,
                   ),
-                  onPressed: onFold,
-                ),
               ],
             ),
             LayoutBuilder(
               builder: (context, constraints) {
-                final cell = constraints.maxWidth / 7;
+                final width = constraints.maxWidth / 7;
                 return Wrap(
                   children: [
+                    for (final w in _weekdays)
+                      SizedBox(
+                        width: width,
+                        height: phoneCellHeight,
+                        // Over the day numbers: centred, or at the
+                        // start of each wide day.
+                        child: Align(
+                          alignment: itemsOn == null
+                              ? Alignment.center
+                              : AlignmentDirectional.centerStart,
+                          child: Padding(
+                            padding: EdgeInsetsDirectional.only(
+                              start: itemsOn == null ? 0 : 10,
+                            ),
+                            child: ExcludeSemantics(
+                              child: Text(
+                                w,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     for (final c in cells)
-                      SizedBox(width: cell, height: 40, child: c),
+                      SizedBox(width: width, height: cellHeight, child: c),
                   ],
                 );
               },
@@ -600,6 +723,9 @@ final class _DayCell extends StatelessWidget {
     required this.busy,
     required this.picked,
     required this.onTap,
+    required this.now,
+    required this.onOpen,
+    this.items,
   });
 
   final DateTime day;
@@ -608,57 +734,265 @@ final class _DayCell extends StatelessWidget {
   final bool picked;
   final ValueChanged<DateTime> onTap;
 
+  /// What is on the day, listed in the cell (wide windows); null shows a
+  /// dot when [busy].
+  final List<CalendarItem>? items;
+  final DateTime now;
+  final void Function(CalendarItem item) onOpen;
+
+  /// At most this many lines in a cell: items, or some and "+N more".
+  static const lines = 3;
+
+  static double _numberHeight(TextScaler scaler) => scaler.scale(20) + 4;
+  static double _lineHeight(TextScaler scaler) => scaler.scale(16) + 6;
+
+  /// A day's height with its items listed.
+  static double chipsHeight(TextScaler scaler) =>
+      _numberHeight(scaler) + lines * _lineHeight(scaler) + 10;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isToday = day == today;
     final material = MaterialLocalizations.of(context);
-    return Semantics(
-      button: true,
-      selected: picked,
-      label:
-          '${material.formatFullDate(day)}'
-          '${busy ? ', something on' : ''}',
-      excludeSemantics: true,
-      child: InkWell(
-        key: ValueKey('calendar-cell-${day.toIso8601String()}'),
-        borderRadius: BorderRadius.circular(CitusmailTheme.radius),
-        onTap: () => onTap(day),
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: picked ? colors.primary : null,
-            border: isToday && !picked
-                ? Border.all(color: colors.primary)
-                : null,
-            borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+    final items = this.items;
+    final number = Text(
+      '${day.day}',
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: picked ? colors.onPrimary : null,
+        fontWeight: isToday ? FontWeight.w600 : null,
+      ),
+    );
+    final decoration = BoxDecoration(
+      color: picked ? colors.primary : null,
+      border: isToday && !picked ? Border.all(color: colors.primary) : null,
+      borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+    );
+    final label =
+        '${material.formatFullDate(day)}'
+        '${switch (items?.length) {
+          null => busy ? ', something on' : '',
+          0 => '',
+          1 => ', 1 thing on',
+          final n => ', $n things on',
+        }}';
+    if (items == null) {
+      return Semantics(
+        button: true,
+        selected: picked,
+        label: label,
+        excludeSemantics: true,
+        child: InkWell(
+          key: ValueKey('calendar-cell-${day.toIso8601String()}'),
+          borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+          onTap: () => onTap(day),
+          child: Container(
+            margin: const EdgeInsets.all(2),
+            decoration: decoration,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(child: FittedBox(child: number)),
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: busy
+                        ? (picked ? colors.onPrimary : colors.primary)
+                        : Colors.transparent,
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: FittedBox(
-                  child: Text(
-                    '${day.day}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: picked ? colors.onPrimary : null,
-                      fontWeight: isToday ? FontWeight.w600 : null,
+        ),
+      );
+    }
+    // Wide: the day's number at the top, then what is on it.
+    final scaler = MediaQuery.textScalerOf(context);
+    final more = items.length > lines ? items.length - (lines - 1) : 0;
+    final shown = more > 0 ? items.take(lines - 1) : items;
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // The whole cell picks the day; the items on it open their emails.
+          Semantics(
+            button: true,
+            selected: picked,
+            label: label,
+            excludeSemantics: true,
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                key: ValueKey('calendar-cell-${day.toIso8601String()}'),
+                borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+                onTap: () => onTap(day),
+                // A faint edge, so each day's items read as its own.
+                child: Ink(
+                  decoration: picked || isToday
+                      ? decoration
+                      : BoxDecoration(
+                          border: Border.all(
+                            color: colors.outlineVariant.withValues(alpha: 0.5),
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            CitusmailTheme.radius,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                IgnorePointer(
+                  child: SizedBox(
+                    height: _numberHeight(scaler),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 4),
+                        child: ExcludeSemantics(
+                          child: FittedBox(child: number),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: busy
-                      ? (picked ? colors.onPrimary : colors.primary)
-                      : Colors.transparent,
+                for (final i in shown)
+                  _ItemChip(
+                    item: i,
+                    height: _lineHeight(scaler),
+                    over: i.endsAt.isBefore(now),
+                    onOpen: () => onOpen(i),
+                  ),
+                if (more > 0)
+                  SizedBox(
+                    height: _lineHeight(scaler),
+                    child: InkWell(
+                      key: ValueKey('calendar-more-${day.toIso8601String()}'),
+                      borderRadius: BorderRadius.circular(
+                        CitusmailTheme.radiusMark,
+                      ),
+                      onTap: () => onTap(day),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            '+$more more',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: picked
+                                  ? colors.onPrimary
+                                  : colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One item in a day of the month (wide windows): its kind's icon on its
+/// kind's colour, and its title, cut short. Opens its email.
+final class _ItemChip extends StatelessWidget {
+  const _ItemChip({
+    required this.item,
+    required this.height,
+    required this.over,
+    required this.onOpen,
+  });
+
+  final CalendarItem item;
+  final double height;
+  final bool over;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final cancelled = item.cancelled;
+    // Each page of "Found in your mail" its own tone.
+    final (background, foreground) = over || cancelled
+        ? (colors.surfaceContainerHighest, colors.onSurfaceVariant)
+        : switch (item.source) {
+            CalendarSource.trip => (
+              colors.primaryContainer,
+              colors.onPrimaryContainer,
+            ),
+            CalendarSource.appointment => (
+              colors.secondaryContainer,
+              colors.onSecondaryContainer,
+            ),
+            CalendarSource.event => (
+              colors.tertiaryContainer,
+              colors.onTertiaryContainer,
+            ),
+            CalendarSource.money => (
+              colors.surfaceContainerHighest,
+              colors.onSurface,
+            ),
+          };
+    final title = _titleOf(item);
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: SizedBox(
+        height: height - 2,
+        child: Semantics(
+          button: true,
+          label: cancelled ? '$title, cancelled' : title,
+          excludeSemantics: true,
+          child: Tooltip(
+            message: title,
+            waitDuration: const Duration(milliseconds: 600),
+            child: Material(
+              color: background,
+              borderRadius: BorderRadius.circular(CitusmailTheme.radiusMark),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                key: ValueKey('calendar-chip-${item.key}'),
+                onTap: onOpen,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      Icon(_iconOf(item), size: 12, color: foreground),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: foreground,
+                            decoration: cancelled
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

@@ -339,18 +339,18 @@ void main() {
 
     test('a lookalike of the user\'s own domain', () {
       final r = checker.check(
-        mail('From: Tommy <me@tommykunq.cc>\n'),
-        const TrustContext(ownDomains: {'tommykung.cc'}),
+        mail('From: Robin <me@foqlane.cc>\n'),
+        const TrustContext(ownDomains: {'foglane.cc'}),
       );
       expect(r.findings, isEmpty, reason: 'q is not a lookalike of g');
       final r2 = checker.check(
-        mail('From: Tommy <me@t0mmykung.cc>'),
-        const TrustContext(ownDomains: {'tommykung.cc'}),
+        mail('From: Robin <me@f0glane.cc>'),
+        const TrustContext(ownDomains: {'foglane.cc'}),
       );
       expect(r2.findings.single.kind, FindingKind.lookalikeDomain);
       final own = checker.check(
-        mail('From: Tommy <me@tommykung.cc>'),
-        const TrustContext(ownDomains: {'tommykung.cc'}),
+        mail('From: Robin <me@foglane.cc>'),
+        const TrustContext(ownDomains: {'foglane.cc'}),
       );
       expect(own.findings, isEmpty);
     });

@@ -207,12 +207,17 @@ abstract base class FoundModel<T, F> extends PageModel<FoundPage<T, F>> {
     final samples = item == null ? const <MailSample>[] : samplesOf(item);
     if (hidden.contains(key)) {
       if (item != null) _corrections.rejected(kind, samples, undo: true);
-      writeKeys(hiddenKeys, {...hidden}..remove(key));
+      writeKeys(hiddenKeys, unhidden(hidden, key));
     } else if (learned.contains(key)) {
       _corrections.kept(kind, key, samples);
       unawaited(load());
     }
   }
+
+  /// [hidden] once the item keyed [key] is listed again.
+  @protected
+  Set<String> unhidden(Set<String> hidden, String key) =>
+      {...hidden}..remove(key);
 
   /// [item]'s page was opened: a weak sign that it is one.
   void opened(T item) =>

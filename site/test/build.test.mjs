@@ -116,7 +116,8 @@ test('the policy pages carry the docs, and link each other', async () => {
   const terms = await readFile(join(out, 'terms-of-service.html'), 'utf8');
   assert.match(terms, /<h1>Citusmail Terms of Service<\/h1>/);
   assert.match(terms, /href="\/privacy-policy"/);
-  assert.ok(!terms.includes('.md"'), 'no links to .md files');
+  // Repository files are linked on GitHub; no relative link to a .md file.
+  assert.ok(!/href="(?!https:)[^"]*\.md["#]/.test(terms), 'no relative links to .md files');
 });
 
 test('pages load nothing from elsewhere: no remote scripts, styles, fonts or images', async () => {
@@ -125,7 +126,7 @@ test('pages load nothing from elsewhere: no remote scripts, styles, fonts or ima
     assert.ok(!/<script/i.test(html), `${page} has a script`);
     assert.ok(!/\{\{\w+\}\}/.test(html), `${page} has an unfilled value`);
     const loads = [
-      ...html.matchAll(/<(?:img|source|iframe)\b[^>]*\bsrc="([^"]+)"/gi),
+      ...html.matchAll(/<(?:img|source|iframe)\b[^>]*\b(?:src|srcset)="([^"]+)"/gi),
       ...html.matchAll(/<link\b[^>]*\brel="(?:stylesheet|icon|preload|apple-touch-icon)"[^>]*\bhref="([^"]+)"/gi),
     ].map((m) => m[1]);
     for (const url of loads) {
@@ -136,4 +137,17 @@ test('pages load nothing from elsewhere: no remote scripts, styles, fonts or ima
   for (const [, url] of css.matchAll(/url\("?([^")]+)"?\)/g)) {
     assert.ok(url.startsWith('/'), `site.css loads ${url}`);
   }
+});
+
+test('every screenshot shown exists, and every one in docs/screenshots is shown', async () => {
+  const repo = join(import.meta.dirname, '..', '..');
+  const readme = await readFile(join(repo, 'README.md'), 'utf8');
+  const home = await readFile(join(out, 'index.html'), 'utf8');
+  const shown = new Set([
+    ...[...readme.matchAll(/docs\/screenshots\/([\w-]+\.png)/g)].map((m) => m[1]),
+    ...[...home.matchAll(/\/screenshots\/([\w-]+\.png)/g)].map((m) => m[1]),
+  ]);
+  const files = new Set(await readdir(join(repo, 'docs', 'screenshots')));
+  for (const name of shown) assert.ok(files.has(name), `missing screenshot ${name}`);
+  for (const name of files) assert.ok(shown.has(name), `${name} is shown nowhere`);
 });

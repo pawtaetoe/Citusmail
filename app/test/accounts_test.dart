@@ -225,4 +225,92 @@ void main() {
     expect(find.text('Security alert'), findsOneWidget);
     expect(find.text('Please confirm your Shopee account'), findsNothing);
   });
+  testWidgets('a bank known by its statements says so', (tester) async {
+    final inbox = app.store.mailboxes.inbox(
+      app.store.accounts.all().single.id,
+    )!;
+    final now = DateTime.now().toUtc();
+    const alice = MailAddress(localPart: 'alice', domain: 'citusmail.test');
+    const bank = MailAddress(
+      displayName: 'Example Bank',
+      localPart: 'estatements',
+      domain: 'examplebank.sg',
+    );
+    const broker = MailAddress(
+      displayName: 'Example Broker',
+      localPart: 'hello',
+      domain: 'examplebroker.sg',
+    );
+    MessageSummary mail(
+      int uid,
+      String subject,
+      MailAddress from,
+      int daysAgo, {
+      String? snippet,
+    }) => MessageSummary(
+      uid: uid,
+      receivedAt: now.subtract(Duration(days: daysAgo)),
+      subject: subject,
+      from: from,
+      to: const [alice],
+      snippet: snippet,
+      flags: MessageFlags.fromImap([r'\Seen']),
+    );
+    app.store.messages.upsertSummaries(inbox.id, [
+      mail(600, 'Your March statement is ready', bank, 60),
+      mail(601, 'Your April eStatement is available', bank, 30),
+      mail(
+        602,
+        'Welcome to Example Broker',
+        broker,
+        400,
+        snippet: 'Thanks for signing up. Your account is ready.',
+      ),
+      mail(603, 'Your Monthly Trade Statement', broker, 20),
+    ]);
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: CitusmailTheme.light(),
+        home: MailShell(
+          notifications: false,
+          services: app.services,
+          onAddAccount: () {},
+          onAccountsChanged: () {},
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Found in your mail'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Online accounts'));
+    await tester.pump();
+    await settle(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Example Bank'), findsOneWidget);
+    expect(find.text('Example Broker'), findsOneWidget);
+    // The bank is listed for its statements, not as vague account mail.
+    expect(
+      find.textContaining(
+        RegExp(r'^Statements since \w+ \d{4} · last statement \w+ \d{4}$'),
+      ),
+      findsOneWidget,
+    );
+    // The broker's sign-up stays its reason; its statement is the latest.
+    expect(
+      find.textContaining(RegExp(r'^Signed up \w+ \d{4} · last statement')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('account email'), findsNothing);
+
+    // Its own page: the kind, and each email as a statement ready.
+    await tester.tap(find.text('Example Bank'));
+    await tester.pumpAndSettle();
+    expect(find.text('Statements'), findsOneWidget);
+    expect(find.textContaining('· Statement ready'), findsNWidgets(2));
+    expect(find.text('Account emails'), findsNothing);
+  });
 }

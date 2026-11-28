@@ -12,9 +12,11 @@ import '../theme/citusmail_theme.dart';
 /// the screen already has the shape it is about to have instead of a
 /// lone spinner.
 ///
-/// Still, not animated: nothing moves on screen while waiting, and it
-/// never keeps a test or the battery busy.
-final class SkeletonRows extends StatelessWidget {
+/// A soft light sweeps across them, again and again, so waiting reads as
+/// loading rather than the app being stuck. It runs only while the rows
+/// are shown (they go once loaded), repaints only them, and stays still
+/// when the system asks for less motion.
+final class SkeletonRows extends StatefulWidget {
   const SkeletonRows({
     super.key,
     this.count = 6,
@@ -38,8 +40,47 @@ final class SkeletonRows extends StatelessWidget {
   final double? maxWidth;
 
   @override
+  State<SkeletonRows> createState() => _SkeletonRowsState();
+}
+
+final class _SkeletonRowsState extends State<SkeletonRows>
+    with SingleTickerProviderStateMixin {
+  /// Where the light is: 0 before the rows' start, 1 past their end.
+  late final AnimationController _sweep = AnimationController(
+    vsync: this,
+    duration: CitusMotion.shimmer,
+  );
+  late final _curve = CurvedAnimation(
+    parent: _sweep,
+    curve: CitusMotion.standard,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (CitusMotion.reduced(context)) {
+      _sweep.value = 0;
+    } else if (!_sweep.isAnimating) {
+      _sweep.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _sweep.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final fill = Theme.of(context).colorScheme.surfaceContainerHigh;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final fill = colors.surfaceContainerHigh;
+    // A little lighter than the grey, in either theme.
+    final light = theme.brightness == Brightness.light
+        ? Color.lerp(fill, colors.surfaceContainerLowest, 0.7)!
+        : colors.surfaceContainerHighest;
     Widget bar(double widthFactor, double height) => FractionallySizedBox(
       alignment: Alignment.centerLeft,
       widthFactor: widthFactor,
@@ -51,50 +92,75 @@ final class SkeletonRows extends StatelessWidget {
         ),
       ),
     );
+    final list = ListView(
+      key: const ValueKey('skeleton-rows'),
+      physics: const NeverScrollableScrollPhysics(),
+      padding: widget.padding.copyWith(top: CitusSpace.s),
+      children: [
+        for (var i = 0; i < widget.count; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: CitusSpace.m),
+            child: Row(
+              children: [
+                if (widget.avatar) ...[
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: fill,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: CitusSpace.m),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Varied, so it reads as rows of text.
+                      bar(const [0.45, 0.6, 0.35, 0.5, 0.4][i % 5], 12),
+                      const SizedBox(height: CitusSpace.s),
+                      bar(const [0.85, 0.7, 0.9, 0.75, 0.8][i % 5], 10),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
     final rows = Semantics(
-      label: label,
+      label: widget.label,
       liveRegion: true,
       child: ExcludeSemantics(
-        child: ListView(
-          key: const ValueKey('skeleton-rows'),
-          physics: const NeverScrollableScrollPhysics(),
-          padding: padding.copyWith(top: CitusSpace.s),
-          children: [
-            for (var i = 0; i < count; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: CitusSpace.m),
-                child: Row(
-                  children: [
-                    if (avatar) ...[
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: fill,
-                          shape: BoxShape.circle,
+        // Only the grey shapes repaint as the light moves.
+        child: RepaintBoundary(
+          child: CitusMotion.reduced(context)
+              ? list
+              : AnimatedBuilder(
+                  animation: _curve,
+                  child: list,
+                  builder: (context, list) => ShaderMask(
+                    key: const ValueKey('skeleton-shimmer'),
+                    blendMode: BlendMode.srcATop,
+                    shaderCallback: (bounds) =>
+                        LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [fill, light, fill],
+                          stops: const [0.35, 0.5, 0.65],
+                          transform: _Slide(_curve.value),
+                        ).createShader(
+                          bounds,
+                          textDirection: Directionality.of(context),
                         ),
-                      ),
-                      const SizedBox(width: CitusSpace.m),
-                    ],
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Varied, so it reads as rows of text.
-                          bar(const [0.45, 0.6, 0.35, 0.5, 0.4][i % 5], 12),
-                          const SizedBox(height: CitusSpace.s),
-                          bar(const [0.85, 0.7, 0.9, 0.75, 0.8][i % 5], 10),
-                        ],
-                      ),
-                    ),
-                  ],
+                    child: list,
+                  ),
                 ),
-              ),
-          ],
         ),
       ),
     );
-    if (maxWidth case final max?) {
+    if (widget.maxWidth case final max?) {
       return Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -104,5 +170,21 @@ final class SkeletonRows extends StatelessWidget {
       );
     }
     return rows;
+  }
+}
+
+/// Moves the gradient's light band from just before the rows (at 0) to
+/// just past them (at 1).
+final class _Slide extends GradientTransform {
+  const _Slide(this.t);
+
+  final double t;
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    // The band sits at 35–65% of the width; ±70% takes it out of sight.
+    final dx = (t * 1.4 - 0.7) * bounds.width;
+    final rtl = textDirection == TextDirection.rtl;
+    return Matrix4.translationValues(rtl ? -dx : dx, 0, 0);
   }
 }

@@ -14,7 +14,7 @@ import '../state/feature_id.dart';
 import 'features.dart';
 
 /// The app's version, as in app/pubspec.yaml (a test checks they agree).
-const appVersion = '0.6.6';
+const appVersion = '0.6.7';
 
 /// What a version brought that people can see, newest first: feature ids
 /// from [Features]. Only features that shipped.

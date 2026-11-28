@@ -43,7 +43,9 @@ final class Reminder {
 
   final ReminderKind kind;
 
-  /// The sender's registrable domain.
+  /// The sender's registrable domain; for one of a company's lines or
+  /// accounts, its subscription's key (`telco.com#4821`, see
+  /// [Subscription.company]).
   final String company;
 
   /// What to call it: "MyRepublic", "pandapro", "Spotify".
@@ -165,7 +167,17 @@ abstract final class Reminders {
     // A forward counts as the email it forwards; replies do not.
     final list = [for (final e in emails) ?e.original]
       ..sort((a, b) => b.at.compareTo(a.at));
-    final found = <Reminder>[..._bills(list, today), ..._trials(list, today)];
+    // A company's mail about several lines or accounts: each line's bill
+    // is that line's.
+    final lines = {
+      for (final s in subscriptions)
+        if (s.line case final line?)
+          for (final b in {s.biller, ...s.billers}) '$b#$line': s,
+    };
+    final found = <Reminder>[
+      ..._bills(list, today, lines),
+      ..._trials(list, today),
+    ];
     final billed = {for (final r in found) r.company};
     for (final s in subscriptions) {
       final next = s.nextCharge;
@@ -175,6 +187,8 @@ abstract final class Reminders {
           s.status != SubscriptionStatus.active ||
           s.variable ||
           hidden.contains(s.company) ||
+          // Hidden before its lines were told apart.
+          hidden.contains(s.biller) ||
           billed.contains(s.company) ||
           s.billers.any(billed.contains)) {
         continue;
@@ -210,13 +224,21 @@ abstract final class Reminders {
 
   /// Each company's newest bill, when it says when it's due, is not paid
   /// yet and is due soon.
+  /// [lines] are the subscriptions of one line or account of a company,
+  /// by `biller#line` ([Subscription.company]): a bill naming that line
+  /// is its own, keyed by it.
   static Iterable<Reminder> _bills(
     List<SubscriptionEmail> newestFirst,
     DateTime today,
+    Map<String, Subscription> lines,
   ) sync* {
     final seen = <String>{};
     for (final bill in newestFirst) {
-      if (!mayBeBill(bill) || !seen.add(bill.biller)) continue;
+      if (!mayBeBill(bill)) continue;
+      final line = lines.isEmpty ? null : SubscriptionFinder.lineOf(bill);
+      final ofLine = line == null ? null : lines['${bill.biller}#$line'];
+      final company = ofLine?.company ?? bill.biller;
+      if (!seen.add(company)) continue;
       if (today.difference(DueDates.dayOf(bill.at)).inDays > 90) continue;
       final text = '${bill.subject}\n${bill.text}';
       // Paid, or a credit ("Total due: -$21.40"): nothing to pay.
@@ -228,14 +250,23 @@ abstract final class Reminders {
       final days = due.difference(today).inDays;
       if (days < -overdueDays || days > billDays) continue;
       // A payment to the same company after the bill covers it.
+      // Not a payment for another of its lines.
       final paid = newestFirst.any(
-        (e) => e.at.isAfter(bill.at) && _sameSender(e, bill) && _isPayment(e),
+        (e) =>
+            e.at.isAfter(bill.at) &&
+            _sameSender(e, bill) &&
+            _isPayment(e) &&
+            (ofLine == null ||
+                switch (SubscriptionFinder.lineOf(e)) {
+                  null => true,
+                  final l => l == line,
+                }),
       );
       if (paid) continue;
       yield Reminder(
         kind: ReminderKind.billDue,
-        company: bill.biller,
-        name: _senderName(bill),
+        company: company,
+        name: ofLine?.name ?? _senderName(bill),
         date: due,
         messageId: bill.messageId,
         amount: _amountDue(text),

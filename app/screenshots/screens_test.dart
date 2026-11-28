@@ -27,6 +27,7 @@ import 'package:citusmail/src/features/compose/state/send_later_times.dart';
 import 'package:citusmail/src/features/compose/ui/compose_page.dart';
 import 'package:citusmail/src/features/compose/ui/sign_offs_page.dart';
 import 'package:citusmail/src/features/discover/ui/discover_page.dart';
+import 'package:citusmail/src/features/discover/ui/tips.dart';
 import 'package:citusmail/src/features/discover/ui/whats_new.dart';
 import 'package:citusmail/src/features/found/ui/appointments_page.dart';
 import 'package:citusmail/src/features/found/ui/attachments_page.dart';
@@ -41,6 +42,7 @@ import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
 import 'package:citusmail/src/features/inbox/state/new_since_away.dart';
 import 'package:citusmail/src/features/inbox/ui/command_bar.dart';
 import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
+import 'package:citusmail/src/features/inbox/ui/message_list_pane.dart';
 import 'package:citusmail/src/features/inbox/ui/sidebar.dart';
 import 'package:citusmail/src/features/organise/ui/privacy_report_page.dart';
 import 'package:citusmail/src/features/organise/ui/sender_cleanup_page.dart';
@@ -292,22 +294,196 @@ void main() {
     });
   }
 
-  // The README's demo screens: a fuller inbox with made-up senders.
+  // The README's and the website's screens (docs/screenshots), from
+  // made-up mail only:
   // SCREEN_OUT=../docs/screenshots flutter test screenshots/screens_test.dart --plain-name readme
-  for (final (name, size) in [
-    ('readme_desktop', const Size(1440, 860)),
-    ('readme_phone', const Size(390, 844)),
-  ]) {
-    testWidgets('readme $name', (tester) async {
-      _seedDemo(app.store);
-      await show(tester, shell(), size: size, dark: true);
-      await shoot(tester, name);
+  // Phones are 390 x 844 and light; the mail screen also comes in dark.
+
+  /// A README scene: no tips in the way.
+  void readme(String name, Future<void> Function(WidgetTester) body) =>
+      testWidgets('readme $name', (tester) async {
+        Tips(app.store).enabled = false;
+        await body(tester);
+      });
+
+  /// The screen as after good checks of every account: the test's
+  /// accounts can't reach a server, so it would say "Offline". Each later
+  /// check (which fails the same way) is answered with a good one.
+  Future<void> online(WidgetTester tester) async {
+    final sync = tester
+        .widget<MessageListPane>(find.byType(MessageListPane).first)
+        .controller
+        .syncStatusController;
+    void synced() {
+      for (final account in app.store.accounts.all()) {
+        final inbox = app.store.mailboxes.inbox(account.id)!;
+        // ignore: invalid_use_of_visible_for_testing_member
+        sync.debugEvent(
+          AccountSynced(
+            account.id,
+            AccountSyncReport(
+              replay: const ReplayResult(),
+              mailboxes: {
+                inbox.id: const MailboxSyncResult(method: SyncMethod.qresync),
+              },
+            ),
+          ),
+        );
+      }
+    }
+
+    synced();
+    sync.status.addListener(() {
+      if (sync.status.value is! SyncIdle) synced();
+    });
+    await settle(tester);
+  }
+
+  for (final dark in [false, true]) {
+    final suffix = dark ? '_dark' : '';
+
+    // The mail screen on a computer, with an email open.
+    readme('desktop$suffix', (tester) async {
+      _seedReadmeInbox(app.store);
+      await show(tester, shell(), size: const Size(1440, 900), dark: dark);
+      await online(tester);
+      await tester.tap(
+        find.text(dark ? 'Weekend hike?' : 'Design review moved to Thursday'),
+      );
+      await settle(tester);
+      await shoot(tester, 'readme_desktop$suffix');
+    });
+
+    // The phone's inbox, with its tabs at the bottom.
+    readme('phone$suffix', (tester) async {
+      _seedReadmeInbox(app.store);
+      await show(tester, shell(), size: const Size(390, 844), dark: dark);
+      await online(tester);
+      await shoot(tester, 'readme_phone$suffix');
     });
   }
 
-  // More README screens, from the same made-up mail.
-  testWidgets('readme gallery', (tester) async {
-    _seedDemo(app.store);
+  // The phone's Calendar and Tools tabs.
+  readme('phone tabs', (tester) async {
+    final now = DateTime.now().toUtc();
+    _seedReadmeInbox(app.store);
+    seedTrips(app.store, now: now);
+    seedAppointments(app.store, now: now);
+    seedEvents(app.store, now: now);
+    await show(tester, shell(), size: const Size(390, 844));
+    await online(tester);
+    await tester.tap(find.text('Calendar'));
+    await shoot(tester, 'readme_calendar');
+    await tester.tap(find.text('Tools'));
+    await settle(tester);
+    // Down to the tools under what was found in your mail.
+    await tester.drag(
+      find.byType(Scrollable).hitTestable().first,
+      const Offset(0, -420),
+    );
+    await shoot(tester, 'readme_tools');
+  });
+
+  // The Calendar on a computer: the month beside the days' plans.
+  readme('calendar desktop', (tester) async {
+    final now = DateTime.now().toUtc();
+    _seedReadmeInbox(app.store);
+    seedTrips(app.store, now: now);
+    seedAppointments(app.store, now: now);
+    seedEvents(app.store, now: now);
+    await show(tester, shell(), size: const Size(1440, 900));
+    await online(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Sidebar),
+        matching: find.text('Calendar'),
+      ),
+    );
+    await settle(tester);
+    // The coming month, where most of the plans are.
+    if (DateTime.now().day > 20) {
+      await tester.tap(find.byTooltip('Next month'));
+      await settle(tester);
+    }
+    await shoot(tester, 'readme_calendar_desktop');
+  });
+
+  // Found in your mail.
+  readme('subscriptions', (tester) async {
+    _seedSubscriptions(app.store);
+    _seedPeriods(app.store);
+    _seedReminders(app.store);
+    await show(
+      tester,
+      SubscriptionsPage(controller: MailController(app.services)),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'readme_subscriptions');
+    // Further down: each one's period ("Every 30 days") and next charge.
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -1000));
+    await shoot(tester, 'readme_subscriptions_list');
+  });
+
+  readme('deliveries', (tester) async {
+    seedDeliveries(app.store, now: DateTime.now().toUtc());
+    await show(
+      tester,
+      DeliveriesPage(controller: MailController(app.services)),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'readme_deliveries');
+  });
+
+  readme('trips', (tester) async {
+    seedTrips(app.store, now: DateTime.now().toUtc());
+    await show(
+      tester,
+      TripsPage(controller: MailController(app.services)),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'readme_trips');
+  });
+
+  readme('events', (tester) async {
+    seedEvents(app.store, now: DateTime.now().toUtc());
+    await show(
+      tester,
+      EventsPage(controller: MailController(app.services)),
+      size: const Size(390, 844),
+    );
+    await shoot(tester, 'readme_events');
+  });
+
+  // Inbox and focus: the Screener, and replies you are waiting for.
+  readme('screener', (tester) async {
+    _seedReadmeInbox(app.store);
+    _seedScreener(app.store);
+    await show(tester, shell(), size: const Size(390, 844));
+    await online(tester);
+    await tester.tap(find.text('Screener'));
+    await shoot(tester, 'readme_screener');
+  });
+
+  readme('follow-ups', (tester) async {
+    _seedReadmeInbox(app.store);
+    _seedFollowUps(app.store);
+    await show(tester, shell(), size: const Size(390, 844));
+    await online(tester);
+    await tester.tap(find.byTooltip('Folders'));
+    await settle(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Sidebar),
+        matching: find.text('Waiting for a reply'),
+      ),
+    );
+    await shoot(tester, 'readme_follow_ups');
+  });
+
+  // Privacy and security: a scam from a real, verified address (the
+  // warning says why), and what was kept from senders.
+  readme('scam warning', (tester) async {
+    _seedReadmeInbox(app.store);
     app.seedFixture(
       'security/org-impersonation-form.eml',
       subject:
@@ -315,48 +491,34 @@ void main() {
       uid: 90,
       receivedAt: DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
     );
-
-    // A scam from a real, verified address: the warning says why.
-    await show(tester, shell(), size: const Size(1440, 860), dark: true);
+    await show(tester, shell(), size: const Size(1440, 900), dark: true);
+    await online(tester);
     await tester.tap(find.textContaining('STUDENT NOTICE').first);
     await shoot(tester, 'readme_phishing');
 
-    // Phone: the same message, its actions at the bottom.
-    await show(tester, shell(), size: const Size(390, 844), dark: true);
+    // The phone: the same message, its actions at the bottom.
+    await show(tester, shell(), size: const Size(390, 844));
     await shoot(tester, 'readme_phone_reader');
-
-    // Phone: writing, Send at the bottom.
-    await tester.tap(find.byTooltip('Back (Esc)'));
-    await settle(tester);
-    await tester.tap(find.byTooltip('New message (C)'));
-    await shoot(tester, 'readme_phone_compose');
   });
 
-  testWidgets('readme settings', (tester) async {
+  readme('privacy report', (tester) async {
+    seedPrivacyMail(app, DateTime.now().toUtc());
     await show(
       tester,
-      SettingsPage(
-        services: app.services,
-        controller: MailController(app.services),
-        isAndroid: true,
-      ),
+      PrivacyReportPage(services: app.services, onShowMail: (_) {}),
       size: const Size(390, 844),
-      dark: true,
     );
-    await shoot(tester, 'readme_phone_settings');
+    await shoot(tester, 'readme_privacy');
   });
 
-  testWidgets('readme subscriptions', (tester) async {
-    _seedSubscriptions(app.store);
+  readme('clean up', (tester) async {
+    _seedSenders(app.store);
     await show(
       tester,
-      SubscriptionsPage(controller: MailController(app.services)),
+      SenderCleanupPage(controller: MailController(app.services)),
       size: const Size(390, 844),
-      dark: true,
     );
-    await shoot(tester, 'readme_subscriptions');
-    await tester.tap(find.text('StreamFlix').last);
-    await shoot(tester, 'readme_subscription');
+    await shoot(tester, 'readme_clean_up');
   });
 
   // Reading receipts automatically: a quiet line while receipts not on
@@ -1198,24 +1360,24 @@ void main() {
         findHostingServer: (s, r) async => 'business905-5.web-hosting.com',
       );
       await controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'pw',
         askMozillaConsent: (_) async => false,
       );
       await controller.useSettings(
         DiscoveredSettings(
-          email: 'me@tommykung.cc',
+          email: 'me@foglane.cc',
           imap: const ServerCandidate(
-            'mail.tommykung.cc',
+            'mail.foglane.cc',
             993,
             ConnectionSecurity.implicitTls,
           ),
           smtp: const ServerCandidate(
-            'mail.tommykung.cc',
+            'mail.foglane.cc',
             465,
             ConnectionSecurity.implicitTls,
           ),
-          username: 'me@tommykung.cc',
+          username: 'me@foglane.cc',
           source: DiscoverySource.manual,
         ),
       );
@@ -2740,6 +2902,125 @@ void _seedDemo(MailStore store) {
       'Your parcel is out for delivery',
       category: MessageCategory.notifications,
     ),
+  ]);
+}
+
+/// The README's inbox: [_seedDemo], with the test inbox's other mail
+/// under made-up names too, and bodies for the emails the screens open.
+void _seedReadmeInbox(MailStore store) {
+  _seedDemo(store);
+  final account = store.accounts.all().single;
+  final inbox = store.mailboxes.inbox(account.id)!;
+  final now = DateTime.now().toUtc();
+  MailAddress who(String address, String name) => MailAddress(
+    localPart: address.substring(0, address.indexOf('@')),
+    domain: address.substring(address.indexOf('@') + 1),
+    displayName: name,
+  );
+  // The same addresses (Carol is someone you write to, so Important),
+  // under fuller names.
+  store.messages.upsertSummaries(inbox.id, [
+    MessageSummary(
+      uid: 2,
+      receivedAt: now.subtract(const Duration(hours: 3)),
+      subject: 'Lunch on Friday?',
+      from: who('carol@x.example', 'Carol Nguyen'),
+      snippet: 'There is a new noodle place by the river. 12:30?',
+    ),
+    MessageSummary(
+      uid: 5,
+      receivedAt: now.subtract(const Duration(days: 9)),
+      subject: 'Lease renewal: signed copy',
+      from: who('dave@x.example', 'Dave Wilson'),
+      snippet: 'Here is the signed lease for your records.',
+      flags: MessageFlags.fromImap([r'\Flagged', r'\Seen']),
+    ),
+    MessageSummary(
+      uid: 202,
+      receivedAt: now.subtract(const Duration(minutes: 14)),
+      subject: 'Design review moved to Thursday',
+      from: who('maya@fabrikam.example', 'Maya Chen'),
+      snippet: 'Same room, 3pm. A few things changed since last week.',
+    ),
+  ]);
+  void body(int uid, String from, String subject, String text) {
+    final message = store.messages.byUid(inbox.id, uid)!;
+    store.messages.saveBody(
+      message.id,
+      utf8.encode(
+        'From: $from\r\nTo: ${account.email}\r\nSubject: $subject\r\n'
+        'Content-Type: text/plain; charset=utf-8\r\n\r\n'
+        '${text.replaceAll('\n', '\r\n')}',
+      ),
+      searchableText: text,
+    );
+  }
+
+  body(
+    202,
+    'Maya Chen <maya@fabrikam.example>',
+    'Design review moved to Thursday',
+    'Hi Alice,\n\n'
+        'The design review is now on Thursday at 3pm, same room. A few '
+        'things changed since last week:\n\n'
+        '- sign-up is down to three screens\n'
+        '- Settings are grouped by what you want to do\n'
+        '- the dark colours are final\n\n'
+        'Could you look at the sign-up flow before then? Ten minutes is '
+        'plenty.\n\n'
+        'Thanks,\nMaya',
+  );
+  body(
+    203,
+    'Jon Park <jon@contoso.example>',
+    'Weekend hike?',
+    'Hey,\n\n'
+        'Weather looks good for Saturday. Leaving at 8 from the lake car '
+        'park; the loop is about 14 km with one steep bit.\n\n'
+        'Bring water and a jacket, it gets windy at the top. Sam is in, '
+        'and maybe Carol.\n\n'
+        'Jon',
+  );
+}
+
+/// Made-up plans that charge on a period of their own, for the
+/// Subscriptions screen: a 30-day pass and a box every 2 months.
+void _seedPeriods(MailStore store) {
+  final inbox = store.mailboxes.inbox(store.accounts.all().single.id)!;
+  final now = DateTime.now().toUtc();
+  var uid = 470;
+  MessageSummary receipt(
+    String domain,
+    String name,
+    String subject,
+    int daysAgo,
+    String snippet,
+  ) => MessageSummary(
+    uid: uid++,
+    receivedAt: now.subtract(Duration(days: daysAgo)),
+    subject: subject,
+    from: MailAddress(localPart: 'billing', domain: domain, displayName: name),
+    snippet: snippet,
+    flags: MessageFlags.fromImap([r'\Seen']),
+  );
+  store.messages.upsertSummaries(inbox.id, [
+    for (final d in [8, 38, 68])
+      receipt(
+        'metrocard.example',
+        'MetroCard',
+        'Your pass has renewed',
+        d,
+        'Your 30-day pass renewed today. Total S\$32.00',
+      ),
+    for (final d in [20, 81, 142])
+      receipt(
+        'bloombox.example',
+        'Bloom Box',
+        'Bloom Box receipt',
+        d,
+        'Subscription renewed. Your plan renews every 2 months. '
+            'You paid S\$45.00',
+      ),
   ]);
 }
 

@@ -147,9 +147,10 @@ void main() {
             'Auto-debit: payment successful',
             'no-reply@examplepowerpay.example',
             name: 'ExamplePower Pay',
+            // The payments arm names the brand it takes payments for.
             snippet:
-                'Your utilities bill has been successfully paid by '
-                'auto-debit. Amount \$80.00',
+                'Your ExamplePower utilities bill has been successfully paid '
+                'by auto-debit. Amount \$80.00',
             daysAgo: days,
           ),
       ];

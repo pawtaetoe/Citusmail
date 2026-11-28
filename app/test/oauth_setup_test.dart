@@ -332,7 +332,7 @@ void main() {
     );
 
     test('other addresses keep the password flow', () {
-      expect(SetupController.defaultProviderFor('me@tommykung.cc'), isNull);
+      expect(SetupController.defaultProviderFor('me@foglane.cc'), isNull);
       expect(
         SetupController.defaultProviderFor('Me@Hotmail.com'),
         same(OAuthProvider.microsoft),
@@ -492,7 +492,7 @@ void main() {
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Email address'),
-        'me@tommykung.cc',
+        'me@foglane.cc',
       );
       await tester.pump();
       expect(find.byKey(const Key('optional-sign-in')), findsNothing);

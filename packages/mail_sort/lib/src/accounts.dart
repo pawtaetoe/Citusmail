@@ -72,8 +72,13 @@ enum AccountEvidence {
   /// "New sign-in", "security alert", "unusual activity".
   securityAlert,
 
-  /// The email address, password or phone number changed.
+  /// The email address, password or phone number changed, or accounts
+  /// were linked ("your accounts are now connected").
   accountChange,
+
+  /// A bank, card or broker statement is ready ("Your March statement is
+  /// ready", an e-statement).
+  statement,
 
   /// Any other mail about "your account".
   notice,
@@ -147,11 +152,28 @@ final class OnlineAccount {
           r.email.at.isAfter(closedAt) &&
           r.evidence != AccountEvidence.paid &&
           r.evidence != AccountEvidence.notice &&
+          r.evidence != AccountEvidence.statement &&
           r.evidence != AccountEvidence.closed,
     );
   }
 
   bool has(AccountEvidence e) => evidence.containsKey(e);
+
+  /// Why it is listed: the strongest kind of evidence seen. A sign-up
+  /// first; statements, other account mail and a closure last.
+  AccountEvidence get reason => _byStrength.firstWhere(has);
+
+  static const _byStrength = [
+    AccountEvidence.signedUp,
+    AccountEvidence.signInCode,
+    AccountEvidence.passwordReset,
+    AccountEvidence.securityAlert,
+    AccountEvidence.accountChange,
+    AccountEvidence.paid,
+    AccountEvidence.statement,
+    AccountEvidence.notice,
+    AccountEvidence.closed,
+  ];
 }
 
 /// Finds the online services the user has an account with, in welcome,
@@ -415,10 +437,17 @@ abstract final class AccountFinder {
   /// "Welcome back" is a sign-in, not a sign-up.
   static final _welcomeBack = RegExp(r'\bwelcome back\b', caseSensitive: false);
 
-  /// The subject speaks of the user's account, or of a statement of it.
+  /// The subject speaks of the user's account.
   static final _accountSubject = RegExp(
     r"\b(?:your (?:[\w.&'-]+ ){0,2}(?:account|id|profile|membership)|"
-    r'account (?:update|notice|information|statement|summary|activity)|'
+    r'account (?:update|notice|information|summary|activity))\b',
+    caseSensitive: false,
+  );
+
+  /// The subject says a statement of the user's account is ready ("Your
+  /// March statement", "Account statement", an e-statement).
+  static final _statementSubject = RegExp(
+    r'\b(?:account statement|'
     r"your (?:[\w.&'-]+ ){0,3}(?:e-?)?statements?|e-?statements?)\b",
     caseSensitive: false,
   );
@@ -476,6 +505,7 @@ abstract final class AccountFinder {
     }
     if (_isReceipt(email)) return AccountEvidence.paid;
     if (promotion || email.newsletter) return null;
+    if (_statementSubject.hasMatch(subject)) return AccountEvidence.statement;
     if (_accountSubject.hasMatch(subject)) return AccountEvidence.notice;
     // A body that names the change or alert, under a plain subject
     // ("Security update", "Important notice").

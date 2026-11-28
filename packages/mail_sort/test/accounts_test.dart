@@ -141,7 +141,7 @@ void main() {
         ),
         AccountEvidence.closed,
       );
-      expect(evidence('Your DBS account statement'), AccountEvidence.notice);
+      expect(evidence('Your DBS account statement'), AccountEvidence.statement);
     });
 
     test('an online account to activate, or a programme joined', () {
@@ -166,12 +166,18 @@ void main() {
           'Your Monthly Trade Statement (2031/01)',
           text: 'A new statement for account EXA0001234 is ready to view.',
         ),
-        AccountEvidence.notice,
+        AccountEvidence.statement,
       );
       expect(
         evidence('Your March eStatement is available'),
-        AccountEvidence.notice,
+        AccountEvidence.statement,
       );
+      expect(
+        evidence('Your March statement is ready'),
+        AccountEvidence.statement,
+      );
+      // Other mail about the account is still a plain notice.
+      expect(evidence('Your Example account summary'), AccountEvidence.notice);
       expect(
         evidence('Your Example account is now linked to Google'),
         AccountEvidence.accountChange,
@@ -416,8 +422,58 @@ void main() {
       );
       expect(byName['Apple']!.signedUp, day(2018, 4, 2));
       expect(byName['DBS Bank']!.has(AccountEvidence.securityAlert), isTrue);
-      expect(byName['DBS Bank']!.has(AccountEvidence.notice), isTrue);
+      expect(byName['DBS Bank']!.has(AccountEvidence.statement), isTrue);
+      expect(byName['DBS Bank']!.has(AccountEvidence.notice), isFalse);
+      expect(byName['DBS Bank']!.reason, AccountEvidence.securityAlert);
       expect(byName['Grab']!.has(AccountEvidence.signedUp), isTrue);
+    });
+
+    test('a bank seen only through its statements', () {
+      final found = find([
+        mail(
+          'examplebank.test',
+          'Your January statement is ready',
+          day(2026, 2, 2),
+          name: 'Example Bank',
+          text: 'Your statement for account ending 4321 is ready to view.',
+        ),
+        mail(
+          'examplebank.test',
+          'Your February eStatement is available',
+          day(2026, 3, 2),
+          name: 'Example Bank',
+        ),
+      ]);
+      final bank = found.single;
+      expect(bank.name, 'Example Bank');
+      expect(bank.evidence.keys, [AccountEvidence.statement]);
+      expect(bank.evidence[AccountEvidence.statement]!.count, 2);
+      expect(bank.reason, AccountEvidence.statement);
+      expect(bank.signedUp, isNull);
+      expect(bank.closed, isFalse);
+    });
+
+    test('a sign-up outranks a statement as the reason', () {
+      final found = find([
+        mail(
+          'examplebroker.test',
+          'Welcome to Example Broker',
+          day(2025, 6, 1),
+          name: 'Example Broker',
+          text: 'Thanks for signing up. Your account is ready.',
+        ),
+        mail(
+          'examplebroker.test',
+          'Your Monthly Trade Statement (2026/10)',
+          day(2026, 11, 1),
+          name: 'Example Broker',
+        ),
+      ]);
+      final broker = found.single;
+      expect(broker.has(AccountEvidence.statement), isTrue);
+      expect(broker.records.first.evidence, AccountEvidence.statement);
+      expect(broker.reason, AccountEvidence.signedUp);
+      expect(broker.signedUp, day(2025, 6, 1));
     });
 
     test('a closed account', () {

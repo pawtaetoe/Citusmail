@@ -452,8 +452,9 @@ final class _HowDialog extends StatelessWidget {
           const Text(
             'Citusmail looks at the mail on this device for welcome and "confirm '
             'your email" messages, sign-in codes, password resets, new sign-in '
-            'alerts, account changes and receipts. Each company is listed once, '
-            'with the address its mail was sent to.\n\n'
+            'alerts, account changes, bank and broker statements and receipts. '
+            'Each company is listed once, with the address its mail was sent '
+            'to.\n\n'
             'Mail from people, replies and forwards, newsletters and one-off shop '
             'receipts are left out. Older mail that is no longer on this device '
             'cannot be seen, so some accounts may be missing. Nothing is sent '
@@ -511,6 +512,7 @@ abstract final class AccountWords {
     AccountEvidence.passwordReset => 'password reset',
     AccountEvidence.securityAlert => 'security alert',
     AccountEvidence.accountChange => 'account change',
+    AccountEvidence.statement => 'statement',
     AccountEvidence.notice => 'account email',
     AccountEvidence.paid => 'receipt',
     AccountEvidence.closed => 'closed',
@@ -523,10 +525,20 @@ abstract final class AccountWords {
     AccountEvidence.passwordReset => 'Password resets',
     AccountEvidence.securityAlert => 'Security alerts',
     AccountEvidence.accountChange => 'Account changes',
+    AccountEvidence.statement => 'Statements',
     AccountEvidence.notice => 'Account emails',
     AccountEvidence.paid => 'Paid',
     AccountEvidence.closed => 'Closed',
   };
+
+  /// What one email was, for its row: "Sign-in code", "Statement ready".
+  static String row(AccountEvidence e) => switch (e) {
+    AccountEvidence.statement => 'Statement ready',
+    _ => _capital(noun(e)),
+  };
+
+  static String _capital(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
   static IconData icon(AccountEvidence e) => switch (e) {
     AccountEvidence.signedUp => AppIcons.signedUp,
@@ -534,17 +546,24 @@ abstract final class AccountWords {
     AccountEvidence.passwordReset => AppIcons.passwordReset,
     AccountEvidence.securityAlert => AppIcons.securityAlert,
     AccountEvidence.accountChange => AppIcons.accountChange,
+    AccountEvidence.statement => AppIcons.statement,
     AccountEvidence.notice => AppIcons.mail,
     AccountEvidence.paid => AppIcons.bill,
     AccountEvidence.closed => AppIcons.accountClosed,
   };
 
-  /// "Signed up Mar 2021 · last sign-in code Oct 2026".
+  /// "Signed up Mar 2021 · last sign-in code Oct 2026"; for a bank
+  /// known only by its statements, "Statements since Jan 2024 · last
+  /// statement Oct 2026".
   static String summary(OnlineAccount a) {
     final latest = a.records.first;
-    final start = a.signedUp == null
-        ? 'First email ${month(a.firstSeen)}'
-        : 'Signed up ${month(a.signedUp!)}';
+    final start = switch (a.reason) {
+      AccountEvidence.signedUp => 'Signed up ${month(a.signedUp!)}',
+      AccountEvidence.statement =>
+        'Statements since '
+            '${month(a.evidence[AccountEvidence.statement]!.first)}',
+      _ => 'First email ${month(a.firstSeen)}',
+    };
     if (a.closed) {
       return '$start · closed '
           '${month(a.evidence[AccountEvidence.closed]!.latest)}';

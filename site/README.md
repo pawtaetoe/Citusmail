@@ -20,6 +20,11 @@ It looks up the latest GitHub release for direct download links and the
 version number; if that fails (offline, rate limited) the buttons open the
 releases page instead.
 
+The screenshots are the README's (see "Screenshots" in the
+[README](../README.md)); the hero shows the dark ones in dark mode. The
+tests check that every screenshot the homepage or the README shows
+exists, and that none in `docs/screenshots/` is left unused.
+
 No analytics, cookies, scripts or third-party requests: fonts, images and
 styles are all served from the site, and `vercel.json` sets a strict
 Content-Security-Policy.

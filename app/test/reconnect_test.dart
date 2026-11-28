@@ -168,9 +168,9 @@ void main() {
 
     test('the account\'s own settings are what gets checked', () {
       final settings = Reconnector.settingsOf(
-        _account(email: 'me@tommykung.cc', imapHost: 'tommykung.cc'),
+        _account(email: 'me@foglane.cc', imapHost: 'foglane.cc'),
       );
-      expect(settings.imap.host, 'tommykung.cc');
+      expect(settings.imap.host, 'foglane.cc');
       expect(settings.smtp.port, 587);
       expect(settings.smtp.security, ConnectionSecurity.startTls);
       expect(settings.needsConfirmation, isFalse);
