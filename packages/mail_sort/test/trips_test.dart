@@ -667,7 +667,7 @@ void main() {
       expect(back.changed, isFalse);
     });
 
-    test('a table and a ticket at home are not part of a trip', () {
+    test('a table at home is not part of a trip; a concert is no trip', () {
       final found = trips([
         mail(
           'Booking confirmation',
@@ -700,12 +700,12 @@ void main() {
 </script>''',
         ),
       ]);
-      expect(found, hasLength(3));
+      // The concert ticket is an event (the Events page's), not a trip.
+      expect(found, hasLength(2));
       expect(found[0].destinations, ['Tokyo']);
       expect(found[0].bookings, hasLength(2));
       expect(found[1].bookings.single.kind, ReservationKind.table);
       expect(found[1].destinations, isEmpty);
-      expect(found[2].bookings.single.kind, ReservationKind.event);
     });
   });
 
@@ -1935,5 +1935,324 @@ Check-out: Thu, 17 Dec 2026 12:00
     );
     expect(TripFinder.looksLikeBooking('Re: our trip'), isFalse);
     expect(TripFinder.looksLikeBooking('Lunch on Friday?'), isFalse);
+  });
+
+  group('rental cars from their words', () {
+    test('pick-up and drop-off with the desk on the same line', () {
+      final found = bookings([
+        mail(
+          'Reservation Confirmation: ALEX, your Northwind reservation '
+          '#40981234XY1 at Geneva Old Town, GO4 is confirmed',
+          sender: 'northwindcars.example',
+          name: 'Northwind Car Rental',
+          daysAgo: 5,
+          text: '''
+THANK YOU ALEX.
+YOUR RESERVATION IS CONFIRMED
+YOUR RESERVATION DETAILS
+Reservation #40981234XY1
+Vehicle
+Compact SUV or Similar Kilometers: Unlimited Automatic Transmission
+Itinerary
+Pick Up Location
+Geneva Old Town,GO4 Sat Dec 12, 2026 at 07:30 AM Rue Exemple 1, Geneva, 1200 CH Mon - Fri 8:00 AM - 6:00 PM
+Drop Off Location
+Geneva Old Town,GO4 Sun Dec 13, 2026 at 11:30 PM Rue Exemple 1, Geneva, 1200 CH Mon - Fri 8:00 AM - 6:00 PM
+Estimated Total: \$331.09
+*Additional fees may apply if changes are made to your return date, time and/or location.
+Flight Arrival Support
+Add your flight details so we can hold your car if you are running late.
+''',
+        ),
+      ]);
+      final car = found.single.info as RentalCarReservationInfo;
+      expect(found.single.kind, ReservationKind.car);
+      expect(car.provider, 'Northwind Car Rental');
+      expect(car.reservationNumber, '40981234XY1');
+      expect(car.pickupLocation?.name, 'Geneva Old Town');
+      expect(car.pickupTime?.wall, DateTime.utc(2026, 12, 12, 7, 30));
+      expect(car.dropoffTime?.wall, DateTime.utc(2026, 12, 13, 23, 30));
+      expect(found.single.city, 'Geneva');
+    });
+
+    test('dates under the labels, the desks further down; a change', () {
+      String text(String day) =>
+          '''
+Thank you ALEX, your reservation has been modified.
+CONFIRMATION NUMBER
+55512345AB2
+PICK UP
+$day
+DROP OFF
+Sun Dec 20, 2026 at 08:00 AM
+ESTIMATED TOTAL
+\$131.20
+PICK UP LOCATION
+Edinburgh Waverley Station,EW3
+1 Example Street,
+Edinburgh, EH1 1AA GB
+DROP OFF LOCATION
+Edinburgh Waverley Station,EW3
+1 Example Street,
+''';
+      final found = bookings([
+        mail(
+          'Reservation Confirmation: your reservation #55512345AB2 is '
+          'confirmed',
+          sender: 'europcar.com',
+          name: 'Europcar',
+          daysAgo: 20,
+          text: text('Sat Dec 19, 2026 at 09:00 AM'),
+        ),
+        mail(
+          'Reservation Modify: your reservation #55512345AB2 has been '
+          'modified',
+          sender: 'europcar.com',
+          name: 'Europcar',
+          daysAgo: 2,
+          text: text('Sat Dec 19, 2026 at 08:00 AM'),
+        ),
+      ]);
+      final b = found.single;
+      expect(b.records, hasLength(2));
+      expect(b.changed, isTrue);
+      final car = b.info as RentalCarReservationInfo;
+      expect(car.pickupLocation?.name, 'Edinburgh Waverley Station');
+      expect(car.pickupTime?.wall, DateTime.utc(2026, 12, 19, 8));
+      expect(b.previousStart?.wall, DateTime.utc(2026, 12, 19, 9));
+      expect(b.city, 'Edinburgh');
+    });
+
+    test('a pick-up time in mail that is not about a car', () {
+      expect(
+        bookings([
+          mail(
+            'Your order is ready - booking reference QX7T2M',
+            sender: 'bakery.example',
+            name: 'Corner Bakery',
+            text:
+                'Booking reference: QX7T2M\nPick up: Sat Dec 12, 2026 at '
+                '10:00 AM\nReturn: Sun Dec 13, 2026 at 10:00 AM (the cake '
+                'stand)\n',
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+  });
+
+  group('flights laid out other ways', () {
+    test('each flight\'s times and airports before its number', () {
+      // The flight number comes last in each block, under its details.
+      final found = bookings([
+        mail(
+          'China Airlines Reservation Record',
+          sender: 'amadeus.com',
+          name: 'China Airlines Group',
+          daysAgo: 6,
+          text: '''
+Your booking is confirmed
+Reservation number: QX7T2M
+Your Flights
+Singapore to Taipei - Thursday, December 10 2026
+09:05 SIN
+nonstop
+13:50 TPE
+Duration:4h45m Operated By China Airlines Ltd.
+Itinerary Details
+09:05 Singapore
+CHANGI(SIN)
+Terminal 3
+13:50 Taipei
+TAOYUAN INTL(TPE)
+CI 701 Operated By China Airlines Ltd.
+BOEING 737-800
+Taipei to Singapore - Thursday, December 17 2026
+15:20 TPE
+nonstop
+19:55 SIN
+Itinerary Details
+15:20 Taipei
+TAOYUAN INTL(TPE)
+19:55 Singapore
+CHANGI(SIN)
+CI 702 Operated By China Airlines Ltd.
+BOEING 737-800
+Passengers and contact
+Mr Alex Tan
+Seats
+Singapore to Taipei
+22C
+Payment Details
+Total Price: SGD 640.00
+''',
+        ),
+      ]);
+      expect(found, hasLength(2));
+      final [out, back] = [
+        for (final b in found) b.info as FlightReservationInfo,
+      ];
+      expect(out.flightNumber, 'CI 701');
+      expect((out.from?.code, out.to?.code), ('SIN', 'TPE'));
+      expect(out.start?.wall, DateTime.utc(2026, 12, 10, 9, 5));
+      expect(out.end?.wall, DateTime.utc(2026, 12, 10, 13, 50));
+      expect(back.flightNumber, 'CI 702');
+      expect((back.from?.code, back.to?.code), ('TPE', 'SIN'));
+      expect(back.start?.wall, DateTime.utc(2026, 12, 17, 15, 20));
+      expect(back.reservationNumber, 'QX7T2M');
+    });
+
+    test('the number between the departure and the arrival', () {
+      final found = bookings([
+        mail(
+          'ALEX TAN has shared their trip itinerary with you',
+          sender: 'travelagency.example',
+          name: 'Example Travel',
+          daysAgo: 3,
+          text: '''
+Trip Itinerary
+Wed, Dec 9, 2026
+Flight
+Depart 9:10 am
+Bangkok (BKK)
+Cathay Pacific Airways CX 616
+Airline reference number: QX7T2M
+Agency reference number: PLM4KZ
+Arrive 1:05 pm
+Hong Kong (HKG)
+Mon, Dec 14, 2026
+Flight
+Depart 3:30 pm
+Hong Kong (HKG)
+Cathay Pacific Airways CX 617
+Airline reference number: QX7T2M
+Arrive 6:05 pm
+Bangkok (BKK)
+Questions?
+''',
+        ),
+      ]);
+      expect(found, hasLength(2));
+      final [out, back] = [
+        for (final b in found) b.info as FlightReservationInfo,
+      ];
+      expect(out.reservationNumber, 'QX7T2M');
+      expect((out.from?.code, out.to?.code), ('BKK', 'HKG'));
+      expect(out.start?.wall, DateTime.utc(2026, 12, 9, 9, 10));
+      expect(out.end?.wall, DateTime.utc(2026, 12, 9, 13, 5));
+      expect((back.from?.code, back.to?.code), ('HKG', 'BKK'));
+      expect(back.start?.wall, DateTime.utc(2026, 12, 14, 15, 30));
+      expect(back.end?.wall, DateTime.utc(2026, 12, 14, 18, 5));
+    });
+
+    test('cities instead of airport codes; times before dates', () {
+      final found = bookings([
+        mail(
+          'Itinerary',
+          sender: 'trip.com',
+          name: 'Trip.com',
+          daysAgo: 4,
+          text: '''
+Booking No. 1234567890123456
+Itinerary
+Below you will find a summary of your booking details.
+Singapore - Tokyo
+Peach · MM705（Economy）
+Departure：01:40, December 5, 2026, Singapore Changi Airport T2
+Arrival：08:50, December 5, 2026, Narita International Airport T1
+Tokyo - Singapore
+Peach · MM706（Economy）
+Departure：17:25, December 12, 2026, Narita International Airport T1
+Arrival：00:20, December 13, 2026, Singapore Changi Airport T2
+Passenger Name & Ticket No.
+''',
+        ),
+      ]);
+      expect(found, hasLength(2));
+      final [out, back] = [
+        for (final b in found) b.info as FlightReservationInfo,
+      ];
+      expect(out.flightNumber, 'MM 705');
+      expect(found[0].city, 'Tokyo');
+      expect(found[0].fromCity, 'Singapore');
+      expect(out.start?.wall, DateTime.utc(2026, 12, 5, 1, 40));
+      expect(out.end?.wall, DateTime.utc(2026, 12, 5, 8, 50));
+      expect(found[1].city, 'Singapore');
+      expect(back.start?.wall, DateTime.utc(2026, 12, 12, 17, 25));
+      expect(back.end?.wall, DateTime.utc(2026, 12, 13, 0, 20));
+      expect(
+        trips([...found.expand((b) => b.records.map((r) => r.email))])
+            .single
+            .destinations,
+        ['Tokyo'],
+      );
+    });
+
+    test('a boarding pass: full-width colons, year-first dates, '
+        'landing before it left', () {
+      final found = bookings([
+        mail(
+          'Your booking is confirmed - QX7T2M',
+          sender: 'evaair.com',
+          name: 'EVA Air',
+          daysAgo: 30,
+          text: '''
+Booking reference: QX7T2M
+Flight BR 8 TPE → SFO
+Tue, 8 Dec 2026
+Depart 23:40   Arrive 19:35
+''',
+        ),
+        mail(
+          'BR008 TAIPEI (TAOYUAN) to SAN FRANCISCO Boarding Pass',
+          sender: 'evaair.com',
+          name: 'EVA Air',
+          daysAgo: 0,
+          text: '''
+Thank you for flying with EVA Air. You have completed the check-in of the following flight.
+Check-in Information： Booking Reference：QX7T2M Name：Tan, Alex
+Segment
+Flight No.
+Departure (Local Time)
+Arrival (Local Time)
+TAIPEI (TAOYUAN) - SAN FRANCISCO
+BR008
+Boarding time: 22:50
+2026/12/08 23:40
+2026/12/08 19:35
+''',
+        ),
+      ]);
+      // One flight: "BR008" is "BR 8".
+      final b = found.single;
+      expect(b.records, hasLength(2));
+      final f = b.info as FlightReservationInfo;
+      expect(f.flightNumber, 'BR 8');
+      expect(f.start?.wall, DateTime.utc(2026, 12, 8, 23, 40));
+      // Across the date line it lands on the day it left.
+      expect(f.end?.wall, DateTime.utc(2026, 12, 8, 19, 35));
+      expect(b.city, 'San Francisco');
+    });
+  });
+
+  group('events are not trips', () {
+    test('a ticket for a tour or a show, with markup', () {
+      final found = bookings([
+        mail(
+          'Your tickets for the Old Town Chocolate Tour',
+          sender: 'tickets.example',
+          html: '''
+<script type="application/ld+json">
+{"@type": "EventReservation", "reservationNumber": "QX7T2M",
+ "reservationFor": {"@type": "Event", "name": "Old Town Chocolate Tour",
+   "startDate": "2026-12-05T10:00:00+01:00",
+   "location": {"@type": "Place", "name": "Main Square",
+     "address": {"@type": "PostalAddress", "addressLocality": "Brussels"}}}}
+</script>''',
+          text: 'Booking reference: QX7T2M. See you on 5 Dec 2026 at 10:00.',
+        ),
+      ]);
+      expect(found, isEmpty);
+    });
   });
 }

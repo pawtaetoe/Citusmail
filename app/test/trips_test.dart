@@ -76,7 +76,7 @@ void main() {
 
     expect(find.text('1 trip coming up'), findsOneWidget);
     expect(
-      find.text('Next: Tokyo, in 38 days · 2 bookings at home'),
+      find.text('Next: Tokyo, in 38 days · 1 booking at home'),
       findsOneWidget,
     );
     // Tokyo: the flight there, the hotel, the flight back, in order.
@@ -108,10 +108,11 @@ void main() {
     // Local times at the place, as the airline gives them.
     expect(find.text('SQ 638 · SIN 11:35 PM → NRT 7:30 AM +1'), findsOneWidget);
     expect(find.text('Tokyo · 5 nights'), findsOneWidget);
-    // At home: a table and a concert, named by their day.
+    // At home: a table, named by its day. A concert is an event, not a
+    // booking here.
     expect(find.text('Table at Burnt Ends'), findsOneWidget);
     expect(find.text('4 people · Singapore'), findsOneWidget);
-    expect(find.text('Coldplay: Music of the Spheres'), findsOneWidget);
+    expect(find.text('Coldplay: Music of the Spheres'), findsNothing);
     // Bali was cancelled.
     expect(find.text('Bali'), findsOneWidget);
     expect(find.text('Cancelled'), findsOneWidget);
