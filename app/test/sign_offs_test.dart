@@ -38,7 +38,7 @@ void main() {
     tommy = app.store.accounts.add(
       NewAccount(
         email: 'tommy@fluminaris.example',
-        displayName: 'Tommy Kung',
+        displayName: 'Robin Vale',
         username: 'tommy',
         imap: ServerSettings(
           host: 'mail.fluminaris.example',
@@ -54,7 +54,7 @@ void main() {
     );
     work = signOffs().add(
       name: 'Work',
-      text: 'Best regards,\nTommy Kung\nFluminaris',
+      text: 'Best regards,\nRobin Vale\nFluminaris',
     );
     casual = signOffs().add(name: 'Casual', text: 'Cheers,\nTommy');
     short = signOffs().add(name: 'Short', text: '– T');
@@ -101,7 +101,7 @@ void main() {
       expect(
         c.draft.text,
         'Hi Bob,\n\nThe invoice is attached.\n\n'
-        'Best regards,\nTommy Kung\nFluminaris',
+        'Best regards,\nRobin Vale\nFluminaris',
       );
     });
 
@@ -130,12 +130,12 @@ void main() {
     test('choosing another replaces only the sign-off', () {
       final c = ComposeController(app.services, reply());
       addTearDown(c.dispose);
-      c.setBody('Thursday works.\n\nBest regards,\nTommy Kung\nFluminaris');
+      c.setBody('Thursday works.\n\nBest regards,\nRobin Vale\nFluminaris');
       c.chooseSignOff(casual);
       expect(c.signOffChosen, isTrue);
       expect(
         c.draft.body,
-        'Thursday works.\n\nBest regards,\nTommy Kung\nFluminaris',
+        'Thursday works.\n\nBest regards,\nRobin Vale\nFluminaris',
         reason: 'what was typed is never touched, even when it looks alike',
       );
       expect(c.draft.text, contains('Fluminaris\n\nCheers,\nTommy\n\nOn Mon'));
@@ -209,7 +209,7 @@ void main() {
       c.setSubject('Invoice');
       c.setBody('Attached.');
       expect(c.send(), isA<ComposeSent>());
-      expect(sentText(), 'Attached.\n\nBest regards,\nTommy Kung\nFluminaris');
+      expect(sentText(), 'Attached.\n\nBest regards,\nRobin Vale\nFluminaris');
     });
 
     test('Send later keeps it, also when taken back to edit', () {
@@ -333,7 +333,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Sign-off: Work'), findsOneWidget);
       expect(
-        find.text('Best regards,\nTommy Kung\nFluminaris'),
+        find.text('Best regards,\nRobin Vale\nFluminaris'),
         findsOneWidget,
       );
       expect(c.draft.body, 'Thursday works.');
@@ -453,7 +453,7 @@ void main() {
       final text = tester.widget<TextField>(
         find.byKey(const ValueKey('sign-off-text')),
       );
-      expect(text.controller!.text, 'Best regards,\nTommy Kung');
+      expect(text.controller!.text, 'Best regards,\nRobin Vale');
       await tester.enterText(
         find.byKey(const ValueKey('sign-off-name')),
         'Work',
@@ -473,7 +473,7 @@ void main() {
     ) async {
       await show(tester);
       expect(
-        find.text('Best regards,\nTommy Kung\nFluminaris'),
+        find.text('Best regards,\nRobin Vale\nFluminaris'),
         findsOneWidget,
       );
       expect(find.text('Cheers,\nTommy'), findsOneWidget);
