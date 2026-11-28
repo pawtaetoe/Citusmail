@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/inset_sheet.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../state/follow_up_times.dart';
 import '../state/snooze_times.dart';
@@ -35,11 +36,9 @@ abstract final class FollowUpSheet {
       current: current,
     );
     if (MediaQuery.sizeOf(context).width < SnoozeSheet.sheetWidth) {
-      return showModalBottomSheet<FollowUpPick>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (_) => SafeArea(child: SingleChildScrollView(child: panel)),
+      return showInsetSheet<FollowUpPick>(
+        context,
+        builder: (_) => SingleChildScrollView(child: panel),
       );
     }
     return showDialog<FollowUpPick>(

@@ -98,7 +98,6 @@ final class _PrivacyReportPageState extends State<PrivacyReportPage> {
           : null,
       body: SafeArea(
         top: false,
-        bottom: !phone,
         child: ListenableBuilder(
           listenable: _model,
           builder: (context, _) => switch (_model.state) {
