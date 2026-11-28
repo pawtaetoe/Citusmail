@@ -11,6 +11,7 @@ import 'package:mail_store/mail_store.dart';
 
 import 'account_synchronizer.dart';
 import 'app_data/app_data_sync.dart';
+import 'connection_budget.dart';
 import 'connector.dart';
 import 'folder_rules.dart';
 import 'idle_watcher.dart';
@@ -50,6 +51,10 @@ final class AccountSyncFailed extends SyncEvent {
 
 /// Runs syncs for all accounts: on demand, when IDLE reports a change,
 /// and periodically. Syncs of one account never overlap.
+///
+/// Every IMAP connection it opens counts in one [ConnectionBudget] per
+/// account (4 by default, IDLE included), shared by the syncs, the
+/// on-demand work and IDLE; see docs/architecture.md, "Connections".
 final class SyncEngine {
   SyncEngine(
     this._store,
@@ -60,7 +65,15 @@ final class SyncEngine {
     this.inboxCheckInterval,
     this.changeDelay = const Duration(milliseconds: 500),
     SyncCodeProvider? syncCodes,
-  }) : appData = syncCodes == null ? null : AppDataSync(_store, syncCodes),
+    ConnectionBudget? connections,
+    List<Duration> refusalRetryDelays = const [
+      Duration(seconds: 2),
+      Duration(seconds: 5),
+    ],
+    Backoff? backoff,
+  }) : connections = connections ?? ConnectionBudget(_connector),
+       _backoff = backoff ?? Backoff(),
+       appData = syncCodes == null ? null : AppDataSync(_store, syncCodes),
        _mailboxSync = MailboxSynchronizer(
          _store,
          // By default the header rules, plus what each sender's other
@@ -75,10 +88,19 @@ final class SyncEngine {
          settings: settings,
        ),
        _loader = MessageLoader(_store),
-       _files = FileLookup(_store),
-       _onDemand = OnDemandConnections(_connector),
-       _background = OnDemandConnections(_connector),
-       _syncConnections = SyncConnections(_connector) {
+       _files = FileLookup(_store) {
+    _onDemand = OnDemandConnections(
+      _connector,
+      budget: this.connections,
+      retryDelays: refusalRetryDelays,
+    );
+    _background = OnDemandConnections(
+      _connector,
+      budget: this.connections,
+      priority: ConnectionPriority.background,
+      retryDelays: const [],
+    );
+    _syncConnections = SyncConnections(_connector, budget: this.connections);
     _synchronizer = AccountSynchronizer(
       _store,
       _connector,
@@ -96,21 +118,31 @@ final class SyncEngine {
   final MailStore _store;
   final MailConnector _connector;
 
+  /// Every connection of an account counts here: the syncs', the
+  /// on-demand ones and IDLE.
+  final ConnectionBudget connections;
+
+  /// After a login refused for being one connection too many, an
+  /// account's periodic syncs and inbox checks wait this long (longer
+  /// after each refusal in a row).
+  final Backoff _backoff;
+  final _refusals = <AccountId, ({int count, DateTime until})>{};
+
   /// App data sync between the user's devices; null without a code source.
   final AppDataSync? appData;
   final MailboxSynchronizer _mailboxSync;
   final MessageLoader _loader;
   final FileLookup _files;
-  final OnDemandConnections _onDemand;
+  late final OnDemandConnections _onDemand;
 
   /// A second on-demand connection per account for work nobody waits on
   /// (reading receipts ahead of time), so a message the user opens never
   /// queues behind it.
-  final OnDemandConnections _background;
+  late final OnDemandConnections _background;
 
   /// Connections kept between syncs, so the frequent inbox check does
   /// not log in every time.
-  final SyncConnections _syncConnections;
+  late final SyncConnections _syncConnections;
   late final AccountSynchronizer _synchronizer;
 
   /// How often every folder is synced while running.
@@ -131,6 +163,7 @@ final class SyncEngine {
   final Map<AccountId, Future<void>> _running = {};
   final Map<AccountId, Timer> _pendingRequests = {};
   final List<Timer> _scheduled = [];
+  final Set<Future<void>> _watching = {};
   Completer<void>? _stop;
   Completer<void>? _stopWatching;
   Timer? _periodic;
@@ -156,9 +189,17 @@ final class SyncEngine {
           account,
           mailboxIds: mailboxIds,
         );
+        _refusals.remove(accountId);
         _events.add(AccountSynced(accountId, report));
         return report;
       } on Object catch (e) {
+        if (e is ImapAuthenticationException && e.temporary) {
+          final count = (_refusals[accountId]?.count ?? 0) + 1;
+          _refusals[accountId] = (
+            count: count,
+            until: DateTime.now().add(_backoff.after(count - 1)),
+          );
+        }
         _events.add(AccountSyncFailed(accountId, SyncFailure.from(e)));
         return null;
       }
@@ -184,7 +225,7 @@ final class SyncEngine {
     _watch();
     _periodic = Timer.periodic(fullSyncInterval, (_) {
       for (final account in _store.accounts.all()) {
-        unawaited(syncAccount(account.id));
+        if (!_backingOff(account.id)) unawaited(syncAccount(account.id));
       }
     });
     if (inboxCheckInterval case final interval?) {
@@ -198,13 +239,23 @@ final class SyncEngine {
   void _watch() {
     final stop = _stopWatching = Completer<void>();
     for (final account in _store.accounts.all()) {
-      unawaited(_runAccount(account, stop.future));
+      final running = _runAccount(account, stop.future);
+      _watching.add(running);
+      unawaited(running.whenComplete(() => _watching.remove(running)));
     }
+  }
+
+  /// Whether [accountId]'s server refused a login for having too many
+  /// connections a short while ago: background syncs wait then.
+  bool _backingOff(AccountId accountId) {
+    final refusals = _refusals[accountId];
+    return refusals != null && DateTime.now().isBefore(refusals.until);
   }
 
   /// A quick look at every inbox for new mail.
   void checkInboxes() {
     for (final account in _store.accounts.all()) {
+      if (_backingOff(account.id)) continue;
       final inbox = _store.mailboxes.inbox(account.id);
       if (inbox != null) requestSync(account.id, mailboxIds: {inbox.id});
     }
@@ -260,7 +311,11 @@ final class SyncEngine {
     final stop = _stop;
     _stop = null;
     if (stop != null && !stop.isCompleted) stop.complete();
+    // Syncs waiting for a connection give up rather than start now.
+    connections.cancelWaits();
     await Future.wait(_running.values);
+    // IDLE connections are closed when their watchers end.
+    await Future.wait([..._watching]);
     await _syncConnections.closeAll();
   }
 
@@ -268,6 +323,7 @@ final class SyncEngine {
     await stop();
     await _onDemand.closeAll();
     await _background.closeAll();
+    await connections.close();
     await _events.close();
   }
 
@@ -388,12 +444,26 @@ final class SyncEngine {
     await _onDemand.run(account, (imap) => sync.forget(imap, account));
   }
 
-  /// Forgets the on-demand connection of an account (after it was removed
-  /// or its settings changed).
+  /// Closes the connections of an account (after it was removed or its
+  /// settings changed): kept ones now, those in use when they are done.
   Future<void> accountChanged(AccountId accountId) async {
     await _onDemand.close(accountId);
     await _background.close(accountId);
     await _syncConnections.close(accountId);
+    await connections.forget(accountId);
+    _refusals.remove(accountId);
+  }
+
+  /// After accounts were added, removed or changed: [accountChanged] for
+  /// each, also those no longer there.
+  Future<void> accountsChanged() async {
+    final ids = {
+      for (final account in _store.accounts.all()) account.id,
+      ...connections.accountIds,
+    };
+    for (final id in ids) {
+      await accountChanged(id);
+    }
   }
 
   Account _accountOfMessage(MessageId messageId) {
@@ -411,7 +481,7 @@ final class SyncEngine {
     await syncAccount(account.id);
     final inbox = _store.mailboxes.inbox(account.id);
     if (inbox == null) return;
-    await IdleWatcher(_connector).watch(
+    await IdleWatcher(_connector, budget: connections).watch(
       account,
       inbox,
       stop: stop,

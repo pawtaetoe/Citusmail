@@ -7,120 +7,77 @@ import 'dart:async';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'connection_budget.dart';
 import 'connector.dart';
 
-/// The IMAP connections syncs use, kept between syncs: the inbox check
-/// every minute and the full sync every few minutes reuse a logged-in
+/// The IMAP connections syncs use, counted in the account's
+/// [ConnectionBudget]. One is kept between syncs: the inbox check every
+/// minute and the full sync every few minutes reuse a logged-in
 /// connection instead of opening a new one (TLS and login each time).
+/// The extra connections of a full sync are closed when it is done.
 ///
-/// A connection unused for [idleTimeout] is logged out. One that sat
+/// A kept connection unused for [idleTimeout] is logged out. One that sat
 /// unused for more than [checkAfter] is asked a NOOP before it is handed
 /// out again, so a connection the network dropped silently is replaced
 /// before a sync starts on it, never in the middle of one.
 final class SyncConnections {
   SyncConnections(
-    this._connector, {
+    MailConnector connector, {
     this.idleTimeout = const Duration(minutes: 6),
     this.checkAfter = const Duration(seconds: 20),
-  });
+    ConnectionBudget? budget,
+  }) : budget = budget ?? ConnectionBudget(connector);
 
   /// Connections that are never kept: each sync opens and closes its own.
-  SyncConnections.unpooled(this._connector)
+  SyncConnections.unpooled(MailConnector connector, {ConnectionBudget? budget})
     : idleTimeout = Duration.zero,
-      checkAfter = Duration.zero;
+      checkAfter = Duration.zero,
+      budget = budget ?? ConnectionBudget(connector);
 
-  final MailConnector _connector;
+  /// The account's budget, shared with the engine's other connections.
+  final ConnectionBudget budget;
 
-  /// How long an unused connection is kept. Longer than the full sync
-  /// interval, so the extra connections of a full sync are reused by the
-  /// next one too.
+  /// How long the unused connection is kept. Longer than the full sync
+  /// interval, so the next full sync reuses it too.
   final Duration idleTimeout;
 
   /// After how long unused a connection is checked before reuse.
   final Duration checkAfter;
 
-  final _idle = <AccountId, List<_Idle>>{};
+  /// A logged-in connection for [account]: the kept one if it still
+  /// answers, else a new one, waiting for room in the budget. Give it
+  /// back with [give] when done.
+  Future<ImapClient> take(Account account) => budget.take(account, owner: this);
 
-  /// A logged-in connection for [account]: a kept one that still answers,
-  /// else a new one. Give it back with [give] when done.
-  Future<ImapClient> take(Account account) async {
-    final kept = _idle[account.id];
-    while (kept != null && kept.isNotEmpty) {
-      final idle = kept.removeLast();
-      idle.timer.cancel();
-      final client = idle.client;
-      if (!client.isUsable) {
-        await _logout(client);
-        continue;
-      }
-      if (DateTime.now().difference(idle.since) > checkAfter) {
-        try {
-          await client.noop();
-        } on Object {
-          await _logout(client);
-          continue;
-        }
-      }
-      return client;
-    }
-    return _connector.imap(account);
-  }
+  /// One more connection for a full sync, only if the budget has room
+  /// now (null otherwise: the sync goes on with the ones it has).
+  Future<ImapClient?> takeExtra(Account account) =>
+      budget.takeIfFree(account, owner: this);
 
-  /// Gives [client] of [account] back after a sync. A connection that
-  /// broke is closed.
-  Future<void> give(Account account, ImapClient client) async {
-    if (idleTimeout <= Duration.zero || !client.isUsable) {
-      await _logout(client);
-      return;
-    }
-    final list = _idle.putIfAbsent(account.id, () => []);
-    late final _Idle idle;
-    idle = _Idle(
-      client,
-      DateTime.now(),
-      Timer(idleTimeout, () {
-        list.remove(idle);
-        unawaited(_logout(client));
-      }),
-    );
-    list.add(idle);
-  }
+  /// Whether the user's work waits for a connection of [accountId]: a
+  /// sync then hands its connection over between folders.
+  bool userWaiting(AccountId accountId) => budget.userWaiting(accountId);
 
-  /// Closes the kept connections of one account (removed, its settings
-  /// changed, or the app came back and they may have died).
+  /// Whether a connection of [accountId] is wanted elsewhere, or it has
+  /// more open than its budget allows: an extra connection stops.
+  bool contended(AccountId accountId) => budget.contended(accountId);
+
+  /// Gives [client] of [account] back after a sync: kept for the next
+  /// one unless [keep] is false, a connection is kept already, or someone
+  /// waits for it. A connection that broke is closed.
+  Future<void> give(Account account, ImapClient client, {bool keep = true}) =>
+      budget.give(
+        account,
+        client,
+        owner: this,
+        keepFor: keep ? idleTimeout : Duration.zero,
+        checkAfter: checkAfter,
+      );
+
+  /// Closes the kept connection of one account (removed, its settings
+  /// changed, or the app came back and it may have died).
   Future<void> close(AccountId accountId) =>
-      _closeKept(_idle.remove(accountId) ?? const []);
+      budget.closeKept(accountId, owner: this);
 
-  Future<void> closeAll() async {
-    final kept = [for (final list in _idle.values) ...list];
-    _idle.clear();
-    await _closeKept(kept);
-  }
-
-  static Future<void> _closeKept(List<_Idle> kept) async {
-    for (final idle in kept) {
-      idle.timer.cancel();
-    }
-    await Future.wait([for (final idle in kept) _logout(idle.client)]);
-  }
-
-  static Future<void> _logout(ImapClient client) async {
-    try {
-      await client.logout();
-    } on Object {
-      try {
-        await client.close();
-      } on Object {
-        // Already gone.
-      }
-    }
-  }
-}
-
-final class _Idle {
-  _Idle(this.client, this.since, this.timer);
-
-  final ImapClient client;
-  final DateTime since;
-  final Timer timer;
+  Future<void> closeAll() => budget.closeAllKept(owner: this);
 }

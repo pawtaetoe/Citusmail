@@ -405,9 +405,7 @@ Future<void> _workerMain(_Boot boot) async {
         }
         return counted;
       case _AccountsChanged():
-        for (final account in store.accounts.all()) {
-          await engine.accountChanged(account.id);
-        }
+        await engine.accountsChanged();
         if (running) {
           await engine.stop();
           engine.start();

@@ -169,8 +169,11 @@ final class AccountSynchronizer {
     Account account, {
     Set<MailboxId>? mailboxIds,
   }) async {
-    final imap = await _connections.take(account);
+    // The connection can change hands between folders (to the user's
+    // work waiting for one), so it is read from the lease each time.
+    final lease = _Lease(await _connections.take(account));
     try {
+      var imap = lease.client!;
       final listed = await _listFolders(account, imap);
       final replay = await _replayer.replay(
         imap,
@@ -180,11 +183,12 @@ final class AccountSynchronizer {
 
       final results = await _syncFolders(
         account,
-        imap,
+        lease,
         foldersToSync(_store.mailboxes.forAccount(account.id), mailboxIds),
         full: mailboxIds == null,
         listed: listed,
       );
+      imap = lease.client!;
       // 4. Blocked senders, then the user's folder rules, then screened-out
       // senders (when they go to Archive), on new inbox mail; their moves
       // go to the server right away, in this session.
@@ -290,7 +294,9 @@ final class AccountSynchronizer {
       _listedAt.remove(account.id);
       rethrow;
     } finally {
-      await _connections.give(account, imap);
+      if (lease.client case final client?) {
+        await _connections.give(account, client);
+      }
     }
   }
 
@@ -318,18 +324,24 @@ final class AccountSynchronizer {
     return true;
   }
 
-  /// Syncs [folders], the inbox first, over [imap] and up to
-  /// [SyncSettings.connections] - 1 more connections, each taking the next
-  /// folder when it is done with one. A connection the server refuses is
-  /// simply not used. After a folder fails, no new one is started and the
-  /// first failure is thrown once the others are done.
+  /// Syncs [folders], the inbox first, over the [main] connection and up
+  /// to [SyncSettings.connections] - 1 more, as many as the account's
+  /// connection budget has room for, each taking the next folder when it
+  /// is done with one. A connection the server refuses is simply not
+  /// used. After a folder fails, no new one is started and the first
+  /// failure is thrown once the others are done.
+  ///
+  /// Between folders, an extra connection stops when another piece of
+  /// work waits for one (it is handed over) or the budget was lowered;
+  /// and the main one is handed to the user's work waiting for a
+  /// connection, and taken back after it.
   ///
   /// When the folder list was not [listed] in this sync, a folder the
   /// server refuses to open may have been deleted elsewhere: the list is
   /// read again, and a folder that is gone is no failure.
   Future<Map<MailboxId, MailboxSyncResult>> _syncFolders(
     Account account,
-    ImapClient imap,
+    _Lease main,
     Iterable<StoredMailbox> folders, {
     required bool full,
     required bool listed,
@@ -341,12 +353,17 @@ final class AccountSynchronizer {
     (Object, StackTrace)? failure;
     final refused = <StoredMailbox, (Object, StackTrace)>{};
 
-    Future<void> work(ImapClient client, MailboxSynchronizer sync) async {
+    Future<void> work(_Lease lease, MailboxSynchronizer sync) async {
       while (queue.isNotEmpty && failure == null) {
+        if (lease != main && _connections.contended(account.id)) return;
+        if (lease == main && _connections.userWaiting(account.id)) {
+          await _handOver(account, main);
+          continue;
+        }
         final mailbox = queue.removeFirst();
         try {
           results[mailbox.id] = await sync.sync(
-            client,
+            lease.client!,
             mailbox,
             pendingUids: pendingUids(account.id, mailbox.id),
             // Without change tracking on the server, comparing every
@@ -365,27 +382,29 @@ final class AccountSynchronizer {
     }
 
     Future<void> extra() async {
-      final ImapClient client;
+      final ImapClient? client;
       try {
-        client = await _connections.take(account);
+        client = await _connections.takeExtra(account);
       } on Object {
         return; // Too many connections, or offline: the others go on.
       }
+      if (client == null) return; // No room in the budget.
       try {
-        await work(client, _mailboxSync.another());
+        await work(_Lease(client), _mailboxSync.another());
       } finally {
-        await _connections.give(account, client);
+        // Not kept: one connection per account waits for the next sync.
+        await _connections.give(account, client, keep: false);
       }
     }
 
     final extras = min(_mailboxSync.settings.connections - 1, queue.length - 1);
     await Future.wait([
-      work(imap, _mailboxSync),
+      work(main, _mailboxSync),
       for (var i = 0; i < extras; i++) extra(),
     ]);
     if (failure case (final e, final s)) Error.throwWithStackTrace(e, s);
     if (refused.isNotEmpty) {
-      await _listFolders(account, imap, force: true);
+      await _listFolders(account, main.client!, force: true);
       final names = {
         for (final m in _store.mailboxes.forAccount(account.id)) m.encodedName,
       };
@@ -396,6 +415,15 @@ final class AccountSynchronizer {
       }
     }
     return results;
+  }
+
+  /// Hands [lease]'s connection to the user's work waiting for one, and
+  /// waits for a connection again.
+  Future<void> _handOver(Account account, _Lease lease) async {
+    final client = lease.client!;
+    lease.client = null;
+    await _connections.give(account, client, keep: false);
+    lease.client = await _connections.take(account);
   }
 
   /// Which of [mailboxes] a sync covers: with [mailboxIds], those;
@@ -425,4 +453,12 @@ final class AccountSynchronizer {
     }
     return uids;
   }
+}
+
+/// The connection a sync works on, which can change between folders.
+final class _Lease {
+  _Lease(this.client);
+
+  /// Null while it is handed over.
+  ImapClient? client;
 }
