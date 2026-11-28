@@ -261,9 +261,11 @@ a `SyncEngine` opens counts in one `ConnectionBudget` per account
   replay does nothing while the user's runs, and stops before its next
   entry when the user's waits, which goes on where it stopped; SMTP's
   acceptance is recorded before anything else, so nothing is sent twice
-  and every entry is replayed once, in order. The user's replay gives
+  and every entry is replayed once, in order (only the SMTP part of a
+  message goes ahead of the changes before it). The user's replay gives
   its IMAP connection back before a message not sent yet (it goes to
-  SMTP first, without holding one) and after 0.3 s when others wait.
+  SMTP first, without holding one) and after 0.3 s when others wait;
+  offline, it leaves the message untried, for the sync that follows.
   The user's moves, deletions and flags are done on the device at once;
   their replay follows the same way (after their undo delay, or
   `requestSync` from the screen), the user never waiting for it. At a
