@@ -588,6 +588,8 @@ final class _SubscriptionTile extends StatelessWidget {
     final details = <String>[
       s.period?.label ?? Prices.cadence(s.cadence),
       switch (s.status) {
+        SubscriptionStatus.cancelled when s.endsOn != null =>
+          'Cancelled, access until ${date(s.endsOn!)}',
         SubscriptionStatus.cancelled => 'Cancelled',
         SubscriptionStatus.lapsed when s.lastCharge != null =>
           'Last charged ${date(s.lastCharge!)}',

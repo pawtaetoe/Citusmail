@@ -142,7 +142,9 @@ abstract final class DueDates {
     r'payment deadline|deadline|settle(?:d)? (?:it )?by|on or before|'
     r'payment (?:by|before)|'
     r'to be (?:paid|received) (?:by|before)|'
-    r'will be (?:debited|deducted|charged) (?:on|from your account on))\b',
+    r'will be (?:debited|deducted|charged) (?:on|from your account on)|'
+    // "We will deduct the amount from your credit / debit card on 15 Mar".
+    r'will (?:auto-?)?(?:deduct|debit|charge)\b[^.\n]{0,50}?\bon)\b',
     caseSensitive: false,
   );
 
@@ -206,7 +208,7 @@ abstract final class DueDates {
       final label = _dueWords.allMatches(before).lastOrNull;
       if (label == null) continue;
       final other = _otherDateWords.allMatches(before).lastOrNull;
-      if (other != null && other.start > label.start) continue;
+      if (other != null && other.start >= label.end) continue;
       // "Due" far back on an earlier line labels something else.
       if (before.substring(label.end).contains('\n\n')) continue;
       if (due == null || d.date.isAfter(due)) due = d.date;

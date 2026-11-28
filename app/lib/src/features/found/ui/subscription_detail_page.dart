@@ -58,6 +58,8 @@ final class SubscriptionDetailPage extends StatelessWidget {
     final firstCharge = charges.lastOrNull?.email.at;
 
     final status = switch (s.status) {
+      SubscriptionStatus.cancelled when s.endsOn != null =>
+        'Cancelled, access until ${date(s.endsOn!)}',
       SubscriptionStatus.cancelled => 'Cancelled',
       SubscriptionStatus.lapsed => 'Probably ended',
       SubscriptionStatus.active when s.nextCharge != null =>

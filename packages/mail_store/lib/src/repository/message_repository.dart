@@ -1296,17 +1296,24 @@ final class MessageRepository {
 
   /// Stores new sorting decisions (e.g. after the rules changed).
   /// Mail received since [since] whose subject contains one of [words]
-  /// (any case): receipts and renewal notices for finding subscriptions.
-  /// Not the user's own mail, nor Trash and Junk; each message once
-  /// across folders. Newsletters are included: bills often come with
-  /// offers and an unsubscribe link. Newest first.
+  /// (any case), or whose preview contains one of [snippetWords]:
+  /// receipts and renewal notices for finding subscriptions. Not the
+  /// user's own mail, nor Trash and Junk; each message once across
+  /// folders. Newsletters are included: bills often come with offers and
+  /// an unsubscribe link. Newest first.
   List<StoredMessage> withSubjectWords(
     List<String> words, {
     required DateTime since,
     int limit = 1500,
+    List<String> snippetWords = const [],
   }) {
-    if (words.isEmpty) return const [];
-    final like = List.filled(words.length, 'm.subject LIKE ?').join(' OR ');
+    if (words.isEmpty && snippetWords.isEmpty) return const [];
+    final like = [
+      for (final _ in words) 'm.subject LIKE ?',
+      for (final _ in snippetWords) 'm.snippet LIKE ?',
+    ].join(' OR ');
+    String pattern(String w) =>
+        '%${w.replaceAll('%', '').replaceAll('_', '')}%';
     return [
       for (final row in _db.select(
         'SELECT $_columns $_from WHERE ($like) AND m.received_at >= ? '
@@ -1314,8 +1321,8 @@ final class MessageRepository {
         'AND $_notACopy '
         'ORDER BY m.received_at DESC, m.id DESC LIMIT ?',
         [
-          for (final w in words)
-            '%${w.replaceAll('%', '').replaceAll('_', '')}%',
+          for (final w in words) pattern(w),
+          for (final w in snippetWords) pattern(w),
           since.toUtc().millisecondsSinceEpoch,
           limit.clamp(1, 5000),
         ],

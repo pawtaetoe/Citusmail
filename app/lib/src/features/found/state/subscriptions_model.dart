@@ -31,6 +31,9 @@ Future<SubscriptionMail> loadSubscriptionMail(
   final candidates = store.messages.withSubjectWords(
     SubscriptionFinder.subjectWords,
     since: now.subtract(SubscriptionsModel.lookBack),
+    // A paid plan's welcome whose subject names none ("Welcome aboard!":
+    // "you're now a paid member").
+    snippetWords: SubscriptionFinder.previewWords,
   );
   final texts = await plainTextReads.read(store, candidates);
   return (
@@ -166,7 +169,9 @@ List<MessageId> subscriptionMailToRead(
   // Receipts not on the device, newest first, from companies that are
   // neither listed nor hidden: their whole text may show a billing period
   // ("Sep 28, 2026 – Sep 28, 2027").
-  final known = {for (final s in found) s.company};
+  final known = {
+    for (final s in found) ...{s.company, ...s.billers},
+  };
   final unknown = [
     for (final e in mail.emails)
       // A forward as the email it forwards; not replies.

@@ -2098,6 +2098,37 @@ void main() {
         'Your Netflix RECEIPT',
       ]);
     });
+
+    test('or words of the preview', () {
+      final account = temp.addAccount();
+      final boxes = store.mailboxes.replaceAll(account.id, [folder('INBOX')]);
+      MessageSummary withPreview(int uid, String subject, String snippet) =>
+          MessageSummary(
+            uid: uid,
+            subject: subject,
+            receivedAt: DateTime.utc(2026, 10, 1).add(Duration(minutes: uid)),
+            snippet: snippet,
+            from: const MailAddress(localPart: 'hi', domain: 'x.example'),
+          );
+      store.messages.upsertSummaries(boxes.single.id, [
+        withPreview(
+          1,
+          'Welcome aboard, plusplan member!',
+          "Your free trial has ended, and you're now a paid plusplan member.",
+        ),
+        withPreview(2, 'Lunch?', 'Shall we meet at noon?'),
+        withPreview(3, 'Your receipt', 'Thanks'),
+      ]);
+      final found = store.messages.withSubjectWords(
+        ['receipt'],
+        since: DateTime.utc(2025),
+        snippetWords: ['now a paid'],
+      );
+      expect(found.map((m) => m.subject), [
+        'Your receipt',
+        'Welcome aboard, plusplan member!',
+      ]);
+    });
   });
 
   group('sender cleanup', () {

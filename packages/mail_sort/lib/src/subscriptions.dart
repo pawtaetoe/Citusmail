@@ -54,8 +54,11 @@ final class SubscriptionEmail {
   );
 
   /// Who it is from, as a [Subscription] is keyed: [company], or the
-  /// merchant for a payment service's mail (`Acme via stripe.com`).
-  String get biller => SubscriptionFinder.billerOf(company, senderName);
+  /// merchant for a payment service's or an app store's mail (`Acme via
+  /// stripe.com`, `Acme via Google Play`).
+  String get biller =>
+      SubscriptionFinder.storeMerchantOf(company, subject, text) ??
+      SubscriptionFinder.billerOf(company, senderName);
 }
 
 /// How often a subscription charges, roughly (see [BillingPeriod] for
@@ -280,11 +283,23 @@ final class Subscription {
     this.variable = false,
     this.spentLastYear,
     this.period,
+    this.endsOn,
+    this.billers = const {},
   });
 
   /// The company's domain, or for a company billed through a payment
   /// service, `Acme via stripe.com` ([SubscriptionFinder.billerOf]).
   final String company;
+
+  /// The senders it was found in ([SubscriptionEmail.biller]) when more
+  /// than [company]: a sister domain of the same brand that sends its
+  /// bills or takes its payments (`examplepower.com` and
+  /// `examplepowerpay.com`). Empty for [company] alone.
+  final Set<String> billers;
+
+  /// For a cancelled one: the last day it lasts, when the mail says
+  /// ("your benefits stop on 9 May").
+  final DateTime? endsOn;
 
   /// What to call it: the sender's name most used, else the domain.
   final String name;
@@ -372,13 +387,31 @@ abstract final class SubscriptionFinder {
     'bill',
   ];
 
+  /// Words of a preview that make mail worth looking at although its
+  /// subject names none of [subjectWords] ("Welcome aboard!": "you're now a
+  /// paid member", "Total today: $4.50").
+  static const previewWords = [
+    'now a paid',
+    'trial has ended',
+    'charged monthly',
+    'billed monthly',
+    'charged yearly',
+    'billed yearly',
+    'billed annually',
+    'total today',
+  ];
+
   static final _subscriptionWords = RegExp(
     r'\b(?:subscriptions?|subscribed|membership|renews?|renewed|renewal|'
     r'auto-renew\w*|recurring|your plan|premium plan|billing period|'
     r'next billing|next payment|free trial|trial|'
     r'unused time on|remaining time on|'
     // Phone, broadband and utility bills recur too.
-    r'e-?bill|monthly (?:bill|invoice))\b',
+    r'e-?bill|monthly (?:bill|invoice)|latest bill|'
+    r'(?:mobile|phone|broadband|internet|fibre|fiber|utility|utilities|'
+    r'electricity|water|gas|postpaid|cable|tv)\s+bills?|'
+    r'bill for (?:the month of )?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|'
+    r'oct|nov|dec)[a-z]*)\b',
     caseSensitive: false,
   );
 
@@ -397,7 +430,7 @@ abstract final class SubscriptionFinder {
     r'\b(?:receipt|invoice|payment (?:received|confirmation|successful)|'
     r'paid|charged|renewed|order confirmation|your order|billing statement|'
     r'successful payment|payment (?:was )?successful|bill payment|'
-    r'e-?bill|your (?:\w+ )?bill|bill (?:is|for))\b',
+    r"e-?bill|your (?:[\w.&'-]+ ){0,3}bill|bill (?:is|for))\b",
     caseSensitive: false,
   );
 
@@ -455,20 +488,55 @@ abstract final class SubscriptionFinder {
       r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?';
 
   /// A billing period as receipts print it ("Sep 28, 2026 – Sep 28, 2027",
-  /// "28 Sep 2026 - 28 Sep 2027", "2026-09-28 to 2027-09-28").
-  static final _periods = [
-    RegExp(
-      '$_month\\s+(\\d{1,2}),?\\s+(\\d{4})\\s*(?:[-–—]|to|until)\\s*'
-      '$_month\\s+(\\d{1,2}),?\\s+(\\d{4})',
-      caseSensitive: false,
+  /// "28 Sep 2026 - 28 Sep 2027", "2026-09-28 to 2027-09-28"), and with
+  /// the year printed once, at the end ("Mar 3 – Apr 3, 2026", "1 Oct - 31
+  /// Oct 2026"). Each is read as (year, month, day) of its start and end;
+  /// a start year of null is the end's (or the year before, for "Dec 3 –
+  /// Jan 3, 2027").
+  static final _periods = <(RegExp, (int?, int, int), (int, int, int))>[
+    (
+      RegExp(
+        '$_month\\s+(\\d{1,2}),?\\s+(\\d{4})\\s*(?:[-–—]|to|until)\\s*'
+        '$_month\\s+(\\d{1,2}),?\\s+(\\d{4})',
+        caseSensitive: false,
+      ),
+      (3, 1, 2),
+      (6, 4, 5),
     ),
-    RegExp(
-      '(\\d{1,2})\\s+$_month,?\\s+(\\d{4})\\s*(?:[-–—]|to|until)\\s*'
-      '(\\d{1,2})\\s+$_month,?\\s+(\\d{4})',
-      caseSensitive: false,
+    (
+      RegExp(
+        '(\\d{1,2})\\s+$_month,?\\s+(\\d{4})\\s*(?:[-–—]|to|until)\\s*'
+        '(\\d{1,2})\\s+$_month,?\\s+(\\d{4})',
+        caseSensitive: false,
+      ),
+      (3, 2, 1),
+      (6, 5, 4),
     ),
-    RegExp(
-      r'(\d{4})-(\d{2})-(\d{2})\s*(?:[-–—]|to|until)\s*(\d{4})-(\d{2})-(\d{2})',
+    (
+      RegExp(
+        r'(\d{4})-(\d{2})-(\d{2})\s*(?:[-–—]|to|until)\s*'
+        r'(\d{4})-(\d{2})-(\d{2})',
+      ),
+      (1, 2, 3),
+      (4, 5, 6),
+    ),
+    (
+      RegExp(
+        '$_month\\s+(\\d{1,2})\\s*(?:[-–—]|to|until)\\s*'
+        '$_month\\s+(\\d{1,2}),?\\s+(\\d{4})',
+        caseSensitive: false,
+      ),
+      (null, 1, 2),
+      (5, 3, 4),
+    ),
+    (
+      RegExp(
+        '(?<!\\d)(\\d{1,2})\\s+$_month\\s*(?:[-–—]|to|until)\\s*'
+        '(\\d{1,2})\\s+$_month,?\\s+(\\d{4})',
+        caseSensitive: false,
+      ),
+      (null, 2, 1),
+      (5, 4, 3),
     ),
   ];
 
@@ -483,22 +551,27 @@ abstract final class SubscriptionFinder {
   /// The first billing period printed in [text], as its first and last
   /// day.
   static ({DateTime from, DateTime to})? _rangeIn(String text) {
-    for (final (i, re) in _periods.indexed) {
+    for (final (re, start, end) in _periods) {
       for (final m in re.allMatches(text)) {
-        DateTime? date(int g) {
-          final (y, mo, d) = switch (i) {
-            0 => (m[g + 2], _months[m[g]!.toLowerCase()], m[g + 1]),
-            1 => (m[g + 2], _months[m[g + 1]!.toLowerCase()], m[g]),
-            _ => (m[g], int.tryParse(m[g + 1]!), m[g + 2]),
-          };
-          final year = int.tryParse(y!);
-          final day = int.tryParse(d!);
-          if (year == null || mo == null || day == null) return null;
-          return DateTime.utc(year, mo, day);
+        DateTime? date((int?, int, int) groups, [int? inYear]) {
+          final (y, mo, d) = groups;
+          final year = y == null ? inYear : int.tryParse(m[y]!);
+          final month = int.tryParse(m[mo]!) ?? _months[m[mo]!.toLowerCase()];
+          final day = int.tryParse(m[d]!);
+          if (year == null || month == null || day == null) return null;
+          if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+          return DateTime.utc(year, month, day);
         }
 
-        final from = date(1);
-        final to = date(4);
+        final to = date(end);
+        var from = date(start, to?.year);
+        // "Dec 3 – Jan 3, 2027": the start is in the year before.
+        if (from != null &&
+            to != null &&
+            start.$1 == null &&
+            from.isAfter(to)) {
+          from = DateTime.utc(from.year - 1, from.month, from.day);
+        }
         if (from == null || to == null || !to.isAfter(from)) continue;
         final length = to.difference(from).inDays;
         if (length >= 6 && length <= 400) return (from: from, to: to);
@@ -521,8 +594,14 @@ abstract final class SubscriptionFinder {
       // The same day of the month, or the day before (an inclusive end).
       if (gap == 0 || gap == 1) return BillingPeriod.months(m);
     }
-    return _ofDays(r.to.difference(r.from).inDays);
+    // "3 Mar - 1 Apr": 30 days, the last one included.
+    var days = r.to.difference(r.from).inDays;
+    if (!_usualDays.contains(days) && _usualDays.contains(days + 1)) days++;
+    return _ofDays(days);
   }
+
+  /// Plans' usual lengths in days.
+  static const _usualDays = {7, 14, 28, 30, 31, 90, 91, 182, 183, 365, 366};
 
   /// [n] days as a period: whole weeks as weeks.
   static BillingPeriod? _ofDays(int n) {
@@ -683,7 +762,10 @@ abstract final class SubscriptionFinder {
   static final _renewsOnWords = RegExp(
     r'\b(?:(?:will\s+)?(?:auto-?)?renews?|renewing|will\s+be\s+(?:renewed|'
     r'charged|billed)|next\s+(?:renewal|billing|payment|charge)(?:\s+date)?|'
-    r'(?:renewal|billing)\s+date)\b',
+    r'(?:renewal|billing)\s+date|'
+    // "will be charged monthly starting on Apr 6", "Billing starts: Apr 6".
+    r'(?:charged|billed)(?:\s+\w+)?\s+starting(?:\s+(?:on|from))?|'
+    r'billing\s+starts(?:\s+on)?)\b',
     caseSensitive: false,
   );
 
@@ -693,18 +775,47 @@ abstract final class SubscriptionFinder {
   static DateTime? renewalDateIn(String text, DateTime sent) {
     final sample = text.length > 20000 ? text.substring(0, 20000) : text;
     final sentDay = DateTime.utc(sent.year, sent.month, sent.day);
-    for (final m in _renewsOnWords.allMatches(sample)) {
+    final labels = [
+      ..._renewsOnWords.allMatches(sample),
+      // "Your plan ends 2027/03/14; it renews then": a paid
+      // plan that renews when it ends (not one cancelled).
+      if (_renewalSubject.hasMatch(sample) &&
+          !_cancelWords.allMatches(sample).any((m) => !_endOfTrial(sample, m)))
+        ..._endsThenRenews.allMatches(sample),
+    ]..sort((a, b) => a.start.compareTo(b.start));
+    for (final m in labels) {
       final rest = sample.substring(
         m.end,
         m.end + 40 > sample.length ? sample.length : m.end + 40,
       );
-      final date = DueDates.datesIn(rest, reference: sent).firstOrNull;
-      if (date == null || date.start > 12) continue;
-      final days = date.date.difference(sentDay).inDays;
-      if (days >= 1 && days <= 400) return date.date;
+      DateTime? on;
+      if (DueDates.datesIn(rest, reference: sent).firstOrNull case final d?
+          when d.start <= 12) {
+        on = d.date;
+      } else if (_yearFirst.firstMatch(rest) case final y?) {
+        final (year, month, day) = (
+          int.parse(y[1]!),
+          int.parse(y[2]!),
+          int.parse(y[3]!),
+        );
+        final d = DateTime.utc(year, month, day);
+        if (d.month == month && d.day == day) on = d;
+      }
+      if (on == null) continue;
+      final days = on.difference(sentDay).inDays;
+      if (days >= 1 && days <= 400) return on;
     }
     return null;
   }
+
+  /// "Your plan ends", "membership expires on".
+  static final _endsThenRenews = RegExp(
+    r'\b(?:plan|membership|subscription)\s+(?:ends|expires)(?:\s+on)?\b',
+    caseSensitive: false,
+  );
+
+  /// "2027/03/14" right after the words.
+  static final _yearFirst = RegExp(r'^\W{0,6}(\d{4})/(\d{1,2})/(\d{1,2})\b');
 
   /// Whether [email] itself is about a subscription: its wording, or a
   /// billing period.
@@ -757,7 +868,8 @@ abstract final class SubscriptionFinder {
   /// A payment that didn't go through: nothing was charged.
   static final _failedWords = RegExp(
     r'\b(?:unsuccessful|failed|declined|unable to (?:process|charge)|'
-    r'could not be (?:processed|charged)|payment (?:issue|problem))\b',
+    r'could not be (?:processed|charged)|payment (?:issue|problem)|'
+    r'didn.t go through|did not go through|was not (?:processed|successful))\b',
     caseSensitive: false,
   );
 
@@ -781,6 +893,9 @@ abstract final class SubscriptionFinder {
           : SubscriptionEvent.cancelled;
     }
     if (_trialWords.hasMatch(subject)) return SubscriptionEvent.trial;
+    if (_promoSubject.hasMatch(subject) && !_ownChargeWords.hasMatch(subject)) {
+      return SubscriptionEvent.notice;
+    }
     if (_chargeWords.hasMatch(subject)) return SubscriptionEvent.charge;
     final text = email.text;
     // "Data plan renewal": "Your plan is renewed. Your next renewal date
@@ -788,6 +903,11 @@ abstract final class SubscriptionFinder {
     // member".
     if ((_renewalSubject.hasMatch(subject) && _renewedText.hasMatch(text)) ||
         _paidNow.hasMatch(text)) {
+      return SubscriptionEvent.charge;
+    }
+    // "Welcome to your membership ... Total today: $4.50", "We've
+    // successfully deducted $7.00 for this bill".
+    if (_moneyTaken.hasMatch(text) && !_failedWords.hasMatch(text)) {
       return SubscriptionEvent.charge;
     }
     if (_cancelWords.allMatches(text).any((m) => !_endOfTrial(text, m))) {
@@ -812,6 +932,30 @@ abstract final class SubscriptionFinder {
   /// A trial turned into a paid plan.
   static final _paidNow = RegExp(
     r"\byou(?:'|’|\s+a)re now a paid\b|\byou(?:'|’|\s+ha)ve been upgraded to (?:a )?paid\b",
+    caseSensitive: false,
+  );
+
+  /// The body says money was taken, though the subject does not.
+  static final _moneyTaken = RegExp(
+    r"\b(?:total today|amount paid|you(?:'ve| have)? been charged|"
+    r"we(?:'ve| have) (?:successfully )?(?:charged|deducted|debited)|"
+    r'(?:has|have) been (?:successfully )?(?:deducted|debited|paid)|'
+    r'successfully (?:deducted|debited|paid|charged))\b',
+    caseSensitive: false,
+  );
+
+  /// A promotion's subject: "Pay your electricity bill with us and earn 5%
+  /// cashback", "$30 bill rebate".
+  static final _promoSubject = RegExp(
+    r'\b(?:earn|cash ?back|rewards?|promo\w*|offers?|deals?|win|discount|'
+    r'vouchers?|rebates?|save|sale)\b|%',
+    caseSensitive: false,
+  );
+
+  /// What a bill or receipt says of itself, promotion or not.
+  static final _ownChargeWords = RegExp(
+    r'\b(?:receipt|invoice|paid|charged|renewed|e-?bill|bill (?:is|for)|'
+    r'payment (?:received|confirmation|successful))\b',
     caseSensitive: false,
   );
 
@@ -904,11 +1048,17 @@ abstract final class SubscriptionFinder {
     for (final m in _amount.allMatches(sample)) {
       final money = _money(m);
       if (money == null) continue;
-      first ??= money;
       final before = sample.substring(
         m.start - 40 < 0 ? 0 : m.start - 40,
         m.start,
       );
+      if (_isCredit(sample, m.start, m.end)) {
+        // "Total due: -$21.40": nothing to pay. Other credits ("Unused
+        // time -$14.32") are not the price.
+        if (_creditTotal.hasMatch(before)) return null;
+        continue;
+      }
+      first ??= money;
       if (_paidWords.hasMatch(before)) return money;
       // The words closest to the amount: the last line before it.
       final line = before
@@ -926,16 +1076,55 @@ abstract final class SubscriptionFinder {
     return total ?? first;
   }
 
-  /// Every amount in [text], with where it is.
+  /// Every amount in [text], with where it is; not credits ("-$5.00",
+  /// "$5.00 CR").
   static Iterable<({Money money, int start, int end})> amountsIn(
     String text,
   ) sync* {
     for (final m in _amount.allMatches(text)) {
+      if (_isCredit(text, m.start, m.end)) continue;
       if (_money(m) case final money?) {
         yield (money: money, start: m.start, end: m.end);
       }
     }
   }
+
+  /// Whether the amount at [start]..[end] of [text] is a credit: a minus
+  /// sign right before it ("is -$21.40", not "Price – $5" or "$10-$20"),
+  /// or "CR" after it.
+  static bool _isCredit(String text, int start, int end) {
+    final before = text.substring(start - 2 < 0 ? 0 : start - 2, start);
+    if (RegExp(r'(?:^|[\s(:])[-−–]$').hasMatch(before)) return true;
+    final after = text.substring(
+      end,
+      end + 8 > text.length ? text.length : end + 8,
+    );
+    return RegExp(r'^\s?(?:CR|Cr)\b').hasMatch(after);
+  }
+
+  /// Whether [text] says the total due is a credit ("The total due for
+  /// this bill is -$21.40"): nothing to pay.
+  static bool owesNothing(String text) {
+    final sample = text.length > 20000 ? text.substring(0, 20000) : text;
+    for (final m in _amount.allMatches(sample)) {
+      if (!_isCredit(sample, m.start, m.end)) continue;
+      final before = sample.substring(
+        m.start - 40 < 0 ? 0 : m.start - 40,
+        m.start,
+      );
+      if (_creditTotal.hasMatch(before)) return true;
+    }
+    return false;
+  }
+
+  /// Words right before a credit that make it the total: "The total due
+  /// for this bill is -$21.40", "Balance: -$3.00" (not "Total discount").
+  static final _creditTotal = RegExp(
+    r'\b(?:total|balance|amount due|amount payable)\b'
+    r'(?![^\n]*\b(?:discount|savings?|saved|off|refund\w*|rebate)\b)'
+    r'[^\n\d$€£]{0,30}$',
+    caseSensitive: false,
+  );
 
   static Money? _money(RegExpMatch m) {
     final mark = m.group(1) ?? m.group(4);
@@ -980,15 +1169,19 @@ abstract final class SubscriptionFinder {
       byCompany.putIfAbsent(o.biller, () => []).add(o);
     }
     final found = <Subscription>[];
-    for (final MapEntry(key: company, value: list) in byCompany.entries) {
+    for (final (:company, :billers, :list) in _withSisters(byCompany)) {
       list.sort((a, b) => b.at.compareTo(a.at));
       final records = [
         for (final e in list)
-          SubscriptionRecord(
-            e,
-            eventOf(e),
-            amountIn('${e.subject}\n${e.text}'),
-          ),
+          if (eventOf(e) case final event)
+            SubscriptionRecord(
+              e,
+              event,
+              // What a notice or a promotion names is not a price paid.
+              event == SubscriptionEvent.charge
+                  ? amountIn('${e.subject}\n${e.text}')
+                  : null,
+            ),
       ];
       var charges = records
           .where((r) => r.event == SubscriptionEvent.charge)
@@ -1024,18 +1217,59 @@ abstract final class SubscriptionFinder {
       charges = _oneChargePerBill(charges, records);
       final says = records.any((r) => _speaksOfSubscription(r.email));
       if (!says && !regular) continue;
-      // Nothing paid yet (only a free trial, or talk of plans): not a
-      // subscription until a charge comes.
-      if (charges.isEmpty) continue;
+      final name = _nameOf(company, list);
+      if (charges.isEmpty) {
+        // Nothing paid yet (only a free trial, or talk of plans): not a
+        // subscription until a charge comes; unless the company says a
+        // paid plan was cancelled or has ended (its receipts may come from
+        // an app store or another domain).
+        final ended = records
+            .where(
+              (r) =>
+                  r.event == SubscriptionEvent.cancelled &&
+                  _endsPaidPlan(r.email),
+            )
+            .firstOrNull;
+        if (ended == null ||
+            records.any((r) => r.event == SubscriptionEvent.trial)) {
+          continue;
+        }
+        final period = records
+            .map((r) => statedPeriodIn(r.email.text))
+            .nonNulls
+            .firstOrNull;
+        found.add(
+          Subscription(
+            company: company,
+            name: name,
+            records: List.unmodifiable(records),
+            cadence: period?.cadence,
+            period: period,
+            amount: null,
+            status: SubscriptionStatus.cancelled,
+            nextCharge: null,
+            endsOn: endDateIn(ended.email.text, ended.email.at),
+            billers: billers.length > 1 ? billers : const {},
+          ),
+        );
+        continue;
+      }
 
       final lastCharge = charges.first.email.at;
       // The next charge as the newest mail since the last charge states
-      // it ("renews on 12 Dec 2026", "next renewal date is 12-04-2027").
+      // it ("renews on 12 Dec 2026", "next renewal date is 12-04-2027"),
+      // or one sent with it about the same bill (the renewal notice an hour
+      // before the receipt), when it is later than this bill.
       DateTime? renewsOn;
       for (final r in records) {
-        if (r.email.at.isBefore(lastCharge)) break;
-        if (r.event == SubscriptionEvent.cancelled) break;
-        if (renewalDateIn(r.email.text, r.email.at) case final d?) {
+        final twin = r.email.at.isBefore(lastCharge);
+        if (r.email.at.isBefore(lastCharge.subtract(sameBill))) break;
+        if (r.event == SubscriptionEvent.cancelled) {
+          if (twin) continue;
+          break;
+        }
+        if (renewalDateIn(r.email.text, r.email.at) case final d?
+            when !twin || d.isAfter(lastCharge.add(sameBill))) {
           renewsOn = d;
           break;
         }
@@ -1048,12 +1282,18 @@ abstract final class SubscriptionFinder {
         for (final r in records)
           if (r.event != SubscriptionEvent.charge) r,
       ];
+      final stated = byKind
+          .map((r) => statedPeriodIn(r.email.text))
+          .nonNulls
+          .firstOrNull;
+      final dated = _periodFromDates([for (final r in charges) r.email.at]);
       final period =
-          byKind
-              .map((r) => statedPeriodIn(r.email.text))
-              .nonNulls
-              .firstOrNull ??
-          _periodFromDates([for (final r in charges) r.email.at]) ??
+          // A bill period that reads as a month ("12 Jun - 11 Jul") on
+          // charges a fixed number of days apart: that many days.
+          (stated == BillingPeriod.monthly && dated?.unit == PeriodUnit.day
+              ? dated
+              : stated) ??
+          dated ??
           byKind
               .map((r) => _loosePeriodIn('${r.email.subject}\n${r.email.text}'))
               .nonNulls
@@ -1069,10 +1309,24 @@ abstract final class SubscriptionFinder {
             a,
       ];
       final variable = {for (final a in recent) a.minor}.length >= 3;
-      final cancelledAt = records
+      var amount = variable ? _average(recent) : recent.firstOrNull;
+      // A price change announced since the last charge: what it charges
+      // from now on ("from $9.49/month to $10.99/month").
+      if (!variable && amount != null) {
+        final was = amount;
+        for (final r in records) {
+          if (!r.email.at.isAfter(lastCharge)) break;
+          if (_newPrice('${r.email.subject}\n${r.email.text}', was)
+              case final p?) {
+            amount = p;
+            break;
+          }
+        }
+      }
+      final cancellation = records
           .where((r) => r.event == SubscriptionEvent.cancelled)
-          .map((r) => r.email.at)
           .firstOrNull;
+      final cancelledAt = cancellation?.email.at;
       final length = (period ?? BillingPeriod.monthly).length;
       final today = DateTime.utc(now.year, now.month, now.day);
       bool due(DateTime d) =>
@@ -1097,11 +1351,21 @@ abstract final class SubscriptionFinder {
         next = due(at(n)) ? at(n) : null;
       } else if (status == SubscriptionStatus.active && period != null) {
         // Each charge of the last period comes again (several domains
-        // renewing on their own dates): the soonest of them. A charge due
-        // today is still to come until the day ends.
+        // renewing on their own dates): the soonest of them; not one that
+        // a later charge already renewed (a renewal a day or two early). A
+        // charge due today is still to come until the day ends.
+        final renewedSince = period.days * 3 ~/ 4;
         final again = [
-          for (final r in charges)
-            if (due(period.after(r.email.at))) period.after(r.email.at),
+          for (final (i, r) in charges.indexed)
+            if (!charges
+                    .take(i)
+                    .any(
+                      (c) =>
+                          c.email.at.difference(r.email.at).inDays >=
+                          renewedSince,
+                    ) &&
+                due(period.after(r.email.at)))
+              period.after(r.email.at),
         ]..sort();
         next = again.firstOrNull;
         if (next == null) {
@@ -1114,15 +1378,19 @@ abstract final class SubscriptionFinder {
       found.add(
         Subscription(
           company: company,
-          name: _name(company, list),
+          name: name,
           records: List.unmodifiable(records),
           cadence: cadence,
           period: period,
-          amount: variable ? _average(recent) : recent.firstOrNull,
+          amount: amount,
           status: status,
           nextCharge: next,
           variable: variable,
           spentLastYear: variable ? _spentLastYear(charges, now) : null,
+          endsOn: status == SubscriptionStatus.cancelled
+              ? endDateIn(cancellation!.email.text, cancellation.email.at)
+              : null,
+          billers: billers.length > 1 ? billers : const {},
         ),
       );
     }
@@ -1139,13 +1407,75 @@ abstract final class SubscriptionFinder {
   /// the payment; or a copy without the amount).
   static const sameBill = Duration(days: 3);
 
+  /// A bill and a payment this soon after it are one charge: the bill,
+  /// then the auto-debit or the payment the user made.
+  static const billToPayment = Duration(days: 16);
+
+  static final _billNoticeSubject = RegExp(
+    r'\b(?:e-?bills?|bills?|invoices?|statements?)\b',
+    caseSensitive: false,
+  );
+
+  static final _paidSubject = RegExp(
+    r'\b(?:paid|payments?|receipts?|deducted|debited|charged|'
+    r'successful(?:ly)?|thank(?:s| you))\b',
+    caseSensitive: false,
+  );
+
+  /// A bill sent before it is paid ("Your March utilities bill is
+  /// ready"), not a receipt for its payment.
+  static bool _isBillNotice(SubscriptionEmail email) =>
+      _billNoticeSubject.hasMatch(email.subject) &&
+      !_paidSubject.hasMatch(email.subject) &&
+      !_moneyTaken.hasMatch(email.text);
+
+  /// [charges] and [records] with each bill that a payment of it follows
+  /// within [billToPayment] (the same amount, or the bill shows none)
+  /// counted as a notice: the payment is the charge.
+  static List<SubscriptionRecord> _billsPaidLater(
+    List<SubscriptionRecord> charges,
+    List<SubscriptionRecord> records,
+  ) {
+    final payments = [
+      for (final r in charges)
+        if (r.amount != null && !_isBillNotice(r.email)) r,
+    ];
+    final paid = <SubscriptionRecord>{
+      for (final r in charges)
+        if (_isBillNotice(r.email) &&
+            payments.any((p) {
+              final gap = p.email.at.difference(r.email.at);
+              return gap > Duration.zero &&
+                  gap <= billToPayment &&
+                  (r.amount == null || r.amount == p.amount);
+            }))
+          r,
+    };
+    if (paid.isEmpty) return charges;
+    for (final r in paid) {
+      final i = records.indexOf(r);
+      if (i >= 0) {
+        records[i] = SubscriptionRecord(
+          r.email,
+          SubscriptionEvent.notice,
+          null,
+        );
+      }
+    }
+    return [
+      for (final r in charges)
+        if (!paid.contains(r)) r,
+    ];
+  }
+
   /// [charges] (newest first) with each receipt that has no price and
   /// comes within [sameBill] of another charge counted as a notice about
   /// it, not a charge of its own. [records] is updated to match.
   static List<SubscriptionRecord> _oneChargePerBill(
-    List<SubscriptionRecord> charges,
+    List<SubscriptionRecord> all,
     List<SubscriptionRecord> records,
   ) {
+    final charges = _billsPaidLater(all, records);
     final kept = [
       for (final r in charges)
         if (r.amount != null) r,
@@ -1276,6 +1606,112 @@ abstract final class SubscriptionFinder {
     return prices.length <= 1;
   }
 
+  /// What to call the subscription keyed [company] with [list]: the
+  /// merchant for an app store's ("Acme via Google Play"), else [_name].
+  static String _nameOf(String company, List<SubscriptionEmail> list) {
+    const store = ' via Google Play';
+    if (company.endsWith(store)) {
+      return company.substring(0, company.length - store.length);
+    }
+    return _name(company, list);
+  }
+
+  /// Words a brand's other domains add to its name: its group, its
+  /// billing or payments arm (`examplepower.com`, `examplepowerpay.com`).
+  static const _arms = [
+    'notifications',
+    'payments',
+    'services',
+    'digital',
+    'billing',
+    'payment',
+    'global',
+    'online',
+    'alerts',
+    'notify',
+    'group',
+    'ebill',
+    'bills',
+    'pay',
+    'hq',
+  ];
+
+  /// The brand [biller] (a registrable domain) belongs to: its first
+  /// label without an [_arms] word, and whether it had one. Null for a
+  /// merchant billed through a service ("Acme via stripe.com").
+  static ({String stem, String label, bool arm})? _brandOf(String biller) {
+    if (biller.contains(' ')) return null;
+    final label = biller.toLowerCase().split('.').first;
+    final parts = label.split('-');
+    if (parts.length > 1 && _arms.contains(parts.last)) {
+      final stem = parts.sublist(0, parts.length - 1).join();
+      return (stem: stem, label: label, arm: true);
+    }
+    for (final arm in _arms) {
+      if (label.length - arm.length >= 2 && label.endsWith(arm)) {
+        final stem = label.substring(0, label.length - arm.length);
+        return (stem: stem.replaceAll('-', ''), label: label, arm: true);
+      }
+    }
+    return (stem: label.replaceAll('-', ''), label: label, arm: false);
+  }
+
+  /// [byCompany]'s mail, with the sister domains of one brand together:
+  /// a biller and its payments arm (`examplepower.com` sends the bill,
+  /// `examplepowerpay.com` the auto-debit receipt). The same name under
+  /// another country's domain stays apart: often another service of the
+  /// brand (its mobile and its home broadband). Each keyed by the first
+  /// of its billers, in order.
+  static List<
+    ({String company, Set<String> billers, List<SubscriptionEmail> list})
+  >
+  _withSisters(Map<String, List<SubscriptionEmail>> byCompany) {
+    final billers = byCompany.keys.toList()..sort();
+    final group = {for (final b in billers) b: b};
+    String root(String b) {
+      var r = b;
+      while (group[r] != r) {
+        r = group[r]!;
+      }
+      return r;
+    }
+
+    final brands = {for (final b in billers) b: _brandOf(b)};
+    for (final (i, a) in billers.indexed) {
+      final x = brands[a];
+      if (x == null || x.stem.length < 2) continue;
+      for (final b in billers.skip(i + 1)) {
+        final y = brands[b];
+        if (y == null ||
+            y.stem != x.stem ||
+            y.label == x.label ||
+            !(x.arm || y.arm)) {
+          continue;
+        }
+        final (ra, rb) = (root(a), root(b));
+        if (ra == rb) continue;
+        // Keyed by the first, so that the key stays the same.
+        if (ra.compareTo(rb) < 0) {
+          group[rb] = ra;
+        } else {
+          group[ra] = rb;
+        }
+      }
+    }
+    final merged = <String, Set<String>>{};
+    for (final b in billers) {
+      merged.putIfAbsent(root(b), () => {}).add(b);
+    }
+    return [
+      for (final MapEntry(key: company, value: members) in merged.entries)
+        (
+          company: company,
+          billers: members,
+          list: [for (final b in members) ...byCompany[b]!],
+        ),
+    ];
+  }
+
   /// The sender name most used (see [companyName]), else the domain.
   static String _name(String company, List<SubscriptionEmail> list) {
     final counts = <String, int>{};
@@ -1287,7 +1723,140 @@ abstract final class SubscriptionFinder {
     return counts.entries.reduce((a, b) => b.value > a.value ? b : a).key;
   }
 
+  /// "Your membership has been canceled", "you've ended your
+  /// subscription to Acme".
+  static final _endedPlan = RegExp(
+    r"\b(?:cancel(?:l)?ed|ended|terminated)\s+your\s+(?:[\w.&'’-]+\s+){0,3}"
+    r'(?:subscription|membership|plan)\b|'
+    r"\byour\s+(?:[\w.&'’-]+\s+){0,3}(?:subscription|membership|plan)\s+"
+    r'(?:has\s+been|has|was|is|will\s+be)\s+'
+    r'(?:cancel(?:l)?ed|ended|terminated)\b',
+    caseSensitive: false,
+  );
+
+  static final _planSubject = RegExp(
+    r'\b(?:subscriptions?|membership|plan|premium)\b',
+    caseSensitive: false,
+  );
+
+  /// Not a paid plan: a newsletter, emails, a free trial.
+  static final _notAPaidPlan = RegExp(
+    r'\b(?:newsletters?|mailing list|e-?mails?|marketing|communications?|'
+    r'trial)\b',
+    caseSensitive: false,
+  );
+
+  static final _newsletter = RegExp(
+    r'\b(?:newsletter|mailing list)\b',
+    caseSensitive: false,
+  );
+
+  /// Whether [email], a cancellation, says a paid plan was cancelled or
+  /// ended: its subject names the plan, or its text says so; not a
+  /// newsletter or a free trial.
+  static bool _endsPaidPlan(SubscriptionEmail email) {
+    final head = email.text.length > 600
+        ? email.text.substring(0, 600)
+        : email.text;
+    if (_notAPaidPlan.hasMatch(email.subject) || _newsletter.hasMatch(head)) {
+      return false;
+    }
+    return _planSubject.hasMatch(email.subject) || _endedPlan.hasMatch(head);
+  }
+
+  /// Words right before the last day of a cancelled plan.
+  static final _lastDayWords = RegExp(
+    r'\b(?:lose|losing|until|till|through|ends?|ending|expires?|expiring|'
+    r'stops?|last day|access|cancel(?:l)?ed on)\b[^.!?\n]{0,70}$',
+    caseSensitive: false,
+  );
+
+  /// The last day a cancelled plan lasts, as [text] (sent at [sent])
+  /// states it: "your benefits stop on May 9, 2027", "will be
+  /// cancelled on 14 Mar 2027", "access until 3 May". Null when it says
+  /// none.
+  static DateTime? endDateIn(String text, DateTime sent) {
+    final sample = text.length > 20000 ? text.substring(0, 20000) : text;
+    final sentDay = DateTime.utc(sent.year, sent.month, sent.day);
+    for (final d in DueDates.datesIn(sample, reference: sent)) {
+      final days = d.date.difference(sentDay).inDays;
+      if (days < 0 || days > 400) continue;
+      final before = sample.substring(
+        d.start - 80 < 0 ? 0 : d.start - 80,
+        d.start,
+      );
+      if (_lastDayWords.hasMatch(before)) return d.date;
+    }
+    return null;
+  }
+
+  static final _fromWord = RegExp(r'\bfrom\s*$', caseSensitive: false);
+  static final _toWord = RegExp(
+    r'^\s*(?:(?:/|per|a|an)\s*\w+\s*)?to\s*$',
+    caseSensitive: false,
+  );
+
+  /// The price [text] says [current] changes to: "from $9.49/month to
+  /// $10.99/month".
+  static Money? _newPrice(String text, Money current) {
+    final amounts = amountsIn(text).toList();
+    for (var i = 0; i + 1 < amounts.length; i++) {
+      final (a, b) = (amounts[i], amounts[i + 1]);
+      if (a.money != current || b.money.currency != current.currency) {
+        continue;
+      }
+      final before = text.substring(
+        a.start - 12 < 0 ? 0 : a.start - 12,
+        a.start,
+      );
+      if (_fromWord.hasMatch(before) &&
+          _toWord.hasMatch(text.substring(a.end, b.start))) {
+        return b.money;
+      }
+    }
+    return null;
+  }
+
   // ------------------------------------------------------------- senders
+
+  /// "Your subscription from Acme on Google Play", "You've made a
+  /// purchase from Acme Inc. on Google Play".
+  static final _storeMerchant = RegExp(
+    r'\b(?:subscription|purchase|order)\s+from\s+'
+    r"([A-Za-z0-9][\w.&'’ -]{0,40}?)\s+on\s+Google Play\b",
+    caseSensitive: false,
+  );
+
+  /// "Acme LLC is increasing the price of your subscription".
+  static final _storePriceChange = RegExp(
+    r"\b([A-Z0-9][\w.&'’ -]{0,40}?)\s+is\s+(?:increasing|changing|raising|"
+    r'lowering)\s+the\s+price\s+of\s+your\s+subscription\b',
+  );
+
+  static final _companySuffix = RegExp(
+    r',?\s+(?:Inc\.?|LLC|L\.L\.C\.|Ltd\.?|Limited|Corp\.?|Corporation|'
+    r'Co\.|GmbH|PBC|Pte\.?\s+Ltd\.?|S\.A\.)$',
+    caseSensitive: false,
+  );
+
+  /// For an app store's mail at [company] (Google Play's, from
+  /// `google.com`), the merchant it charges for, as a biller: "Acme via
+  /// Google Play"; two apps' subscriptions are two subscriptions. Else
+  /// null.
+  static String? storeMerchantOf(String company, String subject, String text) {
+    if (company.toLowerCase() != 'google.com') return null;
+    final head = text.length > 3000 ? text.substring(0, 3000) : text;
+    final m =
+        _storeMerchant.firstMatch('$subject\n$head') ??
+        _storePriceChange.firstMatch(head);
+    if (m == null) return null;
+    final name = m[1]!
+        .trim()
+        .replaceFirst(RegExp(r'^Google Play\s+'), '')
+        .replaceFirst(_companySuffix, '')
+        .trim();
+    return name.length < 2 ? null : '$name via Google Play';
+  }
 
   /// Payment services that send receipts on behalf of many companies,
   /// under each company's name (`Acme <invoice+statements@stripe.com>`).

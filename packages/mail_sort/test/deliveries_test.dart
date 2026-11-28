@@ -593,4 +593,100 @@ void main() {
       );
     });
   });
+
+  group('the shop says it arrived, or that it was sent', () {
+    test('a survey after the parcel came: delivered', () {
+      final d = find([
+        mail(
+          'Your order XY00ABCD12 is shipped!',
+          shop: 'acmesports.example',
+          name: 'Acme Sports',
+          text: 'Order no. XY00ABCD12. Our carrier has taken over.',
+          daysAgo: 9,
+        ),
+        mail(
+          'Your parcel from Acme Sports is being delivered to you today!',
+          shop: 'ninjavan.co',
+          name: 'Ninja Van',
+          text: 'Order tracking ID NVSGACM00000777777',
+          daysAgo: 7,
+        ),
+        mail(
+          'How was your delivery? Tell us',
+          shop: 'acmesports.example',
+          name: 'Acme Sports',
+          text:
+              'Hi Sam, you have recently received your Acme Sports order. '
+              'Rate it in two clicks.',
+          daysAgo: 4,
+        ),
+      ]).single;
+      expect(d.status, DeliveryStatus.delivered);
+      expect(d.records, hasLength(3));
+      // A question or a promise is not that.
+      for (final text in [
+        'Have you received your order? Tell us.',
+        'Once you have received your order, rate it.',
+        'We have received your order.',
+      ]) {
+        expect(
+          DeliveryFinder.statusOf('About your order', text),
+          isNot(DeliveryStatus.delivered),
+          reason: text,
+        );
+      }
+    });
+
+    test('"dispatched your item(s)": shipped', () {
+      expect(
+        DeliveryFinder.statusOf(
+          'Your Example.example order #111-2222222-3333333 of 1 item',
+          'Dispatch Confirmation Example US dispatched your item(s). Your '
+              'order is on the',
+        ),
+        DeliveryStatus.shipped,
+      );
+      expect(
+        DeliveryFinder.statusOf('Dispatch Confirmation', ''),
+        DeliveryStatus.shipped,
+      );
+      final d = find([
+        mail(
+          'Your Example.example order #111-2222222-3333333 of 1 item',
+          shop: 'shop.example',
+          name: 'Example.example',
+          text: 'Example US dispatched your item(s).',
+        ),
+      ]).single;
+      expect(d.status, DeliveryStatus.shipped);
+    });
+
+    test('no sender name: the shop the mail greets from', () {
+      final d = find([
+        mail(
+          'Greetings from Example Brand - regarding order : S1234567',
+          shop: 'franchise-operator.example',
+          text:
+              'Greetings from Example Brand! Your order S1234567 has been '
+              'shipped.',
+        ),
+      ]).single;
+      expect(d.shopName, 'Example Brand');
+    });
+
+    test('an order number cut at the end of a preview is no number', () {
+      expect(
+        DeliveryFinder.orderNumberIn('Your order Order #114-2222222-'),
+        isNull,
+      );
+      expect(
+        DeliveryFinder.orderNumberIn('Order #114-2222222-3333333 shipped'),
+        '114-2222222-3333333',
+      );
+      expect(
+        DeliveryFinder.orderNumberIn('Order no. AB-12345 shipped'),
+        'AB-12345',
+      );
+    });
+  });
 }

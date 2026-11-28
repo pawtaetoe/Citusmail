@@ -72,6 +72,16 @@ void main() {
         'Amount due S\$84.20, due by Nov 20, 2026': day(11, 20),
         'Your bill of \$42.10 is due on 2026-11-18.': day(11, 18),
         'Kindly make payment on or before 18 November 2026.': day(11, 18),
+        // An auto-debit: the day the money is taken.
+        'We will deduct the amount from your credit / debit card on 14 Nov '
+            '2026.': day(
+          11,
+          14,
+        ),
+        'The amount will be deducted from your account on 16 Nov 2026.': day(
+          11,
+          16,
+        ),
       };
       for (final MapEntry(key: text, value: date) in cases.entries) {
         expect(
