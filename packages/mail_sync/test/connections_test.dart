@@ -401,10 +401,11 @@ void main() {
   group('no deadlock', () {
     for (final perAccount in [1, 2]) {
       test('a budget of $perAccount: a full sync, opening a message, a '
-          'search on the server, older mail, a new folder, reading ahead '
-          'and IDLE all finish', () async {
+          'search on the server, older mail, a new folder, reading ahead, '
+          'a send and IDLE all finish', () async {
         await start(idle: true, gmail: true);
         server.folders['[Gmail]/All Mail'] = FakeFolder(specialUse: 'All');
+        server.folders['[Gmail]/Sent Mail'] = FakeFolder(specialUse: 'Sent');
         addFolders(6, messages: 6);
         for (var i = 0; i < 6; i++) {
           server.folders['[Gmail]/All Mail']!.add(subject: 'archived $i');
@@ -423,6 +424,23 @@ void main() {
         // A change for the server, replayed by the sync.
         MailActions(store).markRead([messages.last]);
         server.folders['INBOX']!.add(subject: 'new');
+        // A message the user sends, out of its undo delay.
+        const sentId = 'deadlock@citusmail.test';
+        store.outbox.enqueue(
+          account.id,
+          SendAction(
+            from: account.email,
+            recipients: const ['bob@x.example'],
+            sentMailboxId: store.mailboxes
+                .bySpecialUse(account.id, SpecialUse.sent)!
+                .id,
+          ),
+          data: Uint8List.fromList(
+            'From: alice@citusmail.test\r\nTo: bob@x.example\r\n'
+                    'Subject: sent\r\nMessage-ID: <$sentId>\r\n\r\nHi.\r\n'
+                .codeUnits,
+          ),
+        );
 
         final work = await Future.wait<Object?>([
           e.syncAccount(account.id),
@@ -431,13 +449,21 @@ void main() {
           e.fetchOlder(inbox().id),
           e.createFolder(account.id, 'Projects'),
           e.loadBody(messages[1].id, background: true),
+          e.replayNow(account.id),
           e.syncAccount(account.id, mailboxIds: {inbox().id}),
         ]).timeout(const Duration(seconds: 60));
 
         expect(work[0], isNotNull, reason: 'the full sync');
         expect(work[1], isNotEmpty, reason: 'the message');
         expect(work[2], isNotEmpty, reason: 'the search');
-        expect(work[6], isNotNull, reason: 'the inbox check');
+        expect(work[7], isNotNull, reason: 'the inbox check');
+        expect(server.deliveredCount(sentId), 1, reason: 'sent once');
+        expect(
+          server.folders['[Gmail]/Sent Mail']!.messages,
+          hasLength(1),
+          reason: 'saved to Sent once',
+        );
+        expect(store.outbox.all(account.id), isEmpty);
         expect(server.refused, 0);
         expect(server.peakLoggedIn, lessThanOrEqualTo(perAccount));
         // IDLE comes back once nothing waits.

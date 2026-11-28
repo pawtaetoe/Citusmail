@@ -98,7 +98,7 @@ final class FakeFolder {
 /// `is:starred` when it is flagged, other words when the message has them;
 /// a leading `-` turns any of them around.
 final class FakeImap {
-  FakeImap._(this._server, this.condstore, this.gmail, this.idle);
+  FakeImap._(this._server, this._smtp, this.condstore, this.gmail, this.idle);
 
   static Future<FakeImap> start({
     bool condstore = false,
@@ -110,11 +110,13 @@ final class FakeImap {
       ..usePrivateKey('${_certs.path}/mail.key');
     final fake = FakeImap._(
       await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, context),
+      await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, context),
       condstore,
       gmail,
       idle,
     );
     fake._server.listen(fake._session, onError: (Object _) {});
+    fake._smtp.listen(fake._smtpSession, onError: (Object _) {});
     return fake;
   }
 
@@ -122,9 +124,19 @@ final class FakeImap {
   static String? get skipReason => fakeServersSkipReason;
 
   final SecureServerSocket _server;
+
+  /// A tiny SMTP server next to it (the account's port 465), which keeps
+  /// what it is sent in [delivered].
+  final SecureServerSocket _smtp;
   final bool condstore;
   final bool gmail;
   final bool idle;
+
+  /// Messages delivered over SMTP, as received, and when.
+  final delivered = <({DateTime at, Uint8List message})>[];
+
+  /// When each of [commands] arrived.
+  final commandTimes = <DateTime>[];
 
   /// Whether it has LIST-STATUS (RFC 5819): LIST returns each folder's
   /// counters too.
@@ -179,7 +191,7 @@ final class FakeImap {
     useQresync: false,
     endpointFor: (s) => ServerEndpoint(
       'mail.citusmail.test',
-      _server.port,
+      s.port == 465 ? _smtp.port : _server.port,
       ConnectionSecurity.implicitTls,
       connectAddress: '127.0.0.1',
     ),
@@ -207,7 +219,81 @@ final class FakeImap {
     return account;
   }
 
-  Future<void> close() => _server.close();
+  Future<void> close() async {
+    await _server.close();
+    await _smtp.close();
+  }
+
+  /// How many copies with this Message-ID (without brackets) were
+  /// delivered over SMTP.
+  int deliveredCount(String messageId) => delivered
+      .where((d) => const MimeParser().parse(d.message).messageId == messageId)
+      .length;
+
+  /// SMTP, with [latency] on every answer like IMAP.
+  void _smtpSession(Socket socket) {
+    var answered = Future<void>.value();
+    void send(String text) {
+      void write() {
+        try {
+          socket.add(ascii.encode(text));
+        } on Object {
+          // The connection is gone.
+        }
+      }
+
+      if (latency == Duration.zero) {
+        write();
+      } else {
+        answered = answered.then((_) => Future<void>.delayed(latency, write));
+      }
+    }
+
+    send('220 fake ESMTP\r\n');
+    var buffer = <int>[];
+    BytesBuilder? data;
+    socket.listen(
+      (chunk) {
+        buffer.addAll(chunk);
+        while (true) {
+          final end = buffer.indexOf(0x0A);
+          if (end < 0) return;
+          final raw = buffer.sublist(0, end + 1);
+          buffer = buffer.sublist(end + 1);
+          if (data case final message?) {
+            if (latin1.decode(raw) == '.\r\n') {
+              delivered.add((at: DateTime.now(), message: message.takeBytes()));
+              data = null;
+              send('250 queued\r\n');
+            } else {
+              // Undo dot-stuffing.
+              message.add(
+                raw.length > 1 && raw[0] == 0x2E && raw[1] == 0x2E
+                    ? raw.sublist(1)
+                    : raw,
+              );
+            }
+            continue;
+          }
+          final line = latin1.decode(raw).trimRight();
+          final verb = line.split(RegExp('[ :]')).first.toUpperCase();
+          send(switch (verb) {
+            'EHLO' => '250-fake\r\n250 AUTH PLAIN\r\n',
+            'AUTH' => '235 ok\r\n',
+            'MAIL' || 'RSET' || 'RCPT' => '250 ok\r\n',
+            'DATA' => () {
+              data = BytesBuilder();
+              return '354 go ahead\r\n';
+            }(),
+            'QUIT' => '221 bye\r\n',
+            _ => '502 unknown\r\n',
+          });
+        }
+      },
+      onError: (_) {},
+      onDone: socket.destroy,
+    );
+  }
 
   String get _capabilities =>
       'IMAP4rev1 AUTH=PLAIN SASL-IR LITERAL+ UIDPLUS MOVE SPECIAL-USE '
@@ -261,6 +347,7 @@ final class FakeImap {
       final words = _tokens(line);
       var command = words.first.toUpperCase();
       if (command == 'UID') command = 'UID ${words[1].toUpperCase()}';
+      commandTimes.add(DateTime.now());
       commands.add(
         command == 'AUTHENTICATE' || command == 'LOGIN' ? command : line,
       );
@@ -386,6 +473,7 @@ final class FakeImap {
     void append(String tag, String line, Uint8List message) {
       final words = _tokens(line);
       commands.add('APPEND ${words[1]}');
+      commandTimes.add(DateTime.now());
       final folder = folders.putIfAbsent(words[1], FakeFolder.new);
       final flags = {
         for (final w in words.skip(2))
