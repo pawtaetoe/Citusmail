@@ -210,7 +210,7 @@ final class FakeImap {
   Future<void> close() => _server.close();
 
   String get _capabilities =>
-      'IMAP4rev1 AUTH=PLAIN SASL-IR LITERAL+ UIDPLUS MOVE SPECIAL-USE '
+      'IMAP4rev1 AUTH=PLAIN SASL-IR LITERAL+ UIDPLUS MOVE SPECIAL-USE UNSELECT '
       'LIST-EXTENDED${condstore ? ' CONDSTORE' : ''}'
       '${gmail ? ' X-GM-EXT-1' : ''}${idle ? ' IDLE' : ''}'
       '${listStatus ? ' LIST-STATUS' : ''}';
@@ -375,6 +375,9 @@ final class FakeImap {
           return '* OK [COPYUID ${target.uidValidity} '
               '${moving.map((m) => m.uid).join(',')} ${to.join(',')}] moved\r\n'
               '$tag OK done\r\n';
+        case 'UNSELECT':
+          selected = null;
+          return '$tag OK done\r\n';
         case 'LOGOUT':
           logOut();
           return '* BYE bye\r\n$tag OK done\r\n';

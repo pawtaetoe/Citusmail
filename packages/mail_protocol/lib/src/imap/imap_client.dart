@@ -367,6 +367,10 @@ final class ImapClient {
   >
   listMailboxesWithStatus({bool highestModSeq = false}) async {
     if (!_capabilities.has('LIST-STATUS')) return null;
+    // An open folder's counters may answer from this session's old view
+    // (see [status]): close it first where the server allows (UNSELECT),
+    // else leave its counters out below.
+    await unselect();
     final items = [
       'MESSAGES',
       'UIDNEXT',
@@ -404,6 +408,9 @@ final class ImapClient {
         return false;
       },
     );
+    // Still open (no UNSELECT): its counters may be stale, so they are
+    // left out and nobody takes the folder for unchanged.
+    if (_selected case final open?) status.remove(open.name);
     return (mailboxes: mailboxes, status: status);
   }
 
@@ -412,6 +419,13 @@ final class ImapClient {
     String encodedName, {
     bool highestModSeq = false,
   }) async {
+    // STATUS on the folder this connection has open may answer from the
+    // session's own view, without what other clients did since (RFC 9051
+    // 6.3.11 says not to rely on it). Opening it again brings that view
+    // up to date first.
+    if (_selected case final open? when open.name == encodedName) {
+      await select(encodedName, readOnly: open.readOnly);
+    }
     final items = [
       'MESSAGES',
       'UIDNEXT',
@@ -432,6 +446,17 @@ final class ImapClient {
       },
     );
     return status ?? const MailboxStatus();
+  }
+
+  /// Closes the open folder without expunging anything (UNSELECT, RFC
+  /// 3691). Returns whether no folder is open afterwards: false when one
+  /// is and the server can't unselect.
+  Future<bool> unselect() async {
+    if (_selected == null) return true;
+    if (!_capabilities.has('UNSELECT')) return false;
+    await _run(ImapCommand('UNSELECT'));
+    _selected = null;
+    return true;
   }
 
   /// Opens a folder. [readOnly] uses EXAMINE, which never changes flags.
