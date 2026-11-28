@@ -1718,7 +1718,10 @@ final class _AdvancedSettingsPageState extends State<AdvancedSettingsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Advanced')),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        // The last setting scrolls above the phone's navigation bar.
+        padding: EdgeInsets.only(
+          bottom: 24 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),

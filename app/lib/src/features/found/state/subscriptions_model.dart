@@ -31,6 +31,9 @@ Future<SubscriptionMail> loadSubscriptionMail(
   final candidates = store.messages.withSubjectWords(
     SubscriptionFinder.subjectWords,
     since: now.subtract(SubscriptionsModel.lookBack),
+    // A paid plan's welcome whose subject names none ("Welcome aboard!":
+    // "you're now a paid member").
+    snippetWords: SubscriptionFinder.previewWords,
   );
   final texts = await plainTextReads.read(store, candidates);
   return (
@@ -81,7 +84,7 @@ List<MailSample> subscriptionSamples(
   for (final r in subscription.records)
     mailSample(
       message(r.email.messageId),
-      domain: subscription.company,
+      domain: r.email.company,
       senderName: r.email.senderName,
       subject: r.email.subject,
       text: r.email.text,
@@ -166,15 +169,18 @@ List<MessageId> subscriptionMailToRead(
   // Receipts not on the device, newest first, from companies that are
   // neither listed nor hidden: their whole text may show a billing period
   // ("Sep 28, 2026 – Sep 28, 2027").
-  final known = {for (final s in found) s.company};
+  final known = {
+    for (final s in found) ...{s.company, ...s.billers},
+  };
   final unknown = [
     for (final e in mail.emails)
-      if (!known.contains(e.company) &&
-          !left.contains(e.company) &&
-          !SubscriptionFinder.isReplyOrForward(e.subject) &&
-          SubscriptionFinder.eventOf(e) == SubscriptionEvent.charge &&
-          wanted(e.messageId))
-        e,
+      // A forward as the email it forwards; not replies.
+      if (e.original case final o?)
+        if (!known.contains(o.biller) &&
+            !left.contains(o.biller) &&
+            SubscriptionFinder.eventOf(o) == SubscriptionEvent.charge &&
+            wanted(e.messageId))
+          e,
   ]..sort((a, b) => b.at.compareTo(a.at));
   return {
     // Only where something is missing: no price, or no "how often".
@@ -190,7 +196,7 @@ List<MessageId> subscriptionMailToRead(
     // due or end.
     for (final e in mail.emails)
       if (now.difference(e.at) < SubscriptionsModel.datesBack &&
-          !dated.contains(e.company) &&
+          !dated.contains(e.biller) &&
           (Reminders.mayBeBill(e) || Reminders.isTrial(e)) &&
           wanted(e.messageId))
         e.messageId,

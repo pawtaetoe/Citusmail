@@ -97,6 +97,163 @@ void main() {
     });
   });
 
+  group('numbers that are not codes', () {
+    test('a group of a longer grouped number', () {
+      const cases = [
+        // A rail booking code in four groups.
+        ('Booking code: 1111 2222 3333 4444 Customer no.: XY000000000 '
+            'Travel date: 3 March 2031'),
+        // Zoom (3-4-4) and Teams (3-3-3-3) meeting IDs.
+        ('Join Zoom Meeting\nhttps://example.zoom.us/j/98765432101?pwd=abc\n\n'
+            'Meeting ID: 987 6543 2101\nPasscode: Qw3&er45'),
+        'Microsoft Teams meeting\nMeeting ID: 321 654 987 210\nPasscode: Zx9',
+        'Call our code hotline +99 6123 4567 any time',
+      ];
+      for (final text in cases) {
+        expect(VerificationCodes.find(text), isNull, reason: text);
+      }
+    });
+
+    test('a booking, order or promo code after its label', () {
+      const cases = [
+        ('Check-in QR code\nBooking Reference Number\n[barcode]\nK7QZ2P\n'
+            'Show this at the counter.'),
+        'Your reservation code: ZX81QA. Use it to manage your booking.',
+        'Order number 55512345 (keep this code for returns)',
+        "Use promo code 'SPRING50' when you pay to get \$10 off",
+        "Mention code 'PERK20' at the bar for 15% off drinks.",
+        'Enter code SALE2031 at checkout',
+        'Backup failed. Error code: 0x80070005',
+      ];
+      for (final text in cases) {
+        expect(VerificationCodes.find(text), isNull, reason: text);
+      }
+    });
+
+    test('a meeting passcode, and a year near "password-protected"', () {
+      const cases = [
+        'Meeting ID 901 2345 6789\nPasscode 246810\nJoin Meeting',
+        'Webinar ID 222 3333 4444\nPasscode 123456',
+        'Starts: 4 March 2031 09:00\nClick Here to Join\nPasscode: 271828',
+        'Statement for March 2031. The attached PDF is password-protected.',
+      ];
+      for (final text in cases) {
+        expect(VerificationCodes.find(text), isNull, reason: text);
+      }
+    });
+
+    test('a postcode in a sign-in link mail\'s footer', () {
+      const text =
+          'Tap the button to verify and sign in. This link works once. '
+          'Verify\nExample Travel B.V., Voorbeeldstraat 12, 1234 AB Amsterdam';
+      expect(VerificationCodes.find(text), isNull);
+      expect(VerificationCodes.inMessage('Your verification link', text), null);
+      expect(
+        VerificationCodes.isVerificationSubject('Your verification link'),
+        isTrue,
+      );
+    });
+
+    test('real codes next to such numbers are still found', () {
+      final cases = {
+        'Your booking number is 55512345. Your verification code: 654321':
+            '654321',
+        'Your verification code is 482913. Get 20% off your next ride!':
+            '482913',
+        'Meeting notes attached. Your sign-in code is 778899': '778899',
+        'Use code 820193 to sign in.': '820193',
+        'Your code: 2031': '2031',
+      };
+      for (final MapEntry(key: text, value: code) in cases.entries) {
+        expect(VerificationCodes.find(text), code, reason: text);
+      }
+    });
+
+    test('a rail booking or a meeting invite is not sorted as Codes', () {
+      expect(
+        const HeaderRuleClassifier()
+            .classify(
+              mail(
+                'Example Rail ticket – 1111 2222 3333 4444 – Mar 3 2031',
+                snippet:
+                    'Booking code: 1111 2222 3333 4444 Customer no.: '
+                    'XY000000000 Travel date: 3 March 2031',
+              ),
+            )
+            .category,
+        isNot(MessageCategory.codes),
+      );
+      expect(
+        const HeaderRuleClassifier()
+            .classify(
+              mail(
+                'Team discussion',
+                snippet:
+                    'Join Zoom Meeting https://example.zoom.us/j/98765432101 '
+                    'Meeting ID: 987 6543 2101 Passcode: 445566',
+              ),
+            )
+            .category,
+        isNot(MessageCategory.codes),
+      );
+    });
+
+    test('an order\'s "email confirmation" is not verification mail', () {
+      expect(
+        VerificationCodes.isVerificationSubject(
+          'Email confirmation for your Example Burgers order',
+        ),
+        isFalse,
+      );
+      expect(
+        VerificationCodes.isVerificationSubject('Email confirmation'),
+        isTrue,
+      );
+      expect(
+        VerificationCodes.isVerificationSubject('Your order verification code'),
+        isTrue,
+      );
+    });
+  });
+
+  group('codes in Chinese, and in lower case', () {
+    test('a Traditional or Simplified Chinese code label', () {
+      final cases = {
+        '您的驗證碼為 482913，請於10分鐘內輸入。': '482913',
+        '請在頁面輸入以下認證碼以重設密碼。認證碼：7k2m9q': '7k2m9q',
+        '您的认证码：731942': '731942',
+      };
+      for (final MapEntry(key: text, value: code) in cases.entries) {
+        expect(VerificationCodes.find(text), code, reason: text);
+      }
+      for (final subject in ['您的驗證碼', 'Example 認證碼通知', '验证码']) {
+        expect(
+          VerificationCodes.isVerificationSubject(subject),
+          isTrue,
+          reason: subject,
+        );
+      }
+    });
+
+    test('a lower-case code on its own line', () {
+      expect(
+        VerificationCodes.find(
+          'Choose a new password\nEnter this code to continue:\n\nq4w8e2rt\n\n'
+          'It is valid for 15 minutes.',
+        ),
+        'q4w8e2rt',
+      );
+      expect(
+        VerificationCodes.find('Your code is valid for 10 minutes'),
+        isNull,
+      );
+      expect(
+        VerificationCodes.find('Verify your address. Username: bob1990'),
+        isNull,
+      );
+    });
+  });
+
   test('a sign-in notice with the code far down its body', () {
     const body =
         'Security Notice for User p******7: Verify Log In\n'

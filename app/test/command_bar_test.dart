@@ -527,6 +527,17 @@ void main() {
       await tester.tap(find.text('All features'));
       await tester.pumpAndSettle();
       expect(find.byType(DiscoverPage), findsOneWidget);
+      // Below the pages found in mail.
+      await tester.scrollUntilVisible(
+        find.bySemanticsLabel(RegExp('Open Command bar')),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(DiscoverPage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.bySemanticsLabel(RegExp('Open Command bar')));
       await tester.pumpAndSettle();
       expect(find.byType(DiscoverPage), findsNothing);

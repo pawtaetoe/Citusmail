@@ -164,16 +164,35 @@ final class ReservationPlace {
   static String? _address(Object? address) {
     if (address is String) return address.trim().isEmpty ? null : address;
     if (address is! SchemaThing) return null;
-    final parts = [
-      for (final name in const [
-        'streetAddress',
-        'addressLocality',
-        'addressRegion',
-        'postalCode',
-        'addressCountry',
-      ])
-        ?address.text(name),
-    ];
+    final street = address.text('streetAddress');
+    // A street that holds a whole address ("Estate Road, Exampletown AB1
+    // 2CD, UK") with nothing else filled in: a template's default country
+    // is not added to it.
+    final whole =
+        street != null &&
+        street.contains(',') &&
+        address.text('addressLocality') == null &&
+        address.text('addressRegion') == null &&
+        address.text('postalCode') == null;
+    final parts = <String>[];
+    for (final name in const [
+      'streetAddress',
+      'addressLocality',
+      'addressRegion',
+      'postalCode',
+      'addressCountry',
+    ]) {
+      final part = address.text(name);
+      if (part == null) continue;
+      if (whole && name == 'addressCountry') continue;
+      // Said already ("Exampletown" in the street).
+      final said = parts.join(', ').toLowerCase();
+      final word = RegExp(
+        '(?:^|[\\s,])${RegExp.escape(part.toLowerCase())}(?:\$|[\\s,])',
+      );
+      if (word.hasMatch(said)) continue;
+      parts.add(part);
+    }
     return parts.isEmpty ? address.text('name') : parts.join(', ');
   }
 

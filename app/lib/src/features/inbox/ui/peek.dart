@@ -12,6 +12,7 @@ import '../../../core/text/mail_text.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/widgets/avatar.dart';
+import '../../../core/widgets/inset_sheet.dart';
 import '../state/mail_controller.dart';
 import '../state/message_reads.dart';
 import 'mail_shell.dart';
@@ -44,12 +45,10 @@ abstract final class Peek {
     final size = MediaQuery.sizeOf(context);
     final card = PeekCard(controller: controller, message: message);
     if (size.width < MailShell.mediumWidth) {
-      return showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        useSafeArea: true,
-        constraints: BoxConstraints(maxHeight: size.height * 0.85),
+      // The actions stay above the phone's navigation bar.
+      return showInsetSheet<void>(
+        context,
+        maxHeightFactor: 0.85,
         builder: (_) => _closesWithSpace(card),
       );
     }

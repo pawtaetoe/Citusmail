@@ -264,8 +264,8 @@ final heldOut = <Labelled>[
   Labelled(
     _b,
     'reservations@lindner.example',
-    'Lindner Hotels',
-    'Lindner Hotel Am Belvedere has been booked',
+    'Linden Hotels',
+    'Linden Hotel Am Stadtpark has been booked',
     'Dear Mr Novak,\nwe are delighted to confirm your stay.\n'
         'Arrival: 03.12.2026\nDeparture: 06.12.2026\nSuperior Double Room, '
         'breakfast included\nRate: EUR 168.00 per night\n'

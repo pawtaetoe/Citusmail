@@ -144,6 +144,110 @@ void main() {
       expect(evidence('Your DBS account statement'), AccountEvidence.notice);
     });
 
+    test('an online account to activate, or a programme joined', () {
+      expect(
+        evidence('Activate your Example Online Service account'),
+        AccountEvidence.signedUp,
+      );
+      expect(
+        evidence(
+          'Your Example Miles membership card',
+          text:
+              'Thank you for joining Example Miles. Your member number: '
+              'EX1234567.',
+        ),
+        AccountEvidence.signedUp,
+      );
+    });
+
+    test('statements and linked accounts show an account', () {
+      expect(
+        evidence(
+          'Your Monthly Trade Statement (2031/01)',
+          text: 'A new statement for account EXA0001234 is ready to view.',
+        ),
+        AccountEvidence.notice,
+      );
+      expect(
+        evidence('Your March eStatement is available'),
+        AccountEvidence.notice,
+      );
+      expect(
+        evidence('Your Example account is now linked to Google'),
+        AccountEvidence.accountChange,
+      );
+      expect(AccountFinder.subjectWords, contains('statement'));
+    });
+
+    test('a plan that expired is not a closed account', () {
+      expect(
+        evidence(
+          'Your Example Notes Pro plan has ended',
+          text:
+              'Sorry to see you go. The Pro plan expired today; you can '
+              're-subscribe whenever you like.',
+        ),
+        AccountEvidence.notice,
+      );
+    });
+
+    test('a card payment OTP is not a sign-in code', () {
+      expect(
+        evidence(
+          'Your card payment OTP',
+          code: true,
+          text:
+              'Use 123456 to approve your 3-D Secure transaction of USD 12.00 '
+              'at Example Shop.',
+        ),
+        AccountEvidence.notice,
+      );
+      expect(
+        evidence(
+          'Your verification code',
+          code: true,
+          text: 'Your verification code is 482913.',
+        ),
+        AccountEvidence.signInCode,
+      );
+    });
+
+    test('an order confirmation or an event registration is no sign-up', () {
+      expect(
+        evidence(
+          'Email confirmation for your Example Burgers order',
+          text: 'Thanks for your order. Order number: 1042.',
+        ),
+        isNot(AccountEvidence.signedUp),
+      );
+      expect(
+        evidence(
+          'Registration confirmed: Intro to Widgets',
+          text:
+              'Hi Sam, thank you for registering for Intro to Widgets. '
+              'Details of this webinar are below. Join: '
+              'https://example.zoom.us/w/98765432100 Webinar ID 987 6543 2100 '
+              'Passcode: 314159',
+        ),
+        isNull,
+      );
+      expect(
+        evidence(
+          'Verify your email address',
+          text: 'Then join our weekly webinar to get started.',
+        ),
+        AccountEvidence.signedUp,
+        reason: 'verifying an address is a sign-up, webinar or not',
+      );
+      expect(
+        evidence(
+          'See you there',
+          text: 'Thank you for joining the webinar. The recording is below.',
+        ),
+        isNull,
+      );
+    });
+
     test('not account mail', () {
       expect(evidence('Re: Welcome to the team'), isNull);
       expect(evidence('Fwd: Your password was changed'), isNull);
@@ -465,6 +569,115 @@ void main() {
         AccountFinder.worthReading(mail('x.example', 'Lunch?', day(2026, 1))),
         isFalse,
       );
+    });
+  });
+
+  group('more senders and languages', () {
+    test('a global company\'s country sites are one account', () {
+      expect(AccountFinder.companyOf('amazon.sg'), 'amazon.com');
+      expect(AccountFinder.companyOf('amazon.com.au'), 'amazon.com');
+      expect(AccountFinder.companyOf('paypal.de'), 'paypal.com');
+      expect(AccountFinder.companyOf('ebay.co.uk'), 'ebay.com');
+      expect(AccountFinder.companyOf('example.sg'), 'example.sg');
+      final a = find([
+        mail(
+          'amazon.sg',
+          'Your Amazon Prime membership cancellation',
+          day(2026, 5, 12),
+          name: 'Amazon Prime',
+        ),
+        mail(
+          'amazon.com',
+          'Your Amazon.com account: sign-in from a new device',
+          day(2026, 10, 1),
+          name: 'Amazon.com',
+        ),
+      ]).single;
+      expect(a.company, 'amazon.com');
+      expect(a.name, 'Amazon');
+    });
+
+    test('sign-ups, resets and alerts in other languages', () {
+      expect(evidence('Willkommen bei Example!'), AccountEvidence.signedUp);
+      expect(evidence('Bienvenue chez Example'), AccountEvidence.signedUp);
+      expect(evidence('欢迎加入 Example'), AccountEvidence.signedUp);
+      expect(evidence('Example 網路銀行密碼重置成功'), AccountEvidence.passwordReset);
+      expect(
+        evidence('Passwort zurücksetzen für dein Konto'),
+        AccountEvidence.passwordReset,
+      );
+      expect(evidence('Example 登入網路密碼錯誤1次通知'), AccountEvidence.securityAlert);
+      expect(
+        evidence('Neue Anmeldung bei deinem Konto'),
+        AccountEvidence.securityAlert,
+      );
+      expect(AccountFinder.subjectWords, contains('willkommen'));
+    });
+
+    test('a Chinese login notice and verification words', () {
+      expect(evidence('Example App 登入成功'), AccountEvidence.securityAlert);
+      expect(evidence('您已成功登录 Example'), AccountEvidence.securityAlert);
+      expect(evidence('您的帳戶在新裝置上登入'), AccountEvidence.securityAlert);
+      expect(evidence('您的驗證碼'), AccountEvidence.signInCode);
+      expect(AccountFinder.subjectWords, containsAll(['驗證', '验证', '認證']));
+    });
+
+    test('a person writing for a brand, and a "No Reply" suffix', () {
+      final found = find([
+        mail(
+          'cloudhost.example',
+          'Welcome to CloudHost',
+          day(2026, 3, 1),
+          name: 'Robin from CloudHost',
+        ),
+        mail(
+          'pizza.example',
+          'Welcome to Example Pizza',
+          day(2026, 4, 1),
+          name: 'Example Pizza Riverside - No Reply',
+        ),
+      ]);
+      expect(
+        {for (final a in found) a.company: a.name},
+        {
+          'cloudhost.example': 'CloudHost',
+          'pizza.example': 'Example Pizza Riverside',
+        },
+      );
+    });
+
+    test('a department in the sender name is not the company\'s name', () {
+      final a = find([
+        mail(
+          'hosting.example',
+          'Account security notice - successful login',
+          day(2026, 11, 1),
+          name: 'Example Hosting Support Dept.',
+        ),
+      ]).single;
+      expect(a.name, 'Example Hosting');
+    });
+
+    test('a company billed through a payment service is its own account', () {
+      final found = find([
+        for (final m in [9, 10])
+          mail(
+            'stripe.com',
+            'Your receipt from Acme Render #1000-20$m',
+            day(2026, m, 18),
+            name: 'Acme Render',
+            text: 'Amount paid \$6.00. Oct 18, 2026 – Nov 18, 2026',
+          ),
+        mail(
+          'stripe.com',
+          'Your City Permits receipt',
+          day(2026, 10, 2),
+          name: 'City Permits',
+          text: 'Amount paid S\$50.00',
+        ),
+      ]);
+      expect(found.map((a) => a.company), ['Acme Render via stripe.com']);
+      expect(found.single.name, 'Acme Render');
     });
   });
 }

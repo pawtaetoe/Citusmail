@@ -11,10 +11,12 @@ import 'package:mail_store/mail_store.dart';
 import '../../../app/app.dart' show appName;
 import '../../../core/theme/app_icons.dart';
 import '../../accounts/ui/accounts_page.dart';
+import '../../calendar/ui/calendar_view.dart';
 import '../../compose/ui/sign_offs_page.dart';
 import '../../found/ui/appointments_page.dart';
 import '../../found/ui/attachments_page.dart';
 import '../../found/ui/deliveries_page.dart';
+import '../../found/ui/events_page.dart';
 import '../../found/ui/subscriptions_page.dart';
 import '../../found/ui/trips_page.dart';
 import '../../inbox/state/mail_controller.dart';
@@ -150,6 +152,16 @@ abstract final class Features {
       sentence: 'Appointments and table bookings coming up, from your mail.',
       open: (context, c) =>
           _push(context, (_) => AppointmentsPage(controller: c)),
+    ),
+    Feature(
+      id: FeatureId.events,
+      group: FeatureGroup.found,
+      icon: AppIcons.events,
+      title: 'Events',
+      sentence:
+          'Tours, concerts, shows, films and meetings, from your tickets '
+          'and invitations.',
+      open: (context, c) => _push(context, (_) => EventsPage(controller: c)),
     ),
     Feature(
       id: FeatureId.onlineAccounts,
@@ -288,6 +300,16 @@ abstract final class Features {
       title: 'Pins',
       sentence: 'Pin an email to keep it at hand in Pins.',
       open: (context, c) => _goTo(context, c, const PinsLocation()),
+    ),
+    Feature(
+      id: FeatureId.calendar,
+      group: FeatureGroup.inbox,
+      icon: AppIcons.calendar,
+      title: 'Calendar',
+      sentence:
+          'Trips, appointments, tickets and meetings from your mail, by '
+          'day.',
+      open: (context, c) => _push(context, (_) => CalendarPage(controller: c)),
     ),
     Feature(
       id: FeatureId.unsubscribe,

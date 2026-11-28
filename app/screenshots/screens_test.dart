@@ -21,6 +21,7 @@ import 'package:citusmail/src/features/accounts/ui/send_accounts_page.dart';
 import 'package:citusmail/src/features/accounts/ui/setup_page.dart';
 import 'package:citusmail/src/features/ai/state/ai_tidy_model.dart';
 import 'package:citusmail/src/features/ai/ui/ai_settings_page.dart';
+import 'package:citusmail/src/features/calendar/ui/calendar_view.dart';
 import 'package:citusmail/src/features/compose/state/compose_controller.dart';
 import 'package:citusmail/src/features/compose/state/send_later_times.dart';
 import 'package:citusmail/src/features/compose/ui/compose_page.dart';
@@ -30,6 +31,7 @@ import 'package:citusmail/src/features/discover/ui/whats_new.dart';
 import 'package:citusmail/src/features/found/ui/appointments_page.dart';
 import 'package:citusmail/src/features/found/ui/attachments_page.dart';
 import 'package:citusmail/src/features/found/ui/deliveries_page.dart';
+import 'package:citusmail/src/features/found/ui/events_page.dart';
 import 'package:citusmail/src/features/found/ui/subscriptions_page.dart';
 import 'package:citusmail/src/features/found/ui/trips_page.dart';
 import 'package:citusmail/src/features/inbox/state/commands.dart';
@@ -62,6 +64,7 @@ import 'package:mail_sync/mail_sync.dart';
 import '../test/support/appointment_mail.dart';
 import '../test/support/away_mail.dart';
 import '../test/support/delivery_mail.dart';
+import '../test/support/event_mail.dart';
 import '../test/support/privacy_mail.dart';
 import '../test/support/return_mail.dart';
 import '../test/support/sample_files.dart';
@@ -198,12 +201,12 @@ void main() {
     });
 
     // The phone's tabs: the inbox with search on top and the navigation
-    // bar, what is found in your mail, and the folders.
+    // bar, what is found in your mail and the tools, and the folders.
     testWidgets('phone tabs$suffix', (tester) async {
       await show(tester, shell(), size: const Size(390, 844), dark: dark);
       await shoot(tester, 'phone_tabs_inbox$suffix');
-      await tester.tap(find.text('Found'));
-      await shoot(tester, 'phone_tabs_found$suffix');
+      await tester.tap(find.text('Tools'));
+      await shoot(tester, 'phone_tabs_tools$suffix');
       await tester.tap(find.text('Folders'));
       await shoot(tester, 'phone_tabs_folders$suffix');
       // Selecting: the actions take the bar's place.
@@ -472,6 +475,49 @@ void main() {
         await shoot(tester, '${name}_appointments$suffix');
         await tester.tap(find.text('Bright Smile Dental'));
         await shoot(tester, '${name}_appointment$suffix');
+      });
+    }
+  }
+
+  for (final (name, size) in [
+    ('phone', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    for (final dark in [false, true]) {
+      testWidgets('events $name${dark ? ' dark' : ''}', (tester) async {
+        seedEvents(app.store, now: DateTime.now().toUtc());
+        await show(
+          tester,
+          EventsPage(controller: MailController(app.services)),
+          size: size,
+          dark: dark,
+        );
+        final suffix = dark ? '_dark' : '';
+        await shoot(tester, '${name}_events$suffix');
+        await tester.tap(find.text('Guided Factory Tour'));
+        await shoot(tester, '${name}_event$suffix');
+      });
+
+      // Everything dated, by day: trips, appointments and events.
+      testWidgets('calendar $name${dark ? ' dark' : ''}', (tester) async {
+        final now = DateTime.now().toUtc();
+        seedTrips(app.store, now: now);
+        seedAppointments(app.store, now: now);
+        seedEvents(app.store, now: now);
+        final suffix = dark ? '_dark' : '';
+        if (name == 'phone') {
+          await show(tester, shell(), size: size, dark: dark);
+          await tester.tap(find.text('Calendar'));
+        } else {
+          await show(
+            tester,
+            CalendarPage(controller: MailController(app.services)),
+            size: size,
+            dark: dark,
+          );
+        }
+        await settle(tester);
+        await shoot(tester, '${name}_calendar$suffix');
       });
     }
   }

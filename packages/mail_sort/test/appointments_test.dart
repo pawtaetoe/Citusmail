@@ -223,65 +223,60 @@ void main() {
       expect(a.place, 'ICA Building, 10 Kallang Road, Singapore 208718');
     });
 
-    test(
-      'an interview, a parent-teacher meeting, a class, a delivery slot',
-      () {
-        final found = find([
-          mail(
-            'Interview invitation – Product Designer',
-            sender: 'acme-careers.com',
-            name: 'Acme Careers',
-            daysAgo: 3,
-            text:
-                'Hi Alice, we would like to invite you to an interview for the '
-                'Product Designer role. Your interview is scheduled for '
-                'Wednesday 18 November 2026 at 2:00 PM (video call, link to '
-                'follow).',
-          ),
-          mail(
-            'Parent-teacher meeting booked',
-            sender: 'greenwood.edu.sg',
-            name: 'Greenwood Primary School',
-            daysAgo: 4,
-            text:
-                'Your parent-teacher meeting with Mrs Koh (Class 3B) is booked '
-                'for 19 Nov 2026 at 4:20 pm in Classroom 3B.',
-          ),
-          mail(
-            "You're booked: Reformer Pilates",
-            sender: 'corestudio.sg',
-            name: 'Core Studio',
-            daysAgo: 1,
-            text:
-                "You're booked! Reformer Pilates with Jess on Tue 17 Nov 2026 "
-                'at 7:30 AM. Please arrive 10 minutes early.',
-          ),
-          mail(
-            'Your delivery slot is booked',
-            sender: 'freshgrocer.sg',
-            name: 'FreshGrocer',
-            daysAgo: 1,
-            text:
-                'Thanks for your order! Your delivery slot is booked for '
-                'Wed 11 Nov 2026, 10:00 - 12:00.',
-          ),
-        ]);
-        expect(
-          {for (final a in found) a.title: a.kind},
-          {
-            'Acme Careers': AppointmentKind.interview,
-            'Greenwood Primary School': AppointmentKind.school,
-            'Core Studio': AppointmentKind.lesson,
-            'FreshGrocer': AppointmentKind.delivery,
-          },
-        );
-        final interview = found.firstWhere((a) => a.title == 'Acme Careers');
-        expect(interview.online, isTrue);
-        final slot = found.firstWhere((a) => a.title == 'FreshGrocer');
-        expect(wall(slot.start), '2026-11-11 10:00');
-        expect(wall(slot.end!), '2026-11-11 12:00');
-      },
-    );
+    test('a parent-teacher meeting, a class, a delivery slot; '
+        'not a job interview (an event)', () {
+      final found = find([
+        mail(
+          'Interview invitation – Product Designer',
+          sender: 'acme-careers.com',
+          name: 'Acme Careers',
+          daysAgo: 3,
+          text:
+              'Hi Alice, we would like to invite you to an interview for the '
+              'Product Designer role. Your interview is scheduled for '
+              'Wednesday 18 November 2026 at 2:00 PM (video call, link to '
+              'follow).',
+        ),
+        mail(
+          'Parent-teacher meeting booked',
+          sender: 'greenwood.edu.sg',
+          name: 'Greenwood Primary School',
+          daysAgo: 4,
+          text:
+              'Your parent-teacher meeting with Mrs Koh (Class 3B) is booked '
+              'for 19 Nov 2026 at 4:20 pm in Classroom 3B.',
+        ),
+        mail(
+          "You're booked: Reformer Pilates",
+          sender: 'corestudio.sg',
+          name: 'Core Studio',
+          daysAgo: 1,
+          text:
+              "You're booked! Reformer Pilates with Jess on Tue 17 Nov 2026 "
+              'at 7:30 AM. Please arrive 10 minutes early.',
+        ),
+        mail(
+          'Your delivery slot is booked',
+          sender: 'freshgrocer.sg',
+          name: 'FreshGrocer',
+          daysAgo: 1,
+          text:
+              'Thanks for your order! Your delivery slot is booked for '
+              'Wed 11 Nov 2026, 10:00 - 12:00.',
+        ),
+      ]);
+      expect(
+        {for (final a in found) a.title: a.kind},
+        {
+          'Greenwood Primary School': AppointmentKind.school,
+          'Core Studio': AppointmentKind.lesson,
+          'FreshGrocer': AppointmentKind.delivery,
+        },
+      );
+      final slot = found.firstWhere((a) => a.title == 'FreshGrocer');
+      expect(wall(slot.start), '2026-11-11 10:00');
+      expect(wall(slot.end!), '2026-11-11 12:00');
+    });
   });
 
   group('markup and calendar files', () {
@@ -606,6 +601,92 @@ void main() {
         ]),
         isEmpty,
       );
+    });
+
+    test('a rental car is the Trips page\'s', () {
+      // A rental company's confirmation: "is confirmed", a pick-up date
+      // and time, a "Vehicle".
+      expect(
+        find([
+          mail(
+            'Reservation Confirmation: ALEX, your Northwind reservation '
+            '#40981234XY1 at Lakeside Downtown, LD4 is confirmed',
+            sender: 'northwindcars.example',
+            name: 'Northwind Car Rental',
+            daysAgo: 2,
+            text:
+                'THANK YOU ALEX.\nYOUR RESERVATION IS CONFIRMED\n'
+                'Reservation #40981234XY1\nVehicle\n'
+                'Compact SUV or Similar Automatic Transmission\nItinerary\n'
+                'Pick Up Location\n'
+                'Lakeside Downtown,LD4 Sat Nov 14, 2026 at 07:30 AM '
+                '1 Example Street, Lakeside\n'
+                'Drop Off Location\n'
+                'Lakeside Downtown,LD4 Mon Nov 16, 2026 at 06:00 PM '
+                '1 Example Street, Lakeside\n',
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('tours, experiences and interviews are events, not services', () {
+      expect(
+        find([
+          // An escape room booked through a booking site.
+          mail(
+            "Booking confirmed - 'Puzzle Rooms' Friday, 13 November 2026 "
+            '10:30 AM',
+            sender: 'bookingsite.example',
+            name: 'Puzzle Rooms',
+            daysAgo: 5,
+            text:
+                'Your booking is confirmed!\nVault Break\n'
+                'Friday, 13 November 2026\n10:30 AM - 11:30 AM (1 hour)\n'
+                'Booking number: 12345678901234\n'
+                'You have just booked the best escape room in town. Please '
+                'arrive 15 minutes early.',
+          ),
+          mail(
+            'Your booking is confirmed - Old Town Walking Tour',
+            sender: 'tours.example',
+            name: 'City Walks',
+            daysAgo: 5,
+            text:
+                'Your booking is confirmed for Sat 14 Nov 2026 at 9:00 AM. '
+                'Meet your guide at the fountain.',
+          ),
+          mail(
+            'Interview invitation – Product Designer',
+            sender: 'acme-careers.com',
+            name: 'Acme Careers',
+            daysAgo: 3,
+            text:
+                'Your interview is scheduled for Wednesday 18 November 2026 '
+                'at 2:00 PM.',
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a driving test is a lesson, not school', () {
+      final a = find([
+        mail(
+          'New Appointment: Class C Drive Test (Alex Tan) on Friday, '
+          'November 20, 2026 3:45pm',
+          sender: 'scheduler.example',
+          name: 'Northside Driving School',
+          daysAgo: 3,
+          text:
+              'Appointment Scheduled\nfor Alex Tan\nWhat\nClass C Drive Test '
+              '(20 minutes)\nWhen\nFriday, November 20, 2026 3:45pm '
+              '(20 minutes)\nWhere\n'
+              'Thank you, your appointment has been successfully scheduled.',
+        ),
+      ]).single;
+      expect(a.kind, AppointmentKind.lesson);
+      expect(wall(a.start), '2026-11-20 15:45');
     });
 
     test('delivery notices without a booked slot', () {

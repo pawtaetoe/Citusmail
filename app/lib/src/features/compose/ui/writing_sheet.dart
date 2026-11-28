@@ -7,6 +7,7 @@ import 'package:mail_ai/mail_ai.dart';
 
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
+import '../../../core/widgets/inset_sheet.dart';
 import '../../../services/ai_assistant.dart';
 import '../../ai/state/ai_task.dart';
 import '../../organise/ui/snooze_sheet.dart';
@@ -49,17 +50,10 @@ abstract final class WritingSheet {
       signOff: signOff,
     );
     if (MediaQuery.sizeOf(context).width < SnoozeSheet.sheetWidth) {
-      return showModalBottomSheet<WritingChoice>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (context) => Padding(
-          // Above the keyboard while typing an instruction.
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: SafeArea(child: SingleChildScrollView(child: panel)),
-        ),
+      // Above the keyboard while typing an instruction.
+      return showInsetSheet<WritingChoice>(
+        context,
+        builder: (_) => SingleChildScrollView(child: panel),
       );
     }
     return showDialog<WritingChoice>(

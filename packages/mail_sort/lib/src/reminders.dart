@@ -123,9 +123,11 @@ abstract final class Reminders {
   /// Whether [email] may be a bill to pay (its subject says so, and it is
   /// not a receipt, an account statement or a discussion). Whether it
   /// says when it is due is another matter: [DueDates.dueDateIn].
-  static bool mayBeBill(SubscriptionEmail email) {
+  /// A forward is judged as the email it forwards.
+  static bool mayBeBill(SubscriptionEmail mail) {
+    final email = mail.original;
+    if (email == null) return false;
     final subject = email.subject;
-    if (SubscriptionFinder.isReplyOrForward(subject)) return false;
     if (SubscriptionFinder.isAccountStatement(subject)) return false;
     if (!_billSubject.hasMatch(subject)) return false;
     if (_paidSubject.hasMatch(subject) && !_failed.hasMatch(subject)) {
@@ -135,9 +137,10 @@ abstract final class Reminders {
   }
 
   /// Whether [email] is about a free trial.
-  static bool isTrial(SubscriptionEmail email) =>
-      !SubscriptionFinder.isReplyOrForward(email.subject) &&
-      SubscriptionFinder.eventOf(email) == SubscriptionEvent.trial;
+  static bool isTrial(SubscriptionEmail email) => switch (email.original) {
+    final o? => SubscriptionFinder.eventOf(o) == SubscriptionEvent.trial,
+    null => false,
+  };
 
   static bool _isPayment(SubscriptionEmail email) =>
       !SubscriptionFinder.isReplyOrForward(email.subject) &&
@@ -159,7 +162,9 @@ abstract final class Reminders {
     Set<String> hidden = const {},
   }) {
     final today = DueDates.dayOf(now);
-    final list = [...emails]..sort((a, b) => b.at.compareTo(a.at));
+    // A forward counts as the email it forwards; replies do not.
+    final list = [for (final e in emails) ?e.original]
+      ..sort((a, b) => b.at.compareTo(a.at));
     final found = <Reminder>[..._bills(list, today), ..._trials(list, today)];
     final billed = {for (final r in found) r.company};
     for (final s in subscriptions) {
@@ -170,7 +175,8 @@ abstract final class Reminders {
           s.status != SubscriptionStatus.active ||
           s.variable ||
           hidden.contains(s.company) ||
-          billed.contains(s.company)) {
+          billed.contains(s.company) ||
+          s.billers.any(billed.contains)) {
         continue;
       }
       if (!monthlyRenewals &&
@@ -210,10 +216,13 @@ abstract final class Reminders {
   ) sync* {
     final seen = <String>{};
     for (final bill in newestFirst) {
-      if (!mayBeBill(bill) || !seen.add(bill.company)) continue;
+      if (!mayBeBill(bill) || !seen.add(bill.biller)) continue;
       if (today.difference(DueDates.dayOf(bill.at)).inDays > 90) continue;
       final text = '${bill.subject}\n${bill.text}';
-      if (_paidText.hasMatch(text)) continue;
+      // Paid, or a credit ("Total due: -$21.40"): nothing to pay.
+      if (_paidText.hasMatch(text) || SubscriptionFinder.owesNothing(text)) {
+        continue;
+      }
       final due = DueDates.dueDateIn(text, received: bill.at);
       if (due == null) continue;
       final days = due.difference(today).inDays;
@@ -225,7 +234,7 @@ abstract final class Reminders {
       if (paid) continue;
       yield Reminder(
         kind: ReminderKind.billDue,
-        company: bill.company,
+        company: bill.biller,
         name: _senderName(bill),
         date: due,
         messageId: bill.messageId,
@@ -235,7 +244,7 @@ abstract final class Reminders {
   }
 
   static bool _sameSender(SubscriptionEmail a, SubscriptionEmail b) {
-    if (a.company == b.company) return true;
+    if (a.biller == b.biller) return true;
     final x = a.senderName?.trim().toLowerCase();
     final y = b.senderName?.trim().toLowerCase();
     return x != null && x.isNotEmpty && x == y;
@@ -327,7 +336,7 @@ abstract final class Reminders {
   ) sync* {
     final byCompany = <String, List<SubscriptionEmail>>{};
     for (final e in newestFirst) {
-      if (isTrial(e)) byCompany.putIfAbsent(e.company, () => []).add(e);
+      if (isTrial(e)) byCompany.putIfAbsent(e.biller, () => []).add(e);
     }
     for (final MapEntry(key: company, value: trial) in byCompany.entries) {
       final newest = trial.first;
@@ -342,7 +351,7 @@ abstract final class Reminders {
       var charged = false;
       var cancelled = false;
       for (final e in newestFirst) {
-        if (e.company != company ||
+        if (e.biller != company ||
             !e.at.isAfter(started) ||
             SubscriptionFinder.isReplyOrForward(e.subject)) {
           continue;

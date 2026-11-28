@@ -107,12 +107,19 @@ void main() {
     );
     await tester.pump();
     if (phone) {
-      await tester.tap(find.byTooltip('Folders'));
+      // A phone has a Tools tab of its own.
+      await tester.tap(find.byTooltip('Found in your mail, and tools'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Clean up'),
+        120,
+        scrollable: find.byType(Scrollable).last,
+      );
+    } else {
+      // In the sidebar's Tools, folded at first.
+      await tester.tap(find.text('Tools'));
       await tester.pumpAndSettle();
     }
-    // In the sidebar's Tools, folded at first.
-    await tester.tap(find.text('Tools'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Clean up'));
     await tester.pump();
     await settle(tester);

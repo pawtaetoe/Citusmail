@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mail_store/mail_store.dart';
 
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/inset_sheet.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../state/snooze_times.dart';
 
@@ -51,11 +52,9 @@ abstract final class SnoozeSheet {
   static Future<DateTime?> pick(BuildContext context, {DateTime? current}) {
     final panel = _SnoozePanel(now: clock(), current: current);
     if (MediaQuery.sizeOf(context).width < sheetWidth) {
-      return showModalBottomSheet<DateTime>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (_) => SafeArea(child: SingleChildScrollView(child: panel)),
+      return showInsetSheet<DateTime>(
+        context,
+        builder: (_) => SingleChildScrollView(child: panel),
       );
     }
     return showDialog<DateTime>(

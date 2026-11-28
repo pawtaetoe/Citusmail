@@ -20,8 +20,16 @@ abstract final class AppIcons {
   static const inboxOn = Icons.inbox;
   static const found = Icons.category_outlined;
   static const foundOn = Icons.category;
+
+  /// The phone's Tools tab: what is found in your mail and the tools.
+  static const tools = Icons.home_repair_service_outlined;
+  static const toolsOn = Icons.home_repair_service;
   static const folders = Icons.folder_copy_outlined;
   static const foldersOn = Icons.folder_copy;
+
+  /// The calendar: everything dated in your mail (a tab on phones).
+  static const calendar = Icons.calendar_month_outlined;
+  static const calendarOn = Icons.calendar_month;
   static const outbox = Icons.outbox_outlined;
   static const snoozed = Icons.snooze_outlined;
   static const waiting = Icons.hourglass_empty;
@@ -33,6 +41,7 @@ abstract final class AppIcons {
   static const deliveries = Icons.local_shipping_outlined;
   static const trips = Icons.luggage_outlined;
   static const appointments = Icons.event_available_outlined;
+  static const events = Icons.local_activity_outlined;
   static const onlineAccounts = Icons.badge_outlined;
   static const cleanUp = Icons.cleaning_services_outlined;
   static const privacyReport = Icons.shield_outlined;
@@ -161,6 +170,17 @@ abstract final class AppIcons {
   static const table = Icons.restaurant_outlined;
   static const ticket = Icons.confirmation_number_outlined;
 
+  // Kinds of event: tours, concerts, shows, films, matches...
+  static const tour = Icons.tour_outlined;
+  static const concert = Icons.music_note_outlined;
+  static const show = Icons.theater_comedy_outlined;
+  static const movie = Icons.movie_outlined;
+  static const sport = Icons.stadium_outlined;
+  static const festival = Icons.festival_outlined;
+  static const exhibition = Icons.museum_outlined;
+  static const workshop = Icons.co_present_outlined;
+  static const meeting = Icons.groups_outlined;
+
   // Kinds of file.
   static const file = Icons.insert_drive_file_outlined;
   static const pdf = Icons.picture_as_pdf_outlined;
@@ -241,6 +261,7 @@ abstract final class AppIcons {
   static const back = Icons.arrow_back;
   static const expand = Icons.expand_more;
   static const chevron = Icons.chevron_right;
+  static const chevronLeft = Icons.chevron_left;
   static const addAccount = Icons.person_add_alt;
   static const folderRules = Icons.filter_alt_outlined;
   static const offline = Icons.cloud_off_outlined;

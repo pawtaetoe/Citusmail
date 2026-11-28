@@ -5,6 +5,7 @@
 import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_store/mail_store.dart';
 
+import 'forwards.dart';
 import 'subscriptions.dart' show SubscriptionFinder;
 
 /// One email that may be about a shipped order: an order confirmation, a
@@ -46,6 +47,28 @@ final class DeliveryEmail {
   /// for its unsubscribe link): status words count only with an order or
   /// tracking number ("Arriving soon: our new collection" does not).
   final bool bulk;
+
+  /// This email as its first sender wrote it (see
+  /// [Forwards.originalOf]): itself, the email a forward forwards
+  /// (attributed to its first sender), or null for a reply or a forward
+  /// whose original cannot be read.
+  DeliveryEmail? get original => Forwards.originalOf(
+    this,
+    subject: subject,
+    text: text,
+    at: at,
+    rebuild: (f, sent) => DeliveryEmail(
+      messageId: messageId,
+      shop: f.domain ?? shop,
+      senderName: f.address == null ? f.senderName ?? senderName : f.senderName,
+      subject: f.subject,
+      text: f.text,
+      at: sent,
+      parcels: parcels,
+      orders: orders,
+      bulk: bulk,
+    ),
+  );
 }
 
 /// A delivery company, and its tracking page when it has a stable one.
@@ -352,9 +375,10 @@ abstract final class DeliveryFinder {
   );
 
   /// Whether [subject] reads like shipping mail, worth downloading.
+  /// A forward is judged by the subject it forwards.
   static bool looksLikeShipping(String subject) =>
-      !SubscriptionFinder.isReplyOrForward(subject) &&
-      _shippingSubject.hasMatch(subject);
+      !Forwards.isReply(subject) &&
+      _shippingSubject.hasMatch(Forwards.withoutPrefix(subject));
 
   // ---------------------------------------------------------------- status
 
@@ -391,7 +415,8 @@ abstract final class DeliveryFinder {
       DeliveryStatus.outForDelivery,
       _re(
         r'\bout for delivery\b|\barriv(?:ing|es) today\b|'
-        r'\bdeliver(?:ed|ing|y)? today\b|\bwith (?:the|our) (?:driver|courier) today\b',
+        r'\bdeliver(?:ed|ing|y)? (?:to you )?today\b|'
+        r'\bwith (?:the|our) (?:driver|courier) today\b',
       ),
     ),
     (
@@ -407,8 +432,10 @@ abstract final class DeliveryFinder {
       DeliveryStatus.shipped,
       _re(
         r'\bshipped\b|\bdispatched\b|\bon (?:its|the|their) way\b|\bin transit\b|'
+        r'\b(?:has|have) picked up your\b|\bpicked up by (?!you\b)|'
         r'\bhas been sent\b|\bhanded (?:over )?to\b|'
         r'\bship(?:ping|ment) (?:confirmation|notification|update)\b|'
+        r'\bdispatch (?:confirmation|notification|notice)\b|'
         r'\bwill be delivered\b|\barriv(?:ing|es) (?:tomorrow|on|by|soon|\w+day)\b|'
         r'\bdelivery (?:update|scheduled)\b|\bscheduled for delivery\b|\bleft (?:our|the) (?:warehouse|facility)\b|'
         r'\btracking (?:number|information|details|update)\b',
@@ -444,10 +471,20 @@ abstract final class DeliveryFinder {
     (
       DeliveryStatus.delivered,
       _re(
-        r'\b(?:has|have) been (?:successfully )?delivered\b|\b(?:was|were) delivered\b',
+        r'\b(?:has|have) been (?:successfully )?delivered\b|\b(?:was|were) delivered\b|'
+        // A shop's survey after the parcel came: "You have recently
+        // received your Acme order".
+        r"\byou(?:'ve|’ve| have) (?:recently |now |just )?received your "
+        r"(?:[\w&'.-]+ ){0,2}(?:order|parcel|package|items?|delivery|purchase)s?\b",
       ),
     ),
-    (DeliveryStatus.outForDelivery, _re(r'\b(?:is|are) out for delivery\b')),
+    (
+      DeliveryStatus.outForDelivery,
+      _re(
+        r'\b(?:is|are) out for delivery\b|'
+        r'\b(?:is|are) being delivered (?:to you )?today\b',
+      ),
+    ),
     (
       DeliveryStatus.readyForPickup,
       _re(r'\b(?:is|are) ready (?:for|to) (?:pick-?up|collect(?:ion)?)\b'),
@@ -456,11 +493,22 @@ abstract final class DeliveryFinder {
       DeliveryStatus.shipped,
       _re(
         r'\b(?:has|have) (?:been )?(?:shipped|dispatched)\b|'
+        // "Acme US dispatched your item(s)".
+        r'\b(?:shipped|dispatched) your (?:[\w&-]+ ){0,2}'
+        r'(?:items?|orders?|parcels?|packages?)\b|\bdispatch confirmation\b|'
         r'\b(?:is|are) on (?:its|the|their) way\b|'
-        r'\b(?:has|have) been handed (?:over )?to\b|\b(?:is|are) in transit\b',
+        r'\b(?:has|have) been handed (?:over )?to\b|\b(?:is|are) in transit\b|'
+        r'\b(?:has|have) been picked up by (?!you\b)',
       ),
     ),
   ];
+
+  /// Money or points "on its way", "sent", "delivered".
+  static final _notAParcel = _re(
+    r'\b(?:refunds?|reimbursements?|cash ?back|payouts?|payments?|money|'
+    r'transfers?|points|miles|rewards?|credits?|e-?vouchers?|e-?gift cards?|'
+    r'invoices?|statements?)\s+(?:is|are|has|have|was|were|will)\b',
+  );
 
   /// "When it has shipped", "once delivered": not a statement.
   static final _conditional = _re(
@@ -470,6 +518,8 @@ abstract final class DeliveryFinder {
   /// What [subject] and [text] say about the delivery: the subject's
   /// wording, else a plain statement in the text.
   static DeliveryStatus? statusOf(String subject, String text) {
+    // "Your refund is on its way": money, not a parcel.
+    if (_notAParcel.hasMatch(subject)) return null;
     for (final (status, re) in _subjectStatus) {
       if (re.hasMatch(subject)) return status;
     }
@@ -504,7 +554,8 @@ abstract final class DeliveryFinder {
 
   static final _labelled = _re(
     r'\b(?:tracking|track(?:ing)? (?:no|number|id|code)|waybill|AWB|'
-    r'consignment|parcel (?:no|number|id))\s*(?:no\.?|number|#|id|code)?\s*'
+    r'consignment|(?:parcel|shipment) (?:no|number|id))\s*'
+    r'(?:no\.?|number|#|id|code)?\s*'
     r'(?:is\s*)?[:#.]?\s*#?\s*((?=[A-Z-]*\d)[A-Z0-9][A-Z0-9-]{7,29})\b',
   );
 
@@ -611,7 +662,7 @@ abstract final class DeliveryFinder {
   static final _amazonOrder = RegExp(r'\b\d{3}-\d{7}-\d{7}\b');
   static final _orderLabel = _re(
     r'\border\s*(?:no\.?|number|num|id|#)?\s*[:#]?\s*#?\s*'
-    r'((?=[A-Z-]*\d)[A-Z0-9][A-Z0-9-]{3,24})\b',
+    r'((?=[A-Z-]*\d)[A-Z0-9][A-Z0-9-]{2,23}[A-Z0-9])(?![-\w])',
   );
 
   /// The order number in [text] ("Order #123456", "Order ID:
@@ -827,7 +878,8 @@ abstract final class DeliveryFinder {
   /// The deliveries in [emails] (any order): emails with the same
   /// tracking number are one delivery; else the same order number from
   /// the same shop. [now] is today; [markedDelivered] holds the keys of
-  /// those the user said arrived. Newest first.
+  /// those the user said arrived. Newest first. A forward is read as
+  /// the email it forwards ([DeliveryEmail.original]).
   static List<Delivery> find(
     Iterable<DeliveryEmail> emails, {
     required DateTime now,
@@ -835,7 +887,7 @@ abstract final class DeliveryFinder {
   }) {
     final records = [
       for (final e in emails)
-        if (!SubscriptionFinder.isReplyOrForward(e.subject)) read(e),
+        if (e.original case final o?) read(o),
     ]..sort((a, b) => a.email.at.compareTo(b.email.at));
 
     String orderKey(DeliveryRecord r) =>
@@ -891,12 +943,97 @@ abstract final class DeliveryFinder {
       }
     }
 
+    final joined = _joinCarrierToShop(groups);
     final found = <Delivery>[
       for (final MapEntry(:key, value: list) in groups.entries)
         if (list.any((r) => r.startsDelivery))
-          _delivery(key, list, now, markedDelivered.contains(key)),
+          _delivery(
+            key,
+            list,
+            now,
+            markedDelivered.contains(key) ||
+                markedDelivered.contains(joined[key]),
+          ),
     ]..sort((a, b) => b.lastUpdate.compareTo(a.lastUpdate));
     return found;
+  }
+
+  /// "Your parcel from Acme Sports is on its way", "shipment with waybill
+  /// number 123 from Acme BV has been delivered": the shop a carrier's
+  /// email names.
+  static final _fromShop = RegExp(
+    r'\b(?:parcels?|packages?|orders?|shipments?|items?|deliver(?:y|ies))\b'
+    r"[^.!?\n]{0,40}?\bfrom\s+([A-Za-z0-9][\w&'.-]*(?: [\w&'.-]+){0,4}?)"
+    r'(?=\s+(?:is|are|has|have|was|were|will|on|to|in)\b|\s*[!.,:;(\n]|$)',
+    caseSensitive: false,
+  );
+
+  static String _letters(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  /// The shop named in a carrier's emails [list], as written, or null.
+  static String? _shopNamedIn(List<DeliveryRecord> list) {
+    for (final r in list.reversed) {
+      final m = _fromShop.firstMatch('${r.email.subject}\n${r.email.text}');
+      if (m != null) return m[1]!.trim();
+    }
+    return null;
+  }
+
+  /// Whether the shop [named] (letters only) is the one sending [list].
+  static bool _isShop(String named, List<DeliveryRecord> list) {
+    if (named.length < 3) return false;
+    for (final r in list) {
+      final shop = r.email.shop.toLowerCase();
+      final label = shop.contains('.')
+          ? shop.substring(0, shop.indexOf('.'))
+          : shop;
+      final sender = _letters(
+        SubscriptionFinder.companyName(r.email.senderName) ?? '',
+      );
+      if (label.length >= 4 && named.startsWith(_letters(label))) return true;
+      if (sender.length >= 4 &&
+          (named.startsWith(sender) || sender.startsWith(named))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// A carrier's updates on a parcel ([groups] keyed `t:`, all from a
+  /// carrier) that name the shop, joined with the shop's own delivery
+  /// that has no tracking number (its order confirmation and "shipped"
+  /// email), when exactly one recent one of that shop fits. [groups] is
+  /// changed; the result maps each joined key to the shop's former key.
+  static Map<String, String> _joinCarrierToShop(
+    Map<String, List<DeliveryRecord>> groups,
+  ) {
+    final joined = <String, String>{};
+    for (final key in [...groups.keys]) {
+      final list = groups[key];
+      if (list == null || !key.startsWith('t:')) continue;
+      if (list.any((r) => Carrier.ofDomain(r.email.shop) == null)) continue;
+      final named = _shopNamedIn(list);
+      if (named == null) continue;
+      final name = _letters(named);
+      final first = list.first.email.at;
+      final last = list.last.email.at;
+      final shops = [
+        for (final MapEntry(key: other, value: mail) in groups.entries)
+          if (!other.startsWith('t:') &&
+              mail.every((r) => Carrier.ofDomain(r.email.shop) == null) &&
+              mail.first.email.at.isAfter(first.subtract(_sameShopWindow)) &&
+              !mail.first.email.at.isAfter(last) &&
+              _isShop(name, mail))
+            other,
+      ];
+      if (shops.length != 1) continue;
+      final shop = groups.remove(shops.single)!;
+      groups[key] = [...shop, ...list]
+        ..sort((a, b) => a.email.at.compareTo(b.email.at));
+      joined[key] = shops.single;
+    }
+    return joined;
   }
 
   static bool _arrivedStatus(DeliveryStatus? s) =>
@@ -952,7 +1089,10 @@ abstract final class DeliveryFinder {
     return Delivery(
       key: key,
       shop: from.last.email.shop,
-      shopName: newest((r) => r.merchant) ?? _name(from),
+      shopName:
+          newest((r) => r.merchant) ??
+          (shopMail.isEmpty ? _shopNamedIn(list) : null) ??
+          _name(from),
       records: List.unmodifiable(list),
       status: status,
       items: [
@@ -972,14 +1112,30 @@ abstract final class DeliveryFinder {
     );
   }
 
-  /// The sender name most used, else the domain.
+  /// The sender name most used, else the shop the mail greets from
+  /// ("Greetings from Acme!"), else the domain.
   static String _name(Iterable<DeliveryRecord> list) {
     final counts = <String, int>{};
     for (final r in list) {
-      final n = r.email.senderName?.trim();
-      if (n != null && n.isNotEmpty) counts[n] = (counts[n] ?? 0) + 1;
+      final n = SubscriptionFinder.companyName(r.email.senderName);
+      if (n != null) counts[n] = (counts[n] ?? 0) + 1;
     }
-    if (counts.isEmpty) return list.last.email.shop;
+    if (counts.isEmpty) {
+      for (final r in list.toList().reversed) {
+        final words = '${r.email.subject}\n${r.email.text}';
+        final head = words.length > 2000 ? words.substring(0, 2000) : words;
+        if (_greetingShop.firstMatch(head) case final m?) return m[1]!;
+      }
+      return list.last.email.shop;
+    }
     return counts.entries.reduce((a, b) => b.value > a.value ? b : a).key;
   }
+
+  /// "Greetings from Acme", "Thank you for shopping with Acme": the shop,
+  /// capitalised as a name.
+  static final _greetingShop = RegExp(
+    r'\b(?:[Gg]reetings from|[Tt]hank(?:s| you) for shopping (?:with|at))\s+'
+    r"([A-Z0-9][\w&'’.-]*(?:\s+[A-Z0-9][\w&'’-]*){0,3}?)"
+    r'(?=\s*[!.,:;\n-]|\s+(?:[a-z]|$)|$)',
+  );
 }

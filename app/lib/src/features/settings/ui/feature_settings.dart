@@ -9,6 +9,7 @@ import 'package:mail_store/mail_store.dart';
 
 import '../../../background/background_mail.dart';
 import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/inset_sheet.dart';
 import '../../../services/app_services.dart';
 import '../../inbox/state/mail_controller.dart';
 import '../../organise/ui/screener_page.dart';
@@ -322,12 +323,9 @@ Future<void> _showPanel(
     ],
   );
   if (narrow) {
-    return showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) =>
-          SafeArea(child: SingleChildScrollView(child: body(context))),
+    return showInsetSheet<void>(
+      context,
+      builder: (context) => SingleChildScrollView(child: body(context)),
     );
   }
   return showDialog<void>(

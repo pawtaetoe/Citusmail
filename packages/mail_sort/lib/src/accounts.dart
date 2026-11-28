@@ -4,6 +4,7 @@
 
 import 'package:mail_store/mail_store.dart';
 
+import 'forwards.dart';
 import 'subscriptions.dart';
 import 'verification_codes.dart';
 
@@ -192,8 +193,36 @@ abstract final class AccountFinder {
     'deleted',
     'closed',
     'deactivated',
+    'statement',
     '2-step',
     'two-factor',
+    // Other languages.
+    'willkommen',
+    'bienvenue',
+    'bienvenid',
+    'benvenut',
+    'passwort',
+    'anmeldung',
+    'mot de passe',
+    'connexion',
+    'contraseña',
+    '欢迎',
+    '歡迎',
+    '密码',
+    '密碼',
+    '登录',
+    '登入',
+    '验证',
+    '驗證',
+    '认证',
+    '認證',
+    '新裝置',
+    '新设备',
+    '注册',
+    '註冊',
+    'ようこそ',
+    'パスワード',
+    'ログイン',
   ];
 
   /// Notification domains that belong to another company's domain.
@@ -234,25 +263,92 @@ abstract final class AccountFinder {
     'grab.com': 'Grab',
   };
 
+  /// Companies whose one account serves all their country sites
+  /// (`amazon.sg`, `paypal.de`, `ebay.co.uk`).
+  static const _global = {
+    'amazon',
+    'paypal',
+    'ebay',
+    'airbnb',
+    'uber',
+    'booking',
+    'grab',
+    'google',
+    'apple',
+    'microsoft',
+    'netflix',
+    'spotify',
+  };
+
+  static final _countryDomain = RegExp(r'^([a-z0-9-]+)\.(?:com?\.)?[a-z]{2}$');
+
   /// The company a registrable sender domain belongs to.
   static String companyOf(String registrable) {
     final domain = registrable.toLowerCase();
-    return aliases[domain] ?? domain;
+    if (aliases[domain] case final alias?) return alias;
+    if (_countryDomain.firstMatch(domain) case final m?
+        when _global.contains(m[1])) {
+      return '${m[1]}.com';
+    }
+    return domain;
   }
 
   static final _closed = RegExp(
     r'\b(?:account (?:has been|was|is now|is) (?:permanently )?'
     r'(?:deleted|closed|deactivated|terminated|removed)|'
     r'(?:deleted|closed|deactivated) your (?:\w+ )?account|'
-    r'account (?:deletion|closure) (?:confirmed|complete[d]?|confirmation)|'
-    r'sorry to see you go)\b',
+    r'account (?:deletion|closure) (?:confirmed|complete[d]?|confirmation))\b',
+    caseSensitive: false,
+  );
+
+  /// "Sorry to see you go": the account closed, unless a plan, trial or
+  /// membership is what ended (the account is still there).
+  static final _sorryToSeeYouGo = RegExp(
+    r'\bsorry to see you go\b',
+    caseSensitive: false,
+  );
+  static final _planEnded = RegExp(
+    r'\b(?:expired|expires|re-?subscribe|subscription|plan|trial|'
+    r'membership|renew\w*)\b',
+    caseSensitive: false,
+  );
+
+  /// A one-time password for a card payment (3-D Secure), not for
+  /// signing in.
+  static final _paymentCode = RegExp(
+    r'\b(?:3-?d ?s(?:ecure)?|safekey|secure ?code|'
+    r'for (?:your|this|the) (?:card )?(?:transaction|purchase|payment)|'
+    r'transaction (?:otp|code|password))\b',
+    caseSensitive: false,
+  );
+
+  /// An order's confirmation ("Thanks for your order").
+  static final _order = RegExp(
+    r'\b(?:ordering|thanks? (?:you )?for (?:your )?(?:order|purchase)|'
+    r'your order (?:has been |is |was )?(?:placed|confirmed|received)|'
+    r'order (?:confirmation|number|no\.?|#))',
+    caseSensitive: false,
+  );
+
+  /// A registration for a webinar, meeting or event: not an account.
+  static final _eventMail = RegExp(
+    r'\b(?:webinar|meeting id|join (?:the |this )?(?:meeting|webinar|session|event)|'
+    r'add to (?:your )?calendar|zoom meeting|teams meeting)\b|'
+    r'thanks? (?:you )?for (?:joining|registering for|attending) '
+    r'(?:the |our |this )?(?:\w+ )?(?:webinar|meeting|call|event|session|class|'
+    r'workshop|seminar|conference|talk|livestream|stream)\b',
     caseSensitive: false,
   );
 
   static final _reset = RegExp(
     r'\b(?:password reset|reset (?:your |my )?(?:\w+ ){0,2}password|'
     r'forgot (?:your )?password|new password request|'
-    r'password (?:recovery|reset request)|recover your account)\b',
+    r'password (?:recovery|reset request)|recover your account|'
+    r'passwort (?:zurücksetzen|vergessen)|'
+    r'réinitialis\w* (?:de |du )?(?:votre |ton )?mot de passe|'
+    r'restablec\w* (?:tu |su |la )?contraseña|redefini\w* (?:a |sua )*senha)'
+    r'|密码重置|密碼重置|重[置设]密码|重[置設]密碼|找回密码|'
+    r'パスワード(?:の)?(?:再設定|リセット)',
     caseSensitive: false,
   );
 
@@ -265,7 +361,8 @@ abstract final class AccountFinder {
     r'(?:two-factor|2-step|two-step) (?:authentication |verification )?'
     r'(?:is |has been |was )?(?:enabled|disabled|turned (?:on|off)|on|off)|'
     r'(?:ssh|gpg|api|security) key (?:was |has been )?(?:added|removed|deleted)|'
-    r'a new (?:ssh|gpg|public) key|personal access token)\b',
+    r'a new (?:ssh|gpg|public) key|personal access token|'
+    r'accounts? (?:are|is|have been|has been) (?:now )?(?:connected|linked))\b',
     caseSensitive: false,
   );
 
@@ -277,14 +374,18 @@ abstract final class AccountFinder {
     r'(?:signed|logged) in (?:from|on) (?:a )?new|'
     r'sign-in (?:attempt|from)|login attempt|'
     r'was this you|someone (?:signed|logged) in|'
-    r'your (?:\w+ )?(?:id|account) was used to sign in)\b',
+    r'your (?:\w+ )?(?:id|account) was used to sign in|'
+    r'neue anmeldung|nouvelle connexion|nuevo inicio de sesión)\b'
+    r'|登录提醒|登入通知|异地登录|異常登入|登入.{0,8}錯誤|登录.{0,8}错误|'
+    r'登入成功|登录成功|成功登入|成功登录|新裝置|新设备|'
+    r'新しい(?:端末|デバイス)|ログイン(?:通知|のお知らせ)',
     caseSensitive: false,
   );
 
   static final _signedUp = RegExp(
     r'\b(?:welcome to|welcome aboard|welcome,|'
     r'(?:verify|confirm|activate) (?:your |this )?(?:new )?'
-    r'(?:\w+ )?(?:e-?mail|e-?mail address|account|registration)|'
+    r"(?:[\w.&'-]+ ){0,3}(?:e-?mail|e-?mail address|account|registration)|"
     r'(?:e-?mail|account) (?:verification|confirmation)|'
     r'thanks? (?:you )?for (?:signing up|joining|registering|creating)|'
     r'(?:your|new) (?:\w+ )?account (?:has been |is |was )?(?:created|ready|activated|set up)|'
@@ -295,13 +396,30 @@ abstract final class AccountFinder {
     caseSensitive: false,
   );
 
+  /// Sign-up wording in other languages ("Willkommen bei", "Bienvenue
+  /// chez", "欢迎加入").
+  static final _signedUpElsewhere = RegExp(
+    r'\b(?:willkommen (?:bei|an bord|zu)|bienvenue (?:à|a|chez|sur|dans)|'
+    r'bienvenid[oa]s? (?:a|al)|benvenut[oa] (?:in|su|a)|'
+    r'bem-vind[oa] (?:a|ao)|konto (?:erstellt|bestätigen|aktivieren)|'
+    r'bestätige (?:deine|ihre) e-mail|confirmez votre (?:adresse|compte)|'
+    r'confirma tu (?:correo|cuenta))'
+    r'|(?:欢迎|歡迎)(?:加入|注册|註冊|使用|来到|來到)|注册成功|註冊成功|'
+    r'ようこそ|登録(?:完了|が完了)',
+    caseSensitive: false,
+  );
+
+  static bool _saysSignedUp(String s) =>
+      _signedUp.hasMatch(s) || _signedUpElsewhere.hasMatch(s);
+
   /// "Welcome back" is a sign-in, not a sign-up.
   static final _welcomeBack = RegExp(r'\bwelcome back\b', caseSensitive: false);
 
-  /// The subject speaks of the user's account.
+  /// The subject speaks of the user's account, or of a statement of it.
   static final _accountSubject = RegExp(
     r"\b(?:your (?:[\w.&'-]+ ){0,2}(?:account|id|profile|membership)|"
-    r'account (?:update|notice|information|statement|summary|activity))\b',
+    r'account (?:update|notice|information|statement|summary|activity)|'
+    r"your (?:[\w.&'-]+ ){0,3}(?:e-?)?statements?|e-?statements?)\b",
     caseSensitive: false,
   );
 
@@ -334,6 +452,11 @@ abstract final class AccountFinder {
     final text = email.text;
     final both = '$subject\n$text';
     if (_closed.hasMatch(both)) return AccountEvidence.closed;
+    if (_sorryToSeeYouGo.hasMatch(both)) {
+      if (!_planEnded.hasMatch(both)) return AccountEvidence.closed;
+      // A plan or trial ended: the account is still there.
+      if (!email.newsletter) return AccountEvidence.notice;
+    }
     if (_reset.hasMatch(subject)) return AccountEvidence.passwordReset;
     if (_change.hasMatch(subject)) return AccountEvidence.accountChange;
     if (_alert.hasMatch(subject)) return AccountEvidence.securityAlert;
@@ -347,6 +470,8 @@ abstract final class AccountFinder {
             VerificationCodes.inMessage(subject, text) != null &&
             VerificationCodes.isVerificationText(text))) {
       if (_reset.hasMatch(text)) return AccountEvidence.passwordReset;
+      // A card payment's code shows a card account, not a sign-in.
+      if (_paymentCode.hasMatch(both)) return AccountEvidence.notice;
       return AccountEvidence.signInCode;
     }
     if (_isReceipt(email)) return AccountEvidence.paid;
@@ -363,10 +488,17 @@ abstract final class AccountFinder {
 
   static bool _isSignUp(String subject, String text, bool newsletter) {
     if (_welcomeBack.hasMatch(subject)) return false;
-    if (!_signedUp.hasMatch(subject) &&
-        !(subject.isEmpty && _signedUp.hasMatch(text))) {
+    if (!_saysSignedUp(subject) && !(subject.isEmpty && _saysSignedUp(text))) {
       // "Thanks for creating an account" may be in the text only.
       if (!_signedUpText.hasMatch(text)) return false;
+    }
+    // An order's "Email Confirmation", or a webinar's "Thank you for
+    // registering": only these words, about an order or an event.
+    final both = '$subject\n$text';
+    if ((_order.hasMatch(both) || _eventMail.hasMatch(both)) &&
+        !_saysSignedUp(subject.replaceAll(_weakSignUp, '')) &&
+        !_accountCreated.hasMatch(both)) {
+      return false;
     }
     // A newsletter's welcome ("Welcome to the Weekly Digest", "Confirm
     // your subscription") is not an account, unless its text says so.
@@ -376,9 +508,26 @@ abstract final class AccountFinder {
     return true;
   }
 
+  /// Sign-up words that an order or an event registration uses too.
+  static final _weakSignUp = RegExp(
+    r'\b(?:(?:e-?mail|account) (?:verification|confirmation)|'
+    r'thanks? (?:you )?for (?:registering|joining)|'
+    r'registration (?:confirmed|successful|complete))\b',
+    caseSensitive: false,
+  );
+
+  /// The account itself was created or is to be confirmed.
+  static final _accountCreated = RegExp(
+    r'\b(?:creating (?:an|your) (?:\w+ )?account|'
+    r'(?:your|new) (?:\w+ )?account (?:has been |is |was )?(?:created|activated)|'
+    r'(?:verify|confirm|activate) your (?:\w+ )?(?:account|e-?mail)|'
+    r'(?:sign(?:ing|ed)? up|create) (?:for )?(?:an|your) (?:\w+ )?account)\b',
+    caseSensitive: false,
+  );
+
   /// Sign-up wording strong enough in the text alone.
   static final _signedUpText = RegExp(
-    r'\b(?:thanks? (?:you )?for (?:signing up|creating (?:an|your) (?:\w+ )?account|registering)|'
+    r'\b(?:thanks? (?:you )?for (?:signing up|creating (?:an|your) (?:\w+ )?account|registering|joining)|'
     r'(?:your|new) (?:\w+ )?account (?:has been |is |was )?(?:created|activated)|'
     r'(?:verify|confirm) your (?:e-?mail|e-?mail address) to (?:finish|complete|activate|get started))',
     caseSensitive: false,
@@ -445,9 +594,14 @@ abstract final class AccountFinder {
         ownDomains.any((d) => d == company || d.endsWith('.$company'));
 
     final byCompany = <String, List<AccountEmail>>{};
-    for (final e in emails) {
-      final company = companyOf(e.company);
-      if (company.isEmpty || ownDomain(company)) continue;
+    for (final raw in emails) {
+      final e = _original(raw, own, freeMailDomains);
+      if (e == null) continue;
+      final domain = companyOf(e.company);
+      if (domain.isEmpty || ownDomain(domain)) continue;
+      // A payment service's receipt for another company is that
+      // company's.
+      final company = SubscriptionFinder.billerOf(domain, e.senderName);
       byCompany.putIfAbsent(company, () => []).add(e);
     }
 
@@ -499,6 +653,37 @@ abstract final class AccountFinder {
     return found;
   }
 
+  /// [email] as its first sender wrote it: itself, or for a forward the
+  /// email it forwards, from its first sender, when that was sent to one
+  /// of the user's [own] addresses (a rule forwarding their other
+  /// mailbox). A forward of someone else's mail shows their account,
+  /// not the user's: null, as for one that cannot be read.
+  static AccountEmail? _original(
+    AccountEmail email,
+    Set<String> own,
+    Set<String> freeMailDomains,
+  ) {
+    if (!Forwards.isForward(email.subject)) return email;
+    final f = Forwards.unwrap(email.subject, email.text);
+    final to = f?.to;
+    if (f == null || to == null || Forwards.isReply(f.subject)) return null;
+    if (!own.contains(withoutTag(to))) return null;
+    final domain = f.domain ?? email.company;
+    return AccountEmail(
+      messageId: email.messageId,
+      company: domain,
+      senderName: f.address == null
+          ? f.senderName ?? email.senderName
+          : f.senderName,
+      subject: f.subject,
+      text: f.text,
+      at: f.sent ?? email.at,
+      recipients: [to],
+      accountAddress: email.accountAddress,
+      fromPerson: freeMailDomains.contains(domain),
+    );
+  }
+
   /// The user's addresses [records] were sent to, most used first.
   static List<String> _addresses(List<AccountRecord> records, Set<String> own) {
     final counts = <String, int>{};
@@ -532,19 +717,32 @@ abstract final class AccountFinder {
     caseSensitive: false,
   );
 
+  /// "Robin from Example": a person writing for the brand.
+  static final _personFrom = RegExp(
+    r'^\p{Lu}\p{Ll}+(?: \p{Lu}\.?)? (?:from|at|@) (?=\S{2})',
+    unicode: true,
+  );
+
+  /// "Example - No Reply", "Example (Do not reply)".
+  static final _noReplySuffix = RegExp(
+    r'\s*[-|–—:,]?\s*[(\[]?(?:no[-_. ]?reply|do[-_. ]?not[-_. ]?reply)[)\]]?$',
+    caseSensitive: false,
+  );
+
   /// The sender name most used (not "noreply" or an address), else the
   /// known name, else the domain.
   static String _name(String company, List<AccountRecord> records) {
     if (names[company] case final known?) return known;
     final counts = <String, int>{};
     for (final r in records) {
-      final n = r.email.senderName?.trim();
-      if (n == null ||
-          n.isEmpty ||
-          n.contains('@') ||
-          _genericName.hasMatch(n)) {
-        continue;
-      }
+      final raw = r.email.senderName
+          ?.trim()
+          .replaceFirst(_personFrom, '')
+          .replaceFirst(_noReplySuffix, '')
+          .trim();
+      if (raw == null || _genericName.hasMatch(raw)) continue;
+      final n = SubscriptionFinder.companyName(raw);
+      if (n == null || _genericName.hasMatch(n)) continue;
       counts[n] = (counts[n] ?? 0) + 1;
     }
     if (counts.isEmpty) return company;

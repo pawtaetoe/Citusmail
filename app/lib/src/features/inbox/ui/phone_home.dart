@@ -10,6 +10,8 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/citusmail_theme.dart';
 import '../../../core/theme/motion.dart';
 import '../../ai/ui/ask_mail_panel.dart';
+import '../../calendar/ui/calendar_view.dart';
+import '../../discover/ui/discover_page.dart';
 import '../../discover/ui/features.dart';
 import '../../reader/ui/reader_pane.dart';
 import '../state/mail_controller.dart';
@@ -17,15 +19,16 @@ import '../state/mail_location.dart';
 import 'message_list_pane.dart';
 
 /// The tabs of the phone layout, in the navigation bar's order.
-enum PhoneTab { inbox, pins, found, folders }
+enum PhoneTab { inbox, pins, calendar, tools, folders }
 
 /// The phone layout: search at the top of the inbox, a navigation bar at
-/// the bottom (Inbox, Pins, Found, Folders) and New message above it.
+/// the bottom (Inbox, Pins, Calendar, Tools, Folders) and New message
+/// above it.
 ///
 /// An open message, or a folder opened from the Folders tab, covers the
 /// tab, and pages opened from a tab are pushed on top as elsewhere: the
-/// bar shows on the four tabs only. Back closes what covers a tab, then
-/// goes from Pins, Found or Folders to the Inbox.
+/// bar shows on the tabs only. Back closes what covers a tab, then goes
+/// from Pins, Calendar, Tools or Folders to the Inbox.
 final class PhoneHome extends StatefulWidget {
   const PhoneHome({
     super.key,
@@ -118,7 +121,9 @@ final class _PhoneHomeState extends State<PhoneHome>
     PhoneTab.inbox =>
       location == const InboxLocation() || location is SearchLocation,
     PhoneTab.pins => location is PinsLocation,
-    PhoneTab.found || PhoneTab.folders => location == const InboxLocation(),
+    PhoneTab.calendar ||
+    PhoneTab.tools ||
+    PhoneTab.folders => location == const InboxLocation(),
   };
 
   void _select(PhoneTab tab) {
@@ -220,8 +225,10 @@ final class _PhoneHomeState extends State<PhoneHome>
         toolbarAtBottom: true,
         replyBar: false,
       );
-      final hub = atRoot && _tab == PhoneTab.found
-          ? FoundHub(controller: _c)
+      final hub = atRoot && _tab == PhoneTab.calendar
+          ? CalendarView(controller: _c)
+          : atRoot && _tab == PhoneTab.tools
+          ? ToolsHub(controller: _c)
           : atRoot && _tab == PhoneTab.folders
           ? widget.folders
           : null;
@@ -252,7 +259,10 @@ final class _PhoneHomeState extends State<PhoneHome>
       final compose =
           !open &&
           !selecting &&
-          !(atRoot && (_tab == PhoneTab.found || _tab == PhoneTab.folders)) &&
+          !(atRoot &&
+              (_tab == PhoneTab.calendar ||
+                  _tab == PhoneTab.tools ||
+                  _tab == PhoneTab.folders)) &&
           !widget.searchFocus.hasFocus;
       return PopScope(
         canPop: !open && !selecting && atRoot && _tab == PhoneTab.inbox,
@@ -343,10 +353,16 @@ final class _PhoneHomeState extends State<PhoneHome>
             label: 'Pins',
           ),
           const NavigationDestination(
-            icon: Icon(AppIcons.found),
-            selectedIcon: Icon(AppIcons.foundOn),
-            label: 'Found',
-            tooltip: 'Found in your mail',
+            icon: Icon(AppIcons.calendar),
+            selectedIcon: Icon(AppIcons.calendarOn),
+            label: 'Calendar',
+            tooltip: 'Trips, appointments and events, by day',
+          ),
+          const NavigationDestination(
+            icon: Icon(AppIcons.tools),
+            selectedIcon: Icon(AppIcons.toolsOn),
+            label: 'Tools',
+            tooltip: 'Found in your mail, and tools',
           ),
           const NavigationDestination(
             icon: Icon(AppIcons.folders),
@@ -455,61 +471,87 @@ final class _BottomBar extends StatelessWidget {
   );
 }
 
-/// The phone's Found tab: the pages the app puts together from your mail
-/// ("Found in your mail" in the sidebar), each said in a sentence.
-final class FoundHub extends StatelessWidget {
-  const FoundHub({super.key, required this.controller});
+/// The phone's Tools tab: the pages the app puts together from your mail
+/// ("Found in your mail") and the tools to tidy and check it (Clean up,
+/// Privacy report, Files), each said in a sentence. The sidebar shows the
+/// same two groups on a wider screen.
+final class ToolsHub extends StatelessWidget {
+  const ToolsHub({super.key, required this.controller});
 
   final MailController controller;
+
+  /// The groups on this tab, with the line under each title.
+  static const sections = [
+    (FeatureGroup.found, 'Put together from your emails, on this device.'),
+    (FeatureGroup.tools, 'Tidy your mail and see who tracks it.'),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final available = Features.available();
     return Material(
       color: ListColors.of(context).background,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-            child: Semantics(
-              header: true,
+          for (final (i, (group, line)) in sections.indexed) ...[
+            Padding(
+              padding: EdgeInsets.fromLTRB(12, i == 0 ? 4 : 20, 12, 4),
+              child: Semantics(
+                header: true,
+                child: Text(group.title, style: theme.textTheme.headlineSmall),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Text(
-                FeatureGroup.found.title,
-                style: theme.textTheme.headlineSmall,
+                line,
+                style: TextStyle(color: colors.onSurfaceVariant),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Text(
-              'Put together from your emails, on this device.',
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-          ),
-          for (final f in Features.all)
-            if (f.group == FeatureGroup.found)
-              ListTile(
-                key: ValueKey('found-${f.id.name}'),
-                minVerticalPadding: 10,
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(CitusmailTheme.radius),
+            for (final f in available)
+              if (f.group == group)
+                ListTile(
+                  key: ValueKey('tools-${f.id.name}'),
+                  minVerticalPadding: 10,
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(
+                        CitusmailTheme.radius,
+                      ),
+                    ),
+                    child: Icon(f.icon, color: colors.primary),
                   ),
-                  child: Icon(f.icon, color: colors.primary),
+                  title: Text(f.title),
+                  subtitle: Text(f.sentence),
+                  trailing: Icon(
+                    AppIcons.chevron,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  onTap: () => f.open(context, controller),
                 ),
-                title: Text(f.title),
-                subtitle: Text(f.sentence),
-                trailing: Icon(
-                  AppIcons.chevron,
-                  color: colors.onSurfaceVariant,
-                ),
-                onTap: () => f.open(context, controller),
+          ],
+          // Everything else the app does (Snooze, the Screener...).
+          const SizedBox(height: 12),
+          ListTile(
+            key: const ValueKey('tools-all-features'),
+            leading: SizedBox(
+              width: 40,
+              child: Icon(AppIcons.allFeatures, color: colors.primary),
+            ),
+            title: const Text('All features'),
+            trailing: Icon(AppIcons.chevron, color: colors.onSurfaceVariant),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => DiscoverPage(controller: controller),
               ),
+            ),
+          ),
         ],
       ),
     );

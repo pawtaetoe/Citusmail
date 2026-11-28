@@ -114,6 +114,56 @@ void main() {
       expect(await toRead(), isEmpty, reason: 'on the device now');
     });
 
+    test('a paid plan found by its preview, not its subject', () async {
+      add(
+        'Welcome aboard, plusplan member!',
+        'info@mail.fooddelivery.example',
+        name: 'ExampleFood',
+        snippet:
+            "Your free trial has ended, and you're now a paid plusplan "
+            'member! It renews each month.',
+      );
+      add('Lunch on Friday?', 'carol@x.example', snippet: 'Noodles?');
+      final found = await findSubscriptions(
+        app.store,
+        now,
+        monthlyRenewals: false,
+      );
+      expect(found.all.map((s) => s.name), ['ExampleFood']);
+    });
+
+    test('a brand\'s payments domain is not an unknown company', () async {
+      for (final days in [46, 16]) {
+        add(
+          'Your utilities bill is ready',
+          'ebill@examplepower.example',
+          snippet: 'Hello, your utilities bill is ready to view.',
+          daysAgo: days,
+        );
+      }
+      final payments = [
+        for (final days in [35, 5])
+          add(
+            'Auto-debit: payment successful',
+            'no-reply@examplepowerpay.example',
+            name: 'ExamplePower Pay',
+            snippet:
+                'Your utilities bill has been successfully paid by '
+                'auto-debit. Amount \$80.00',
+            daysAgo: days,
+          ),
+      ];
+      final found = await findSubscriptions(
+        app.store,
+        now,
+        monthlyRenewals: false,
+      );
+      expect(found.all.single.company, 'examplepower.example');
+      for (final id in payments) {
+        expect(found.toRead, isNot(contains(id)));
+      }
+    });
+
     test('a company the user said is not a subscription is left out', () async {
       add(
         'Your receipt from CloudBox',

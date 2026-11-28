@@ -547,8 +547,8 @@ final class ListColors extends ThemeExtension<ListColors> {
 }
 
 /// The app's mark, as in the app icon (assets/icon/icon.svg): a
-/// forward-leaning envelope with citrus speed lines ("citus" is Latin for
-/// fast) on a lagoon tile. Drawn, so there is no image asset to load.
+/// forward-leaning envelope ("citus" is Latin for fast) with a citrus flap,
+/// on a flat lagoon tile. Drawn, so there is no image asset to load.
 final class CitusMark extends StatelessWidget {
   const CitusMark({super.key, this.size = 24});
 
@@ -571,56 +571,50 @@ final class _MarkPainter extends CustomPainter {
     canvas.scale(scale);
 
     // The tile (the icon's 16-unit margin dropped, so it fills the space).
-    const tile = Rect.fromLTWH(0, 0, 512, 512);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(tile, const Radius.circular(120)),
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF14917C), Color(0xFF0B4A40)],
-        ).createShader(tile),
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(0, 0, 512, 512),
+        const Radius.circular(120),
+      ),
+      Paint()..color = CitusPalette.lagoon,
     );
 
-    // The envelope, leaning forward (skewX -14 degrees, moved right).
-    canvas.save();
+    // The envelope, leaning forward (skewX -14 degrees about the middle):
+    // a citrus flap and a white body, the fold between them a gap.
     canvas.transform(
       Float64List.fromList([
         1, 0, 0, 0, //
         -0.2493, 1, 0, 0, //
         0, 0, 1, 0, //
-        96, 0, 0, 1, //
+        63.82, 0, 0, 1, //
       ]),
     );
-    canvas.drawRRect(
+    canvas.clipRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(150, 160, 252, 184),
-        const Radius.circular(26),
+        const Rect.fromLTRB(140, 156, 372, 356),
+        const Radius.circular(30),
       ),
-      Paint()..color = Colors.white,
     );
     canvas.drawPath(
-      Path()
-        ..moveTo(166, 180)
-        ..lineTo(276, 262)
-        ..lineTo(386, 180),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 22
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = CitusPalette.lagoon,
+      Path()..addPolygon(const [
+        Offset(100, 100),
+        Offset(412, 100),
+        Offset(412, 127),
+        Offset(256, 249),
+        Offset(100, 127),
+      ], true),
+      Paint()..color = CitusPalette.citrus,
     );
-    canvas.restore();
-
-    // Citrus speed lines.
-    final speed = Paint()
-      ..strokeWidth = 22
-      ..strokeCap = StrokeCap.round
-      ..color = CitusPalette.citrus;
-    canvas.drawLine(const Offset(104, 206), const Offset(168, 206), speed);
-    canvas.drawLine(const Offset(84, 252), const Offset(160, 252), speed);
-    canvas.drawLine(const Offset(104, 298), const Offset(148, 298), speed);
+    canvas.drawPath(
+      Path()..addPolygon(const [
+        Offset(100, 165),
+        Offset(256, 287),
+        Offset(412, 165),
+        Offset(412, 400),
+        Offset(100, 400),
+      ], true),
+      Paint()..color = Colors.white,
+    );
     canvas.restore();
   }
 

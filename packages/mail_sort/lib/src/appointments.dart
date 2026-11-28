@@ -6,6 +6,7 @@ import 'package:mail_extract/mail_extract.dart';
 import 'package:mail_store/mail_store.dart';
 
 import 'due_dates.dart';
+import 'forwards.dart';
 import 'subscriptions.dart' show SubscriptionFinder;
 import 'trips.dart';
 
@@ -152,6 +153,30 @@ final class AppointmentEmail {
 
   /// Sorted as a newsletter or promotion: not read.
   final bool bulk;
+
+  /// This email as its first sender wrote it (see
+  /// [Forwards.originalOf]): itself, the email a forward forwards
+  /// (attributed to its first sender), or null for a reply or a forward
+  /// whose original cannot be read.
+  AppointmentEmail? get original => Forwards.originalOf(
+    this,
+    subject: subject,
+    text: text,
+    at: at,
+    rebuild: (f, sent) => AppointmentEmail(
+      messageId: messageId,
+      sender: f.domain ?? sender,
+      senderName: f.address == null ? f.senderName ?? senderName : f.senderName,
+      subject: f.subject,
+      text: f.text,
+      at: sent,
+      appointments: appointments,
+      reservations: reservations,
+      invite: invite,
+      links: links,
+      bulk: bulk,
+    ),
+  );
 }
 
 /// One email, as understood.
@@ -346,7 +371,10 @@ abstract final class AppointmentText {
     r"\byou(?:'re| are) (?:booked|confirmed|all set|scheduled)\b|"
     r'\b(?:appointment|booking|interview|class) (?:confirmation|confirmed|reminder|details)\b|'
     r'\binvit(?:e|ed|ing) you (?:to|for) an? (?:\w+ )?interview\b|'
-    r'\bparent[- ]teacher (?:meeting|conference)\b',
+    r'\bparent[- ]teacher (?:meeting|conference)\b|'
+    r"\b(?:you(?:'ve| have) )?booked (?:your|an?|the|the following) "
+    r'(?:[\w-]+ ){0,4}(?:appointments?|consultation|visit|session|slot|'
+    r'check-?up|screening)\b',
   );
 
   /// Mail about meetings among colleagues, events and shows.
@@ -372,7 +400,36 @@ abstract final class AppointmentText {
   /// The words of a table, a ticket or a trip.
   static final _tripText = _re(
     r'\b(?:table for \d+|party of \d+|e-?tickets?|your tickets?|'
-    r'seat (?:number|no)|seats? \d+[A-Z]?|flight (?:number|no)|check-?out)\b',
+    r'seat (?:number|no)|seats? \d+[A-Z]?|flight (?:number|no)|check-?out|'
+    r'pick[- ]?up location|drop[- ]?off location|rental agreement|'
+    r'car (?:rental|hire)|rental car|rent a car)\b',
+  );
+
+  /// Not a service booked: a tour, an experience, a show, a film, an
+  /// exhibition (the Events page's), or a job interview.
+  static final _notAServiceSubject = _re(
+    r'\b(?:tours?|excursions?|experiences?|escape rooms?|museums?|muse[oiu]s?|musées?|'
+    r'exhibitions?|galler(?:y|ies)|concerts?|gigs?|shows?|cinemas?|movies?|'
+    r'films?|screenings?|theat(?:re|er)s?|musicals?|festivals?|'
+    r'attractions?|sightseeing|cruises?|safaris?|'
+    r'interviews?)\b',
+  );
+
+  static final _healthScreening = _re(
+    r'\b(?:medical|health|cancer|eye|hearing|dental|blood|breast|bowel|'
+    r'cervical|vision|diabetes|diabetic|lung) screenings?\b|'
+    r'\bscreening (?:appointment|test|centre|center|clinic)\b',
+  );
+
+  /// The same in an email's words: only plain ones ("experience" and
+  /// "show" are said in every booking).
+  static final _notAServiceText = _re(
+    r'\b(?:escape rooms?|guided tours?|(?:walking|city|food|boat|bus|wine|'
+    r'brewery|distillery|factory|museum|private|day) tours?|your (?:tour|'
+    r'excursion|experience|activity)|tour (?:date|guide|starts?|meeting '
+    r'point)|museum|muse[oiu]|musée|enjoy your visit|exhibition|concert|cinema|movie|theat(?:re|er)|'
+    r'sightseeing|admission tickets?|'
+    r'(?:job |video |phone |final |first |second )?interviews?)\b',
   );
 
   /// Shipping mail with no booked slot.
@@ -384,6 +441,14 @@ abstract final class AppointmentText {
     r'\b(?:delivery|installation|collection) (?:slot|window|appointment|date)\b|'
     r'\b(?:delivery|installation) (?:is |has been )?(?:booked|scheduled)\b|'
     r'\byour slot\b',
+  );
+
+  /// Collecting something at a branch or counter (a card, documents):
+  /// an errand, not a delivery.
+  static final _branchCollection = _re(
+    r'\b(?:collect(?:ion)?|pick[- ]?up)\b[\s\S]{0,160}?\b(?:branch|counter|'
+    r'service cent(?:re|er))\b|\b(?:branch|counter)\b[\s\S]{0,160}?'
+    r'\bcollect(?:ion)?\b',
   );
 
   static final _cancelled = _re(
@@ -490,7 +555,7 @@ abstract final class AppointmentText {
   /// Every date written with a time close by in [text], in order: "Tue 12
   /// Nov at 3:30 PM", "3:30 PM on 12/11/2026", "Date: 14/11/2026 Time:
   /// 10:15", "tomorrow at 3pm". [sent] gives years, and "tomorrow".
-  static List<({int at, PlaceTime start, PlaceTime? end})> momentsIn(
+  static List<({int at, int stop, PlaceTime start, PlaceTime? end})> momentsIn(
     String text,
     DateTime sent,
   ) {
@@ -511,7 +576,7 @@ abstract final class AppointmentText {
     dates.sort((a, b) => a.start.compareTo(b.start));
     final times = timesIn(text);
     final used = <int>{};
-    final found = <({int at, PlaceTime start, PlaceTime? end})>[];
+    final found = <({int at, int stop, PlaceTime start, PlaceTime? end})>[];
     for (final d in dates) {
       // A time after the date, close by ("12 Nov 2026 at 3:30 PM",
       // "Date: 14/11/2026\nTime: 10:15"), else just before it ("3:30 PM
@@ -559,10 +624,24 @@ abstract final class AppointmentText {
       if (next != null) used.add(next.at);
       final start = at(t.hour, t.minute);
       final end = next == null ? null : at(next.hour, next.minute);
+      final last = next ?? t;
+      // "12:00 PM Eastern Time (US and Canada)": the zone's offset.
+      final offset = zoneAt(text, last.end, d.day);
+      PlaceTime zone(PlaceTime p) => offset == null
+          ? p
+          : PlaceTime(
+              p.wall.year,
+              p.wall.month,
+              p.wall.day,
+              hour: p.wall.hour,
+              minute: p.wall.minute,
+              offset: offset,
+            );
       found.add((
         at: d.start < t.at ? d.start : t.at,
-        start: start,
-        end: end != null && end.compareTo(start) > 0 ? end : null,
+        stop: d.end > last.end ? d.end : last.end,
+        start: zone(start),
+        end: end != null && end.compareTo(start) > 0 ? zone(end) : null,
       ));
     }
     found.sort((a, b) => a.at.compareTo(b.at));
@@ -612,14 +691,141 @@ abstract final class AppointmentText {
         ? null
         : usable.where((m) => m.at >= confirmed).firstOrNull;
     final pick = from ?? usable.first;
+    if (pick.end == null) {
+      final ended = moments
+          .where((m) => m.end != null && m.start.compareTo(pick.start) == 0)
+          .firstOrNull;
+      if (ended != null) return (start: pick.start, end: ended.end);
+    }
+    // A table's "start date" and "end date" side by side: "15 May 2026
+    // 14:30 15 May 2026 17:30".
+    if (pick.end == null) {
+      final i = moments.indexOf(pick);
+      if (i + 1 < moments.length) {
+        final next = moments[i + 1];
+        final gap = next.at >= pick.stop
+            ? text.substring(pick.stop, next.at)
+            : null;
+        final hours = next.start.instant.difference(pick.start.instant).inHours;
+        if (gap != null &&
+            _rangeGap.hasMatch(gap) &&
+            next.start.compareTo(pick.start) > 0 &&
+            hours < 24) {
+          return (start: pick.start, end: next.start);
+        }
+      }
+    }
     return (start: pick.start, end: pick.end);
+  }
+
+  /// Between a start and an end: nothing, a dash or "to".
+  static final _rangeGap = _re(r'^[\s|]*(?:-|–|—|to|until)?[\s|]*$');
+
+  // -------------------------------------------------------- time zones
+
+  /// Time zones as Zoom, Teams and booking sites write them in words
+  /// ("12:00 PM Eastern Time (US and Canada)", "02:00 PM Singapore"):
+  /// the standard offset in hours, and the summer time rule if any.
+  static final _zones = <(RegExp, double, _SummerTime?)>[
+    (
+      _re(r'^\s*\(?(?:eastern (?:standard |daylight )?time|e[sd]t)\b'),
+      -5,
+      _SummerTime.us,
+    ),
+    (
+      _re(r'^\s*\(?(?:central (?:standard |daylight )?time \(us|c[sd]t\b)'),
+      -6,
+      _SummerTime.us,
+    ),
+    (
+      _re(r'^\s*\(?(?:mountain (?:standard |daylight )?time|m[sd]t)\b'),
+      -7,
+      _SummerTime.us,
+    ),
+    (
+      _re(r'^\s*\(?(?:pacific (?:standard |daylight )?time|p[sd]t)\b'),
+      -8,
+      _SummerTime.us,
+    ),
+    (
+      _re(
+        r'^\s*\(?(?:greenwich mean time|british (?:summer )?time|bst|london|'
+        r'dublin|lisbon)\b',
+      ),
+      0,
+      _SummerTime.eu,
+    ),
+    (
+      _re(
+        r'^\s*\(?(?:central european (?:summer )?time|cet|cest|amsterdam|'
+        r'berlin|paris|madrid|rome|vienna|brussels|stockholm)\b',
+      ),
+      1,
+      _SummerTime.eu,
+    ),
+    (
+      _re(
+        r'^\s*\(?(?:singapore|kuala lumpur|hong kong|beijing|taipei|perth|'
+        r'manila|sgt)\b',
+      ),
+      8,
+      null,
+    ),
+    (_re(r'^\s*\(?(?:tokyo|osaka|seoul|jst|kst)\b'), 9, null),
+    (
+      _re(r'^\s*\(?(?:india|mumbai|kolkata|new delhi|chennai|ist)\b'),
+      5.5,
+      null,
+    ),
+    (
+      _re(r'^\s*\(?(?:sydney|melbourne|canberra|aest|aedt)\b'),
+      10,
+      _SummerTime.au,
+    ),
+  ];
+
+  /// The offset of a zone named at [at] in [text] (right after a time),
+  /// on [day], or null.
+  static Duration? zoneAt(String text, int at, DateTime day) {
+    final after = text.substring(at, (at + 40).clamp(0, text.length));
+    for (final (re, hours, summer) in _zones) {
+      if (!re.hasMatch(after)) continue;
+      final d = DateTime.utc(day.year, day.month, day.day);
+      return Duration(
+        minutes:
+            (hours * 60).round() +
+            (summer != null && summer.covers(d) ? 60 : 0),
+      );
+    }
+    return null;
+  }
+
+  /// [start] with the offset of a zone named right after its time in
+  /// [text], if it has none.
+  static PlaceTime zoned(PlaceTime start, String text) {
+    if (start.offset != null || !start.hasTime) return start;
+    final w = start.wall;
+    for (final t in timesIn(_cap(text, 20000))) {
+      if (t.hour != w.hour || t.minute != w.minute) continue;
+      final offset = zoneAt(text, t.end, w);
+      if (offset == null) return start;
+      return PlaceTime(
+        w.year,
+        w.month,
+        w.day,
+        hour: w.hour,
+        minute: w.minute,
+        offset: offset,
+      );
+    }
+    return start;
   }
 
   // ----------------------------------------------------------- details
 
   static final _referenceLabel = _re(
     r'\b(?:appointment|booking|reservation|confirmation|reference|ref|order)\.?'
-    r'(?:\s+(?:id|no\.?|number|code|ref(?:erence)?\.?|#))?\s*[:#]\s*#?\s*'
+    r'(?:\s+(?:id|no\.?|number|code|ref(?:erence)?\.?|#))?\s*[:#：]\s*#?\s*'
     r'([A-Z0-9][A-Z0-9-]{3,19})\b',
   );
 
@@ -671,9 +877,19 @@ abstract final class AppointmentText {
     return null;
   }
 
+  /// A link's words left after an address: "(view map", "Get
+  /// directions".
+  static final linkWords = _re(
+    r'\s*[(\[|]?\s*(?:view|open|see|show)(?: on| in)? (?:the )?(?:map|'
+    r'google maps|directions)\b.*$|\s*[(\[|]?\s*get directions\b.*$',
+  );
+
   /// Where it is: a labelled address, else a line that reads like one.
   static String? placeIn(String text) {
-    final lines = _cap(text, 20000).split('\n').take(300).toList();
+    final lines = [
+      for (final l in _cap(text, 20000).split('\n').take(300))
+        l.replaceFirst(linkWords, ''),
+    ];
     for (final line in lines) {
       final p = _clean(_placeLabel.firstMatch(line)?[1], max: 140);
       if (p != null) return p;
@@ -743,9 +959,11 @@ abstract final class AppointmentText {
     (
       AppointmentKind.school,
       _re(
-        r"\bparent[- ]teacher\b|\bparents'? evening\b|\bschool\b|\bteacher\b",
+        r"\bparent[- ]teacher\b|\bparents'? evening\b|"
+        r'(?<!driving )\bschool\b|\bteacher\b',
       ),
     ),
+    (AppointmentKind.official, _branchCollection),
     (AppointmentKind.delivery, _slot),
     (
       AppointmentKind.car,
@@ -795,6 +1013,7 @@ abstract final class AppointmentText {
       AppointmentKind.lesson,
       _re(
         r'\bclass(?:es)?\b|\blessons?\b|\bcourse\b|\btutor\w*|\byoga\b|'
+        r'\bdriving (?:school|test)\b|\bdrive test\b|'
         r'\bpilates\b|\bfitness\b|\bgym\b|\bswim\w*|\bpersonal training\b',
       ),
     ),
@@ -825,9 +1044,18 @@ abstract final class AppointmentText {
   /// ticket, a shipment or a meeting among colleagues.
   static bool readsLikeAppointment(AppointmentEmail email) {
     if (email.bulk || notAnAppointment.hasMatch(email.subject)) return false;
+    if (activitySites.contains(email.sender.toLowerCase())) return false;
     if (SubscriptionFinder.isReplyOrForward(email.subject)) return false;
     final head = _cap('${email.subject}\n${email.text}', 6000);
     if (!_confirms.hasMatch(head) && !_cancelled.hasMatch(head)) return false;
+    // A health screening is a service: only a film's is not.
+    final subject = _healthScreening.hasMatch(head)
+        ? email.subject.replaceAll(_re(r'\bscreenings?\b'), '')
+        : email.subject;
+    if (_notAServiceSubject.hasMatch(subject) ||
+        _notAServiceText.hasMatch(_cap(email.text, 3000))) {
+      return false;
+    }
     if (_tripWords.hasMatch(email.subject) &&
         !_appointmentWords.hasMatch(email.subject)) {
       return false;
@@ -840,6 +1068,21 @@ abstract final class AppointmentText {
     }
     return true;
   }
+
+  /// Sites that sell tours, escape rooms, classes and other activities
+  /// for many businesses: what they book is an event, not a service.
+  static const activitySites = {
+    'bookeo.com',
+    'fareharbor.com',
+    'rezdy.com',
+    'peek.com',
+    'checkfront.com',
+    'xola.com',
+    'ticketinghub.com',
+    'regiondo.com',
+    'bokun.io',
+    'trekksoft.com',
+  };
 
   static String _cap(String s, int n) => s.length > n ? s.substring(0, n) : s;
 }
@@ -882,22 +1125,26 @@ abstract final class AppointmentFinder {
   );
 
   /// Whether [subject] reads like an appointment, worth downloading.
-  static bool looksLikeAppointment(String subject) =>
-      !SubscriptionFinder.isReplyOrForward(subject) &&
-      !AppointmentText.notAnAppointment.hasMatch(subject) &&
-      // Flights, stays, tables: the Trips page's (a "reservation" is
-      // most often a table).
-      (AppointmentText._appointmentWords.hasMatch(subject) ||
-          !TripFinder.looksLikeBooking(
-            subject.replaceAll(
-              RegExp(
-                r'\b(?:booking|cancell?ed|cancell?ation)\b',
-                caseSensitive: false,
+  /// A forward is judged by the subject it forwards.
+  static bool looksLikeAppointment(String rawSubject) {
+    if (Forwards.isReply(rawSubject)) return false;
+    final subject = Forwards.withoutPrefix(rawSubject);
+    return !AppointmentText.notAnAppointment.hasMatch(subject) &&
+        !AppointmentText._notAServiceSubject.hasMatch(subject) &&
+        // Flights, stays, tables: the Trips page's (a "reservation" is
+        // most often a table).
+        (AppointmentText._appointmentWords.hasMatch(subject) ||
+            !TripFinder.looksLikeBooking(
+              subject.replaceAll(
+                RegExp(
+                  r'\b(?:booking|cancell?ed|cancell?ation)\b',
+                  caseSensitive: false,
+                ),
+                '',
               ),
-              '',
-            ),
-          )) &&
-      _subject.hasMatch(subject);
+            )) &&
+        _subject.hasMatch(subject);
+  }
 
   /// Sites that book for many businesses: their name is not the
   /// business's.
@@ -930,8 +1177,11 @@ abstract final class AppointmentFinder {
 
   /// [email], as understood, or null when it says nothing of an
   /// appointment.
-  static AppointmentRecord? read(AppointmentEmail email) {
-    if (SubscriptionFinder.isReplyOrForward(email.subject)) return null;
+  /// A forward is read as the email it forwards
+  /// ([AppointmentEmail.original]).
+  static AppointmentRecord? read(AppointmentEmail mail) {
+    final email = mail.original;
+    if (email == null) return null;
     // Travel, tables and tickets belong to Trips.
     if (email.reservations.isNotEmpty) return null;
     if (email.appointments.firstOrNull case final a? when !email.bulk) {
@@ -1076,6 +1326,12 @@ abstract final class AppointmentFinder {
             ) &&
             !AppointmentText._meeting.hasMatch(title));
     if (!booked) return null;
+    if (AppointmentText._notAServiceSubject.hasMatch(head) ||
+        AppointmentText._notAServiceText.hasMatch(
+          AppointmentText._cap('${i.description ?? ''}\n${email.text}', 3000),
+        )) {
+      return null;
+    }
     if (AppointmentText._meeting.hasMatch(title) &&
         !AppointmentText._appointmentWords.hasMatch(head)) {
       return null;
@@ -1125,7 +1381,20 @@ abstract final class AppointmentFinder {
   static String? _business(AppointmentEmail email) =>
       _brokerBusiness(email) ??
       _senderBusiness(email) ??
-      AppointmentText.businessIn('${email.subject}\n${email.text}');
+      AppointmentText.businessIn('${email.subject}\n${email.text}') ??
+      _domainBusiness(email);
+
+  /// The sender's domain as a name ("Harbourbank" for harbourbank.com),
+  /// when the mail gives no other (not a booking site's).
+  static String? _domainBusiness(AppointmentEmail email) {
+    final domain = email.sender.toLowerCase();
+    if (bookingSites.contains(domain) || email.senderName != null) return null;
+    final label = domain.split('.').first;
+    if (label.length < 3 || !RegExp(r'^[a-z][a-z0-9-]*$').hasMatch(label)) {
+      return null;
+    }
+    return label[0].toUpperCase() + label.substring(1);
+  }
 
   /// For a booking site's email, the business it names.
   static String? _brokerBusiness(AppointmentEmail email) {
@@ -1362,4 +1631,40 @@ final class _Group {
           .firstOrNull
           ?.start ??
       records.reversed.firstWhere((r) => r.start != null).start!;
+}
+
+/// When summer time adds an hour to a zone.
+enum _SummerTime {
+  /// From the second Sunday of March to the first Sunday of November.
+  us,
+
+  /// From the last Sunday of March to the last Sunday of October.
+  eu,
+
+  /// From the first Sunday of October to the first Sunday of April.
+  au;
+
+  bool covers(DateTime day) {
+    DateTime sunday(int month, int n) {
+      var d = DateTime.utc(day.year, month, 1);
+      while (d.weekday != DateTime.sunday) {
+        d = d.add(const Duration(days: 1));
+      }
+      return d.add(Duration(days: 7 * (n - 1)));
+    }
+
+    DateTime lastSunday(int month) {
+      var d = DateTime.utc(day.year, month + 1, 0);
+      while (d.weekday != DateTime.sunday) {
+        d = d.subtract(const Duration(days: 1));
+      }
+      return d;
+    }
+
+    return switch (this) {
+      us => !day.isBefore(sunday(3, 2)) && day.isBefore(sunday(11, 1)),
+      eu => !day.isBefore(lastSunday(3)) && day.isBefore(lastSunday(10)),
+      au => day.isBefore(sunday(4, 1)) || !day.isBefore(sunday(10, 1)),
+    };
+  }
 }

@@ -18,6 +18,7 @@ final class MailCounts {
     required this.outbox,
     this.snoozed = 0,
     this.followUps = 0,
+    this.pins = 0,
   });
 
   static const empty = MailCounts(
@@ -34,6 +35,9 @@ final class MailCounts {
   /// including those back with "No reply yet".
   final int followUps;
 
+  /// Pinned mail in every folder (the Pins list), not only the Inbox's.
+  final int pins;
+
   final Map<SmartSection, SectionCount> sections;
   final Map<AccountId, int> perAccountUnread;
   final Map<MailboxId, int> folderUnread;
@@ -48,6 +52,7 @@ final class MailCounts {
   bool same(MailCounts other) =>
       identical(this, other) ||
       (snoozed == other.snoozed &&
+          pins == other.pins &&
           followUps == other.followUps &&
           outbox == other.outbox &&
           mapEquals(perAccountUnread, other.perAccountUnread) &&
@@ -101,6 +106,7 @@ final class CountsController {
       outbox: _store.outbox.sends().length,
       snoozed: _store.snoozes.count(),
       followUps: _followUps.all().length,
+      pins: _store.messages.pinnedCount(),
     );
     // The sync worker writes after every check, mostly without changing
     // any count: the sidebar is built again only when one changed.

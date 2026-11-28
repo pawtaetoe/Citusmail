@@ -33,7 +33,8 @@ app/lib/src/
     reader/       reading an email and what is shown with it
     compose/      writing, sending, send later, sign-offs, writing help
     found/        subscriptions, deliveries, returns, trips, appointments,
-                  attachments
+                  events, attachments
+    calendar/     everything dated that found/ finds, by day
     organise/     Screener, snooze, follow-ups, clean up, block, move,
                   folders, unsubscribe, privacy report
     accounts/     adding (setup), pairing, online accounts

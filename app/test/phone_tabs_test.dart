@@ -2,11 +2,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import 'dart:io';
+
 import 'package:citusmail/src/core/theme/citusmail_theme.dart';
+import 'package:citusmail/src/features/calendar/ui/calendar_view.dart';
+import 'package:citusmail/src/features/discover/ui/discover_page.dart';
 import 'package:citusmail/src/features/found/ui/deliveries_page.dart';
 import 'package:citusmail/src/features/inbox/ui/mail_shell.dart';
 import 'package:citusmail/src/features/inbox/ui/phone_home.dart';
 import 'package:citusmail/src/features/inbox/ui/sidebar.dart';
+import 'package:citusmail/src/features/organise/ui/sender_cleanup_page.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,12 +89,12 @@ void main() {
     'Deliveries',
     'Trips',
     'Appointments',
+    'Events',
     'Online accounts',
   ];
 
-  testWidgets('the bar switches between Inbox, Pins, Found and Folders', (
-    tester,
-  ) async {
+  testWidgets('the bar switches between Inbox, Pins, Calendar, Tools and '
+      'Folders', (tester) async {
     await show(tester);
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(selectedTab(tester), 0);
@@ -109,15 +115,29 @@ void main() {
     expect(find.byTooltip('Back'), findsNothing);
     expect(searchField(), findsNothing);
 
-    await tab(tester, 'Found');
+    await tab(tester, 'Calendar');
     expect(selectedTab(tester), 2);
-    expect(find.byType(FoundHub), findsOneWidget);
+    expect(find.byType(CalendarView), findsOneWidget);
+    expect(find.text('Nothing on the calendar'), findsOneWidget);
+    expect(find.byTooltip('New message (C)'), findsNothing);
+
+    await tab(tester, 'Tools');
+    expect(selectedTab(tester), 3);
+    expect(find.byType(ToolsHub), findsOneWidget);
     for (final page in foundPages) {
+      await tester.scrollUntilVisible(
+        find.text(page),
+        100,
+        scrollable: find.descendant(
+          of: find.byType(ToolsHub),
+          matching: find.byType(Scrollable),
+        ),
+      );
       expect(find.text(page), findsOneWidget, reason: page);
     }
 
     await tab(tester, 'Folders');
-    expect(selectedTab(tester), 3);
+    expect(selectedTab(tester), 4);
     // Everything the drawer had, but the tabs' own places.
     for (final label in [
       'alice@citusmail.test',
@@ -126,9 +146,7 @@ void main() {
       'Archive',
       'Spam',
       'Projects',
-      'Tools',
       'Notification settings',
-      'All features',
       'Add account',
     ]) {
       expect(
@@ -139,7 +157,31 @@ void main() {
     }
     expect(find.byTooltip('Settings'), findsOneWidget);
     expect(find.text('Found in your mail'), findsNothing);
+    // Both groups of pages are on the Tools tab instead.
+    expect(
+      find.descendant(of: find.byType(Sidebar), matching: find.text('Tools')),
+      findsNothing,
+    );
     expect(find.byType(Drawer), findsNothing);
+    // All features is at the end of the Tools tab, not here.
+    expect(
+      find.descendant(
+        of: find.byType(Sidebar),
+        matching: find.text('All features'),
+      ),
+      findsNothing,
+    );
+    await tab(tester, 'Tools');
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('tools-all-features')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const ValueKey('tools-all-features')));
+    await tester.pumpAndSettle();
+    expect(find.byType(DiscoverPage), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
     await tab(tester, 'Inbox');
     expect(selectedTab(tester), 0);
@@ -163,15 +205,16 @@ void main() {
     await settle(tester);
     expect(badge('3'), findsOneWidget);
     // Shown on the other tabs too.
-    await tab(tester, 'Found');
+    await tab(tester, 'Tools');
     expect(badge('3'), findsOneWidget);
   });
 
-  testWidgets('Found lists the pages found in mail and opens one', (
+  testWidgets('Tools lists the pages found in mail and opens one', (
     tester,
   ) async {
-    await show(tester);
-    await tab(tester, 'Found');
+    // Tall enough for every page found in mail at once.
+    await show(tester, size: const Size(390, 1100));
+    await tab(tester, 'Tools');
     expect(find.text('Found in your mail'), findsOneWidget);
     // In the sidebar's order.
     for (var i = 1; i < foundPages.length; i++) {
@@ -188,8 +231,48 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.byType(FoundHub), findsOneWidget);
-    expect(selectedTab(tester), 2);
+    expect(find.byType(ToolsHub), findsOneWidget);
+    expect(selectedTab(tester), 3);
+  });
+
+  testWidgets('Tools also holds Clean up and the Privacy report', (
+    tester,
+  ) async {
+    await show(tester);
+    await tab(tester, 'Tools');
+    expect(find.text('Found in your mail'), findsOneWidget);
+    // The tools group, below what is found in mail.
+    await tester.scrollUntilVisible(
+      find.text('Privacy report'),
+      200,
+      scrollable: find.descendant(
+        of: find.byType(ToolsHub),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    final tools = find.descendant(
+      of: find.byType(ToolsHub),
+      matching: find.text('Tools'),
+    );
+    expect(tools, findsOneWidget);
+    expect(find.text('Clean up'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Online accounts')).dy,
+      lessThan(tester.getTopLeft(tools).dy),
+    );
+    await tester.tap(find.text('Clean up'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(SenderCleanupPage), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(selectedTab(tester), 3);
+
+    // The Folders tab holds only folders now.
+    await tab(tester, 'Folders');
+    expect(find.text('Clean up'), findsNothing);
+    expect(find.text('Privacy report'), findsNothing);
   });
 
   testWidgets('Folders opens a folder; Back returns to Folders', (
@@ -206,7 +289,7 @@ void main() {
     expect(find.byTooltip('New message (C)'), findsOneWidget);
     await back(tester);
     expect(find.byType(Sidebar), findsOneWidget);
-    expect(selectedTab(tester), 3);
+    expect(selectedTab(tester), 4);
 
     // The arrow in the header does the same.
     await tester.tap(find.text('Sent'));
@@ -215,14 +298,13 @@ void main() {
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(find.byType(Sidebar), findsOneWidget);
-    expect(selectedTab(tester), 3);
+    expect(selectedTab(tester), 4);
   });
 
-  testWidgets('Back from Pins, Found or Folders returns to the Inbox', (
-    tester,
-  ) async {
+  testWidgets('Back from Pins, Calendar, Tools or Folders returns to the '
+      'Inbox', (tester) async {
     await show(tester);
-    for (final label in ['Pins', 'Found', 'Folders']) {
+    for (final label in ['Pins', 'Calendar', 'Tools', 'Folders']) {
       await tab(tester, label);
       expect(selectedTab(tester), isNot(0), reason: label);
       await back(tester);
@@ -343,7 +425,7 @@ void main() {
     final style = tester.widget<FloatingActionButton>(fab);
     expect(style.backgroundColor, CitusPalette.citrus);
     // Not over the Found and Folders pages.
-    await tab(tester, 'Found');
+    await tab(tester, 'Tools');
     expect(fab, findsNothing);
     await tab(tester, 'Pins');
     expect(fab, findsOneWidget);
@@ -401,7 +483,13 @@ void main() {
         for (final dark in [false, true]) {
           final what = '$width wide, text x$scale, ${dark ? 'dark' : 'light'}';
           await show(tester, size: Size(width, 760), dark: dark);
-          for (final label in ['Pins', 'Found', 'Folders', 'Inbox']) {
+          for (final label in [
+            'Pins',
+            'Calendar',
+            'Tools',
+            'Folders',
+            'Inbox',
+          ]) {
             await tab(tester, label);
             expect(tester.takeException(), isNull, reason: '$label, $what');
           }
@@ -414,10 +502,49 @@ void main() {
     }
   });
 
+  testWidgets('five labels fit on one line, 360 wide, with the app\'s font', (
+    tester,
+  ) async {
+    // The test font draws every letter as a square: measure the real one.
+    final loader = FontLoader(CitusmailTheme.fontFamily);
+    for (final f in Directory('assets/fonts/IBMPlexSans').listSync()) {
+      if (f is File && f.path.endsWith('.ttf')) {
+        loader.addFont(Future.value(ByteData.view(f.readAsBytesSync().buffer)));
+      }
+    }
+    await loader.load();
+    const labels = ['Inbox', 'Pins', 'Calendar', 'Tools', 'Folders'];
+    for (final scale in [1.0, 1.3, 2.0]) {
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await show(tester, size: const Size(360, 760));
+      final bar = tester.getRect(find.byType(NavigationBar));
+      Rect label(String l) => tester.getRect(
+        find.descendant(of: find.byType(NavigationBar), matching: find.text(l)),
+      );
+      final line = label('Pins').height;
+      for (final (i, l) in labels.indexed) {
+        final r = label(l);
+        expect(r.height, line, reason: '$l at x$scale: one line');
+        expect(
+          r.left,
+          greaterThanOrEqualTo(bar.left + bar.width / 5 * i),
+          reason: '$l at x$scale: in its slot',
+        );
+        expect(
+          r.right,
+          lessThanOrEqualTo(bar.left + bar.width / 5 * (i + 1)),
+          reason: '$l at x$scale: in its slot',
+        );
+      }
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('tabs are named and easy to tap', (tester) async {
     final semantics = tester.ensureSemantics();
     await show(tester);
-    for (final label in ['Inbox', 'Pins', 'Found', 'Folders']) {
+    for (final label in ['Inbox', 'Pins', 'Calendar', 'Tools', 'Folders']) {
       final rect = tester.getRect(
         find
             .ancestor(
@@ -433,7 +560,7 @@ void main() {
       expect(rect.width, greaterThanOrEqualTo(48), reason: label);
     }
     expect(find.bySemanticsLabel(RegExp('^Inbox')), findsWidgets);
-    expect(find.bySemanticsLabel(RegExp('^Found')), findsWidgets);
+    expect(find.bySemanticsLabel(RegExp('^Tools')), findsWidgets);
     expect(find.byTooltip('New message (C)'), findsOneWidget);
     await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     // The inbox too: section headers, avatars, the search field.
@@ -442,7 +569,10 @@ void main() {
 
     await tab(tester, 'Pins');
     await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
-    await tab(tester, 'Found');
+    await tab(tester, 'Calendar');
+    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+    await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    await tab(tester, 'Tools');
     await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
     await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     await tab(tester, 'Folders');
@@ -459,10 +589,33 @@ void main() {
       expect(find.byType(PhoneHome), findsNothing);
       expect(find.byTooltip('New message (C)'), findsOneWidget);
     }
-    // Wide: the sidebar beside the list, Found in your mail in it.
+    // Wide: the sidebar beside the list, Found in your mail in it, and
+    // the calendar under Pins.
     await show(tester, size: const Size(1400, 900));
     expect(find.byType(Sidebar), findsOneWidget);
     expect(find.text('Found in your mail'), findsOneWidget);
+    final calendar = find.descendant(
+      of: find.byType(Sidebar),
+      matching: find.text('Calendar'),
+    );
+    expect(
+      tester.getTopLeft(calendar).dy,
+      greaterThan(
+        tester
+            .getTopLeft(
+              find.descendant(
+                of: find.byType(Sidebar),
+                matching: find.text('Pins'),
+              ),
+            )
+            .dy,
+      ),
+    );
+    await tester.tap(calendar);
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarPage), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     // Tablet: the sidebar in a drawer, behind the menu button.
     await show(tester, size: const Size(800, 900));
     expect(find.byType(Sidebar), findsNothing);
