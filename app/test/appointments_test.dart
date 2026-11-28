@@ -205,7 +205,7 @@ END:VCALENDAR''')!;
       expect(find.text('Moved'), findsOneWidget);
       // Not appointments.
       for (final t in [
-        'Burnt Ends',
+        'Ember Lane',
         'Serenity Spa',
         'Q4 roadmap',
         'Ninja Van',

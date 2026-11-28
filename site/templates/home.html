@@ -1,151 +1,306 @@
 <!-- This Source Code Form is subject to the terms of the Mozilla Public
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
-<section class="hero">
-  <div class="wrap hero-grid">
-    <div class="hero-text">
-      <p class="eyebrow"><em>Citus</em> is Latin for fast</p>
-      <h1>Fast, private email that stays yours</h1>
-      <p class="lead">A free, open-source mail client for Linux, Windows and
-        Android. No subscriptions, no ads, no tracking, and no server of ours:
-        your mail goes only between your device and your mail provider.</p>
-      <p class="actions">
-        <a class="button primary" href="#download">Download</a>
-        <a class="button" href="{{repo}}">Source on GitHub</a>
-      </p>
-      <p class="small">Works with Gmail, Outlook and any IMAP/SMTP provider.</p>
-    </div>
-    <figure class="hero-shots">
-      <img class="shot desktop" src="/screenshots/readme_desktop.png" width="1440" height="860"
-        alt="Citusmail on the desktop: the Smart Inbox with Pinned, Verification, Important and General sections">
-      <img class="shot phone" src="/screenshots/readme_phone.png" width="390" height="844"
-        alt="Citusmail on a phone: the same Smart Inbox">
+<section class="hero" aria-labelledby="hero-title">
+  <div class="wrap hero-text">
+    <img class="hero-mark" src="/icon/icon.svg" alt="" width="88" height="88">
+    <p class="pill"><span>Free</span><span>Open source</span><span>No telemetry</span></p>
+    <h1 id="hero-title">Fast, private email<br class="wide-only"> that stays yours.</h1>
+    <p class="lead">A mail app for Android, Windows and Linux that does its
+      work on your device. No ads, no subscriptions, no tracking, and no
+      server of ours between you and your mail.</p>
+    <p class="actions">
+      <a class="button primary" href="#download">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Download
+      </a>
+      <a class="button" href="{{repo}}">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="m8.5 7-5 5 5 5m7-10 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Source code
+      </a>
+    </p>
+    <p class="meta">{{version}}Gmail, Outlook and any IMAP provider</p>
+  </div>
+  <div class="wrap">
+    <figure class="stage">
+      <picture>
+        <source srcset="/screenshots/readme_desktop_dark.png" media="(prefers-color-scheme: dark)">
+        <img class="screen desktop" src="/screenshots/readme_desktop.png" width="1440" height="900"
+          alt="Citusmail on a computer: the sidebar with Inbox, Pins, Calendar and folders, the Smart Inbox with a sign-in code shown in the list, and an email open on the right">
+      </picture>
+      <picture>
+        <source srcset="/screenshots/readme_phone_dark.png" media="(prefers-color-scheme: dark)">
+        <img class="screen phone" src="/screenshots/readme_phone.png" width="390" height="844"
+          alt="Citusmail on a phone: the same inbox, with the Inbox, Pins, Calendar, Tools and Folders tabs at the bottom">
+      </picture>
     </figure>
   </div>
 </section>
 
-<section class="band" aria-labelledby="apart">
-  <div class="wrap">
-    <h2 id="apart">What sets it apart</h2>
-    <div class="feature-split">
-      <div>
-        <h3>Your subscriptions, found in your mail</h3>
-        <p>Paid subscriptions send a receipt every time they charge you, but
-          they're easy to forget. Citusmail reads your receipts, bills and
-          renewal emails <strong>on your device</strong> and lists every
-          subscription it finds:</p>
-        <ul class="ticks">
-          <li>what you spend a year, a month and a day, and how it splits
-            between your subscriptions;</li>
-          <li>each one's price, how often it charges and the next charge;</li>
-          <li>every past receipt, opening right in place, and when the price
-            went up;</li>
-          <li>phone, broadband and utility bills too, with their average when
-            they vary.</li>
-        </ul>
-      </div>
-      <div class="shots-pair">
-        <img class="shot" src="/screenshots/readme_subscriptions.png" width="390" height="844" loading="lazy"
-          alt="The Subscriptions page: what you spend a year, a month and a day, and how it splits between subscriptions">
-        <img class="shot" src="/screenshots/readme_subscription.png" width="390" height="844" loading="lazy"
-          alt="One subscription: its price, how often it charges, every receipt and a price change">
-      </div>
-    </div>
-
-    <div class="cards">
-      <article class="card">
-        <h3>Codes in the list</h3>
-        <p>One-time codes, sign-in links and password resets get their own
-          section, and the code shows without opening the email. Copy it with
-          a tap.</p>
-      </article>
-      <article class="card">
-        <h3>Phishing checks that read the message</h3>
-        <p>Besides forged senders and lookalike links, Citusmail warns when an
-          outsider writes in the name of your own school or company, or a big
-          brand, especially with hidden recipients or a form "portal".</p>
-      </article>
-      <article class="card">
-        <h3>No server of ours</h3>
-        <p>Everything runs on your device. There is no Citusmail account,
-          cloud or tracking, and your mail is stored encrypted.</p>
-      </article>
-    </div>
-  </div>
-</section>
-
-<section class="wrap phishing" aria-labelledby="phishing-title">
-  <h2 id="phishing-title">Scam warnings that say why</h2>
-  <p class="small">Mail is checked on your device, even from a real, verified address.
-    The warning lists what looks wrong, so you can decide for yourself.</p>
-  <img class="shot" src="/screenshots/readme_phishing.png" width="1440" height="860" loading="lazy"
-    alt="A scam from a real, verified address, with a red warning that lists why it's suspicious">
-</section>
-
-<section id="features" class="wrap" aria-labelledby="features-title">
-  <h2 id="features-title">Everything you need from a mail app</h2>
-  <ul class="feature-list">
-    <li><strong>Smart Inbox.</strong> Mail sorted on your device into Pinned,
-      Verification, Important, General, Notifications and Newsletters.</li>
-    <li><strong>Several accounts in one inbox.</strong> Any IMAP/SMTP provider,
-      Gmail and Outlook / Microsoft 365, with their own sign-in.</li>
-    <li><strong>Privacy by default.</strong> Images and trackers blocked, read
-      receipts never sent, tracking removed from links, one-tap unsubscribe,
-      and blocking senders.</li>
-    <li><strong>Writing mail.</strong> Drafts, replies, undo send, custom folders
-      and rules.</li>
-    <li><strong>Every message, whole.</strong> Save it as an .eml file, see its
-      original headers and source, or forward it as an attachment.</li>
-    <li><strong>Encrypted everywhere.</strong> Encrypted storage, passwords in
-      the system keychain, end-to-end encrypted sync of settings between your
-      devices, and an app lock with PIN or fingerprint.</li>
+<section class="promises" aria-label="In short">
+  <ul class="wrap promise-grid">
+    <li>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="28" height="28"><rect x="6" y="2.5" width="12" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <strong>Runs on your device</strong>
+      <span>Sorting, scam checks and everything found in your mail.</span>
+    </li>
+    <li>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="28" height="28"><path d="M12 3 4.5 6v5.5c0 4.6 3.1 8 7.5 9.5 4.4-1.5 7.5-4.9 7.5-9.5V6L12 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m8.8 12 2.3 2.3 4.2-4.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <strong>No account with us</strong>
+      <span>No cloud, analytics, crash reports or ads.</span>
+    </li>
+    <li>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="28" height="28"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      <strong>Encrypted at rest</strong>
+      <span>Mail stored encrypted, passwords in the system keychain.</span>
+    </li>
+    <li>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="28" height="28"><path d="m8.5 7-5 5 5 5m7-10 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <strong>Open source</strong>
+      <span>Every line readable, under the Mozilla Public License 2.0.</span>
+    </li>
   </ul>
-  <div class="phones">
-    <img class="shot" src="/screenshots/readme_phone_reader.png" width="390" height="844" loading="lazy"
-      alt="Reading on a phone: the warning, Reply and Forward, and the message actions at the bottom">
-    <img class="shot" src="/screenshots/readme_phone_compose.png" width="390" height="844" loading="lazy"
-      alt="Writing on a phone: To, Subject and the message, with Send at the bottom">
-    <img class="shot" src="/screenshots/readme_phone_settings.png" width="390" height="844" loading="lazy"
-      alt="Settings on a phone: notifications, how far back mail is kept, app lock">
-  </div>
-  <p class="caption">On phones, the menu, search, New message and Send sit at
-    the bottom of the screen, within reach of one thumb.</p>
 </section>
 
-<section id="download" class="band" aria-labelledby="download-title">
-  <div class="wrap">
-    <h2 id="download-title">Download</h2>
-    <p class="small">{{version}}Free, with no account to create.</p>
-    <div class="downloads">
-      <a class="download" href="{{apk}}">
-        <strong>Android</strong>
-        <span>APK for your phone or tablet</span>
-      </a>
-      <a class="download" href="{{deb}}">
-        <strong>Linux · .deb</strong>
-        <span>Ubuntu, Debian, Mint and more</span>
-      </a>
-      <a class="download" href="{{flatpak}}">
-        <strong>Linux · Flatpak</strong>
-        <span>Any Linux with Flatpak</span>
-      </a>
-      <a class="download" href="{{exe}}">
-        <strong>Windows</strong>
-        <span>Installer for Windows 10 and 11</span>
-      </a>
+<div id="features">
+<section class="feature" aria-labelledby="inbox-title">
+  <div class="wrap feature-row">
+    <div class="feature-text">
+      <p class="kicker">Inbox &amp; focus</p>
+      <h2 id="inbox-title">An inbox that sorts itself</h2>
+      <p>Mail lands in Pinned, Verification, Important, General,
+        Notifications and Newsletters, with what came while you were away on
+        top.</p>
+      <ul class="ticks">
+        <li>Sign-in codes show in the list, ready to copy with a tap.</li>
+        <li>A summary line: what is new, the latest code, what is on today.</li>
+        <li>The Screener holds first-time senders until you say yes.</li>
+        <li>Pins, Peek, Snooze, Send later and "remind me if no reply".</li>
+      </ul>
     </div>
-    <p class="small">All files, checksums and release notes are on the
-      <a href="{{releases}}">releases page</a>.</p>
+    <div class="shots two">
+      <img class="screen phone" src="/screenshots/readme_screener.png" width="390" height="844" loading="lazy"
+        alt="The Screener: people writing for the first time, each with their first email, and Screen out or Let in">
+      <img class="screen phone" src="/screenshots/readme_follow_ups.png" width="390" height="844" loading="lazy"
+        alt="Waiting for a reply: sent emails nobody has answered yet, and when each reminder comes">
+    </div>
   </div>
 </section>
 
-<section class="wrap privacy" aria-labelledby="privacy-title">
-  <h2 id="privacy-title">Your privacy</h2>
-  <p>Citusmail has no account with us and no server of ours. We don't collect,
-    receive, store, sell or share your data, and there's no analytics, crash
-    reporting or advertising. Your mail, contacts and settings stay on your
-    device, encrypted, and travel only between your device and your own mail
-    provider, plus optional services you turn on yourself.</p>
-  <p><a href="/privacy-policy">Read the privacy policy</a> ·
-    <a href="/terms-of-service">Terms of service</a></p>
+<section class="feature tint" aria-labelledby="found-title">
+  <div class="wrap">
+    <div class="feature-head">
+      <p class="kicker">Found in your mail</p>
+      <h2 id="found-title">Your receipts, parcels and plans, gathered for you</h2>
+      <p>Citusmail reads your receipts, shipping emails, bookings and tickets
+        <strong>on your device</strong> and puts together what they say.</p>
+    </div>
+    <ul class="gallery">
+      <li>
+        <img class="screen phone" src="/screenshots/readme_subscriptions.png" width="390" height="844" loading="lazy"
+          alt="Subscriptions: a free trial ending tomorrow and bills due, then what you spend a year, a month and a day">
+        <h3>Subscriptions</h3>
+        <p>What you spend a year, a month and a day, with bills and trials coming up.</p>
+      </li>
+      <li>
+        <img class="screen phone" src="/screenshots/readme_subscriptions_list.png" width="390" height="844" loading="lazy"
+          alt="The list of subscriptions, each with its period, such as every 30 days or every 2 months, and its next charge">
+        <h3>Any billing period</h3>
+        <p>Monthly, yearly, every 30 days or every 2 months, with the next charge.</p>
+      </li>
+      <li>
+        <img class="screen phone" src="/screenshots/readme_deliveries.png" width="390" height="844" loading="lazy"
+          alt="Deliveries: 3 on the way, with the shop, carrier and expected date">
+        <h3>Deliveries</h3>
+        <p>Parcels on their way, and what can still be returned.</p>
+      </li>
+      <li>
+        <img class="screen phone" src="/screenshots/readme_trips.png" width="390" height="844" loading="lazy"
+          alt="Trips: a table booking, then flights and a hotel put together into a trip to Tokyo">
+        <h3>Trips</h3>
+        <p>Flights, hotels and table bookings, put together into trips.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section class="feature" aria-labelledby="calendar-title">
+  <div class="wrap">
+    <div class="feature-head">
+      <p class="kicker">Calendar &amp; tools</p>
+      <h2 id="calendar-title">Your week, straight from your inbox</h2>
+      <p>The Calendar puts trips, appointments, tickets and meeting
+        invitations by day, and adds any of them to your calendar app with a
+        tap. On phones, the Tools tab keeps the rest close.</p>
+    </div>
+    <ul class="gallery">
+      <li>
+        <img class="screen phone" src="/screenshots/readme_calendar.png" width="390" height="844" loading="lazy"
+          alt="The Calendar tab: a week strip, then a meeting tomorrow, an appointment, a concert and a cancelled booking">
+        <h3>Calendar</h3>
+        <p>Everything dated in your mail, by day, in its own tab.</p>
+      </li>
+      <li>
+        <img class="screen phone" src="/screenshots/readme_events.png" width="390" height="844" loading="lazy"
+          alt="Events: 3 coming up, a meeting, a concert, a factory tour, and a cancelled show">
+        <h3>Events</h3>
+        <p>Tours, concerts, shows, films and meetings from tickets and invitations.</p>
+      </li>
+      <li>
+        <img class="screen phone" src="/screenshots/readme_tools.png" width="390" height="844" loading="lazy"
+          alt="The Tools tab: Clean up, Privacy report, Files, the command bar and the AI assistant">
+        <h3>The Tools tab</h3>
+        <p>Found in your mail, Clean up, the Privacy report and Files.</p>
+      </li>
+      <li>
+        <img class="screen phone" src="/screenshots/readme_clean_up.png" width="390" height="844" loading="lazy"
+          alt="Clean up: the senders who fill your inbox, how many emails each sent and how few you opened">
+        <h3>Clean up</h3>
+        <p>See who fills your inbox and clear out their mail at once.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+</div>
+
+<section id="privacy" class="privacy" aria-labelledby="privacy-title">
+  <div class="wrap">
+    <div class="feature-head">
+      <p class="kicker">Privacy &amp; security</p>
+      <h2 id="privacy-title">Warnings that say why, and nothing that watches you</h2>
+      <p>Every email is checked on your device, even when it comes from a
+        real, verified address. The warning lists what looks wrong, so you
+        can decide for yourself.</p>
+    </div>
+    <img class="screen wide" src="/screenshots/readme_phishing.png" width="1440" height="900" loading="lazy"
+      alt="A scam from a real, verified address: the red warning lists why (it names your institution but comes from outside it, writes in the name of big companies, hides its recipients, and its portal link is an online form)">
+    <div class="privacy-grid">
+      <div class="privacy-card">
+        <h3>Blocked by default</h3>
+        <p>Remote images and trackers wait until you load them. Read receipts
+          are never sent, and tracking tags are taken off links.</p>
+      </div>
+      <div class="privacy-card">
+        <h3>A report of what was kept</h3>
+        <p>The Privacy report counts the trackers, images and tracking tags
+          kept from senders, and the read receipts not sent.</p>
+      </div>
+      <div class="privacy-card">
+        <h3>Locked down</h3>
+        <p>Encrypted storage, an app lock with PIN or fingerprint, and
+          end-to-end encrypted sync of your settings between devices.</p>
+      </div>
+      <div class="privacy-card">
+        <h3>Only what you turn on</h3>
+        <p>Your mail goes between your device and your provider. Link checks
+          and the AI assistant stay off until you add them.</p>
+      </div>
+    </div>
+    <p class="more-links">
+      <a href="/privacy-policy">Privacy policy</a>
+      <a href="{{repo}}/blob/main/PRIVACY.md">Everything that leaves your device</a>
+      <a href="{{repo}}/blob/main/SECURITY.md">Security rules</a>
+    </p>
+  </div>
+</section>
+
+<section class="more" aria-labelledby="more-title">
+  <div class="wrap">
+    <h2 id="more-title">And the rest of a good mail app</h2>
+    <ul class="more-grid">
+      <li><h3>Every account in one inbox</h3><p>Gmail, Outlook / Microsoft 365 and any IMAP provider.</p></li>
+      <li><h3>A command bar</h3><p>Ctrl+K on a computer: emails, folders, settings and actions from the keyboard.</p></li>
+      <li><h3>Sign-offs</h3><p>Several endings, a default per account, a quick switch while you write.</p></li>
+      <li><h3>Writing hints</h3><p>When it is night for them, how fast they reply, "Did you mean" for typos.</p></li>
+      <li><h3>Add accounts from your phone</h3><p>Scan a code and your accounts sign in on the computer, end-to-end encrypted.</p></li>
+      <li><h3>AI, only with your own key</h3><p>Summarise, translate, suggest replies and ask your mail. Off until you add a key.</p></li>
+    </ul>
+  </div>
+</section>
+
+<section id="download" class="download-band" aria-labelledby="download-title">
+  <div class="wrap">
+    <div class="feature-head center">
+      <h2 id="download-title">Download Citusmail</h2>
+      <p>{{version}}Free, with no account to create.</p>
+    </div>
+    <ul class="downloads">
+      <li>
+        <a class="download" href="{{apk}}">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="32" height="32"><rect x="6" y="2.5" width="12" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <strong>Android</strong>
+          <span>APK for phones and tablets</span>
+          <em>Download .apk</em>
+        </a>
+      </li>
+      <li>
+        <a class="download" href="{{deb}}">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="32" height="32"><rect x="2.5" y="4" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m6.5 9 2.5 2-2.5 2m4.5 0h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 21h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <strong>Linux · .deb</strong>
+          <span>Ubuntu, Debian, Mint and more</span>
+          <em>Download .deb</em>
+        </a>
+      </li>
+      <li>
+        <a class="download" href="{{flatpak}}">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="32" height="32"><path d="M12 2.8 20 7.4v9.2l-8 4.6-8-4.6V7.4l8-4.6Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <strong>Linux · Flatpak</strong>
+          <span>Any Linux with Flatpak</span>
+          <em>Download .flatpak</em>
+        </a>
+      </li>
+      <li>
+        <a class="download" href="{{exe}}">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="32" height="32"><rect x="2.5" y="4" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 8h19M8 21h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <strong>Windows</strong>
+          <span>For Windows 10 and 11</span>
+          <em>Download installer</em>
+        </a>
+      </li>
+    </ul>
+    <p class="fine">Every file, its checksum and the release notes are on the
+      <a href="{{releases}}">releases page</a>. Prefer to build it yourself?
+      <a href="{{repo}}#building-from-source">Building from source</a>.</p>
+  </div>
+</section>
+
+<section id="faq" class="faq" aria-labelledby="faq-title">
+  <div class="wrap faq-grid">
+    <div>
+      <h2 id="faq-title">Questions</h2>
+      <p class="muted">Anything else? The <a href="{{repo}}">project page</a>
+        has the details, and the <a href="/privacy-policy">privacy policy</a>
+        says exactly how your data is handled.</p>
+    </div>
+    <div class="faq-list">
+      <details>
+        <summary>Is it really free?</summary>
+        <p>Yes. No ads, no subscription and nothing to unlock. The code is
+          open source under the Mozilla Public License 2.0.</p>
+      </details>
+      <details>
+        <summary>Does my mail go through a Citusmail server?</summary>
+        <p>No. There is no Citusmail server. The app connects to your own
+          mail provider, and to other services only when you tap something
+          or turn it on.</p>
+      </details>
+      <details>
+        <summary>Which mail providers work?</summary>
+        <p>Gmail, Outlook / Hotmail and Microsoft 365 with their own
+          sign-in, and any provider with IMAP and SMTP. Connections are
+          always encrypted.</p>
+      </details>
+      <details>
+        <summary>Do I need the AI features?</summary>
+        <p>No. They are off until you add your own key for a provider you
+          choose, and the app works fully without them. With a key, only the
+          email you ask about is sent.</p>
+      </details>
+      <details>
+        <summary>Is there an iPhone or Mac version?</summary>
+        <p>Not at the moment: Citusmail is made for Android, Windows and
+          Linux.</p>
+      </details>
+    </div>
+  </div>
 </section>
