@@ -219,9 +219,13 @@ a `SyncEngine` opens counts in one `ConnectionBudget` per account
   minutes) for one given back (handed over still logged in) or closed.
 - **Priorities.** The user's work (opening a message, searching the
   server, loading older mail) goes ahead of everything else in the
-  queue. While it waits, a full sync hands its connection over between
-  folders and its extra connections stop; IDLE gives its connection up
-  whenever anything waits, and asks again 10 seconds later.
+  queue, except background work that has waited 30 seconds
+  (`ConnectionBudget.ageAfter`), so neither can starve the other. While
+  the user's work waits, a full sync hands its connection over between
+  folders and between the steps after them (receipts, codes, archived
+  mail, app data), and its extra connections stop; IDLE gives its
+  connection up whenever anything waits, and asks again 10 seconds
+  later.
 - **When the server refuses anyway** (`ImapAuthenticationException.
   temporary`: other devices hold the rest), the account's budget drops
   to 2, coming back one connection at a time over 30 minutes; its kept
@@ -244,8 +248,77 @@ a `SyncEngine` opens counts in one `ConnectionBudget` per account
 
 Stopping an engine ends waits for a connection and waits for the IDLE
 connections to log out; `dispose` closes everything kept, and anything
-still in use is closed when it is given back. `connections_test.dart`
+still in use is closed when it is given back. Forgetting an account
+(removed, or its settings changed) ends the waits for its connections
+too: they would log in with the account as it was. `connections_test.dart`
 checks the budget against a fake server that refuses logins like Gmail.
+
+**On a server with LIST-STATUS** (Dovecot, Fastmail and others), the
+full sync reads every folder's counters with the folder list, in one
+command, and opens only the folders whose UIDVALIDITY, UIDNEXT,
+HIGHESTMODSEQ or message count changed since their last sync
+(`MailboxSynchronizer.unchanged`; never without CONDSTORE, where a flag
+change shows in no counter, nor while older mail is still to come or
+removals were last looked for over an hour ago). `sync_speed_test.dart`
+measures five accounts of 30 folders, four changed, at 10 ms a reply
+with IDLE on: about 0.4 s as in 0.6.4 (three connections a sync, no
+budget) and with the budget of 4, 0.65 s with the budget lowered to 2,
+and 0.25 s with LIST-STATUS at either budget.
+
+## Concurrency: what is guaranteed, and where it is tested
+
+- **No deadlock.** Nothing holds a connection while it waits for another:
+  a sync's extra connections never wait (`takeIfFree`), its main one is
+  given back before it queues again (`_handOver`), IDLE gives its own up
+  before it asks again, and the on-demand work (opening, searching,
+  older mail, new folders, reading ahead) takes one connection per piece
+  of work and runs one piece at a time per account. So the queue always
+  moves, at any budget. `connections_test.dart` ("no deadlock") runs a
+  full sync with a change to replay, opening a message, a server search,
+  older mail, a new folder, reading ahead and IDLE together at budgets
+  of 1 and 2: all finish, and the server never sees more than the
+  budget.
+- **Syncs of one account never overlap; accounts sync side by side.**
+  `SyncEngine` keeps per account one sync running and at most one
+  waiting: whatever is asked for meanwhile (the inbox check, IDLE, the
+  user's actions, "Send later" timers, `requestSync` bursts) joins the
+  waiting one, its folders added (a full sync with the views asked for),
+  and every caller gets that sync's report. Requests within the change
+  delay are merged into the widest. Stopping drops the waiting sync; a
+  sync never throws where nobody waits (in the worker isolate, with
+  `errorsAreFatal`, that would end it), nor do the timers when the store
+  cannot be read. `scheduling_test.dart`: a burst of 20 requests runs
+  at most one sync at a time and a handful in all; two accounts start
+  side by side.
+- **The database.** Every isolate (the UI, the sync worker, the reading
+  helper, Android's background engines) opens the same file in WAL mode:
+  reads never wait for a write. A write waits for the write under way,
+  looking again every millisecond (`MailDatabase` sets its own busy
+  handler; SQLite's `busy_timeout` slept up to 100 ms at a time and let
+  the screen's writes miss the gaps between the sync's transactions),
+  and gives up with SQLITE_BUSY only after 5 seconds. The sync stores
+  summaries 25 to a transaction with a millisecond between
+  (`SyncSettings.writeBatch`, `MailboxSynchronizer.writePause`); the
+  screen's own steps take about 8 ms each (`MailActions.stepTime`).
+  `mail_store`'s `two_connections_test.dart` writes batches on one
+  connection in another isolate while the other reads and writes;
+  `mail_sync`'s `store_contention_test.dart` does the same while a real
+  sync stores 3,000 summaries: reads stay at a few ms, writes wait for
+  one transaction at most (about 20 to 40 ms; 130 to 1,100 ms before).
+- **The screen during a long sync.** The sync runs in the worker
+  isolate; the screen hears of it through coalesced events
+  (`MailController.refresh`, at most one per 250 ms, none when a sync
+  starts). `responsiveness_test.dart` stores 3,000 summaries from
+  another isolate while the screen scrolls, opens messages, marks one
+  unread and refreshes: the longest slice on the UI isolate stays under
+  the same 250 ms bound as without a sync (about 40 ms, a write waiting
+  for one of the worker's transactions).
+- **Results that arrive late.** A page keeps only the newest result,
+  and a load that read from before a change (in the store, or made on
+  the page) reads again (`PageModel`); the open message only shows what
+  was loaded for it (`ReaderController`); a server search or older mail
+  only lands in the place it was started for (`LocationController`);
+  actions in steps share one progress line that ends with the last.
 
 ## Conventions
 
