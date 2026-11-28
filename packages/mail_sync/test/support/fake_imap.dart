@@ -179,11 +179,12 @@ final class FakeImap {
   );
 
   /// An account for this server in [store], with its folders listed.
-  Account addAccount(MailStore store) {
+  /// Several accounts can share the server, each with its own [email].
+  Account addAccount(MailStore store, {String email = 'alice@citusmail.test'}) {
     final account = store.accounts.add(
       NewAccount(
-        email: 'alice@citusmail.test',
-        username: 'alice@citusmail.test',
+        email: email,
+        username: email,
         imap: ServerSettings(
           host: 'mail.citusmail.test',
           port: 993,

@@ -160,8 +160,10 @@ final class SyncEngine {
   // Delivered when they happen, so an event is always seen before the call
   // that caused it returns (the sync worker relies on this order).
   final _events = StreamController<SyncEvent>.broadcast(sync: true);
-  final Map<AccountId, Future<void>> _running = {};
-  final Map<AccountId, Timer> _pendingRequests = {};
+  final Map<AccountId, _AccountSyncs> _syncs = {};
+  final Map<AccountId, _PendingRequest> _pendingRequests = {};
+  bool _stopping = false;
+  bool _disposed = false;
   final List<Timer> _scheduled = [];
   final Set<Future<void>> _watching = {};
   Completer<void>? _stop;
@@ -173,49 +175,106 @@ final class SyncEngine {
 
   bool get isRunning => _stop != null;
 
-  /// Syncs one account now (after any sync already running for it).
+  /// Syncs one account now, or after the sync already running for it.
   /// Failures are reported as [AccountSyncFailed] events, not thrown.
+  ///
+  /// An account has at most one sync running and one waiting: what is
+  /// asked for while one waits joins it (its folders added; a full sync
+  /// covers every folder, and views like Gmail's Starred asked for are
+  /// added), and every caller gets that sync's report. Different accounts
+  /// sync side by side. While the engine stops, nothing new starts (null).
   Future<AccountSyncReport?> syncAccount(
     AccountId accountId, {
     Set<MailboxId>? mailboxIds,
-  }) {
-    final previous = _running[accountId] ?? Future.value();
-    final run = previous.then((_) async {
+  }) => _sync(accountId, _SyncRequest(mailboxIds));
+
+  Future<AccountSyncReport?> _sync(AccountId accountId, _SyncRequest request) {
+    if (_stopping || _disposed) return Future.value();
+    final syncs = _syncs.putIfAbsent(accountId, _AccountSyncs.new);
+    if (syncs.waiting case final waiting?) {
+      waiting.request = waiting.request.join(request);
+      return waiting.done.future;
+    }
+    final sync = _WaitingSync(request);
+    if (syncs.done != null) {
+      syncs.waiting = sync;
+    } else {
+      syncs.done = _runSyncs(accountId, syncs, sync);
+    }
+    return sync.done.future;
+  }
+
+  /// Runs [first], then the sync that waited meanwhile, one at a time.
+  Future<void> _runSyncs(
+    AccountId accountId,
+    _AccountSyncs syncs,
+    _WaitingSync first,
+  ) async {
+    // Runs after the caller noted that this account has a sync running.
+    await null;
+    _WaitingSync? next = first;
+    while (next != null) {
+      next.done.complete(await _syncOnce(accountId, next.request));
+      next = syncs.waiting;
+      syncs.waiting = null;
+      if (next != null && (_stopping || _disposed)) {
+        next.done.complete(null);
+        next = null;
+      }
+    }
+    _syncs.remove(accountId);
+  }
+
+  /// One sync of [accountId]; never throws.
+  Future<AccountSyncReport?> _syncOnce(
+    AccountId accountId,
+    _SyncRequest request,
+  ) async {
+    try {
       final account = _store.accounts.byId(accountId);
       if (account == null) return null;
-      _events.add(AccountSyncStarted(accountId));
-      try {
-        final report = await _synchronizer.sync(
-          account,
-          mailboxIds: mailboxIds,
+      _emit(AccountSyncStarted(accountId));
+      final report = await _synchronizer.sync(
+        account,
+        mailboxIds: request.full ? null : request.mailboxIds,
+        alsoMailboxIds: request.full ? request.mailboxIds : const {},
+      );
+      _refusals.remove(accountId);
+      _emit(AccountSynced(accountId, report));
+      return report;
+    } on Object catch (e) {
+      if (e is ImapAuthenticationException && e.temporary) {
+        final count = (_refusals[accountId]?.count ?? 0) + 1;
+        _refusals[accountId] = (
+          count: count,
+          until: DateTime.now().add(_backoff.after(count - 1)),
         );
-        _refusals.remove(accountId);
-        _events.add(AccountSynced(accountId, report));
-        return report;
-      } on Object catch (e) {
-        if (e is ImapAuthenticationException && e.temporary) {
-          final count = (_refusals[accountId]?.count ?? 0) + 1;
-          _refusals[accountId] = (
-            count: count,
-            until: DateTime.now().add(_backoff.after(count - 1)),
-          );
-        }
-        _events.add(AccountSyncFailed(accountId, SyncFailure.from(e)));
-        return null;
       }
-    });
-    _running[accountId] = run.then((_) {});
-    return run;
+      _emit(AccountSyncFailed(accountId, SyncFailure.from(e)));
+      return null;
+    }
+  }
+
+  void _emit(SyncEvent event) {
+    if (!_events.isClosed) _events.add(event);
   }
 
   /// Asks for a sync soon (e.g. after the user acted on mail). Requests
-  /// arriving within [changeDelay] are merged.
+  /// arriving within [changeDelay] of the first are merged into one.
   void requestSync(AccountId accountId, {Set<MailboxId>? mailboxIds}) {
-    _pendingRequests[accountId]?.cancel();
-    _pendingRequests[accountId] = Timer(changeDelay, () {
-      _pendingRequests.remove(accountId);
-      unawaited(syncAccount(accountId, mailboxIds: mailboxIds));
+    final request = _SyncRequest(mailboxIds);
+    if (_pendingRequests[accountId] case final pending?) {
+      pending.request = pending.request.join(request);
+      return;
+    }
+    final pending = _PendingRequest(request);
+    pending.timer = Timer(changeDelay, () {
+      if (_pendingRequests[accountId] == pending) {
+        _pendingRequests.remove(accountId);
+      }
+      unawaited(_sync(accountId, pending.request));
     });
+    _pendingRequests[accountId] = pending;
   }
 
   /// Starts syncing every account, watching each inbox with IDLE.
@@ -224,7 +283,7 @@ final class SyncEngine {
     _stop = Completer<void>();
     _watch();
     _periodic = Timer.periodic(fullSyncInterval, (_) {
-      for (final account in _store.accounts.all()) {
+      for (final account in _accounts()) {
         if (!_backingOff(account.id)) unawaited(syncAccount(account.id));
       }
     });
@@ -238,7 +297,7 @@ final class SyncEngine {
   /// [reconnect].
   void _watch() {
     final stop = _stopWatching = Completer<void>();
-    for (final account in _store.accounts.all()) {
+    for (final account in _accounts()) {
       final running = _runAccount(account, stop.future);
       _watching.add(running);
       unawaited(running.whenComplete(() => _watching.remove(running)));
@@ -254,10 +313,29 @@ final class SyncEngine {
 
   /// A quick look at every inbox for new mail.
   void checkInboxes() {
-    for (final account in _store.accounts.all()) {
+    for (final account in _accounts()) {
       if (_backingOff(account.id)) continue;
-      final inbox = _store.mailboxes.inbox(account.id);
+      final inbox = _inboxOf(account.id);
       if (inbox != null) requestSync(account.id, mailboxIds: {inbox.id});
+    }
+  }
+
+  /// The accounts, or none when the store cannot be read just now (it is
+  /// read again next time). Timers and IDLE call this: an error thrown
+  /// there would end the sync worker.
+  List<Account> _accounts() {
+    try {
+      return _store.accounts.all();
+    } on Object {
+      return const [];
+    }
+  }
+
+  StoredMailbox? _inboxOf(AccountId accountId) {
+    try {
+      return _store.mailboxes.inbox(accountId);
+    } on Object {
+      return null;
     }
   }
 
@@ -292,16 +370,18 @@ final class SyncEngine {
     }
   }
 
-  /// Stops watching and waits for running syncs to finish.
+  /// Stops watching and waits for running syncs to finish. Syncs waiting
+  /// to run, or asked for meanwhile, are dropped (null).
   Future<void> stop() async {
+    _stopping = true;
     _periodic?.cancel();
     _inboxChecks?.cancel();
     _inboxChecks = null;
     final watching = _stopWatching;
     _stopWatching = null;
     if (watching != null && !watching.isCompleted) watching.complete();
-    for (final timer in _pendingRequests.values) {
-      timer.cancel();
+    for (final pending in _pendingRequests.values) {
+      pending.timer.cancel();
     }
     _pendingRequests.clear();
     for (final timer in _scheduled) {
@@ -313,13 +393,24 @@ final class SyncEngine {
     if (stop != null && !stop.isCompleted) stop.complete();
     // Syncs waiting for a connection give up rather than start now.
     connections.cancelWaits();
-    await Future.wait(_running.values);
-    // IDLE connections are closed when their watchers end.
-    await Future.wait([..._watching]);
-    await _syncConnections.closeAll();
+    for (final syncs in _syncs.values) {
+      syncs.waiting?.done.complete(null);
+      syncs.waiting = null;
+    }
+    try {
+      await Future.wait([
+        for (final syncs in [..._syncs.values]) ?syncs.done,
+      ]);
+      // IDLE connections are closed when their watchers end.
+      await Future.wait([..._watching]);
+      await _syncConnections.closeAll();
+    } finally {
+      _stopping = false;
+    }
   }
 
   Future<void> dispose() async {
+    _disposed = true;
     await stop();
     await _onDemand.closeAll();
     await _background.closeAll();
@@ -479,7 +570,7 @@ final class SyncEngine {
 
   Future<void> _runAccount(Account account, Future<void> stop) async {
     await syncAccount(account.id);
-    final inbox = _store.mailboxes.inbox(account.id);
+    final inbox = _inboxOf(account.id);
     if (inbox == null) return;
     await IdleWatcher(_connector, budget: connections).watch(
       account,
@@ -490,4 +581,42 @@ final class SyncEngine {
           _events.add(AccountSyncFailed(account.id, failure)),
     );
   }
+}
+
+/// What a sync covers: every folder ([full], plus [mailboxIds] that a full
+/// sync leaves out, such as Gmail's Starred), or only [mailboxIds].
+final class _SyncRequest {
+  _SyncRequest(Set<MailboxId>? mailboxIds)
+    : full = mailboxIds == null,
+      mailboxIds = {...?mailboxIds};
+
+  _SyncRequest._(this.full, this.mailboxIds);
+
+  final bool full;
+  final Set<MailboxId> mailboxIds;
+
+  /// One sync that covers both.
+  _SyncRequest join(_SyncRequest other) =>
+      _SyncRequest._(full || other.full, {...mailboxIds, ...other.mailboxIds});
+}
+
+/// An account's syncs: the one running (until [done]) and the next.
+final class _AccountSyncs {
+  Future<void>? done;
+  _WaitingSync? waiting;
+}
+
+final class _WaitingSync {
+  _WaitingSync(this.request);
+
+  _SyncRequest request;
+  final done = Completer<AccountSyncReport?>();
+}
+
+/// A [SyncEngine.requestSync] waiting for its delay.
+final class _PendingRequest {
+  _PendingRequest(this.request);
+
+  _SyncRequest request;
+  late final Timer timer;
 }

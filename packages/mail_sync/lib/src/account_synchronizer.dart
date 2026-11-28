@@ -164,10 +164,12 @@ final class AccountSynchronizer {
   /// Syncs [account]. With [mailboxIds], only those folders are synced
   /// (the folder list and the queue are always handled). Without, every
   /// folder except views like Gmail's Starred and Important
-  /// ([StoredMailbox.isView]), which are synced when opened.
+  /// ([StoredMailbox.isView]), which are synced when opened, unless they
+  /// are in [alsoMailboxIds].
   Future<AccountSyncReport> sync(
     Account account, {
     Set<MailboxId>? mailboxIds,
+    Set<MailboxId> alsoMailboxIds = const {},
   }) async {
     // The connection can change hands between folders (to the user's
     // work waiting for one), so it is read from the lease each time.
@@ -184,7 +186,11 @@ final class AccountSynchronizer {
       final results = await _syncFolders(
         account,
         lease,
-        foldersToSync(_store.mailboxes.forAccount(account.id), mailboxIds),
+        foldersToSync(
+          _store.mailboxes.forAccount(account.id),
+          mailboxIds,
+          also: alsoMailboxIds,
+        ),
         full: mailboxIds == null,
         listed: listed,
       );
@@ -432,12 +438,15 @@ final class AccountSynchronizer {
   /// app's own sync data folder.
   static Iterable<StoredMailbox> foldersToSync(
     Iterable<StoredMailbox> mailboxes,
-    Set<MailboxId>? mailboxIds,
-  ) => mailboxes.where(
+    Set<MailboxId>? mailboxIds, {
+    Set<MailboxId> also = const {},
+  }) => mailboxes.where(
     (m) =>
         m.selectable &&
         !m.isAppData &&
-        (mailboxIds == null ? !m.isView : mailboxIds.contains(m.id)),
+        (mailboxIds == null
+            ? !m.isView || also.contains(m.id)
+            : mailboxIds.contains(m.id)),
   );
 
   /// UIDs in [mailboxId] with local changes still queued.
