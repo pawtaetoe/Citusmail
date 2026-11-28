@@ -154,8 +154,7 @@ final class AccountDetailPage extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    '${date(r.email.at)} · '
-                    '${_capital(AccountWords.noun(r.evidence))}',
+                    '${date(r.email.at)} · ${AccountWords.row(r.evidence)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -167,7 +166,4 @@ final class AccountDetailPage extends StatelessWidget {
       ],
     );
   }
-
-  static String _capital(String s) =>
-      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 }

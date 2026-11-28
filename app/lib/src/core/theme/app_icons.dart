@@ -154,6 +154,7 @@ abstract final class AppIcons {
   static const securityAlert = Icons.shield_outlined;
   static const accountChange = Icons.manage_accounts_outlined;
   static const accountClosed = Icons.no_accounts_outlined;
+  static const statement = Icons.request_quote_outlined;
   static const health = Icons.medical_services_outlined;
   static const beauty = Icons.content_cut;
   static const carRepair = Icons.car_repair_outlined;
