@@ -34,13 +34,13 @@ class InstantMailService : Service() {
         } else {
             startForeground(ID, notification)
         }
-        engine = BackgroundDart.start(this, "instantMailMain") { stopSelf() }
+        engine = BackgroundDart.start(this, BackgroundDart.INSTANT_ENTRY_POINT) { stopSelf() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
-        engine?.destroy()
+        engine?.let(BackgroundDart::destroy)
         engine = null
         super.onDestroy()
     }
