@@ -59,6 +59,16 @@ Set<String> hiddenSubscriptions(MailStore store) => {
   ...SubscriptionsModel.hiddenSetting.read(store.settings),
 };
 
+/// [hidden] (the keys the user hid) with the lines of a company hidden as
+/// a whole: a company hidden before its mail was told apart by line or
+/// account (`telco.com`) hides each of its lines in [found]
+/// (`telco.com#4821`).
+Set<String> hiddenAmong(Set<String> hidden, Iterable<Subscription> found) => {
+  ...hidden,
+  for (final s in found)
+    if (s.line != null && hidden.contains(s.biller)) s.company,
+};
+
 /// The companies whose subscription is left out because it looks like
 /// ones the user said are not subscriptions ([Corrections]); [found] by
 /// the rules in [mail], those in [hidden] aside.
@@ -112,9 +122,9 @@ Future<SubscriptionsFound> findSubscriptions(
   required bool monthlyRenewals,
   Set<MessageId> skip = const {},
 }) async {
-  final hidden = hiddenSubscriptions(store);
   final mail = await loadSubscriptionMail(store, now);
   final all = SubscriptionFinder.find(mail.emails, now: now);
+  final hidden = hiddenAmong(hiddenSubscriptions(store), all);
   final learned = await learnedNotSubscriptions(store, mail, all, hidden);
   final left = {...hidden, ...learned};
   final reminders = Reminders.find(
@@ -161,16 +171,18 @@ List<MessageId> subscriptionMailToRead(
       !skip.contains(id) &&
       !MessageReads.downloaded(store, id) &&
       (sizes[id] ?? 0) <= SubscriptionsModel.maxBytes;
-  // Bills and trials whose date is known need nothing more.
+  // Bills and trials whose date is known need nothing more (a line's
+  // bill is keyed by its line: `telco.com#4821`).
   final dated = {
     for (final r in reminders)
-      if (r.kind != ReminderKind.renewal) r.company,
+      if (r.kind != ReminderKind.renewal)
+        SubscriptionFinder.billerOfKey(r.company),
   };
   // Receipts not on the device, newest first, from companies that are
   // neither listed nor hidden: their whole text may show a billing period
   // ("Sep 28, 2026 – Sep 28, 2027").
   final known = {
-    for (final s in found) ...{s.company, ...s.billers},
+    for (final s in found) ...{s.company, s.biller, ...s.billers},
   };
   final unknown = [
     for (final e in mail.emails)
@@ -275,6 +287,14 @@ final class SubscriptionsModel
 
   @override
   String keyOf(Subscription item) => item.company;
+
+  /// A line listed again whose company was hidden as a whole: the
+  /// company no longer is; its other lines stay hidden (see
+  /// [hiddenAmong]).
+  @override
+  Set<String> unhidden(Set<String> hidden, String key) => {...hidden}
+    ..remove(key)
+    ..remove(SubscriptionFinder.billerOfKey(key));
 
   @override
   List<MailSample> samplesOf(Subscription item) =>

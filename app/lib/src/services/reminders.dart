@@ -236,8 +236,8 @@ abstract final class ReminderCheck {
     try {
       state.lastCheck = at;
       final mail = await loadSubscriptionMail(store, at);
-      final hidden = hiddenSubscriptions(store);
       final found = SubscriptionFinder.find(mail.emails, now: at);
+      final hidden = hiddenAmong(hiddenSubscriptions(store), found);
       final reminders = Reminders.find(
         mail.emails,
         subscriptions: found,

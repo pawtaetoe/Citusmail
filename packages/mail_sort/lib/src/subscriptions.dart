@@ -234,6 +234,30 @@ final class Money implements Comparable<Money> {
       '$currency ${minor ~/ 100}.${(minor % 100).toString().padLeft(2, '0')}';
 }
 
+/// A price change a subscription's mail announces: to [to], from [from]
+/// when it says, on [on] when it says.
+final class PriceChange {
+  const PriceChange({required this.to, this.from, this.on});
+
+  final Money to;
+  final Money? from;
+
+  /// The day the new price applies (a calendar day, midnight UTC).
+  final DateTime? on;
+}
+
+/// What an email says of a plan that goes on at a price from a date
+/// ([SubscriptionFinder.planChangeOf]): the [amount] it charges from
+/// [on], what it charged before ([from]) when it says, how often
+/// ([period]) when it says, and whether it says the price [changes].
+typedef PlanChange = ({
+  Money amount,
+  Money? from,
+  DateTime on,
+  BillingPeriod? period,
+  bool changes,
+});
+
 /// What an email says about the subscription.
 enum SubscriptionEvent {
   /// A payment: receipt, invoice, renewal done.
@@ -285,11 +309,26 @@ final class Subscription {
     this.period,
     this.endsOn,
     this.billers = const {},
+    this.priceChange,
   });
 
   /// The company's domain, or for a company billed through a payment
-  /// service, `Acme via stripe.com` ([SubscriptionFinder.billerOf]).
+  /// service, `Acme via stripe.com` ([SubscriptionFinder.billerOf]). When
+  /// one company's mail is about several lines or accounts (a postpaid
+  /// and a prepaid line), each is its own subscription keyed by the
+  /// company and the line's last four digits: `telco.com#4821`.
   final String company;
+
+  /// Who it is from: [company] without its line or account ([line]).
+  String get biller => SubscriptionFinder.billerOfKey(company);
+
+  /// The last four digits of the line or account it is for, when the
+  /// company's mail is about several ("mobile number ending 4821").
+  String? get line => SubscriptionFinder.lineOfKey(company);
+
+  /// A price change its mail announced ("from 1 Jan your plan is
+  /// $12.99/month"); [amount] is already the new price.
+  final PriceChange? priceChange;
 
   /// The senders it was found in ([SubscriptionEmail.biller]) when more
   /// than [company]: a sister domain of the same brand that sends its
@@ -827,7 +866,9 @@ abstract final class SubscriptionFinder {
       billingPeriodIn(email.text) != null ||
       // A shop order's page names "Membership" or a trial in its links and
       // footer; that is not about this order.
-      (_subscriptionWords.hasMatch(email.text) && !isShopOrder(email));
+      (_subscriptionWords.hasMatch(email.text) && !isShopOrder(email)) ||
+      // "From 1 Jan you pay $12.99/month unless you cancel."
+      (planChangeOf(email) != null && !isShopOrder(email));
 
   /// What a one-off shop order says of itself: its order number or
   /// status, its parcel, the shop's purchase history.
@@ -910,6 +951,9 @@ abstract final class SubscriptionFinder {
     if (_moneyTaken.hasMatch(text) && !_failedWords.hasMatch(text)) {
       return SubscriptionEvent.charge;
     }
+    // "Your introductory price will end on 1 Jan; from then $12.99/month
+    // unless you cancel": the plan goes on.
+    if (planChangeOf(email) != null) return SubscriptionEvent.notice;
     if (_cancelWords.allMatches(text).any((m) => !_endOfTrial(text, m))) {
       return SubscriptionEvent.cancelled;
     }
@@ -1169,7 +1213,25 @@ abstract final class SubscriptionFinder {
       byCompany.putIfAbsent(o.biller, () => []).add(o);
     }
     final found = <Subscription>[];
-    for (final (:company, :billers, :list) in _withSisters(byCompany)) {
+    // A brand's sister domains together, then apart by line or account
+    // when its mail is about several.
+    final groups = [
+      for (final sisters in _withSisters(byCompany))
+        for (final (:company, :line, :list) in _byLine(
+          sisters.company,
+          sisters.list,
+        ))
+          (
+            company: company,
+            line: line,
+            list: list,
+            billers: line == null
+                ? sisters.billers
+                : {for (final e in list) e.biller}
+                      .intersection(sisters.billers),
+          ),
+    ];
+    for (final (:company, :line, :billers, :list) in groups) {
       list.sort((a, b) => b.at.compareTo(a.at));
       final records = [
         for (final e in list)
@@ -1217,12 +1279,16 @@ abstract final class SubscriptionFinder {
       charges = _oneChargePerBill(charges, records);
       final says = records.any((r) => _speaksOfSubscription(r.email));
       if (!says && !regular) continue;
-      final name = _nameOf(company, list);
+      final name =
+          '${_nameOf(billerOfKey(company), list)}'
+          '${line == null ? '' : ' ·$line'}';
       if (charges.isEmpty) {
         // Nothing paid yet (only a free trial, or talk of plans): not a
         // subscription until a charge comes; unless the company says a
-        // paid plan was cancelled or has ended (its receipts may come from
-        // an app store or another domain).
+        // paid plan was cancelled or has ended, or that a plan goes on at
+        // a price from a date (its receipts may come from an app store or
+        // another domain).
+        if (records.any((r) => r.event == SubscriptionEvent.trial)) continue;
         final ended = records
             .where(
               (r) =>
@@ -1230,10 +1296,26 @@ abstract final class SubscriptionFinder {
                   _endsPaidPlan(r.email),
             )
             .firstOrNull;
-        if (ended == null ||
-            records.any((r) => r.event == SubscriptionEvent.trial)) {
+        final change = records
+            .where((r) => r.event == SubscriptionEvent.notice)
+            .map((r) => (r, planChangeOf(r.email)))
+            .where((c) => c.$2 != null)
+            .firstOrNull;
+        if (change case (final r, final c?)
+            when ended == null || r.email.at.isAfter(ended.email.at)) {
+          found.add(
+            _goingOn(
+              company: company,
+              name: name,
+              records: records,
+              billers: billers,
+              change: c,
+              now: now,
+            ),
+          );
           continue;
         }
+        if (ended == null) continue;
         final period = records
             .map((r) => statedPeriodIn(r.email.text))
             .nonNulls
@@ -1311,14 +1393,31 @@ abstract final class SubscriptionFinder {
       final variable = {for (final a in recent) a.minor}.length >= 3;
       var amount = variable ? _average(recent) : recent.firstOrNull;
       // A price change announced since the last charge: what it charges
-      // from now on ("from $9.49/month to $10.99/month").
+      // from now on ("from $9.49/month to $10.99/month", "from 1 Jan
+      // your plan will change to $12.99/month").
+      PriceChange? priceChange;
       if (!variable && amount != null) {
         final was = amount;
         for (final r in records) {
           if (!r.email.at.isAfter(lastCharge)) break;
-          if (_newPrice('${r.email.subject}\n${r.email.text}', was)
-              case final p?) {
+          final text = '${r.email.subject}\n${r.email.text}';
+          final notice = planChangeOf(r.email);
+          if (_newPrice(text, was) case final p?) {
             amount = p;
+            priceChange = PriceChange(
+              to: p,
+              from: was,
+              on: notice?.on ?? _dayAfter(text, r.email.at),
+            );
+            break;
+          }
+          if (notice case final n?
+              when n.changes &&
+                  n.amount.currency == was.currency &&
+                  n.amount != was &&
+                  (n.period == null || period == null || n.period == period)) {
+            amount = n.amount;
+            priceChange = PriceChange(to: n.amount, from: n.from, on: n.on);
             break;
           }
         }
@@ -1391,6 +1490,9 @@ abstract final class SubscriptionFinder {
               ? endDateIn(cancellation!.email.text, cancellation.email.at)
               : null,
           billers: billers.length > 1 ? billers : const {},
+          priceChange: status == SubscriptionStatus.cancelled
+              ? null
+              : priceChange,
         ),
       );
     }
@@ -1685,7 +1787,8 @@ abstract final class SubscriptionFinder {
         if (y == null ||
             y.stem != x.stem ||
             y.label == x.label ||
-            !(x.arm || y.arm)) {
+            !(x.arm || y.arm) ||
+            !_sisters(byCompany[a]!, x, byCompany[b]!, y)) {
           continue;
         }
         final (ra, rb) = (root(a), root(b));
@@ -1710,6 +1813,74 @@ abstract final class SubscriptionFinder {
           list: [for (final b in members) ...byCompany[b]!],
         ),
     ];
+  }
+
+  /// Whether the mail of two domains of one brand ([a] of [x], [b] of
+  /// [y]) shows they are one company, not just alike in name: the same
+  /// sender name ([companyName]) on both sides, or one side's mail names
+  /// the other (the brand, the other domain, or its sender name), beyond
+  /// its own name.
+  static bool _sisters(
+    List<SubscriptionEmail> a,
+    ({String stem, String label, bool arm}) x,
+    List<SubscriptionEmail> b,
+    ({String stem, String label, bool arm}) y,
+  ) {
+    Set<String> names(List<SubscriptionEmail> list) => {
+      for (final e in list)
+        if (companyName(e.senderName) case final n?)
+          if (_letters(n) case final l when l.length >= 2) l,
+    };
+    final (na, nb) = (names(a), names(b));
+    if (na.intersection(nb).isNotEmpty) return true;
+    return _names(
+          a,
+          {x.label.replaceAll('-', ''), ...na},
+          {x.stem, y.label.replaceAll('-', ''), ...nb},
+        ) ||
+        _names(
+          b,
+          {y.label.replaceAll('-', ''), ...nb},
+          {y.stem, x.label.replaceAll('-', ''), ...na},
+        );
+  }
+
+  /// Whether [list]'s subjects or text name one of [others] (letters
+  /// only, spaced or not: "examplepower" is "Example Power"), not as part
+  /// of one of its [own] names.
+  static bool _names(
+    List<SubscriptionEmail> list,
+    Set<String> own,
+    Set<String> others,
+  ) {
+    RegExp word(String letters) => RegExp(
+      '(?<![a-z0-9])'
+      '${letters.split('').map(RegExp.escape).join(r'[\s.\-]?')}'
+      '(?![a-z0-9])',
+    );
+    final targets = [
+      for (final w in others)
+        if (w.length >= 3 && !own.contains(w)) w,
+    ];
+    if (targets.isEmpty) return false;
+    final patterns = {
+      for (final w in {...own, ...targets}) w: word(w),
+    };
+    for (final e in list) {
+      final text = _head(e).toLowerCase();
+      for (final w in targets) {
+        var t = text;
+        // Its own name is not a mention of the other ("BrandPay" names
+        // "Brand"), unless the other's name holds it.
+        for (final o in own) {
+          if (o.length >= 2 && !w.contains(o)) {
+            t = t.replaceAll(patterns[o]!, ' ');
+          }
+        }
+        if (patterns[w]!.hasMatch(t)) return true;
+      }
+    }
+    return false;
   }
 
   /// The sender name most used (see [companyName]), else the domain.
@@ -1815,6 +1986,315 @@ abstract final class SubscriptionFinder {
       }
     }
     return null;
+  }
+
+  /// The first day [text] (sent at [sent]) names after it was sent, up to
+  /// 400 days on.
+  static DateTime? _dayAfter(String text, DateTime sent) {
+    final sentDay = DateTime.utc(sent.year, sent.month, sent.day);
+    for (final d in DueDates.datesIn(text, reference: sent)) {
+      final days = d.date.difference(sentDay).inDays;
+      if (days >= 1 && days <= 400) return d.date;
+    }
+    return null;
+  }
+
+  // -------------------------------------------------------- plan changes
+
+  /// Wording that only fits a plan the reader already has, which goes on:
+  /// "unless you cancel", "will automatically renew", "your next payment
+  /// of".
+  static final _goesOn = RegExp(
+    r'\b(?:unless\s+you\s+cancel'
+    r'|(?:will|is\s+going\s+to|is\s+set\s+to)\s+(?:be\s+)?'
+    r'(?:automatically\s+|auto-?)?renew(?:ed)?'
+    r'|(?:auto-?renews?|renews?\s+automatically)\s+(?:at|for|on)'
+    r'|your\s+next\s+(?:payment|charge|bill)\s+(?:of|will|is))\b',
+    caseSensitive: false,
+  );
+
+  /// Wording of a change to a plan the reader has: "your plan will
+  /// change to", "your price will increase", "your introductory price
+  /// ends".
+  static final _changes = RegExp(
+    r"\b(?:(?:your|the)\s+(?:[\w'’-]+\s+){0,2}"
+    r"(?:plan|membership|subscription|package)(?:'s|’s)?\s+"
+    r'(?:(?:price|fee|rate|cost)\s+)?(?:will|is\s+going\s+to|is\s+set\s+to)\s+'
+    r'(?:change|increase|go\s+up|rise|move|switch|be|cost)'
+    r"|your\s+(?:[\w'’-]+\s+){0,2}(?:price|fee|rate)\s+"
+    r'(?:will|is\s+going\s+to)\s+(?:change|increase|go\s+up|rise|be)'
+    r'|(?:your|the)\s+(?:introductory|promotional|intro|discounted|launch)\s+'
+    r'(?:price|rate|pricing|period)\s+(?:ends|will\s+end|is\s+ending|expires)'
+    r'|(?:changing|increasing|raising|updating)\s+the\s+price\s+of\s+your\s+'
+    r'(?:plan|membership|subscription)'
+    r'|your\s+new\s+(?:(?:monthly|annual|yearly)\s+)?(?:price|rate|fee))\b',
+    caseSensitive: false,
+  );
+
+  /// What an offer to someone without the plan says: subscribe, try,
+  /// sign up, start a free trial, % off, save, a deal.
+  static final _promotion = RegExp(
+    r'\b(?:subscribe|try|trying|sign(?:\s|-)?up|join\s+(?:now|today|us)|'
+    r'save|saving|savings|deals?|upgrade|limited[-\s]time|trial|'
+    r'newsletters?|promo\s+code|coupons?|vouchers?|sale|cash\s?back|earn)\b|'
+    r'%\s*off\b',
+    caseSensitive: false,
+  );
+
+  /// "/month", "a year", "per month" right after an amount.
+  static final _perAfter = RegExp(
+    r'^\s*(?:/\s*|(?:a|an|per|every|each)\s+)'
+    r'(year|yr|annum|month|mo|week|wk|quarter)\b',
+    caseSensitive: false,
+  );
+
+  /// What [email] says of a plan the reader has that goes on at a price
+  /// from a date: "Your introductory price ends. From 1 Jan your plan is
+  /// $12.99/month unless you cancel", "your plan will automatically renew
+  /// at $59.88/year on 3 Mar". Its wording only fits a plan the reader
+  /// has, it names an amount and a day after it was sent, and it is not a
+  /// promotion (subscribe, try, sign up, a free trial, % off, save, a
+  /// deal). [PlanChange.changes] when it says the price changes. Null
+  /// otherwise.
+  static PlanChange? planChangeOf(SubscriptionEmail email) =>
+      (_planChanges[email] ??= (_planChangeOf(email),)).$1;
+
+  /// [planChangeOf] of each email read so far: it is asked several times
+  /// while finding.
+  static final _planChanges = Expando<(PlanChange?,)>();
+
+  /// The first 4000 characters of [email]'s text, after its subject.
+  static String _head(SubscriptionEmail email) {
+    final text = email.text;
+    return '${email.subject}\n'
+        '${text.length > 4000 ? text.substring(0, 4000) : text}';
+  }
+
+  static PlanChange? _planChangeOf(SubscriptionEmail email) {
+    final text = _head(email);
+    if (!_changes.hasMatch(text) && !_goesOn.hasMatch(text)) return null;
+    final wording = [
+      for (final m in _changes.allMatches(text)) (m, true),
+      for (final m in _goesOn.allMatches(text)) (m, false),
+    ];
+    if (wording.isEmpty || _promotion.hasMatch(text)) return null;
+    wording.sort((a, b) => a.$1.start.compareTo(b.$1.start));
+    for (final (m, changes) in wording) {
+      var start = m.start - 200 < 0 ? 0 : m.start - 200;
+      var end = m.end + 200 > text.length ? text.length : m.end + 200;
+      // The same paragraph.
+      final breakBefore = text.lastIndexOf('\n\n', m.start);
+      if (breakBefore >= start) start = breakBefore + 2;
+      final breakAfter = text.indexOf('\n\n', m.end);
+      if (breakAfter >= 0 && breakAfter < end) end = breakAfter;
+      final window = text.substring(start, end);
+      final at = m.start - start;
+      final amounts = amountsIn(window).toList();
+      if (amounts.isEmpty) continue;
+      // "from $9.99 to $12.99": the second; else the first after the
+      // words, else the last before them.
+      ({Money money, int start, int end})? to;
+      Money? from;
+      for (var i = 0; i + 1 < amounts.length; i++) {
+        final (a, b) = (amounts[i], amounts[i + 1]);
+        final before = window.substring(
+          a.start - 12 < 0 ? 0 : a.start - 12,
+          a.start,
+        );
+        if (a.money.currency == b.money.currency &&
+            _fromWord.hasMatch(before) &&
+            _toWord.hasMatch(window.substring(a.end, b.start))) {
+          (to, from) = (b, a.money);
+          break;
+        }
+      }
+      to ??= amounts.where((a) => a.start >= at).firstOrNull ?? amounts.last;
+      final on = _dayAfter(window, email.at);
+      if (on == null) continue;
+      final per = _perAfter.firstMatch(window.substring(to.end))?[1];
+      final period = switch (per?.toLowerCase()) {
+        null => statedPeriodIn(window),
+        'week' || 'wk' => BillingPeriod.weekly,
+        'month' || 'mo' => BillingPeriod.monthly,
+        'quarter' => BillingPeriod.quarterly,
+        _ => BillingPeriod.yearly,
+      };
+      return (
+        amount: to.money,
+        from: from,
+        on: on,
+        period: period,
+        changes: changes || from != null,
+      );
+    }
+    return null;
+  }
+
+  /// A plan [change] says goes on, with no receipt yet: active at the new
+  /// price, charging on the day it names (and each period after, once
+  /// that day has gone by), unless that day is long gone.
+  static Subscription _goingOn({
+    required String company,
+    required String name,
+    required List<SubscriptionRecord> records,
+    required Set<String> billers,
+    required PlanChange change,
+    required DateTime now,
+  }) {
+    final period =
+        change.period ??
+        records.map((r) => statedPeriodIn(r.email.text)).nonNulls.firstOrNull;
+    final today = DateTime.utc(now.year, now.month, now.day);
+    final length = (period ?? BillingPeriod.monthly).length;
+    final status =
+        now.difference(change.on) > length * 0.5 + const Duration(days: 7)
+        ? SubscriptionStatus.lapsed
+        : SubscriptionStatus.active;
+    DateTime? next;
+    if (status == SubscriptionStatus.active) {
+      var d = change.on;
+      for (var n = 1; d.isBefore(today) && period != null && n < 1000; n++) {
+        d = period.after(change.on, n);
+      }
+      next = d.isBefore(today) ? null : d;
+    }
+    return Subscription(
+      company: company,
+      name: name,
+      records: List.unmodifiable(records),
+      cadence: period?.cadence,
+      period: period,
+      amount: change.amount,
+      status: status,
+      nextCharge: next,
+      billers: billers.length > 1 ? billers : const {},
+      priceChange: change.changes
+          ? PriceChange(to: change.amount, from: change.from, on: change.on)
+          : null,
+    );
+  }
+
+  // ------------------------------------------------------ lines, accounts
+
+  /// The words before a line's or an account's number, and the number:
+  /// "mobile number ending 4821", "Number: ****4821", "account no.
+  /// …1234", "account ending 1234", "service number 9123 4821", "for line
+  /// 9xxx 4821", "Pay bill for 50217731".
+  static final _lineId = RegExp(
+    r'\b(?:'
+    r'(?:mobile|phone|cell|service|subscriber|account|acct|line)\s+'
+    r'(?:number|no\.?|num\.?|#)'
+    r'|(?:mobile|phone|number|line|account|acct)(?=\s+end)'
+    r'|(?:for|on)\s+(?:your\s+)?(?:mobile\s+)?line'
+    r'|(?:bill|charge|payment)\s+for(?=\s+\d{6})'
+    r'|(?:number|no\.?)(?=\s*[:#]?\s*[*xX•·…])'
+    r')'
+    r'(?:\s+end(?:s|ing)(?:\s+(?:in|with))?)?\s*[:#]?\s*'
+    // The whole number: "9123 4821", not "9123".
+    r'((?:\+\d{1,3}\s?)?[\dxX*•·…\s.-]{0,16}?\d{4})(?![\s.-]?\d)',
+    caseSensitive: false,
+  );
+
+  /// Words before a number that make it no line or account: a card's, an
+  /// invoice's, a helpline's.
+  static final _notALine = RegExp(
+    r'\b(?:card|visa|mastercard|amex|invoice|order|reference|ref|receipt|'
+    r'transaction|tracking|booking|confirmation|gst|reg|call|contact|'
+    r'hotline|helpline|dial|whatsapp|fax)\b\W*$',
+    caseSensitive: false,
+  );
+
+  /// The last four digits of the line or account [email] is about, when
+  /// it names one ("mobile number ending 4821", "Account No. …1234").
+  static String? lineOf(SubscriptionEmail email) =>
+      (_lines[email] ??= (_lineOf(email),)).$1;
+
+  /// [lineOf] of each email read so far.
+  static final _lines = Expando<(String?,)>();
+
+  static String? _lineOf(SubscriptionEmail email) {
+    final text = _head(email);
+    for (final m in _lineId.allMatches(text)) {
+      final before = text.substring(
+        m.start - 30 < 0 ? 0 : m.start - 30,
+        m.start,
+      );
+      if (_notALine.hasMatch(before)) continue;
+      final digits = m[1]!.replaceAll(RegExp(r'\D'), '');
+      if (digits.length >= 4) return digits.substring(digits.length - 4);
+    }
+    return null;
+  }
+
+  static final _lineKey = RegExp(r'#(\d{4})$');
+
+  /// [key] (a [Subscription.company]) without its line: `telco.com` for
+  /// `telco.com#4821`.
+  static String billerOfKey(String key) {
+    final m = _lineKey.firstMatch(key);
+    return m == null ? key : key.substring(0, m.start);
+  }
+
+  /// The line of [key] (a [Subscription.company]): `4821` for
+  /// `telco.com#4821`, else null.
+  static String? lineOfKey(String key) => _lineKey.firstMatch(key)?[1];
+
+  /// [list], one company's mail, apart by the line or account each email
+  /// names ([lineOf]), when it names one: each line its own group, keyed
+  /// `company#4821`. An email that names none joins the one line whose
+  /// sender name ([companyName], the one most used) is its own; else it
+  /// stays with the others that name none, keyed [company]. All of it
+  /// stays as one, keyed [company], when that is all one group.
+  static List<({String company, String? line, List<SubscriptionEmail> list})>
+  _byLine(String company, List<SubscriptionEmail> list) {
+    final whole =
+        <({String company, String? line, List<SubscriptionEmail> list})>[
+          (company: company, line: null, list: list),
+        ];
+    final byLine = <String, List<SubscriptionEmail>>{};
+    final none = <SubscriptionEmail>[];
+    for (final e in list) {
+      if (lineOf(e) case final line?) {
+        byLine.putIfAbsent(line, () => []).add(e);
+      } else {
+        none.add(e);
+      }
+    }
+    if (byLine.isEmpty) return whole;
+    String? nameOf(SubscriptionEmail e) =>
+        companyName(e.senderName)?.toLowerCase();
+    String? mostUsed(List<SubscriptionEmail> emails) {
+      final counts = <String, int>{};
+      for (final e in emails) {
+        if (nameOf(e) case final n?) counts[n] = (counts[n] ?? 0) + 1;
+      }
+      if (counts.isEmpty) return null;
+      return counts.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+    }
+
+    final names = {
+      for (final MapEntry(key: line, value: emails) in byLine.entries)
+        line: mostUsed(emails),
+    };
+    final rest = <SubscriptionEmail>[];
+    for (final e in none) {
+      final name = nameOf(e);
+      final same = [
+        for (final MapEntry(key: line, value: n) in names.entries)
+          if (n == name) line,
+      ];
+      if (same.length == 1) {
+        byLine[same.single]!.add(e);
+      } else {
+        rest.add(e);
+      }
+    }
+    if (byLine.length == 1 && rest.isEmpty) return whole;
+    return [
+      for (final MapEntry(key: line, value: emails) in byLine.entries)
+        (company: '$company#$line', line: line, list: emails),
+      if (rest.isNotEmpty) (company: company, line: null, list: rest),
+    ];
   }
 
   // ------------------------------------------------------------- senders

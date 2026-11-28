@@ -321,9 +321,10 @@ void main() {
         'Auto-debit: payment successful',
         day(m, 15),
         name: 'ExamplePower Pay',
+        // The payments arm names the brand it takes payments for.
         text:
-            'Your utilities bill has been successfully paid by auto-debit. '
-            'Amount \$$amount',
+            'Your ExamplePower utilities bill has been successfully paid by '
+            'auto-debit. Amount \$$amount',
       );
       final s = SubscriptionFinder.find([
         notice(10, 'OCT'),
@@ -449,6 +450,9 @@ void main() {
         ),
       ], now: day(10, 28)).single;
       expect(s.amount, const Money(1099, r'$'));
+      expect(s.priceChange?.from, const Money(949, r'$'));
+      expect(s.priceChange?.to, const Money(1099, r'$'));
+      expect(s.priceChange?.on, day(11, 18));
     });
 
     test('what a notice or a promotion names is not a price paid', () {

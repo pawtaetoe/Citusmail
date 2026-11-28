@@ -248,9 +248,9 @@ final class _SubscriptionsPageState extends State<SubscriptionsPage>
                 items: [
                   for (final s in _model.hiddenOnes)
                     (
-                      leading: Avatar(name: s.name, address: s.company),
+                      leading: Avatar(name: s.name, address: s.biller),
                       title: s.name,
-                      about: s.company,
+                      about: s.biller,
                       learned: _model.learned.contains(s.company),
                       onListAgain: () => _model.unhide(s.company),
                     ),
@@ -612,7 +612,7 @@ final class _SubscriptionTile extends StatelessWidget {
         onTap: onSelect,
         leading: Opacity(
           opacity: ended ? 0.6 : 1,
-          child: Avatar(name: s.name, address: s.company),
+          child: Avatar(name: s.name, address: s.biller),
         ),
         title: Text(
           s.name,
@@ -704,7 +704,10 @@ final class _ReminderTile extends StatelessWidget {
         key: ValueKey('reminder-${r.key}'),
         contentPadding: const EdgeInsets.fromLTRB(16, 6, 0, 6),
         onTap: onOpen,
-        leading: Avatar(name: r.name, address: r.company),
+        leading: Avatar(
+          name: r.name,
+          address: SubscriptionFinder.billerOfKey(r.company),
+        ),
         title: Text(
           r.name,
           maxLines: 1,
