@@ -154,7 +154,13 @@ void main() {
         tester.getTopLeft(find.text('Tomorrow')).dy,
         lessThan(tester.getTopLeft(find.text('Design review')).dy),
       );
-      expect(find.textContaining('Meeting · Online'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'Design review'),
+          matching: find.textContaining('Meeting · Online'),
+        ),
+        findsOneWidget,
+      );
       // A later day by its date.
       final tourDay = BookingText.day(appointmentDay(now, 8), now: now);
       await tester.scrollUntilVisible(
@@ -213,8 +219,10 @@ void main() {
       expect(find.text('Starlight Odyssey'), findsOneWidget);
 
       // Back to the top, and pick tomorrow in the month (or next month's
-      // first day, at the end of one).
+      // first day, at the end of one). A phone shows one week at first.
       await tester.drag(list, const Offset(0, 4000));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Show the month'));
       await tester.pumpAndSettle();
       final tomorrow = DateTime(now.year, now.month, now.day + 1);
       if (tomorrow.month != now.month) {
@@ -230,6 +238,47 @@ void main() {
       await tester.tap(find.byTooltip('Show every day'));
       await tester.pumpAndSettle();
       expect(find.text('Guided Factory Tour'), findsOneWidget);
+    });
+
+    testWidgets('a phone shows one week; the month on request', (tester) async {
+      final now = DateTime.now();
+      seedEvents(app.store, now: now.toUtc());
+      await open(tester);
+      Finder cells() => find.byWidgetPredicate(
+        (w) =>
+            w.key is ValueKey<String> &&
+            (w.key! as ValueKey<String>).value.startsWith('calendar-cell-'),
+      );
+      expect(cells(), findsNWidgets(7));
+      final today = DateTime(now.year, now.month, now.day);
+      expect(
+        find.byKey(ValueKey('calendar-cell-${today.toIso8601String()}')),
+        findsOneWidget,
+      );
+      // The next week, then the whole month.
+      await tester.tap(find.byTooltip('Next week'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(
+          ValueKey(
+            'calendar-cell-${today.add(const Duration(days: 7)).toIso8601String()}',
+          ),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('Show the month'));
+      await tester.pumpAndSettle();
+      expect(
+        cells(),
+        findsNWidgets(DateUtils.getDaysInMonth(now.year, now.month)),
+      );
+      // A wide window shows the month from the start.
+      await tester.pumpWidget(const SizedBox());
+      await open(tester, size: const Size(1200, 900));
+      expect(
+        cells(),
+        findsNWidgets(DateUtils.getDaysInMonth(now.year, now.month)),
+      );
     });
 
     testWidgets('nothing found', (tester) async {

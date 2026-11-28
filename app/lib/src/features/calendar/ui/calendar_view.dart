@@ -101,6 +101,13 @@ final class _CalendarViewState extends State<CalendarView> {
   /// The day picked in the month: only it is listed.
   DateTime? _picked;
 
+  /// The week shown when folded to one row (its Monday).
+  late DateTime _week = _mondayOf(_model.today);
+
+  /// The whole month, or one week. Null until the user chooses: a week on
+  /// a phone (the list gets the room), the month on wider screens.
+  bool? _monthOpen;
+
   @override
   void initState() {
     super.initState();
@@ -160,13 +167,46 @@ final class _CalendarViewState extends State<CalendarView> {
             if (_model.items.isEmpty)
               const _Empty()
             else ...[
-              _MonthGrid(
-                month: _month,
-                today: _model.today,
-                busy: _model.busyDays(_month),
-                picked: picked,
-                onMonth: (m) => setState(() => _month = m),
-                onPick: (d) => setState(() => _picked = d == picked ? null : d),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final open = _monthOpen ?? constraints.maxWidth >= 560;
+                  final weekEnd = _week.add(const Duration(days: 6));
+                  return _MonthGrid(
+                    month: _month,
+                    week: open ? null : _week,
+                    today: _model.today,
+                    busy: open
+                        ? _model.busyDays(_month)
+                        : {
+                            ..._model.busyDays(
+                              DateTime(_week.year, _week.month),
+                            ),
+                            ..._model.busyDays(
+                              DateTime(weekEnd.year, weekEnd.month),
+                            ),
+                          },
+                    picked: picked,
+                    onMonth: (m) => setState(() => _month = m),
+                    onWeek: (w) => setState(() => _week = w),
+                    onFold: () => setState(() {
+                      _monthOpen = !open;
+                      // Fold to the week of what is in view, and back.
+                      if (open) {
+                        _week = _mondayOf(
+                          picked ??
+                              (_month.year == _model.today.year &&
+                                      _month.month == _model.today.month
+                                  ? _model.today
+                                  : _month),
+                        );
+                      } else {
+                        _month = DateTime(_week.year, _week.month);
+                      }
+                    }),
+                    onPick: (d) =>
+                        setState(() => _picked = d == picked ? null : d),
+                  );
+                },
               ),
               if (picked != null) ...[
                 Padding(
@@ -218,6 +258,10 @@ final class _CalendarViewState extends State<CalendarView> {
     );
   }
 }
+
+/// The Monday of [day]'s week.
+DateTime _mondayOf(DateTime day) =>
+    DateTime(day.year, day.month, day.day - (day.weekday - 1));
 
 /// "Today", "Tomorrow", else "Tue 12 Nov" (with the year when not
 /// [now]'s).
@@ -387,7 +431,11 @@ final class _ItemTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         trailing: cancelled
-            ? const AppBadge('Cancelled', tone: BadgeTone.danger)
+            // Clear of the edge, where the button's own padding would be.
+            ? const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: AppBadge('Cancelled', tone: BadgeTone.danger),
+              )
             : CalendarFiles.canOpen && !over
             ? IconButton(
                 tooltip: 'Add to calendar',
@@ -405,14 +453,22 @@ final class _ItemTile extends StatelessWidget {
 final class _MonthGrid extends StatelessWidget {
   const _MonthGrid({
     required this.month,
+    required this.week,
     required this.today,
     required this.busy,
     required this.picked,
     required this.onMonth,
+    required this.onWeek,
+    required this.onFold,
     required this.onPick,
   });
 
   final DateTime month;
+
+  /// When folded to one row: that week's Monday.
+  final DateTime? week;
+  final ValueChanged<DateTime> onWeek;
+  final VoidCallback onFold;
   final DateTime today;
   final Set<DateTime> busy;
   final DateTime? picked;
@@ -426,9 +482,17 @@ final class _MonthGrid extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final material = MaterialLocalizations.of(context);
-    final first = DateTime(month.year, month.month);
+    final week = this.week;
+    final first = week ?? DateTime(month.year, month.month);
     final days = DateUtils.getDaysInMonth(month.year, month.month);
     final lead = first.weekday - 1;
+    Widget cell(DateTime day) => _DayCell(
+      day: day,
+      today: today,
+      busy: busy.contains(day),
+      picked: picked == day,
+      onTap: onPick,
+    );
     final cells = <Widget>[
       for (final w in _weekdays)
         Center(
@@ -441,15 +505,14 @@ final class _MonthGrid extends StatelessWidget {
             ),
           ),
         ),
-      for (var i = 0; i < lead; i++) const SizedBox.shrink(),
-      for (var d = 1; d <= days; d++)
-        _DayCell(
-          day: DateTime(month.year, month.month, d),
-          today: today,
-          busy: busy.contains(DateTime(month.year, month.month, d)),
-          picked: picked == DateTime(month.year, month.month, d),
-          onTap: onPick,
-        ),
+      if (week != null)
+        for (var d = 0; d < 7; d++)
+          cell(DateTime(week.year, week.month, week.day + d))
+      else ...[
+        for (var i = 0; i < lead; i++) const SizedBox.shrink(),
+        for (var d = 1; d <= days; d++)
+          cell(DateTime(month.year, month.month, d)),
+      ],
     ];
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -460,10 +523,11 @@ final class _MonthGrid extends StatelessWidget {
             Row(
               children: [
                 IconButton(
-                  tooltip: 'Previous month',
+                  tooltip: week == null ? 'Previous month' : 'Previous week',
                   icon: const Icon(AppIcons.chevronLeft),
-                  onPressed: () =>
-                      onMonth(DateTime(month.year, month.month - 1)),
+                  onPressed: () => week == null
+                      ? onMonth(DateTime(month.year, month.month - 1))
+                      : onWeek(DateTime(week.year, week.month, week.day - 7)),
                 ),
                 Expanded(
                   child: Text(
@@ -473,10 +537,21 @@ final class _MonthGrid extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Next month',
+                  tooltip: week == null ? 'Next month' : 'Next week',
                   icon: const Icon(AppIcons.chevron),
-                  onPressed: () =>
-                      onMonth(DateTime(month.year, month.month + 1)),
+                  onPressed: () => week == null
+                      ? onMonth(DateTime(month.year, month.month + 1))
+                      : onWeek(DateTime(week.year, week.month, week.day + 7)),
+                ),
+                IconButton(
+                  key: const ValueKey('calendar-fold'),
+                  tooltip: week == null ? 'Show one week' : 'Show the month',
+                  icon: AnimatedRotation(
+                    turns: week == null ? 0.5 : 0,
+                    duration: CitusMotion.of(context, CitusMotion.fold),
+                    child: const Icon(AppIcons.expand),
+                  ),
+                  onPressed: onFold,
                 ),
               ],
             ),
