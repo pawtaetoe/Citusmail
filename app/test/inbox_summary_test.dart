@@ -394,7 +394,9 @@ void main() {
 
     // Deliveries: the page.
     await tester.tap(piece('Parcel arriving today'));
-    await tester.pumpAndSettle();
+    // Its rows shimmer while it reads (in another isolate): no settling.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(DeliveriesPage), findsOneWidget);
     navigator().pop();
     await tester.pumpAndSettle();

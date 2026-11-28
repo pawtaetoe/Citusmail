@@ -10,6 +10,7 @@ import 'package:citusmail/src/features/found/ui/booking_text.dart';
 import 'package:citusmail/src/features/inbox/state/mail_controller.dart';
 import 'package:citusmail/src/features/reader/ui/email_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_sort/mail_sort.dart';
@@ -319,6 +320,179 @@ void main() {
       );
     });
 
+    Finder cells() => find.byWidgetPredicate(
+      (w) =>
+          w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('calendar-cell-'),
+    );
+    Finder chips() => find.byWidgetPredicate(
+      (w) =>
+          w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('calendar-chip-'),
+    );
+    final monthPane = find.byKey(const ValueKey('calendar-month-pane'));
+    Finder cell(DateTime day) =>
+        find.byKey(ValueKey('calendar-cell-${day.toIso8601String()}'));
+
+    /// The month with [day] in it.
+    Future<void> monthOf(WidgetTester tester, DateTime day) async {
+      final now = DateTime.now();
+      if (day.month != now.month) {
+        await tester.tap(find.byTooltip('Next month'));
+        await tester.pumpAndSettle();
+      }
+    }
+
+    testWidgets('a phone: the week, then what is on, in one column', (
+      tester,
+    ) async {
+      seedEvents(app.store, now: DateTime.now().toUtc());
+      await open(tester, size: const Size(400, 844));
+      expect(find.byKey(const ValueKey('calendar-panes')), findsNothing);
+      expect(monthPane, findsNothing);
+      expect(cells(), findsNWidgets(7));
+      expect(chips(), findsNothing);
+      expect(find.byKey(const ValueKey('calendar-fold')), findsOneWidget);
+      // The week sits in the list, above what is coming up.
+      final grid = tester.getRect(find.byType(Card).first);
+      final tomorrow = tester.getRect(find.text('Tomorrow'));
+      expect(grid.bottom, lessThan(tomorrow.top));
+      expect(
+        find.descendant(of: list, matching: cell(_today())),
+        findsOneWidget,
+      );
+      // The column a page has, centred.
+      expect(tester.getRect(list).width, 400);
+    });
+
+    testWidgets('1400 wide: the month beside what is on', (tester) async {
+      final now = DateTime.now();
+      seedEvents(app.store, now: now.toUtc());
+      await open(tester, size: const Size(1400, 900));
+      expect(tester.takeException(), isNull);
+      final month = tester.getRect(monthPane);
+      final agenda = tester.getRect(list);
+      // Side by side, both in view, using the width.
+      expect(month.right, lessThanOrEqualTo(agenda.left));
+      expect(month.top, agenda.top);
+      expect(month.width, greaterThan(500));
+      expect(agenda.width, greaterThan(320));
+      expect(agenda.right, lessThanOrEqualTo(1400));
+      expect(month.left, greaterThanOrEqualTo(0));
+      expect(
+        cells(),
+        findsNWidgets(DateUtils.getDaysInMonth(now.year, now.month)),
+      );
+      expect(find.byKey(const ValueKey('calendar-fold')), findsNothing);
+      expect(find.text('Design review'), findsWidgets);
+      // Roomier days than a phone's.
+      expect(tester.getSize(cell(_today())).height, greaterThan(40));
+
+      // The agenda scrolls on its own; the month stays.
+      final before = tester.getRect(monthPane);
+      await tester.drag(list, const Offset(0, -300));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(monthPane), before);
+      await tester.drag(list, const Offset(0, 3000));
+      await tester.pumpAndSettle();
+
+      // A day picked: only it is listed, beside the month.
+      final tomorrow = DateTime(now.year, now.month, now.day + 1);
+      await monthOf(tester, tomorrow);
+      await tester.tap(cell(tomorrow));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: list, matching: find.text('Design review')),
+        findsOneWidget,
+      );
+      expect(find.text('Guided Factory Tour'), findsNothing);
+      expect(find.byTooltip('Show every day'), findsOneWidget);
+
+      // Arrow keys go from day to day.
+      FocusNode focusOf(DateTime day) => Focus.of(
+        tester.element(
+          find.descendant(of: cell(day), matching: find.byType(Ink)).first,
+        ),
+      );
+      final day = DateTime(now.year, now.month, 10);
+      if (tomorrow.month != now.month) {
+        await tester.tap(find.byTooltip('Previous month'));
+        await tester.pumpAndSettle();
+      }
+      focusOf(day).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(focusOf(day.add(const Duration(days: 1))).hasFocus, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(focusOf(day.add(const Duration(days: 8))).hasFocus, isTrue);
+    });
+
+    testWidgets('1600 wide: what is on each day in the month, to open', (
+      tester,
+    ) async {
+      final now = DateTime.now();
+      seedEvents(app.store, now: now.toUtc());
+      await open(tester, size: const Size(1600, 1000));
+      expect(tester.takeException(), isNull);
+      // The whole thing to 1400, centred.
+      final panes = tester.getRect(
+        find.byKey(const ValueKey('calendar-panes')),
+      );
+      expect(panes.width, lessThanOrEqualTo(1400));
+      expect(panes.center.dx, closeTo(800, 1));
+      final tomorrow = DateTime(now.year, now.month, now.day + 1);
+      await monthOf(tester, tomorrow);
+      expect(chips(), findsWidgets);
+      final review = find.descendant(
+        of: monthPane,
+        matching: find.ancestor(
+          of: find.text('Design review'),
+          matching: chips(),
+        ),
+      );
+      expect(review, findsOneWidget);
+      // In tomorrow's cell.
+      expect(
+        tester.getRect(cell(tomorrow)).contains(tester.getCenter(review)),
+        isTrue,
+      );
+      // Tapping it opens the email it came from.
+      await tester.tap(review);
+      await settle(tester);
+      expect(find.byType(EmailPage), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(CalendarView), findsOneWidget);
+    });
+
+    testWidgets('wide, dark and with larger text, it still fits', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      seedAll(DateTime.now().toUtc());
+      for (final size in const [Size(900, 700), Size(1300, 800)]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: CitusmailTheme.light(),
+            darkTheme: CitusmailTheme.dark(),
+            themeMode: ThemeMode.dark,
+            home: CalendarPage(controller: MailController(app.services)),
+          ),
+        );
+        await settle(tester);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: '$size');
+        expect(monthPane, findsOneWidget, reason: '$size');
+        await tester.pumpWidget(const SizedBox());
+      }
+      addTearDown(tester.view.reset);
+    });
+
     testWidgets('nothing found', (tester) async {
       await open(tester);
       expect(find.text('Nothing on the calendar'), findsOneWidget);
@@ -332,4 +506,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+}
+
+DateTime _today() {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
 }

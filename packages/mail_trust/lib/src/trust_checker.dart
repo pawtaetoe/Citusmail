@@ -24,7 +24,7 @@ final class TrustContext {
   final String? trustedAuthServId;
 
   /// Registrable domains of the user's own addresses, to spot lookalikes
-  /// such as `tommykunq.cc` for `tommykung.cc`.
+  /// such as `foqlane.cc` for `foglane.cc`.
   final Set<String> ownDomains;
 }
 

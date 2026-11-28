@@ -577,6 +577,137 @@ final class _RingPainter extends CustomPainter {
       old.left != left || old.color != color;
 }
 
+// ------------------------------------------------------------- tabs
+
+/// Phones: the tab shown, changing with a Material fade-through when
+/// [tab] changes. The tab left fades out over the first third (as it was
+/// painted last: its content may already be another tab's), then the new
+/// one fades in while it grows from 92%. Instant when the system asks for
+/// less motion.
+///
+/// Only [child] is built: the tab left is a picture, so nothing of it
+/// runs (or loads) twice, and no tab is held up by the transition.
+final class TabFadeThrough extends StatefulWidget {
+  const TabFadeThrough({super.key, required this.tab, required this.child});
+
+  /// The tab shown; the transition runs when it changes.
+  final Object tab;
+  final Widget child;
+
+  /// How much of the transition is the tab left fading out.
+  static const outgoing = 0.35;
+
+  @override
+  State<TabFadeThrough> createState() => _TabFadeThroughState();
+}
+
+final class _TabFadeThroughState extends State<TabFadeThrough>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _progress = AnimationController(
+    vsync: this,
+    duration: CitusMotion.medium,
+    value: 1,
+  )..addStatusListener(_status);
+  late final _fadeIn = CurvedAnimation(
+    parent: _progress,
+    curve: const Interval(
+      TabFadeThrough.outgoing,
+      1,
+      curve: CitusMotion.standard,
+    ),
+  );
+  late final _scaleIn = Tween<double>(begin: 0.92, end: 1).animate(_fadeIn);
+  late final _out = CurvedAnimation(
+    parent: _progress,
+    curve: const Interval(
+      0,
+      TabFadeThrough.outgoing,
+      curve: CitusMotion.standard,
+    ),
+  );
+  late final _fadeOut = ReverseAnimation(_out);
+  final _shown = GlobalKey();
+
+  /// The tab left, as it was painted last, while it fades out.
+  ui.Image? _last;
+
+  void _status(AnimationStatus status) {
+    if (status.isCompleted) _dropLast();
+    if (mounted) setState(() {});
+  }
+
+  void _dropLast() {
+    _last?.dispose();
+    _last = null;
+  }
+
+  @override
+  void didUpdateWidget(TabFadeThrough old) {
+    super.didUpdateWidget(old);
+    if (old.tab == widget.tab) return;
+    _dropLast();
+    if (CitusMotion.reduced(context)) {
+      _progress.value = 1;
+      return;
+    }
+    _last = _snapshot();
+    _progress.forward(from: 0);
+  }
+
+  /// The tab as painted last, before it is replaced.
+  ui.Image? _snapshot() {
+    final boundary = _shown.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || !boundary.hasSize) return null;
+    try {
+      return boundary.toImageSync(
+        pixelRatio: MediaQuery.devicePixelRatioOf(context),
+      );
+    } on Object {
+      // Not painted yet, or changing: the new tab fades in on its own.
+      return null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _dropLast();
+    _out.dispose();
+    _fadeIn.dispose();
+    _progress.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.passthrough,
+    children: [
+      // Gone (transparent) after the first third; dropped at the end.
+      if (_last case final last?)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: RawImage(
+              key: const ValueKey('tab-as-it-was'),
+              image: last,
+              fit: BoxFit.fill,
+              opacity: _fadeOut,
+            ),
+          ),
+        ),
+      RepaintBoundary(
+        key: _shown,
+        child: FadeTransition(
+          opacity: _fadeIn,
+          child: ScaleTransition(
+            scale: _scaleIn,
+            // A new tab is a new subtree: nothing of the one left is kept.
+            child: KeyedSubtree(key: ValueKey(widget.tab), child: widget.child),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
 // ------------------------------------------------------- small touches
 
 /// Gives a little (to 98%) while pressed, like a real button.

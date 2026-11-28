@@ -8,7 +8,7 @@ import 'dart:math';
 import '../database/mail_database.dart';
 import 'app_data_sync_repository.dart';
 
-/// Text put at the end of a message ("Best regards, Tommy"): what other
+/// Text put at the end of a message ("Best regards, Robin"): what other
 /// apps call a signature.
 final class SignOff {
   const SignOff({

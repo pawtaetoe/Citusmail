@@ -49,19 +49,19 @@ VerificationResult mismatch(
 }) => VerificationResult.failure(
   role,
   VerificationProblem.certificate,
-  'TLS with mail.tommykung.cc failed: Hostname mismatch',
+  'TLS with mail.foglane.cc failed: Hostname mismatch',
   tlsFailure: TlsFailure.hostnameMismatch,
   certificate: certificate,
 );
 
 DiscoveredSettings settings({
-  String imap = 'mail.tommykung.cc',
-  String smtp = 'mail.tommykung.cc',
+  String imap = 'mail.foglane.cc',
+  String smtp = 'mail.foglane.cc',
 }) => DiscoveredSettings(
-  email: 'me@tommykung.cc',
+  email: 'me@foglane.cc',
   imap: ServerCandidate(imap, 993, ConnectionSecurity.implicitTls),
   smtp: ServerCandidate(smtp, 465, ConnectionSecurity.implicitTls),
-  username: 'me@tommykung.cc',
+  username: 'me@foglane.cc',
   source: DiscoverySource.manual,
 );
 
@@ -121,18 +121,18 @@ void main() {
     });
 
     test('parses A and AAAA answers, after a CNAME', () {
-      final data = reply(7, 'mail.tommykung.cc', 1, [
-        (5, labels('tommykung.cc')), // CNAME
+      final data = reply(7, 'mail.foglane.cc', 1, [
+        (5, labels('foglane.cc')), // CNAME
         (1, [209, 74, 67, 125]),
         (1, [1, 2, 3]), // malformed: skipped
       ]);
-      expect(DnsMessage.parseAddressAnswer(data, 7, 'mail.tommykung.cc'), [
+      expect(DnsMessage.parseAddressAnswer(data, 7, 'mail.foglane.cc'), [
         namecheap,
       ]);
-      final v6 = reply(8, 'mail.tommykung.cc', 28, [
+      final v6 = reply(8, 'mail.foglane.cc', 28, [
         (28, InternetAddress('2001:db8::1').rawAddress),
       ]);
-      expect(DnsMessage.parseAddressAnswer(v6, 8, 'mail.tommykung.cc'), [
+      expect(DnsMessage.parseAddressAnswer(v6, 8, 'mail.foglane.cc'), [
         InternetAddress('2001:db8::1'),
       ]);
     });
@@ -147,7 +147,7 @@ void main() {
     setUp(() {
       resolver = _FakeResolver(
         addresses: {
-          'mail.tommykung.cc': [namecheap],
+          'mail.foglane.cc': [namecheap],
         },
         ptr: {
           namecheap: ['business905-5.web-hosting.com.'],
@@ -177,9 +177,9 @@ void main() {
     });
 
     test('for the outgoing server only, when only it fails', () async {
-      resolver.addresses['smtp.tommykung.cc'] = [namecheap];
+      resolver.addresses['smtp.foglane.cc'] = [namecheap];
       final name = await finder().find(
-        settings(imap: 'imap.provider.example', smtp: 'smtp.tommykung.cc'),
+        settings(imap: 'imap.provider.example', smtp: 'smtp.foglane.cc'),
         mismatch(webHosting(), role: ServerRole.smtp),
       );
       expect(name, 'business905-5.web-hosting.com');

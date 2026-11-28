@@ -451,7 +451,7 @@ void main() {
       OAuthProvider.forDomain('hotmail.co.uk'),
       same(OAuthProvider.microsoft),
     );
-    expect(OAuthProvider.forDomain('tommykung.cc'), isNull);
+    expect(OAuthProvider.forDomain('foglane.cc'), isNull);
     expect(OAuthProvider.microsoft.scopes, contains('offline_access'));
   });
 

@@ -8,25 +8,25 @@ import 'package:mail_protocol/mail_protocol.dart';
 import 'package:mail_setup/mail_setup.dart';
 import 'package:test/test.dart';
 
-/// What cPanel served for tommykung.cc (over plain HTTP only).
+/// What cPanel served for foglane.cc (over plain HTTP only).
 const cpanelXml = '''<?xml version="1.0"?>
 <clientConfig version="1.1">
-    <emailProvider id="tommykung.cc">
-        <domain>tommykung.cc</domain>
-        <displayName>me@tommykung.cc</displayName>
+    <emailProvider id="foglane.cc">
+        <domain>foglane.cc</domain>
+        <displayName>me@foglane.cc</displayName>
         <incomingServer type="imap">
-            <hostname>tommykung.cc</hostname>
+            <hostname>foglane.cc</hostname>
             <port>993</port>
             <socketType>SSL</socketType>
             <authentication>password-cleartext</authentication>
-            <username>me@tommykung.cc</username>
+            <username>me@foglane.cc</username>
         </incomingServer>
         <outgoingServer type="smtp">
-            <hostname>tommykung.cc</hostname>
+            <hostname>foglane.cc</hostname>
             <port>465</port>
             <socketType>SSL</socketType>
             <authentication>password-cleartext</authentication>
-            <username>me@tommykung.cc</username>
+            <username>me@foglane.cc</username>
         </outgoingServer>
     </emailProvider>
 </clientConfig>''';
@@ -137,17 +137,17 @@ void main() {
   group('AutoconfigParser', () {
     const parser = AutoconfigParser();
 
-    test('the real cPanel file for tommykung.cc', () {
+    test('the real cPanel file for foglane.cc', () {
       final (s, problem) = parser.parse(
         cpanelXml,
-        'me@tommykung.cc',
+        'me@foglane.cc',
         DiscoverySource.httpAutoconfig,
       );
       expect(problem, isNull);
       expect(
         s!.imap,
         const ServerCandidate(
-          'tommykung.cc',
+          'foglane.cc',
           993,
           ConnectionSecurity.implicitTls,
         ),
@@ -155,12 +155,12 @@ void main() {
       expect(
         s.smtp,
         const ServerCandidate(
-          'tommykung.cc',
+          'foglane.cc',
           465,
           ConnectionSecurity.implicitTls,
         ),
       );
-      expect(s.username, 'me@tommykung.cc');
+      expect(s.username, 'me@foglane.cc');
       expect(s.warnings, [
         SetupWarning.unauthenticatedSource,
       ], reason: 'came over HTTP; servers are inside the domain');
@@ -220,12 +220,12 @@ void main() {
         );
       }
       final badHost = cpanelXml.replaceAll(
-        '<hostname>tommykung.cc</hostname>',
+        '<hostname>foglane.cc</hostname>',
         '<hostname>evil host</hostname>',
       );
       expect(
         parser
-            .parse(badHost, 'me@tommykung.cc', DiscoverySource.httpAutoconfig)
+            .parse(badHost, 'me@foglane.cc', DiscoverySource.httpAutoconfig)
             .$1,
         isNull,
       );
@@ -239,12 +239,12 @@ void main() {
       );
       expect(s!.warnings, isNot(contains(SetupWarning.serverOutsideDomain)));
       final outside = cpanelXml.replaceAll(
-        '<hostname>tommykung.cc</hostname>',
+        '<hostname>foglane.cc</hostname>',
         '<hostname>attacker.example</hostname>',
       );
       expect(
         parser
-            .parse(outside, 'me@tommykung.cc', DiscoverySource.httpAutoconfig)
+            .parse(outside, 'me@foglane.cc', DiscoverySource.httpAutoconfig)
             .$1!
             .warnings,
         containsAll([
@@ -253,11 +253,11 @@ void main() {
         ]),
       );
       expect(
-        DiscoveredSettings.isWithinDomain('mail.tommykung.cc', 'tommykung.cc'),
+        DiscoveredSettings.isWithinDomain('mail.foglane.cc', 'foglane.cc'),
         isTrue,
       );
       expect(
-        DiscoveredSettings.isWithinDomain('nottommykung.cc', 'tommykung.cc'),
+        DiscoveredSettings.isWithinDomain('notfoglane.cc', 'foglane.cc'),
         isFalse,
       );
     });
@@ -467,9 +467,9 @@ void main() {
       'tries sources in order; the address goes only to the domain',
       () async {
         final fetcher = _FakeFetcher({
-          'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': cpanelXml,
+          'http://autoconfig.foglane.cc/mail/config-v1.1.xml': cpanelXml,
         });
-        final prober = _FakeProber(available: {'tommykung.cc'});
+        final prober = _FakeProber(available: {'foglane.cc'});
         final steps = <DiscoveryStep>[];
         final result =
             await AccountDiscovery(
@@ -477,12 +477,12 @@ void main() {
               srv: const NoSrvResolver(),
               prober: prober,
             ).discover(
-              'me@tommykung.cc',
+              'me@foglane.cc',
               askMozillaConsent: (d) async => true,
               onStep: steps.add,
             );
         expect(result.settings!.source, DiscoverySource.httpAutoconfig);
-        expect(result.settings!.imap.host, 'tommykung.cc');
+        expect(result.settings!.imap.host, 'foglane.cc');
         expect(steps, [
           DiscoveryStep.providerFileSecure,
           DiscoveryStep.mozillaDatabase,
@@ -490,15 +490,15 @@ void main() {
           DiscoveryStep.providerFileUnencrypted,
         ]);
         expect(fetcher.requested.map((u) => u.toString()), [
-          'https://autoconfig.tommykung.cc/mail/config-v1.1.xml?emailaddress=me%40tommykung.cc',
-          'https://tommykung.cc/.well-known/autoconfig/mail/config-v1.1.xml',
-          'https://autoconfig.thunderbird.net/v1.1/tommykung.cc',
-          'http://autoconfig.tommykung.cc/mail/config-v1.1.xml',
+          'https://autoconfig.foglane.cc/mail/config-v1.1.xml?emailaddress=me%40foglane.cc',
+          'https://foglane.cc/.well-known/autoconfig/mail/config-v1.1.xml',
+          'https://autoconfig.thunderbird.net/v1.1/foglane.cc',
+          'http://autoconfig.foglane.cc/mail/config-v1.1.xml',
         ]);
         // The address only over HTTPS, and only to the domain itself.
         for (final uri in fetcher.requested) {
-          final carriesAddress = uri.toString().contains('me%40tommykung.cc');
-          if (uri.host.endsWith('tommykung.cc') && uri.scheme == 'https') {
+          final carriesAddress = uri.toString().contains('me%40foglane.cc');
+          if (uri.host.endsWith('foglane.cc') && uri.scheme == 'https') {
             continue;
           }
           expect(carriesAddress, isFalse, reason: uri.toString());
@@ -749,19 +749,19 @@ void main() {
 
     test('unencrypted settings are only used if their servers have valid certificates', () async {
       final fetcher = _FakeFetcher({
-        'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': cpanelXml,
+        'http://autoconfig.foglane.cc/mail/config-v1.1.xml': cpanelXml,
       });
       final result = await AccountDiscovery(
         fetcher: fetcher,
         srv: const NoSrvResolver(),
-        prober: _FakeProber(available: {'mail.tommykung.cc'}),
-      ).discover('me@tommykung.cc');
+        prober: _FakeProber(available: {'mail.foglane.cc'}),
+      ).discover('me@foglane.cc');
       expect(
         result.settings!.source,
         DiscoverySource.probed,
         reason: 'HTTP answer failed the TLS check, probing found another',
       );
-      expect(result.settings!.imap.host, 'mail.tommykung.cc');
+      expect(result.settings!.imap.host, 'mail.foglane.cc');
     });
 
     test(
@@ -770,28 +770,28 @@ void main() {
         // Someone on the network answers the plain-HTTP request with a file
         // naming their own server (with a valid certificate of its own).
         final hijacked = cpanelXml.replaceAll(
-          '<hostname>tommykung.cc</hostname>',
+          '<hostname>foglane.cc</hostname>',
           '<hostname>imap.attacker.example</hostname>',
         );
         final fetcher = _FakeFetcher({
-          'http://autoconfig.tommykung.cc/mail/config-v1.1.xml': hijacked,
+          'http://autoconfig.foglane.cc/mail/config-v1.1.xml': hijacked,
         });
         final result = await AccountDiscovery(
           fetcher: fetcher,
           srv: const NoSrvResolver(),
           mx: _FakeMx({
-            'tommykung.cc': [const MxRecord(10, 'mail.tommykung.cc.')],
+            'foglane.cc': [const MxRecord(10, 'mail.foglane.cc.')],
           }),
           prober: _FakeProber(
-            available: {'imap.attacker.example', 'mail.tommykung.cc'},
+            available: {'imap.attacker.example', 'mail.foglane.cc'},
           ),
-        ).discover('me@tommykung.cc');
+        ).discover('me@foglane.cc');
         expect(
           result.settings!.source,
           DiscoverySource.probed,
           reason: 'the file was thrown away; probing found the real server',
         );
-        expect(result.settings!.imap.host, 'mail.tommykung.cc');
+        expect(result.settings!.imap.host, 'mail.foglane.cc');
       },
     );
 
@@ -800,10 +800,10 @@ void main() {
       // and the hoster's file names its own servers.
       final hosted = cpanelXml
           .replaceAll(
-            '<hostname>tommykung.cc</hostname>',
+            '<hostname>foglane.cc</hostname>',
             '<hostname>mail.privateemail.example</hostname>',
           )
-          .replaceAll('tommykung.cc', 'shop.co.uk');
+          .replaceAll('foglane.cc', 'shop.co.uk');
       final result = await AccountDiscovery(
         fetcher: _FakeFetcher({
           'http://autoconfig.shop.co.uk/mail/config-v1.1.xml': hosted,

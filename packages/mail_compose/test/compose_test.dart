@@ -887,7 +887,7 @@ void main() {
     setUp(() {
       work = store.signOffs.add(
         name: 'Work',
-        text: 'Best regards,\nTommy Kung\nFluminaris',
+        text: 'Best regards,\nRobin Vale\nFluminaris',
       );
     });
 
@@ -900,7 +900,7 @@ void main() {
         draft.text,
         startsWith(
           'Sounds good, see you then.\n\n'
-          'Best regards,\nTommy Kung\nFluminaris\n\n'
+          'Best regards,\nRobin Vale\nFluminaris\n\n'
           'On ',
         ),
       );
@@ -908,7 +908,7 @@ void main() {
       expect(Draft(accountId: alice.id, body: 'Hi\n').text, 'Hi\n');
       expect(
         Draft(accountId: alice.id, signOff: work).text,
-        'Best regards,\nTommy Kung\nFluminaris',
+        'Best regards,\nRobin Vale\nFluminaris',
       );
     });
 
@@ -943,11 +943,11 @@ void main() {
       expect(
         sent(work),
         'Attached are the numbers.\n\n'
-        'Best regards,\nTommy Kung\nFluminaris',
+        'Best regards,\nRobin Vale\nFluminaris',
       );
       expect(
-        sent(SignOff.oneOff(text: 'Tommy', separator: true)),
-        'Attached are the numbers.\n\n-- \nTommy',
+        sent(SignOff.oneOff(text: 'Robin', separator: true)),
+        'Attached are the numbers.\n\n-- \nRobin',
       );
     });
 
@@ -1042,7 +1042,7 @@ void main() {
 
       test('one for this email only', () {
         final oneOff = SignOff.oneOff(
-          text: 'Thanks so much,\nTommy',
+          text: 'Thanks so much,\nRobin',
           separator: true,
         );
         final draft = reply(signOff: oneOff);
@@ -1058,7 +1058,7 @@ void main() {
         final draft = Draft(
           accountId: alice.id,
           to: [a('bob@x.example')],
-          body: 'Yes!\n\nBest regards,\nTommy Kung\nFluminaris',
+          body: 'Yes!\n\nBest regards,\nRobin Vale\nFluminaris',
         );
         final reopened = roundTrip(draft);
         expect(reopened.signOff, isNull);
@@ -1067,7 +1067,7 @@ void main() {
 
       test('a saved one changed since stays as it was in the draft', () {
         final draft = reply(signOff: work);
-        store.signOffs.update(work.copyWith(text: 'Best,\nTommy'));
+        store.signOffs.update(work.copyWith(text: 'Best,\nRobin'));
         final reopened = roundTrip(draft);
         expect(reopened.body, 'Yes!');
         expect(reopened.signOff!.text, work.text);
@@ -1121,19 +1121,19 @@ void main() {
       final known = [work];
       // In the middle of a sentence it is just text.
       final inline = Draft.split(
-        'I wrote Best regards,\nTommy Kung\nFluminarisX',
+        'I wrote Best regards,\nRobin Vale\nFluminarisX',
         known,
       );
       expect(inline.signOff, isNull);
-      expect(inline.body, 'I wrote Best regards,\nTommy Kung\nFluminarisX');
+      expect(inline.body, 'I wrote Best regards,\nRobin Vale\nFluminarisX');
       // Quoted ("> Best regards,") it isn't the user's own.
       final quoted = Draft.split(
-        'Hi\n\n> Best regards,\n> Tommy Kung\n> Fluminaris',
+        'Hi\n\n> Best regards,\n> Robin Vale\n> Fluminaris',
         known,
       );
       expect(quoted.signOff, isNull);
       final found = Draft.split(
-        'Hi\n\nBest regards,\nTommy Kung\nFluminaris\n\nOn Mon, Bob wrote:\n> x',
+        'Hi\n\nBest regards,\nRobin Vale\nFluminaris\n\nOn Mon, Bob wrote:\n> x',
         known,
       );
       expect(found.body, 'Hi');

@@ -1336,24 +1336,24 @@ void main() {
         findHostingServer: (s, r) async => 'business905-5.web-hosting.com',
       );
       await controller.start(
-        email: 'me@tommykung.cc',
+        email: 'me@foglane.cc',
         password: 'pw',
         askMozillaConsent: (_) async => false,
       );
       await controller.useSettings(
         DiscoveredSettings(
-          email: 'me@tommykung.cc',
+          email: 'me@foglane.cc',
           imap: const ServerCandidate(
-            'mail.tommykung.cc',
+            'mail.foglane.cc',
             993,
             ConnectionSecurity.implicitTls,
           ),
           smtp: const ServerCandidate(
-            'mail.tommykung.cc',
+            'mail.foglane.cc',
             465,
             ConnectionSecurity.implicitTls,
           ),
-          username: 'me@tommykung.cc',
+          username: 'me@foglane.cc',
           source: DiscoverySource.manual,
         ),
       );
