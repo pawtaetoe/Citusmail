@@ -14,6 +14,7 @@ final class SyncSettings {
     this.fetchBatch = 100,
     this.backfillBatch = 500,
     this.connections = 3,
+    this.writeBatch = 25,
   });
 
   /// Newest messages downloaded on a folder's first sync. Older ones
@@ -21,8 +22,13 @@ final class SyncSettings {
   /// [KeepMail] says; and on demand with [MailboxSynchronizer.fetchOlder].
   final int initialWindow;
 
-  /// Messages per FETCH and per stored transaction.
+  /// Messages per FETCH.
   final int fetchBatch;
+
+  /// Summaries per stored transaction, with a pause between them: while
+  /// the sync writes, a write from the screen (marking read, archiving)
+  /// waits for one of them at most, never for a whole FETCH.
+  final int writeBatch;
 
   /// Older messages downloaded per folder per sync, until the folder
   /// reaches back to [KeepMail]'s date.
@@ -147,6 +153,10 @@ final class MailboxSynchronizer {
 
   /// Message-IDs removed during the current sync.
   List<String> _gone = [];
+
+  /// The pause between two stored transactions of one FETCH, so another
+  /// connection waiting to write gets its turn.
+  static const writePause = Duration(milliseconds: 1);
 
   /// Most Message-IDs of removed messages a sync reports.
   static const maxNotedRemovals = 500;
@@ -611,7 +621,17 @@ final class MailboxSynchronizer {
         for (final m in fetched.messages)
           ?_mapper.map(m, mailboxUse: mailbox.specialUse),
       ];
-      _store.messages.upsertSummaries(mailbox.id, summaries);
+      final step = settings.writeBatch < 1 ? 1 : settings.writeBatch;
+      for (var j = 0; j < summaries.length; j += step) {
+        if (j > 0) await Future<void>.delayed(writePause);
+        _store.messages.upsertSummaries(
+          mailbox.id,
+          summaries.sublist(
+            j,
+            j + step > summaries.length ? summaries.length : j + step,
+          ),
+        );
+      }
       stored += summaries.length;
     }
     return stored;
