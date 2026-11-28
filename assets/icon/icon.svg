@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Citusmail app icon: a forward-leaning envelope ("citus" is Latin for
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Citusmail app icon: a forward-leaning envelope ("citus" is Latin for
      fast) with a citrus flap, on a flat lagoon tile, in the app's own
      colours (CitusPalette: lagoon #0F7A69, citrus #F4B740). The fold is a
      gap, not a line, so the envelope also reads in one colour (Android's
      themed icon). tool/make_icons.py draws the same shapes. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
     <clipPath id="envelope">
       <rect x="140" y="156" width="232" height="200" rx="30"/>
