@@ -1,26 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Adaptive icon foreground: a forward-leaning envelope with citrus speed
-     lines ("citus" is Latin for fast), inside the 66dp safe zone. Drawn
-     from assets/icon/icon.svg. -->
+<!-- Adaptive icon foreground (also the themed icon): a forward-leaning
+     envelope with a citrus flap, inside the 66dp safe zone. Written by
+     tool/make_icons.py from the shapes of assets/icon/icon.svg. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M49.11,40.53L78.41,40.53Q82.21,40.53 81.26,44.34L76.44,63.66Q75.49,67.47 71.68,67.47L42.39,67.47Q38.58,67.47 39.53,63.66L44.36,44.34Q45.30,40.53 49.11,40.53z"/>
-    <path
-        android:strokeColor="#FF0F7A69"
-        android:strokeWidth="3.22"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M46.92,43.46L60.03,55.47L79.14,43.46"/>
-    <path
-        android:strokeColor="#FFF4B740"
-        android:strokeWidth="3.22"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M30.34,47.26L39.72,47.26M27.41,54.00L38.55,54.00M30.34,60.74L36.79,60.74"/>
+    <group>
+        <clip-path android:pathData="M44.84,39.00L70.64,39.00C73.12,39.00 74.64,41.01 74.02,43.50L68.78,64.50C68.16,66.99 65.65,69.00 63.16,69.00L37.36,69.00C34.88,69.00 33.36,66.99 33.98,64.50L39.22,43.50C39.84,41.01 42.35,39.00 44.84,39.00Z"/>
+        <path
+            android:fillColor="#FFF4B740"
+            android:pathData="M36.43,30.60L83.23,30.60L82.22,34.65L54.26,52.95L35.42,34.65Z"/>
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M34.00,40.35L52.84,58.65L80.80,40.35L72.02,75.60L25.22,75.60Z"/>
+    </group>
 </vector>
